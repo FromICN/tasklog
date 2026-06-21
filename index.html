@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskLog</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234F6EF7'>TL</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="profile-modal.css">
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script src="https://accounts.google.com/gsi/client"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ===== 66px 사이드바 ===== -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- 상단 아바타 (로그인 프로필) -->
+    <div class="sidebar-top">
+      <div class="avatar-circle" id="sidebar-avatar" title="프로필 / 로그인" onclick="openProfilePanel()">M</div>
+    </div>
+
+    <!-- 메뉴 -->
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <!-- JS로 채워짐 -->
+    </nav>
+
+    <!-- 하단: 설정 -->
+    <div class="sidebar-bottom">
+      <button class="nav-item" id="settings-nav-btn" title="설정" onclick="openSettings()">
+        <span class="nav-item-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </span>
+        <span class="nav-item-label">설정</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===== 중앙 + 오른쪽 패널 래퍼 ===== -->
+  <div class="content-wrapper">
+
+    <!-- 메인 콘텐츠 -->
+    <main class="main-content" id="main-content">
+
+      <!-- 탑바 -->
+      <div class="topbar" id="topbar">
+        <div class="topbar-left">
+          <div class="topbar-title" id="topbar-title">홈</div>
+        </div>
+        <div class="topbar-right" id="topbar-right">
+          <div class="topbar-date" id="topbar-date"></div>
+          <!-- 만다라트 연도 선택 슬롯 -->
+          <div class="topbar-mdt-year-slot" id="topbar-mdt-year-slot"></div>
+          <!-- 다크모드 토글 -->
+          <button class="btn-icon" id="dark-toggle-btn" title="다크 모드 전환" onclick="toggleDarkMode()">🌙</button>
+          <!-- TO-DO(계획된 일정)에서만: 새 Task 버튼 -->
+          <button class="btn-primary" id="new-task-btn" onclick="openNewTaskPanel()" style="display:none;">
+            <span style="font-size:16px;line-height:1">+</span> Task
+          </button>
+        </div>
+      </div>
+
+      <!-- 페이지 콘텐츠 영역 -->
+      <div id="page-content" style="flex:1;overflow-y:auto;">
+        <!-- JS로 채워짐 -->
+      </div>
+
+    </main>
+
+    <!-- ===== 오른쪽 패널 ===== -->
+    <div class="right-panel" id="right-panel">
+      <div class="rp-header">
+        <span class="rp-title" id="rp-title">새 Task 생성</span>
+        <button class="rp-close" onclick="closeRightPanel()">✕</button>
+      </div>
+      <div class="rp-body" id="rp-body">
+        <!-- JS로 채워짐 -->
+      </div>
+      <div class="rp-footer">
+        <button class="btn-primary" onclick="saveRightPanel()">저장</button>
+        <button class="btn-secondary" onclick="closeRightPanel()">취소</button>
+      </div>
+    </div>
+
+  </div><!-- .content-wrapper -->
+
+</div><!-- .app -->
+
+<!-- 날짜 클릭 팝업 (캘린더) -->
+<div class="cal-popup" id="cal-popup" style="display:none;"></div>
+
+<!-- 스크립트 로드 순서 -->
+<script src="config.js"></script>
+<script src="backup-core.js"></script>
+<script src="backup-xlsx.js"></script>
+<script src="auth.js"></script>
+<script src="calendar.js"></script>
+<script src="mandalart.js"></script>
+<script src="lifewheel.js"></script>
+<script src="home.js"></script>
+<script src="gantt.js"></script>
+<script src="notes.js"></script>
+<script src="journal.js"></script>
+<script src="wbs.js"></script>
+<script src="mvv.js"></script>
+<script src="settings.js"></script>
+<script src="drive.js"></script>
+<script src="todo.js"></script>
+<script src="yearsync.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
