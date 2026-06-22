@@ -168,3 +168,28 @@ function downloadBackupJSON(obj, filename) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+
+// ============================================
+//  🔁 저장 자동 감지 → 변경 시각 기록 + 자동 백업 예약
+// --------------------------------------------
+//  모든 페이지의 저장이 localStorage.setItem 을 거치므로,
+//  여기 한 곳에서 백업을 예약하면 페이지마다 빠뜨릴 일이 없다.
+//  (MVV·만다라트·라이프휠 등 저장 후 새로고침 시 유실되던 문제 해결)
+// ============================================
+(function () {
+  if (window.__backupSetItemHooked) return;
+  window.__backupSetItemHooked = true;
+  var _origSetItem = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (key, value) {
+    _origSetItem.apply(this, arguments);
+    try {
+      // localStorage 의 '백업 대상' 키가 바뀐 경우에만 반응
+      if (window.__backupReady && this === window.localStorage && typeof backupKeyInfo === 'function' && backupKeyInfo(key)) {
+        // 원본 호출로 직접 기록(훅 재진입/무한루프 방지)
+        _origSetItem.call(window.localStorage, 'tasklog-last-change', String(Date.now()));
+        if (typeof scheduleAutoBackup === 'function') scheduleAutoBackup();
+      }
+    } catch (e) {}
+  };
+})();

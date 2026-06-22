@@ -383,6 +383,14 @@ async function silentSyncFromDrive() {
       console.log('🔁 이미 최신 상태 — 동기화 불필요');
       return false;
     }
+    // ⛔ 로컬이 드라이브보다 더 최신이면 덮어쓰지 않는다 (아직 백업 안 된 최근 저장분 보호)
+    var _driveTime = Date.parse(backupData.backupDate || '') || 0;
+    var _localChange = parseInt(localStorage.getItem('tasklog-last-change') || '0', 10) || 0;
+    if (_localChange && _driveTime && _localChange > _driveTime) {
+      console.log('🔁 로컬이 더 최신 → 드라이브 덮어쓰기 취소하고 로컬을 백업');
+      if (typeof scheduleAutoBackup === 'function') scheduleAutoBackup();
+      return false;
+    }
     // 드라이브가 원본 → 로컬에 덮어쓰기 (빈 값은 건드리지 않음)
     applyBackupData(backupData);
     console.log('🔁 드라이브 내용을 불러와 로컬에 반영함');
@@ -422,10 +430,12 @@ async function onSignInSync() {
     // 변화 없음(또는 이미 동기화함) → 이제부터 자동 백업 ON
     sessionStorage.setItem('tasklog-synced', '1');
     enableAutoBackupNow();
+    window.__backupReady = true;   // 이후부터 사용자 저장을 '변경'으로 감지
     console.log('🔑 로그인 감지 → 동기화 완료, 자동 백업 활성화');
   } catch (e) {
     console.error('로그인 동기화 실패:', e);
     enableAutoBackupNow();   // 동기화 실패해도 백업은 켜둠
+    window.__backupReady = true;
   }
 }
 
