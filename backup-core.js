@@ -87,6 +87,8 @@ function writeBackupValue(key, value) {
 function applyBackupData(backup) {
   if (!backup || typeof backup !== 'object') throw new Error('형식 오류');
   var restored = 0;
+  window.__applyingRestore = true;   // 복원 중 쓰기는 '사용자 변경'으로 세지 않음
+  try {
 
   // 1) 신규 통일 형식
   if (backup.data && typeof backup.data === 'object') {
@@ -116,6 +118,7 @@ function applyBackupData(backup) {
     if (backup[oldKey] != null) { writeBackupValue(legacyMap[oldKey], backup[oldKey]); restored++; }
   });
   return restored;
+  } finally { window.__applyingRestore = false; }
 }
 
 // 백업 객체에서 Task 개수 세기 (확인창 표시용 — 신규/구버전 모두 지원)
@@ -185,11 +188,14 @@ function downloadBackupJSON(obj, filename) {
     _origSetItem.apply(this, arguments);
     try {
       // localStorage 의 '백업 대상' 키가 바뀐 경우에만 반응
-      if (window.__backupReady && this === window.localStorage && typeof backupKeyInfo === 'function' && backupKeyInfo(key)) {
+      if (window.__backupReady && !window.__applyingRestore && this === window.localStorage && typeof backupKeyInfo === 'function' && backupKeyInfo(key)) {
         // 원본 호출로 직접 기록(훅 재진입/무한루프 방지)
         _origSetItem.call(window.localStorage, 'tasklog-last-change', String(Date.now()));
         if (typeof scheduleAutoBackup === 'function') scheduleAutoBackup();
       }
     } catch (e) {}
   };
+  // 초기 동기 로딩(연도 레코드 자동생성 등)이 끝난 직후부터 사용자 저장 감지 시작
+  // (로그인/드라이브 동기화가 끝나기 전에 입력해도 유실되지 않도록)
+  window.addEventListener('load', function () { setTimeout(function () { window.__backupReady = true; }, 0); });
 })();
