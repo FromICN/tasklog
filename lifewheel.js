@@ -718,14 +718,14 @@ function lwOpenSectionModal(idx) {
     { key:'relevant',   icon:'🔗', label:'Relevant',   desc:'삶의 방향과 연결되어 있는가?' },
     { key:'timeBound',  icon:'⏰', label:'Time-bound', desc:'언제까지 달성할 것인가?' },
   ];
-  var smartHtml = smartFields.map(function(f) {
-    return '<div class="smart-field">'
-      + '<div class="smart-field-header"><span class="smart-icon">' + f.icon + '</span>'
+  var smartHtml = '<div class="smart-checks-row">' + smartFields.map(function(f) {
+    var checked = sec.smart[f.key] ? ' checked' : '';
+    return '<label class="smart-check">'
+      + '<input type="checkbox" id="lw-smart-' + f.key + '"' + checked + '>'
+      + '<span class="smart-icon">' + f.icon + '</span>'
       + '<span class="smart-label">' + f.label + '</span>'
-      + '<span class="smart-desc">' + f.desc + '</span></div>'
-      + '<textarea class="smart-textarea" id="lw-smart-' + f.key + '" placeholder="여기에 입력...">' + hwEsc(sec.smart[f.key] || '') + '</textarea>'
-      + '</div>';
-  }).join('');
+      + '</label>';
+  }).join('') + '</div>';
 
   var html = '<div class="lw-modal-overlay" id="lw-modal-overlay" onclick="lwModalOverlayClick(event)">'
     + '<div class="lw-modal smart-modal">'
@@ -828,10 +828,12 @@ function lwSaveSectionModal(idx) {
   }
 
   sec.smart = sec.smart || {};
-  ['specific','measurable','achievable','relevant','timeBound','finalGoal'].forEach(function(k) {
+  ['specific','measurable','achievable','relevant','timeBound'].forEach(function(k) {
     var el = document.getElementById('lw-smart-' + k);
-    if (el) sec.smart[k] = el.value;
+    if (el) sec.smart[k] = el.checked;
   });
+  var lwFinalGoalEl = document.getElementById('lw-smart-finalGoal');
+  if (lwFinalGoalEl) sec.smart.finalGoal = lwFinalGoalEl.value;
 
   var idealEl = document.getElementById('lw-ideal');
   if (idealEl) sec.ideal = idealEl.value;
