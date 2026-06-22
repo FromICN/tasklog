@@ -2,8 +2,9 @@
 //  🔐 구글 로그인/로그아웃 관리 (자동 로그인 포함)
 // ============================================
 
-const AUTH_STORAGE_KEY = 'my-tasklog-user';
-const AUTO_LOGIN_KEY   = 'tasklog-auto-login';   // '자동 로그인' ON 여부(로그아웃 전까지 유지)
+const AUTH_STORAGE_KEY  = 'my-tasklog-user';
+const AUTO_LOGIN_KEY    = 'tasklog-auto-login';   // '자동 로그인' ON 여부(로그아웃 전까지 유지)
+const TOKEN_SESSION_KEY = 'tasklog-token';        // 이번 탭 세션 동안 토큰 보관(새로고침 후 재사용)
 
 let tokenClient;
 let gapiInited  = false;
@@ -81,12 +82,57 @@ function _applyKeepLoginPref() {
 }
 
 // ============================================
+//  🎟️ 세션 토큰 보관/재사용 (새로고침 후 재로그인 팝업 방지)
+// --------------------------------------------
+//  로그인 시 받은 액세스 토큰을 이번 탭 세션 동안만 보관했다가,
+//  드라이브 동기화로 새로고침된 직후 그대로 재사용한다.
+//  → 새로고침 때마다 '조용한 재로그인'을 하지 않으므로 팝업 반복이 사라짐.
+//  (sessionStorage는 같은 출처 전용 + 탭을 닫으면 삭제됨)
+// ============================================
+function _saveSessionToken(resp) {
+  try {
+    if (!resp || !resp.access_token) return;
+    var ttlMs = (parseInt(resp.expires_in, 10) || 3600) * 1000;
+    sessionStorage.setItem(TOKEN_SESSION_KEY, JSON.stringify({
+      access_token: resp.access_token,
+      expires_at: Date.now() + ttlMs - 60000   // 만료 1분 전까지만 유효 취급
+    }));
+    // gapi(드라이브·캘린더)도 이 토큰으로 인증되도록 설정
+    if (window.gapi && gapi.client) gapi.client.setToken({ access_token: resp.access_token });
+  } catch (e) { console.warn('세션 토큰 저장 실패:', e); }
+}
+function _getValidSessionToken() {
+  try {
+    var raw = sessionStorage.getItem(TOKEN_SESSION_KEY);
+    if (!raw) return null;
+    var t = JSON.parse(raw);
+    if (!t || !t.access_token || Date.now() >= t.expires_at) return null;
+    return t.access_token;
+  } catch (e) { return null; }
+}
+
+// ============================================
 //  🔄 자동 로그인 시도
 // ============================================
 
 function maybeAutoSignIn() {
   // 둘 다 준비됐을 때만 진행
   if (!gapiInited || !gisInited) return;
+
+  // 0) 이번 탭 세션에 유효한 토큰이 남아 있으면 → 재로그인(팝업/조용한 요청) 없이 바로 사용.
+  //    (드라이브 동기화로 새로고침된 직후가 여기에 해당 → 팝업 반복 차단)
+  var sessToken = _getValidSessionToken();
+  if (sessToken) {
+    var saved0 = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (saved0) { try { currentUser = JSON.parse(saved0); } catch (e) {} }
+    try { if (gapi.client) gapi.client.setToken({ access_token: sessToken }); } catch (e) {}
+    updateAuthUI();
+    _hideLoginGate();
+    console.log('🎟️ 세션 토큰 재사용 → 자동 로그인 (팝업 없음)');
+    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
+    if (typeof onSignInSync === 'function') onSignInSync();
+    return;
+  }
 
   // 자동 로그인 ON이면 → 로그아웃 전까지 계속 조용히 자동 로그인 시도
   const autoOn = localStorage.getItem(AUTO_LOGIN_KEY) === 'true';
@@ -121,6 +167,7 @@ function _silentSignIn() {
     }
     // 토큰 갱신 성공 → 프로필도 최신화
     _silentRetry = 0;
+    _saveSessionToken(response);   // 토큰 보관(새로고침 후 재사용)
     await fetchUserInfo(response.access_token);
     updateAuthUI();
     _hideLoginGate();              // 로그인 확인됨 → 앱으로 진입
@@ -168,6 +215,7 @@ function handleSignIn() {
       return;
     }
     console.log('✅ 로그인 성공!');
+    _saveSessionToken(response);   // 토큰 보관(새로고침 후 재사용 → 팝업 반복 방지)
     await fetchUserInfo(response.access_token);
     updateAuthUI();
     _applyKeepLoginPref();         // '로그인 상태 유지' 설정 반영
@@ -194,6 +242,7 @@ function handleSignOut() {
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);   // 저장 정보 삭제
   localStorage.removeItem(AUTO_LOGIN_KEY);     // 자동 로그인 해제(명시적 로그아웃 시에만)
+  sessionStorage.removeItem(TOKEN_SESSION_KEY);// 보관한 토큰 삭제
   sessionStorage.removeItem('tasklog-synced'); // 다음 로그인 때 드라이브 재동기화
   _silentRetry = 0;
   updateAuthUI();
