@@ -3,11 +3,13 @@
 // ============================================
 
 const AUTH_STORAGE_KEY = 'my-tasklog-user';
+const AUTO_LOGIN_KEY   = 'tasklog-auto-login';   // '자동 로그인' ON 여부(로그아웃 전까지 유지)
 
 let tokenClient;
 let gapiInited  = false;
 let gisInited   = false;
 let currentUser = null;
+let _silentRetry = 0;       // 조용한 자동 로그인 재시도 횟수
 
 // auth.js 내부 전용 escapeHtml (script.js보다 먼저 로드되므로 독립 선언)
 function _escHtml(str) {
@@ -46,6 +48,39 @@ function gisLoaded() {
 }
 
 // ============================================
+//  🔐 로그인 게이트(전체화면) 제어
+// ============================================
+function _hideLoginGate() {
+  var g = document.getElementById('login-gate');
+  if (g) g.classList.add('is-hidden');
+}
+function _showLoginGate() {
+  var g = document.getElementById('login-gate');
+  if (g) g.classList.remove('is-hidden');
+  _resetGateButton();
+}
+function _setGateLoading() {
+  var b = document.getElementById('gate-google-btn');
+  if (b) { b.disabled = true; b.textContent = '로그인 확인 중...'; }
+}
+function _resetGateButton() {
+  var b = document.getElementById('gate-google-btn');
+  if (b) { b.disabled = false; b.innerHTML = '<span class="g-icon">G</span> 구글로 로그인'; }
+}
+// '로그인 상태 유지(자동 로그인)' 설정 반영
+//  ▸ 체크됨  → 자동 로그인 ON (로그아웃 전까지 계속 자동 로그인)
+//  ▸ 해제됨  → 자동 로그인 OFF + 기억 정보 삭제(다음 방문 때 다시 로그인)
+function _applyKeepLoginPref() {
+  var keep = document.getElementById('keep-login');
+  if (keep && keep.checked) {
+    localStorage.setItem(AUTO_LOGIN_KEY, 'true');
+  } else {
+    localStorage.removeItem(AUTO_LOGIN_KEY);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+}
+
+// ============================================
 //  🔄 자동 로그인 시도
 // ============================================
 
@@ -53,35 +88,42 @@ function maybeAutoSignIn() {
   // 둘 다 준비됐을 때만 진행
   if (!gapiInited || !gisInited) return;
 
-  const saved = localStorage.getItem(AUTH_STORAGE_KEY);
-  if (saved) {
-    try {
-      currentUser = JSON.parse(saved);
-      updateAuthUI();              // 저장된 정보로 즉시 UI 표시
-      _silentSignIn();             // 백그라운드에서 토큰 조용히 갱신
-      console.log('🔄 자동 로그인 시도 중...');
-    } catch (e) {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      _showSignInButton();
+  // 자동 로그인 ON이면 → 로그아웃 전까지 계속 조용히 자동 로그인 시도
+  const autoOn = localStorage.getItem(AUTO_LOGIN_KEY) === 'true';
+  if (autoOn) {
+    const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (saved) {
+      try { currentUser = JSON.parse(saved); updateAuthUI(); } catch (e) {}
     }
+    _setGateLoading();             // 게이트는 '확인 중'으로 표시(팝업 없음)
+    _silentSignIn();               // 백그라운드에서 토큰 조용히 갱신
+    console.log('🔄 자동 로그인 시도 중...');
   } else {
-    _showSignInButton();
+    _showLoginGate();              // 자동 로그인 OFF → 로그인 화면 표시
   }
 }
 
 function _silentSignIn() {
   tokenClient.callback = async (response) => {
     if (response.error !== undefined) {
-      // 자동 갱신 실패 (세션 만료 등) → 로그인 버튼으로 전환
-      console.warn('🔒 자동 로그인 실패:', response.error);
-      currentUser = null;
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      updateAuthUI();
+      // 조용한 갱신 실패 — ⚠️ 자동 로그인 설정/식별정보는 지우지 않는다.
+      //  (지우면 다음부터 자동 로그인이 안 되므로. 로그아웃할 때만 해제됨)
+      console.warn('🔒 자동 로그인(조용히) 실패:', response.error);
+      if (_silentRetry < 1) {
+        _silentRetry++;
+        setTimeout(_silentSignIn, 1200);   // 잠깐 후 한 번 더 조용히 시도
+        return;
+      }
+      // 그래도 실패(구글 세션 자체 만료 등) → 로그인 화면만 표시(설정은 보존).
+      // 사용자가 '구글로 로그인'을 한 번 누르면 다시 자동 로그인 상태가 됨.
+      _showLoginGate();
       return;
     }
     // 토큰 갱신 성공 → 프로필도 최신화
+    _silentRetry = 0;
     await fetchUserInfo(response.access_token);
     updateAuthUI();
+    _hideLoginGate();              // 로그인 확인됨 → 앱으로 진입
     console.log('✅ 자동 로그인 성공!');
     // 로그인 직후 구글 캘린더 자동 동기화 (1회)
     if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
@@ -92,7 +134,7 @@ function _silentSignIn() {
   // prompt: 'none' + login_hint → 계정 선택 팝업 없이 완전히 조용히 토큰 요청
   tokenClient.requestAccessToken({
     prompt: 'none',
-    login_hint: currentUser.email || ''
+    login_hint: (currentUser && currentUser.email) ? currentUser.email : ''
   });
 }
 
@@ -112,15 +154,24 @@ function _showSignInButton() {
 function handleSignIn() {
   console.log('🖱️ 로그인 버튼 클릭됨!');
 
+  // 로그인 모듈(GIS)이 아직 준비 안 됐으면 잠시 후 재시도 안내
+  if (!tokenClient) {
+    alert('로그인 모듈을 불러오는 중이에요. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+
   tokenClient.callback = async (response) => {
     if (response.error !== undefined) {
       console.error('로그인 실패:', response);
       alert('로그인에 실패했어요. 다시 시도해주세요.');
+      _resetGateButton();
       return;
     }
     console.log('✅ 로그인 성공!');
     await fetchUserInfo(response.access_token);
     updateAuthUI();
+    _applyKeepLoginPref();         // '로그인 상태 유지' 설정 반영
+    _hideLoginGate();              // 로그인 완료 → 앱(home)으로 진입
     // 로그인 직후 구글 캘린더 자동 동기화 (1회)
     if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
     // 로그인 직후 드라이브에서 먼저 불러오기 → 그 다음 자동 백업 ON
@@ -142,7 +193,11 @@ function handleSignOut() {
   }
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);   // 저장 정보 삭제
+  localStorage.removeItem(AUTO_LOGIN_KEY);     // 자동 로그인 해제(명시적 로그아웃 시에만)
+  sessionStorage.removeItem('tasklog-synced'); // 다음 로그인 때 드라이브 재동기화
+  _silentRetry = 0;
   updateAuthUI();
+  _showLoginGate();                            // 로그아웃 → 로그인 화면으로
   console.log('👋 로그아웃 완료 — 자동 로그인 정보 삭제됨');
 }
 

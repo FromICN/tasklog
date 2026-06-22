@@ -412,15 +412,15 @@ async function onSignInSync() {
   if (!isSignedIn()) return;
   try {
     var changed = await silentSyncFromDrive();
-    if (changed) {
-      // 드라이브 내용을 로컬에 반영했으니, 모든 모듈이 새 데이터를
-      // 다시 읽도록 새로고침. (새로고침 후엔 로컬==드라이브가 되어
-      // 다시 불러오지 않으므로 무한 루프가 생기지 않습니다.)
+    // 새로고침은 탭 세션당 1회만 (혹시 모를 무한 새로고침 루프 차단)
+    if (changed && !sessionStorage.getItem('tasklog-synced')) {
+      sessionStorage.setItem('tasklog-synced', '1');
       console.log('🔁 새 내용 반영 → 새로고침');
       location.reload();
       return;   // 새로고침 중이므로 백업 설정은 다음 로드 때 진행됨
     }
-    // 변화 없음(또는 클라우드 데이터 없음) → 이제부터 자동 백업 ON
+    // 변화 없음(또는 이미 동기화함) → 이제부터 자동 백업 ON
+    sessionStorage.setItem('tasklog-synced', '1');
     enableAutoBackupNow();
     console.log('🔑 로그인 감지 → 동기화 완료, 자동 백업 활성화');
   } catch (e) {

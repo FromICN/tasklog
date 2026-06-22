@@ -1,0 +1,104 @@
+/* ============================================
+   🔐 전체화면 로그인 게이트 (최초 진입 시 표시)
+   - 앱 위를 덮는 풀스크린 오버레이.
+   - 로그인 완료되면 display:none 으로 사라짐.
+   ============================================ */
+
+#login-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #232833;          /* 어두운 슬레이트 배경 */
+  font-family: inherit;
+  padding: 20px;
+}
+
+/* 로그인이 끝나면 이 클래스로 숨김 */
+#login-gate.is-hidden { display: none !important; }
+
+#login-gate .login-card {
+  width: 380px;
+  max-width: 100%;
+  background: #14161c;
+  border: 1px solid #2a2f3a;
+  border-radius: 16px;
+  padding: 44px 40px 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+#login-gate .login-title {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 700;
+  color: #f2f4f8;
+  letter-spacing: -0.5px;
+}
+
+#login-gate .login-subtitle {
+  margin: 0 0 32px;
+  font-size: 14px;
+  color: #8a90a0;
+}
+
+#login-gate .login-google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #20242c;
+  background: #ffffff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background .15s, transform .05s;
+}
+#login-gate .login-google-btn:hover  { background: #eef1f6; }
+#login-gate .login-google-btn:active { transform: translateY(1px); }
+#login-gate .login-google-btn:disabled { opacity: .6; cursor: default; }
+
+#login-gate .login-google-btn .g-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4285f4;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  font-family: Arial, sans-serif;
+}
+
+#login-gate .login-keep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 13px;
+  color: #aab0be;
+  cursor: pointer;
+  user-select: none;
+}
+#login-gate .login-keep input {
+  width: 16px;
+  height: 16px;
+  accent-color: #4f6ef7;
+  cursor: pointer;
+}
+
+#login-gate .login-hint {
+  margin-top: 22px;
+  font-size: 12px;
+  color: #666c7a;
+  line-height: 1.5;
+}
