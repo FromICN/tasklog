@@ -56,6 +56,7 @@ function _hideLoginGate() {
   if (g) g.classList.add('is-hidden');
 }
 function _showLoginGate() {
+  document.documentElement.classList.remove('preauth-hide-gate');  // 미리숨김 해제
   var g = document.getElementById('login-gate');
   if (g) g.classList.remove('is-hidden');
   _resetGateButton();

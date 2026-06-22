@@ -19,6 +19,10 @@
 /* 로그인이 끝나면 이 클래스로 숨김 */
 #login-gate.is-hidden { display: none !important; }
 
+/* 자동 로그인 예정(세션 토큰/자동로그인 ON)일 때 → 새로고침 직후 게이트 깜빡임 방지.
+   (index.html 머리말의 인라인 스크립트가 페인트 전에 이 클래스를 붙임) */
+html.preauth-hide-gate #login-gate { display: none !important; }
+
 #login-gate .login-card {
   width: 380px;
   max-width: 100%;

@@ -8,6 +8,19 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="profile-modal.css">
   <link rel="stylesheet" href="login.css">
+  <script>
+    // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
+    // 페인트 전에 미리 숨긴다. (자동 로그인이 실패하면 auth.js가 다시 보여줌)
+    (function () {
+      try {
+        var hasToken = false;
+        var raw = sessionStorage.getItem('tasklog-token');
+        if (raw) { var t = JSON.parse(raw); hasToken = !!(t && t.access_token && Date.now() < t.expires_at); }
+        var autoOn = localStorage.getItem('tasklog-auto-login') === 'true';
+        if (hasToken || autoOn) document.documentElement.classList.add('preauth-hide-gate');
+      } catch (e) {}
+    })();
+  </script>
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
