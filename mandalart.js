@@ -478,7 +478,7 @@ function buildMdtPerfSectionHtml(m, sg) {
     +   '<span class="mdt-perf-section-title" style="color:' + sg.color + ';">' + sg.emoji + ' ' + escMdt(sg.text) + '</span>'
     +   '<span class="mdt-perf-section-prog">' + done + '/' + total + '</span>'
     +   '<button class="mdt-smart-open-btn" id="mdt-smart-btn-' + sg.id + '"'
-    +     ' onclick="openMdtSmart(' + m.year + ',' + sg.id + ')" style="color:' + smartColor + ';">' + smartLabel + '</button>'
+    +     ' onclick="openMdtIdeal(' + m.year + ',' + sg.id + ')" style="color:#4F6EF7;">&#127919; 목표</button>'
     + '</div>';
 
   html += '<div class="mdt-act-cards" id="mdt-act-cards-' + sg.id + '">';
@@ -741,6 +741,48 @@ function saveMdtSmart(year, sgId) {
   }
 }
 
+function openMdtIdeal(year, sgId) {
+  var m  = getMdt(year);
+  var sg = m ? m.subGoals.find(function(s){ return s.id === sgId; }) : null;
+  if (!sg) return;
+  var idx = m.subGoals.findIndex(function(s){ return s.id === sgId; });
+
+  var ideal = '';
+  var secName = sg.text || '';
+  if (typeof getLwYear === 'function') {
+    var lw = getLwYear(year);
+    if (lw && lw.sections && lw.sections[idx]) {
+      ideal = lw.sections[idx].ideal || '';
+      if (lw.sections[idx].name) secName = lw.sections[idx].name;
+    }
+  }
+
+  var body = ideal
+    ? '<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;color:var(--text-1);">' + escMdt(ideal) + '</div>'
+    : '<div class="smart-desc">\ub77c\uc774\ud504\ud720\uc5d0\uc11c \uc774 \uc601\uc5ed\uc758 \'\uc774\uc0c1\uc801 \ubaa8\uc2b5(Ideal)\'\uc744 \uc544\uc9c1 \uc785\ub825\ud558\uc9c0 \uc54a\uc558\uc5b4\uc694.</div>';
+
+  var overlay = document.createElement('div');
+  overlay.id = 'mdt-ideal-overlay';
+  overlay.className = 'lw-modal-overlay';
+  overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = '<div class="lw-modal smart-modal">'
+    + '<div class="lw-modal-header">'
+    + '<span>' + sg.emoji + ' ' + escMdt(secName) + ' \u2014 \ubaa9\ud45c</span>'
+    + '<button class="lw-modal-close" onclick="document.getElementById(\'mdt-ideal-overlay\').remove()">&#10005;</button>'
+    + '</div>'
+    + '<div class="smart-fields-wrap">'
+    + '<div class="smart-field"><div class="smart-field-header"><span class="smart-icon">&#10024;</span>'
+    + '<span class="smart-label">\uc774\uc0c1\uc801\uc778 \ubaa8\uc2b5 (Life Wheel \u00b7 Ideal)</span></div>'
+    + body
+    + '</div>'
+    + '</div>'
+    + '<div class="lw-modal-footer">'
+    + '<button class="lw-modal-cancel" onclick="document.getElementById(\'mdt-ideal-overlay\').remove()">\ub2eb\uae30</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+}
+
 function buildSgDetailHtml(m, sg) {
   if (!sg.smart) sg.smart = { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'', finalGoal:'' };
   var smartFilled = MDT_SMART_FIELDS.filter(function(f){ return sg.smart[f.key]; }).length;
@@ -752,7 +794,7 @@ function buildSgDetailHtml(m, sg) {
     + '<div class="mdt-detail-top">'
     + '<button class="mdt-back-btn" onclick="closeSgDetail()">&#8592; Mandalart</button>'
     + '<button class="mdt-smart-open-btn" id="mdt-smart-btn-'+sg.id+'"'
-    + ' onclick="openMdtSmart('+m.year+','+sg.id+')" style="color:'+smartColor+';">'+smartLabel+'</button>'
+    + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:#4F6EF7;">&#127919; 목표</button>'
     + '</div>'
     + '<div class="mdt-act-cards" id="mdt-act-cards-'+sg.id+'">';
 
