@@ -680,16 +680,14 @@ function openMdtSmart(year, sgId) {
   if (!sg) return;
   if (!sg.smart) sg.smart = { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'', finalGoal:'' };
 
-  var fieldsHtml = MDT_SMART_FIELDS.map(function(f) {
-    return '<div class="smart-field">'
-      + '<div class="smart-field-header">'
+  var fieldsHtml = '<div class="smart-checks-row">' + MDT_SMART_FIELDS.map(function(f) {
+    var checked = sg.smart[f.key] ? ' checked' : '';
+    return '<label class="smart-check">'
+      + '<input type="checkbox" id="mdt-smart-'+f.key+'"'+checked+'>'
       + '<span class="smart-icon">'+f.icon+'</span>'
       + '<span class="smart-label">'+f.label+'</span>'
-      + '<span class="smart-desc">'+f.desc+'</span>'
-      + '</div>'
-      + '<textarea class="smart-textarea" id="mdt-smart-'+f.key+'" placeholder="'+escMdt(f.desc)+'">'+escMdt(sg.smart[f.key]||'')+'</textarea>'
-      + '</div>';
-  }).join('');
+      + '</label>';
+  }).join('') + '</div>';
 
   var overlay = document.createElement('div');
   overlay.id = 'mdt-smart-overlay';
@@ -725,8 +723,8 @@ function saveMdtSmart(year, sgId) {
   if (!sg) return;
   if (!sg.smart) sg.smart = {};
   MDT_SMART_FIELDS.forEach(function(f) {
-    var ta = document.getElementById('mdt-smart-'+f.key);
-    if (ta) sg.smart[f.key] = ta.value.trim();
+    var cb = document.getElementById('mdt-smart-'+f.key);
+    if (cb) sg.smart[f.key] = cb.checked;
   });
   var finalTa = document.getElementById('mdt-smart-finalGoal');
   if (finalTa) sg.smart.finalGoal = finalTa.value.trim();

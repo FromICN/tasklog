@@ -4127,6 +4127,17 @@ body.light-mode .lw-cv-tag {
 }
 .smart-textarea:focus { border-color: rgba(99,179,237,0.5); }
 
+/* SMART 체크박스 (한 줄 표현) */
+.smart-checks-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; justify-content: space-between; }
+.smart-check {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+  padding: 8px 6px; border: 1px solid var(--border); border-radius: 8px;
+  background: rgba(255,255,255,0.04); flex: 1 1 0; min-width: 0; justify-content: center;
+}
+.smart-check input { cursor: pointer; margin: 0; flex: none; }
+.smart-check .smart-icon  { font-size: 15px; }
+.smart-check .smart-label { min-width: 0; font-size: 12px; white-space: nowrap; }
+
 /* =============================================
    홈 화면 위젯
    ============================================= */
