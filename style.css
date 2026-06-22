@@ -3363,19 +3363,19 @@ mark.search-hl {
 .lw-info {
   color: var(--text-2);
   font-size: 12px;
-  width: 150px;
-  min-width: 120px;
-  max-width: 170px;
+  width: 270px;
+  min-width: 240px;
+  max-width: 290px;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-/* Ideal / Goal */
+/* Ideal / Goal (가로 폭 80%로 축소, 줄인 만큼 Info로 이동) */
 .lw-ideal {
-  width: 300px;
-  min-width: 220px;
-  max-width: 360px;
+  width: 240px;
+  min-width: 176px;
+  max-width: 288px;
 }
 
 .lw-ideal-text {
