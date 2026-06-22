@@ -236,30 +236,49 @@ async function fetchCalendarEvents(silent) {
     const timeMax = new Date();
     timeMax.setDate(timeMax.getDate() + 90);
 
-    // 양방향 동기화: 보내는 곳('Tasks' 캘린더)과 동일한 캘린더에서 가져온다.
-    const calId = await resolveTaskCalendarId();
+    // 불러오기는 모든 캘린더에서: 사용자의 캘린더 목록을 가져와 각각의 일정을 합친다.
+    //  (보내기/양방향 저장은 여전히 'Tasks' 캘린더에만 한다.)
+    let calItems = [];
+    try {
+      const calListResp = await gapi.client.calendar.calendarList.list({ maxResults: 250 });
+      calItems = (calListResp.result && calListResp.result.items) ? calListResp.result.items : [];
+    } catch (e) {
+      console.warn('캘린더 목록을 불러오지 못해 기본 캘린더(primary)만 가져옵니다.', e);
+    }
+    // 목록이 비어 있으면 최소한 primary는 조회
+    if (!calItems.length) calItems = [{ id: 'primary' }];
 
-    const response = await gapi.client.calendar.events.list({
-      calendarId: calId,
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      showDeleted: false,
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 100,
-    });
+    // 각 캘린더의 일정을 병렬로 조회 (한 캘린더가 실패해도 나머지는 진행)
+    const perCalResults = await Promise.all(calItems.map(async function (cal) {
+      try {
+        const resp = await gapi.client.calendar.events.list({
+          calendarId: cal.id,
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+          showDeleted: false,
+          singleEvents: true,
+          orderBy: 'startTime',
+          maxResults: 100,
+        });
+        const items = (resp.result && resp.result.items) ? resp.result.items : [];
+        return items.map(function (ev) { ev._calId = cal.id; return ev; });
+      } catch (e) {
+        console.warn('일정 조회 실패(이 캘린더는 건너뜀):', cal.id, e);
+        return [];
+      }
+    }));
 
-    const events = response.result.items;
-    console.log(`✅ ${events.length}개의 일정을 가져왔어요!`, events);
+    const events = perCalResults.reduce(function (acc, arr) { return acc.concat(arr); }, []);
+    console.log(`✅ ${events.length}개의 일정을 ${calItems.length}개 캘린더에서 가져왔어요!`, events);
 
-    // 우리 앱 형식으로 변환
-    calendarEvents = events.map(event => {
+    // 우리 앱 형식으로 변환 (id는 캘린더별로 고유하게)
+    calendarEvents = events.map(function (event) {
       // 종일 일정은 event.start.date, 시간 일정은 event.start.dateTime
-      const start = event.start.dateTime || event.start.date;
-      const hasTime = !!event.start.dateTime;
+      const start = (event.start && (event.start.dateTime || event.start.date)) || null;
+      const hasTime = !!(event.start && event.start.dateTime);
 
       return {
-        id: 'gcal-' + event.id,        // 구글 캘린더 일정임을 표시
+        id: 'gcal-' + (event._calId || '') + '-' + event.id,  // 구글 캘린더 일정(캘린더별 고유 id)
         text: event.summary || '(제목 없음)',
         dueDateTime: start,
         hasTime: hasTime,
@@ -268,7 +287,7 @@ async function fetchCalendarEvents(silent) {
         completed: false,
         starred: false,
       };
-    });
+    }).filter(function (e) { return e.dueDateTime; });
 
     // 화면 갱신 (목록 + 홈 캘린더 위젯)
     if (typeof renderTasks === 'function') renderTasks();
