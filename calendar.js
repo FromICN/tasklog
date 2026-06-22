@@ -236,8 +236,11 @@ async function fetchCalendarEvents(silent) {
     const timeMax = new Date();
     timeMax.setDate(timeMax.getDate() + 90);
 
+    // 양방향 동기화: 보내는 곳('Tasks' 캘린더)과 동일한 캘린더에서 가져온다.
+    const calId = await resolveTaskCalendarId();
+
     const response = await gapi.client.calendar.events.list({
-      calendarId: 'primary',
+      calendarId: calId,
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
       showDeleted: false,
@@ -339,8 +342,13 @@ async function autoSyncCalendar() {
   if (!isSignedIn()) return;
   _calAutoSyncDone = true;
 
-  console.log('🔁 구글 캘린더 자동 동기화 시작...');
-  await autoPushTasksToCalendar();  // 1) TaskLog → 구글 캘린더 (보내기)
-  await fetchCalendarEvents(true);  // 2) 구글 캘린더 → TaskLog (가져오기, 조용히)
+  // 설정의 '동기화 방향' 반영: 양방향일 때만 가져오기(2)를 수행
+  var twoWay = (localStorage.getItem('app-cal-direction') === 'two');
+
+  console.log('🔁 구글 캘린더 자동 동기화 시작...', twoWay ? '(양방향)' : '(단방향)');
+  await autoPushTasksToCalendar();      // 1) TaskLog → 구글 캘린더 (보내기)
+  if (twoWay) {
+    await fetchCalendarEvents(true);    // 2) 구글 캘린더 → TaskLog (가져오기, 조용히)
+  }
   console.log('✅ 자동 동기화 완료');
 }

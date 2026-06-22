@@ -32,6 +32,8 @@ function initSettings() {
   var fontSize  = localStorage.getItem('app-font-size');
   var calSync   = localStorage.getItem('app-cal-sync');
   var calProv   = localStorage.getItem('app-cal-provider');
+  var calDir    = localStorage.getItem('app-cal-direction');
+  var calItems  = localStorage.getItem('app-cal-items');
   if (lang)      settingsState.lang      = lang;
   if (weekStart) settingsState.weekStart = weekStart;
   if (notifD  !== null) settingsState.notifDeadline = notifD  !== '0';
@@ -39,6 +41,8 @@ function initSettings() {
   if (fontSize) { settingsState.fontSize = fontSize; applyFontSize(fontSize); }
   if (calSync !== null) settingsState.calSync = (calSync === '1');
   if (calProv) settingsState.calProvider = calProv;
+  if (calDir)   settingsState.calDirection = calDir;
+  if (calItems) settingsState.calItems = calItems;
 }
 
 // 스타일시트 안의 px 글자 크기 원본을 한 번만 캐시해 둠 (배율 계산 기준)
@@ -257,14 +261,24 @@ function buildTabCalendar() {
   var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 동기화 중...'
     : settingsState.syncStatus === 'done' ? '✓ 동기화 완료' : '🔄 지금 동기화';
 
+  var twoWay = settingsState.calDirection === 'two';
+  var dirDesc = twoWay ? 'TaskLog ↔ 캘린더 (양방향)' : 'TaskLog → 캘린더 (단방향)';
+  var allItems = settingsState.calItems === 'all';
+
   var subHtml = !calSync ? '' :
     '<div class="settings-row">'
-    + '<div><div class="settings-row-label">동기화 방향</div><div class="settings-row-desc">TaskLog → 캘린더 (단방향)</div></div>'
-    + '<select class="settings-select"><option>단방향 (앱 → 캘린더)</option><option>양방향</option></select>'
+    + '<div><div class="settings-row-label">동기화 방향</div><div class="settings-row-desc">' + dirDesc + '</div></div>'
+    + '<select class="settings-select" onchange="settingsSetCalDirection(this.value)">'
+    + '<option value="one"' + (twoWay ? '' : ' selected') + '>단방향 (앱 → 캘린더)</option>'
+    + '<option value="two"' + (twoWay ? ' selected' : '') + '>양방향</option>'
+    + '</select>'
     + '</div>'
     + '<div class="settings-row">'
     + '<div><div class="settings-row-label">동기화 항목</div><div class="settings-row-desc">캘린더에 표시할 항목</div></div>'
-    + '<select class="settings-select"><option>Task 마감일만</option><option>Task + To-Do 전체</option></select>'
+    + '<select class="settings-select" onchange="settingsSetCalItems(this.value)">'
+    + '<option value="deadline"' + (allItems ? '' : ' selected') + '>Task 마감일만</option>'
+    + '<option value="all"' + (allItems ? ' selected' : '') + '>Task + To-Do 전체</option>'
+    + '</select>'
     + '</div>';
 
   return '<div class="settings-section-head" style="margin-top:8px;">연동 서비스</div>'
@@ -391,6 +405,16 @@ function settingsToggleCalSync() {
 function settingsSetCalProvider(id) {
   settingsState.calProvider = id;
   localStorage.setItem('app-cal-provider', id);
+  setSettingsTab('calendar');
+}
+function settingsSetCalDirection(val) {
+  settingsState.calDirection = (val === 'two') ? 'two' : 'one';
+  localStorage.setItem('app-cal-direction', settingsState.calDirection);
+  setSettingsTab('calendar');
+}
+function settingsSetCalItems(val) {
+  settingsState.calItems = (val === 'all') ? 'all' : 'deadline';
+  localStorage.setItem('app-cal-items', settingsState.calItems);
   setSettingsTab('calendar');
 }
 function settingsDoSync() {

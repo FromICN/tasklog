@@ -2324,14 +2324,14 @@ var _SVG = {
 
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
-  { id:'project',   icon:_SVG.project,   label:'Gantt',        short:'Gantt'},
-  { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
+  { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
+  { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
   { divider:true },
   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
   { id:'wheel',     icon:_SVG.wheel,     label:'LW',           short:'LW'   },
   { id:'mandalart', icon:_SVG.mandalart, label:'M',            short:'M'    },
-  { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
+  { id:'project',   icon:_SVG.project,   label:'Gantt',        short:'Gantt'},
   { id:'wbs',       icon:_SVG.wbs,       label:'WBS',          short:'WBS'  },
 ];
 
