@@ -168,7 +168,7 @@ function collectDueDotsMap(rangeStart, rangeEnd) {
       if (!ev.dueDateTime) return;
       var ed = new Date(ev.dueDateTime);
       if (ed >= rangeStart && ed <= rangeEnd) {
-        var ek = fmtKey(ed); if (!dotMap[ek]) dotMap[ek]=[]; dotMap[ek].push(GCAL_COLOR);
+        var ek = fmtKey(ed); if (!dotMap[ek]) dotMap[ek]=[]; dotMap[ek].push(ev.calColor || GCAL_COLOR);
       }
     });
   }
@@ -293,20 +293,23 @@ function selectCalDate(year, month, day) {
 }
 
 // 특정 날짜(key)에 해당하는 항목 모으기 (Task + 단계 + 구글 캘린더 일정)
+// 표시 순서: ① 구글에서 불러오기만 하는 일정(상단) → ② tasklog 일정(하단)
+//   - tasklog 일정 = 앱 Task/단계 + 'TaskLog' 캘린더(양방향 대상)에서 온 일정
 function collectDayItems(key) {
-  var items = [];
+  var googleItems = [];   // 구글에서 불러오기만 하는 일정 (상단)
+  var taskLogItems = [];  // tasklog 일정 (하단)
   var taskEventIds = {};
   if (typeof tasks !== 'undefined') {
     tasks.forEach(function(t) {
       if (t.calendarEventId) taskEventIds[t.calendarEventId] = true;
       var color = EI_COLORS[t.eisenhower] || '#9CA3AF';
       if (t.dueDateTime && fmtKey(new Date(t.dueDateTime))===key) {
-        items.push({ text: t.text, color: color, id: t.id, isCal: false, time: t.hasTime ? new Date(t.dueDateTime) : null });
+        taskLogItems.push({ text: t.text, color: color, id: t.id, isCal: false, time: t.hasTime ? new Date(t.dueDateTime) : null });
       }
       if (Array.isArray(t.steps)) {
         t.steps.forEach(function(step) {
           if (step.dueDateTime && fmtKey(new Date(step.dueDateTime))===key) {
-            items.push({ text: '→ ' + step.text, color: color, id: t.id, isCal: false, time: step.hasTime ? new Date(step.dueDateTime) : null });
+            taskLogItems.push({ text: '→ ' + step.text, color: color, id: t.id, isCal: false, time: step.hasTime ? new Date(step.dueDateTime) : null });
           }
         });
       }
@@ -317,11 +320,13 @@ function collectDayItems(key) {
     calendarEvents.forEach(function(ev) {
       if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
       if (ev.dueDateTime && fmtKey(new Date(ev.dueDateTime))===key) {
-        items.push({ text: ev.text, color: GCAL_COLOR, id: null, isCal: true, time: ev.hasTime ? new Date(ev.dueDateTime) : null });
+        var item = { text: ev.text, color: ev.calColor || GCAL_COLOR, id: null, isCal: true, time: ev.hasTime ? new Date(ev.dueDateTime) : null };
+        // 'TaskLog' 캘린더에서 온 일정은 tasklog 일정(하단)으로, 그 외는 구글 일정(상단)으로
+        if (ev.fromTaskCal) taskLogItems.push(item); else googleItems.push(item);
       }
     });
   }
-  return items;
+  return googleItems.concat(taskLogItems);
 }
 
 // 하단 상세 패널 렌더 (선택된 날짜의 일정 목록)

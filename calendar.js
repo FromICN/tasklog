@@ -36,12 +36,12 @@ function _buildCalEventFromTask(task) {
 
 
 // ============================================
-//  📁 'Tasks' 캘린더 찾기/사용 (TaskLog 일정 저장 대상)
+//  📁 'TaskLog' 캘린더 찾기/사용 (TaskLog 일정 저장 대상)
 // --------------------------------------------
-//  사용자가 만들어 둔 'Tasks' 캘린더에 저장한다.
+//  사용자가 만들어 둔 'TaskLog' 캘린더에 저장한다. (구글에 신규 생성한 전용 캘린더)
 //  못 찾으면 생성 시도(전체 calendar 권한 필요) → 권한 없으면 기본 캘린더로 대체.
 // ============================================
-const TASK_CAL_NAME = 'Tasks';
+const TASK_CAL_NAME = 'TaskLog';
 let taskCalendarId = null;          // 한 번 찾으면 캐시
 
 async function resolveTaskCalendarId() {
@@ -52,17 +52,17 @@ async function resolveTaskCalendarId() {
     const match = items.find(c => (c.summary || '').trim().toLowerCase() === TASK_CAL_NAME.toLowerCase());
     if (match) {
       taskCalendarId = match.id;
-      console.log("📁 'Tasks' 캘린더 사용:", match.id);
+      console.log("📁 'TaskLog' 캘린더 사용:", match.id);
       return taskCalendarId;
     }
-    // 'Tasks' 캘린더가 없으면 생성 시도 (전체 calendar 권한 필요)
+    // 'TaskLog' 캘린더가 없으면 생성 시도 (전체 calendar 권한 필요)
     try {
       const created = await gapi.client.calendar.calendars.insert({ resource: { summary: TASK_CAL_NAME } });
       taskCalendarId = created.result.id;
-      console.log("📁 'Tasks' 캘린더 생성:", taskCalendarId);
+      console.log("📁 'TaskLog' 캘린더 생성:", taskCalendarId);
       return taskCalendarId;
     } catch (e2) {
-      console.warn("'Tasks' 캘린더 생성 권한이 없어 기본 캘린더(primary)로 저장해요.", e2);
+      console.warn("'TaskLog' 캘린더 생성 권한이 없어 기본 캘린더(primary)로 저장해요.", e2);
       taskCalendarId = 'primary';
       return taskCalendarId;
     }
@@ -148,7 +148,7 @@ async function addTaskToCalendar(taskId) {
       task.calendarEventId = existing.get(dkey);
       saveTasks();
       renderTasks();
-      alert(`"${task.text}"은(는) 이미 'Tasks' 캘린더에 있어요. (중복 저장 안 함) 📅`);
+      alert(`"${task.text}"은(는) 이미 'TaskLog' 캘린더에 있어요. (중복 저장 안 함) 📅`);
       return;
     }
 
@@ -237,7 +237,7 @@ async function fetchCalendarEvents(silent) {
     timeMax.setDate(timeMax.getDate() + 90);
 
     // 불러오기는 모든 캘린더에서: 사용자의 캘린더 목록을 가져와 각각의 일정을 합친다.
-    //  (보내기/양방향 저장은 여전히 'Tasks' 캘린더에만 한다.)
+    //  (보내기/양방향 저장은 여전히 'TaskLog' 캘린더에만 한다.)
     let calItems = [];
     try {
       const calListResp = await gapi.client.calendar.calendarList.list({ maxResults: 250 });
@@ -247,6 +247,25 @@ async function fetchCalendarEvents(silent) {
     }
     // 목록이 비어 있으면 최소한 primary는 조회
     if (!calItems.length) calItems = [{ id: 'primary' }];
+
+    // 양방향 연동 대상인 'TaskLog' 캘린더 id (이 캘린더의 일정은 'tasklog 일정'으로 분류)
+    let taskCalId = null;
+    try { taskCalId = await resolveTaskCalendarId(); } catch (e) { taskCalId = null; }
+
+    // 캘린더별 테마 색상 맵 (calId → 배경색 hex)
+    const calColorMap = {};
+    calItems.forEach(function (cal) {
+      if (cal && cal.id) calColorMap[cal.id] = cal.backgroundColor || cal.colorRgbFormat || null;
+    });
+
+    // 이벤트 개별 색상(colorId) 팔레트 — 일정에 색을 따로 지정한 경우 우선 적용
+    let eventPalette = {};
+    try {
+      const colorsResp = await gapi.client.calendar.colors.get();
+      eventPalette = (colorsResp.result && colorsResp.result.event) ? colorsResp.result.event : {};
+    } catch (e) {
+      console.warn('캘린더 색상 팔레트를 불러오지 못했어요(기본색 사용).', e);
+    }
 
     // 각 캘린더의 일정을 병렬로 조회 (한 캘린더가 실패해도 나머지는 진행)
     const perCalResults = await Promise.all(calItems.map(async function (cal) {
@@ -277,12 +296,19 @@ async function fetchCalendarEvents(silent) {
       const start = (event.start && (event.start.dateTime || event.start.date)) || null;
       const hasTime = !!(event.start && event.start.dateTime);
 
+      // 구글 캘린더 테마 색상: 이벤트별 색(colorId)이 있으면 우선, 없으면 캘린더 배경색
+      const evPal = (event.colorId && eventPalette[event.colorId]) ? eventPalette[event.colorId] : null;
+      const calColor = (evPal && evPal.background) || calColorMap[event._calId] || GCAL_COLOR;
+      const fromTaskCal = !!(taskCalId && event._calId === taskCalId);
+
       return {
         id: 'gcal-' + (event._calId || '') + '-' + event.id,  // 구글 캘린더 일정(캘린더별 고유 id)
         text: event.summary || '(제목 없음)',
         dueDateTime: start,
         hasTime: hasTime,
         isFromCalendar: true,          // 캘린더에서 온 일정 표시
+        fromTaskCal: fromTaskCal,      // 'TaskLog' 캘린더(양방향 대상)에서 온 일정인지
+        calColor: calColor,            // 구글 캘린더 테마 색상
         calendarEventId: event.id,
         completed: false,
         starred: false,
@@ -346,7 +372,7 @@ async function autoPushTasksToCalendar() {
   }
 
   if (pushed > 0 || linked > 0) {
-    console.log(`📤 'Tasks' 캘린더에 신규 ${pushed}건 등록, 기존 ${linked}건 연결(중복 방지).`);
+    console.log(`📤 'TaskLog' 캘린더에 신규 ${pushed}건 등록, 기존 ${linked}건 연결(중복 방지).`);
     if (typeof saveTasks === 'function') saveTasks();
     if (typeof renderTasks === 'function') renderTasks();
   }

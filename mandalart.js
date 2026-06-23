@@ -9,6 +9,8 @@ var currentMdtYear = null;
 var mdtSelectedSgId = null;
 var mdtSelectedActId = null;
 var mdtCalView = {}; // 습관형 캘린더 보기 월 상태: 'year-sgId-actId' -> {y, m}
+var mdtCalMode = {}; // 습관형 캘린더 보기 모드: 'year-sgId-actId' -> 'month' | 'week'
+var mdtCalWeekStart = {}; // 습관형 주간 보기 기준(일요일) 타임스탬프: 'year-sgId-actId' -> number
 
 // SMART 목표 필드 정의
 var MDT_SMART_FIELDS = [
@@ -912,19 +914,49 @@ function mdtCalNav(year, sgId, actId, delta) {
   if (card) card.outerHTML = buildActionCard(m, sg, a);
 }
 
-function buildHabitCalendar(year, sgId, a) {
-  var log = a.habitLog || {};
-  var today = new Date();
-  var key = year + '-' + sgId + '-' + a.id;
-  var view = mdtCalView[key] || { y: today.getFullYear(), m: today.getMonth() };
-  var yr = view.y, mo = view.m;
-  var daysInMonth = new Date(yr, mo + 1, 0).getDate();
-  var firstDow = new Date(yr, mo, 1).getDay();
-  var DOW_KO = ['일','월','화','수','목','금','토'];
-  var MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  var isCurMonth = (yr === today.getFullYear() && mo === today.getMonth());
+// 이번 주 일요일 0시 반환
+function mdtWeekStartOf(date) {
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - d.getDay());
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
-  // 그리드 컨테이너 — 인라인 스타일
+// 월간/주간 보기 전환
+function mdtCalSetMode(year, sgId, actId, mode) {
+  var key = year + '-' + sgId + '-' + actId;
+  mdtCalMode[key] = mode;
+  if (mode === 'week' && !mdtCalWeekStart[key]) {
+    mdtCalWeekStart[key] = mdtWeekStartOf(new Date()).getTime();
+  }
+  _mdtRerenderActCard(year, sgId, actId);
+}
+
+// 주간 이동 (delta 주)
+function mdtWeekNav(year, sgId, actId, delta) {
+  var key = year + '-' + sgId + '-' + actId;
+  var curMs = mdtCalWeekStart[key] || mdtWeekStartOf(new Date()).getTime();
+  var d = new Date(curMs); d.setDate(d.getDate() + delta * 7);
+  // 미래 주로는 이동 불가 (이번 주 이후 차단)
+  if (mdtWeekStartOf(d).getTime() > mdtWeekStartOf(new Date()).getTime()) return;
+  mdtCalWeekStart[key] = d.getTime();
+  _mdtRerenderActCard(year, sgId, actId);
+}
+
+// 액션카드 다시 그리기 (공용)
+function _mdtRerenderActCard(year, sgId, actId) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
+  var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
+  if (card) card.outerHTML = buildActionCard(m, sg, a);
+}
+
+function buildHabitCalendar(year, sgId, a) {
+  var key = year + '-' + sgId + '-' + a.id;
+  var mode = mdtCalMode[key] || 'month';
+
+  // 공용 셀 스타일
   var S_GRID = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:4px;';
   var S_DOW  = 'font-size:9px;text-align:center;color:var(--text-3);padding:1px 0;';
   var S_CELL_BASE = 'aspect-ratio:1/1;border-radius:4px;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;color:var(--text-2);background:var(--surface);';
@@ -934,41 +966,105 @@ function buildHabitCalendar(year, sgId, a) {
   var S_EMPTY  = 'background:transparent;pointer-events:none;';
   var S_NAV    = 'cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text-2);font-size:13px;line-height:1;padding:1px 8px;user-select:none;';
   var S_NAV_OFF = S_NAV + 'opacity:0.25;pointer-events:none;';
+  var S_SEG    = 'cursor:pointer;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text-3);font-size:10px;line-height:1;padding:2px 7px;user-select:none;';
+  var S_SEG_ON = 'cursor:pointer;background:rgba(139,92,246,0.18);border:1px solid rgba(139,92,246,0.5);border-radius:5px;color:#a78bfa;font-weight:700;font-size:10px;line-height:1;padding:2px 7px;user-select:none;';
+  var DOW_KO = ['일','월','화','수','목','금','토'];
 
-  var html = '<div style="margin-top:10px;">'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
-    +   '<span style="' + S_NAV + '" onclick="mdtCalNav(' + year + ',' + sgId + ',' + a.id + ',-1)" title="이전 달">&#8249;</span>'
+  // 월간/주간 전환 토글
+  var modeToggle = '<div style="display:flex;gap:4px;justify-content:center;margin-bottom:6px;">'
+    + '<span style="' + (mode === 'month' ? S_SEG_ON : S_SEG) + '" onclick="mdtCalSetMode(' + year + ',' + sgId + ',' + a.id + ',\'month\')">월간</span>'
+    + '<span style="' + (mode === 'week' ? S_SEG_ON : S_SEG) + '" onclick="mdtCalSetMode(' + year + ',' + sgId + ',' + a.id + ',\'week\')">주간</span>'
+    + '</div>';
+
+  var inner = (mode === 'week')
+    ? _buildHabitWeekGrid(year, sgId, a, key, { S_GRID:S_GRID, S_DOW:S_DOW, S_CELL_BASE:S_CELL_BASE, S_DONE:S_DONE, S_TODAY:S_TODAY, S_FUTURE:S_FUTURE, S_NAV:S_NAV, S_NAV_OFF:S_NAV_OFF, DOW_KO:DOW_KO })
+    : _buildHabitMonthGrid(year, sgId, a, key, { S_GRID:S_GRID, S_DOW:S_DOW, S_CELL_BASE:S_CELL_BASE, S_DONE:S_DONE, S_TODAY:S_TODAY, S_FUTURE:S_FUTURE, S_EMPTY:S_EMPTY, S_NAV:S_NAV, S_NAV_OFF:S_NAV_OFF, DOW_KO:DOW_KO });
+
+  return '<div style="margin-top:10px;">' + modeToggle + inner + '</div>';
+}
+
+// 월간 그리드
+function _buildHabitMonthGrid(year, sgId, a, key, S) {
+  var log = a.habitLog || {};
+  var today = new Date();
+  var view = mdtCalView[key] || { y: today.getFullYear(), m: today.getMonth() };
+  var yr = view.y, mo = view.m;
+  var daysInMonth = new Date(yr, mo + 1, 0).getDate();
+  var firstDow = new Date(yr, mo, 1).getDay();
+  var MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  var isCurMonth = (yr === today.getFullYear() && mo === today.getMonth());
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+    +   '<span style="' + S.S_NAV + '" onclick="mdtCalNav(' + year + ',' + sgId + ',' + a.id + ',-1)" title="이전 달">&#8249;</span>'
     +   '<span style="font-size:11px;color:var(--text-2);">' + yr + '년 ' + MONTHS[mo] + '</span>'
-    +   '<span style="' + (isCurMonth ? S_NAV_OFF : S_NAV) + '" onclick="mdtCalNav(' + year + ',' + sgId + ',' + a.id + ',1)" title="다음 달">&#8250;</span>'
+    +   '<span style="' + (isCurMonth ? S.S_NAV_OFF : S.S_NAV) + '" onclick="mdtCalNav(' + year + ',' + sgId + ',' + a.id + ',1)" title="다음 달">&#8250;</span>'
     + '</div>'
-    + '<div style="' + S_GRID + '">';
+    + '<div style="' + S.S_GRID + '">';
 
-  DOW_KO.forEach(function(d) {
-    html += '<div style="' + S_DOW + '">' + d + '</div>';
-  });
+  S.DOW_KO.forEach(function(d) { html += '<div style="' + S.S_DOW + '">' + d + '</div>'; });
 
   for (var i = 0; i < firstDow; i++) {
-    html += '<div style="' + S_CELL_BASE + S_EMPTY + '"></div>';
+    html += '<div style="' + S.S_CELL_BASE + S.S_EMPTY + '"></div>';
   }
 
   for (var d = 1; d <= daysInMonth; d++) {
     var cellDate = new Date(yr, mo, d);
-    var key = fmtHabitKey(cellDate);
+    var dKey = fmtHabitKey(cellDate);
     var isFuture = cellDate > today;
-    var isDone   = !!log[key];
+    var isDone   = !!log[dKey];
     var isToday  = d === today.getDate() && mo === today.getMonth() && yr === today.getFullYear();
 
-    var style = S_CELL_BASE;
-    if (isDone)   style += S_DONE;
-    if (isToday)  style += S_TODAY;
-    if (isFuture) style += S_FUTURE;
+    var style = S.S_CELL_BASE;
+    if (isDone)   style += S.S_DONE;
+    if (isToday)  style += S.S_TODAY;
+    if (isFuture) style += S.S_FUTURE;
 
     html += '<div style="' + style + '"'
-      + (isFuture ? '' : ' onclick="toggleHabitDay(' + year + ',' + sgId + ',' + a.id + ',\'' + key + '\')"')
+      + (isFuture ? '' : ' onclick="toggleHabitDay(' + year + ',' + sgId + ',' + a.id + ',\'' + dKey + '\')"')
       + '>' + d + '</div>';
   }
 
-  html += '</div></div>';
+  html += '</div>';
+  return html;
+}
+
+// 주간 그리드 (한 주: 일~토)
+function _buildHabitWeekGrid(year, sgId, a, key, S) {
+  var log = a.habitLog || {};
+  var today = new Date();
+  var ws = mdtCalWeekStart[key] ? new Date(mdtCalWeekStart[key]) : mdtWeekStartOf(today);
+  var weekEnd = new Date(ws); weekEnd.setDate(weekEnd.getDate() + 6);
+  var isCurWeek = mdtWeekStartOf(ws).getTime() >= mdtWeekStartOf(today).getTime();
+
+  var label = (ws.getMonth()+1) + '/' + ws.getDate() + ' – ' + (weekEnd.getMonth()+1) + '/' + weekEnd.getDate();
+
+  var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">'
+    +   '<span style="' + S.S_NAV + '" onclick="mdtWeekNav(' + year + ',' + sgId + ',' + a.id + ',-1)" title="이전 주">&#8249;</span>'
+    +   '<span style="font-size:11px;color:var(--text-2);">' + ws.getFullYear() + '년 ' + label + '</span>'
+    +   '<span style="' + (isCurWeek ? S.S_NAV_OFF : S.S_NAV) + '" onclick="mdtWeekNav(' + year + ',' + sgId + ',' + a.id + ',1)" title="다음 주">&#8250;</span>'
+    + '</div>'
+    + '<div style="' + S.S_GRID + '">';
+
+  S.DOW_KO.forEach(function(d) { html += '<div style="' + S.S_DOW + '">' + d + '</div>'; });
+
+  for (var i = 0; i < 7; i++) {
+    var cellDate = new Date(ws); cellDate.setDate(ws.getDate() + i);
+    var dKey = fmtHabitKey(cellDate);
+    var isFuture = cellDate > today;
+    var isDone   = !!log[dKey];
+    var isToday  = fmtHabitKey(cellDate) === fmtHabitKey(today);
+
+    var style = S.S_CELL_BASE;
+    if (isDone)   style += S.S_DONE;
+    if (isToday)  style += S.S_TODAY;
+    if (isFuture) style += S.S_FUTURE;
+
+    html += '<div style="' + style + '"'
+      + (isFuture ? '' : ' onclick="toggleHabitDay(' + year + ',' + sgId + ',' + a.id + ',\'' + dKey + '\')"')
+      + '>' + cellDate.getDate() + '</div>';
+  }
+
+  html += '</div>';
   return html;
 }
 
