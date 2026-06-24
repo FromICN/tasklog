@@ -151,6 +151,14 @@ var TLFilter = (function () {
     renderPopover(menu);
   }
 
+  // 외부에서 필터 값 직접 설정 (예: Gantt 월 이동 시 연도 변경)
+  function setFilter(menu, key, values) {
+    var st = getState(menu);
+    if (!values || !values.length) delete st.filters[key];
+    else st.filters[key] = values.slice();
+    saveState();
+  }
+
   function fireChange(menu) {
     var cfg = CONFIGS[menu] || {};
     if (typeof cfg.onChange === 'function') {
@@ -356,6 +364,7 @@ var TLFilter = (function () {
     toggleFilterValue: toggleFilterValue,
     clearFilters: clearFilters,
     setSort: setSort,
+    setFilter: setFilter,
     onYear: onYearSelect,
     getState: getState
   };

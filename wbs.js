@@ -46,19 +46,21 @@ function wbsProjectKey(t) {
   return (typeof todoProjectKey === 'function') ? todoProjectKey(t)
     : ((t.mdtAction && t.mdtAction.text) || t.lwSectionName || '프로젝트 없음');
 }
+// 연도 추정: 만다라트 연결 연도 > 시작/마감일 연도
+function wbsFilterYear(t) {
+  if (t.mdtAction && t.mdtAction.year) return parseInt(t.mdtAction.year, 10);
+  if (t.mdtGoal   && t.mdtGoal.year)   return parseInt(t.mdtGoal.year, 10);
+  var d = t.startDate || t.dueDateTime;
+  if (d) { var y = new Date(d).getFullYear(); if (!isNaN(y)) return y; }
+  return null;
+}
 function wbsRegisterFilter() {
   if (typeof TLFilter === 'undefined') return;
   TLFilter.register('wbs', {
-    items: function(){ return (typeof tasks!=='undefined') ? tasks.filter(wbsTaskPassesFilter) : []; },
+    items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
     onChange: function(){ renderWbsView(); },
-    year: {
-      get: function(){ return wbsYearVal(); },
-      set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else renderWbsView(); },
-      years: function(){ return (typeof appAllSavedYears==='function') ? appAllSavedYears() : []; },
-      onNew: function(){ promptNewWbsYear(); },
-      onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); else renderWbsView(); }
-    },
     filters: [
+      { key:'year',     label:'연도',     get:function(t){ return wbsFilterYear(t); }, format:function(v){ return v+'년'; } },
       { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
       { key:'project',  label:'Project',  get:function(t){ return wbsProjectKey(t); } },
       { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
@@ -286,8 +288,7 @@ function buildWbsTree() {
   if (typeof tasks === 'undefined' || !tasks.length)
     return '<div class="wbs-empty">✨ 등록된 할 일이 없어요<br><small>TASK 추가 시 Section을 설정하면 여기서 트리로 볼 수 있어요.</small></div>';
 
-  var filtered = tasks.filter(wbsTaskPassesFilter);
-  if (typeof TLFilter !== 'undefined') filtered = TLFilter.apply('wbs', filtered);
+  var filtered = (typeof TLFilter !== 'undefined') ? TLFilter.apply('wbs', tasks.slice()) : tasks.slice();
   if (!filtered.length)
     return '<div class="wbs-empty">✨ 조건에 맞는 할 일이 없어요</div>';
 

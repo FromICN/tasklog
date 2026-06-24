@@ -84,24 +84,17 @@ function ganttYearVal() {
 // ── 월 이동 (연 경계는 전역 연도로 전환) ──
 function ganttPrev() {
   ganttMonth--;
-  if (ganttMonth < 0) {
-    ganttMonth = 11;
-    if (typeof appSetYear === 'function') { appSetYear(ganttYearVal() - 1); return; }
-  }
+  if (ganttMonth < 0) { ganttMonth = 11; ganttShiftYear(-1); return; }
   renderGanttView();
 }
 function ganttNext() {
   ganttMonth++;
-  if (ganttMonth > 11) {
-    ganttMonth = 0;
-    if (typeof appSetYear === 'function') { appSetYear(ganttYearVal() + 1); return; }
-  }
+  if (ganttMonth > 11) { ganttMonth = 0; ganttShiftYear(1); return; }
   renderGanttView();
 }
 function ganttToday() {
   ganttMonth = new Date().getMonth();
-  var ty = new Date().getFullYear();
-  if (typeof appSetYear === 'function' && ganttYearVal() !== ty) { appSetYear(ty); return; }
+  if (typeof TLFilter !== 'undefined') TLFilter.setFilter('project', 'year', [new Date().getFullYear()]);
   renderGanttView();
 }
 
@@ -151,19 +144,36 @@ function ganttProjectKey(t) {
   return (typeof todoProjectKey === 'function') ? todoProjectKey(t)
     : ((t.mdtAction && t.mdtAction.text) || t.lwSectionName || '프로젝트 없음');
 }
+// 작업의 달력 연도(시작/마감일 기준) — 월별 그리드 연도와 일치
+function ganttCalYear(t) {
+  var d = t.startDate || t.dueDateTime;
+  if (d) { var y = new Date(d).getFullYear(); if (!isNaN(y)) return y; }
+  if (t.mdtAction && t.mdtAction.year) return parseInt(t.mdtAction.year, 10);
+  if (t.mdtGoal   && t.mdtGoal.year)   return parseInt(t.mdtGoal.year, 10);
+  return null;
+}
+// 그리드에 표시할 연도 = 연도 필터에서 선택한 값(여러 개면 최신), 없으면 전역/올해
+function ganttDisplayYear() {
+  if (typeof TLFilter !== 'undefined') {
+    var st = TLFilter.getState('project');
+    var ys = (st && st.filters && st.filters.year) ? st.filters.year : [];
+    if (ys.length) return Math.max.apply(null, ys.map(function(y){ return parseInt(y,10); }));
+  }
+  return (typeof appGetYear === 'function') ? appGetYear() : new Date().getFullYear();
+}
+// 월 이동이 연 경계를 넘을 때: 연도 필터를 새 연도로 설정
+function ganttShiftYear(delta) {
+  var y = ganttDisplayYear() + delta;
+  if (typeof TLFilter !== 'undefined') TLFilter.setFilter('project', 'year', [y]);
+  renderGanttView();
+}
 function ganttRegisterFilter() {
   if (typeof TLFilter === 'undefined') return;
   TLFilter.register('project', {
     items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
     onChange: function(){ renderGanttView(); },
-    year: {
-      get: function(){ return ganttYearVal(); },
-      set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else renderGanttView(); },
-      years: function(){ return (typeof appAllSavedYears==='function') ? appAllSavedYears() : []; },
-      onNew: function(){ promptNewGanttYear(); },
-      onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); else renderGanttView(); }
-    },
     filters: [
+      { key:'year',     label:'연도',     get:function(t){ return ganttCalYear(t); }, format:function(v){ return v+'년'; } },
       { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
       { key:'project',  label:'Project',  get:function(t){ return ganttProjectKey(t); } },
       { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
@@ -191,7 +201,7 @@ function renderGanttView() {
   }
 
   var MN = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  var year = ganttYearVal(), month = ganttMonth;
+  var year = ganttDisplayYear(), month = ganttMonth;
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var mS = new Date(year, month, 1);
   var mE = new Date(year, month + 1, 0, 23, 59, 59);
