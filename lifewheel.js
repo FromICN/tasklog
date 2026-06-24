@@ -373,121 +373,60 @@ function lwToggleSectionValue(rowIdx, id) {
   if (box) box.innerHTML = lwBuildModalCvBlock(rowIdx);
 }
 
-// 섹션 편집 모달 안의 '핵심가치 연결' 블록 HTML
-function lwBuildModalCvBlock(rowIdx) {
-  loadCoreValues(); // MVV에서 고른 풀(LW_CV_KEY)
-  var connected = lwGetSectionValueIds(rowIdx);
-  var countColor = connected.length > 0 ? 'var(--brand-primary)' : 'var(--text-3)';
-  var html = '<div class="smart-field-header" style="justify-content:space-between;">'
-    + '<span><span class="smart-icon">💎</span><span class="smart-label">Value</span></span>'
-    + '<span style="display:flex;align-items:center;gap:8px;">'
-    + '<button type="button" class="lw-cv-add-btn" onclick="lwOpenCvPicker(' + rowIdx + ')">+ 가치 추가</button>'
-    + '<span style="font-size:12px;font-weight:700;color:' + countColor + ';">' + connected.length + ' / 3</span>'
-    + '</span>'
+// 섹션 편집 모달 안의 'Value(가치)' 블록 HTML — 텍스트로 직접 추가
+function lwBuildModalCvBlock(idx) {
+  var sections = getLwSections();
+  var sec = (sections && sections[idx]) || {};
+  var vals = Array.isArray(sec.values) ? sec.values : [];
+  var html = '<div class="smart-field-header">'
+    + '<span class="smart-icon">💎</span><span class="smart-label">Value</span>'
+    + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:6px;">'
+    + '<input id="lw-cv-input" type="text" placeholder="가치를 입력하고 Enter 또는 + 추가"'
+    + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();lwAddSectionValue(' + idx + ');}"'
+    + ' style="flex:1;border:1.5px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text-1);padding:7px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;">'
+    + '<button type="button" class="lw-cv-add-btn" onclick="lwAddSectionValue(' + idx + ')">+ 추가</button>'
     + '</div>';
-  if (!lwCoreValues || lwCoreValues.length === 0) {
-    html += '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">아직 선택한 핵심가치가 없습니다. <strong>+ 가치 추가</strong>를 눌러 시작하세요.</div>';
+  if (vals.length === 0) {
+    html += '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">아직 추가한 가치가 없습니다. 위에 입력해 추가하세요.</div>';
     return html;
   }
-  html += '<div class="lw-cv-chips" style="margin-top:6px;">'
-    + lwCoreValues.map(function(id) {
-        var p = lwGetPreset(id);
-        var label = p ? p.label : id;
-        var sel = connected.indexOf(id) > -1;
-        return '<button class="lw-cv-chip' + (sel ? ' selected' : '') + '"'
-          + ' onclick="lwToggleSectionValue(' + rowIdx + ',\'' + id + '\')">'
-          + (sel ? '✓ ' : '') + hwEsc(label)
-          + '</button>';
+  html += '<div class="lw-cv-chips" style="margin-top:8px;">'
+    + vals.map(function(v, vi) {
+        return '<span class="lw-cv-chip selected" style="cursor:default;display:inline-flex;align-items:center;gap:6px;">'
+          + hwEsc(v)
+          + '<span onclick="lwRemoveSectionValue(' + idx + ',' + vi + ')" style="cursor:pointer;font-weight:700;">✕</span>'
+          + '</span>';
       }).join('')
     + '</div>';
   return html;
 }
 
-// ── 핵심가치 추가 팝업 (라이프 휠 → 핵심가치 연결) ──
-var _lwCvPickerRow = null;
-
-function lwOpenCvPicker(rowIdx) {
-  _lwCvPickerRow = rowIdx;
-  loadCoreValues();
-  var existing = document.getElementById('lw-cv-picker-overlay');
-  if (existing) existing.remove();
-  var ol = document.createElement('div');
-  ol.className = 'lw-modal-overlay lw-cv-picker-overlay';
-  ol.id = 'lw-cv-picker-overlay';
-  ol.onclick = function(e) {
-    if (e && e.target && e.target.id === 'lw-cv-picker-overlay') lwCloseCvPicker();
-  };
-  ol.innerHTML = '<div class="lw-modal lw-cv-picker-modal">'
-    + '<div class="lw-modal-header">'
-    + '<span><span class="smart-icon">💎</span> 핵심가치 선택</span>'
-    + '<button class="lw-modal-close" onclick="lwCloseCvPicker()">✕</button>'
-    + '</div>'
-    + '<div class="lw-modal-body" id="lw-cv-picker-body">' + lwBuildCvPickerBody() + '</div>'
-    + '<div class="lw-modal-footer">'
-    + '<button class="lw-modal-save" onclick="lwCloseCvPicker()">완료</button>'
-    + '</div>'
-    + '</div>';
-  document.body.appendChild(ol);
+// 섹션에 가치(텍스트) 추가
+function lwAddSectionValue(idx) {
+  var inp = document.getElementById('lw-cv-input');
+  if (!inp) return;
+  var val = inp.value.trim();
+  if (!val) return;
+  var sections = getLwSections();
+  if (!sections || !sections[idx]) return;
+  if (!Array.isArray(sections[idx].values)) sections[idx].values = [];
+  sections[idx].values.push(val);
+  saveLifeWheel();
+  var box = document.getElementById('lw-modal-cv-block');
+  if (box) box.innerHTML = lwBuildModalCvBlock(idx);
+  var ni = document.getElementById('lw-cv-input');
+  if (ni) ni.focus();
 }
 
-function lwCloseCvPicker() {
-  var ol = document.getElementById('lw-cv-picker-overlay');
-  if (ol) ol.remove();
-  // 섹션 모달의 핵심가치 연결 블록 갱신
-  if (_lwCvPickerRow != null) {
-    var box = document.getElementById('lw-modal-cv-block');
-    if (box) box.innerHTML = lwBuildModalCvBlock(_lwCvPickerRow);
-  }
-  _lwCvPickerRow = null;
-}
-
-// 팝업 내 가치 토글 (LW_CV_KEY 풀에 추가/제거)
-function lwPickerToggleValue(id) {
-  loadCoreValues();
-  var idx = lwCoreValues.indexOf(id);
-  if (idx > -1) {
-    lwCoreValues.splice(idx, 1);
-    // 풀에서 빠지면 모든 영역 연결에서도 제거
-    lwUnlinkValueFromAllSections(id);
-  } else {
-    lwCoreValues.push(id);
-  }
-  saveCoreValues();
-  var body = document.getElementById('lw-cv-picker-body');
-  if (body) body.innerHTML = lwBuildCvPickerBody();
-}
-
-// 특정 가치를 모든 영역 연결(sectionValues)에서 제거
-function lwUnlinkValueFromAllSections(id) {
-  var saved;
-  try { saved = JSON.parse(localStorage.getItem('tasklog-mvv-data') || 'null'); } catch(e) { saved = null; }
-  if (!saved || !saved.sectionValues) return;
-  Object.keys(saved.sectionValues).forEach(function(sec) {
-    saved.sectionValues[sec] = (saved.sectionValues[sec] || []).filter(function(x){ return x !== id; });
-  });
-  localStorage.setItem('tasklog-mvv-data', JSON.stringify(saved));
-}
-
-// 팝업 본문 (카테고리별 가치 칩 + 선택 목록)
-function lwBuildCvPickerBody() {
-  loadCoreValues();
-  var html = '<div class="lw-cv-picker-count">선택된 핵심가치 <strong>' + lwCoreValues.length + '</strong>개</div>';
-  LW_CV_CATS.forEach(function(cat) {
-    var color = LW_CV_CAT_COLORS[cat] || '#999';
-    var presets = LW_CV_PRESETS.filter(function(v){ return v.cat === cat; });
-    html += '<div class="lw-cv-cat" style="border-left:3px solid ' + color + ';">'
-      + '<div class="lw-cv-cat-title" style="color:' + color + ';">' + cat + '</div>'
-      + '<div class="lw-cv-chips">'
-      + presets.map(function(v) {
-          var sel = lwCoreValues.indexOf(v.id) > -1;
-          return '<button class="lw-cv-chip' + (sel ? ' selected' : '') + '" style="' + (sel ? 'border-color:' + color + ';background:' + color + '18;color:' + color + ';' : '') + '" onclick="lwPickerToggleValue(\'' + v.id + '\')" title="' + v.desc + '">'
-            + (sel ? '✓ ' : '') + v.label
-            + ' <span style="font-size:10px;opacity:0.55;">' + v.en + '</span>'
-            + '</button>';
-        }).join('')
-      + '</div></div>';
-  });
-  return html;
+// 섹션 가치 제거
+function lwRemoveSectionValue(idx, vi) {
+  var sections = getLwSections();
+  if (!sections || !sections[idx] || !Array.isArray(sections[idx].values)) return;
+  sections[idx].values.splice(vi, 1);
+  saveLifeWheel();
+  var box = document.getElementById('lw-modal-cv-block');
+  if (box) box.innerHTML = lwBuildModalCvBlock(idx);
 }
 
 // ── 수레바퀴 탭 ───────────────────────────
@@ -509,15 +448,18 @@ function buildLwWheelTab() {
     var idealText = sec.ideal || '—';
     var goalText  = finalGoal || '—';
 
-    // 핵심가치: MVV sectionValues에서 읽어옴
-    var mvvVals = lwGetMvvSectionValues(i);
-    var cvCell = mvvVals.length > 0
-      ? mvvVals.map(function(label) {
+    // 핵심가치: 섹션에 직접 입력한 값(sec.values)에서 읽어옴
+    var secVals = Array.isArray(sec.values) ? sec.values : [];
+    var cvCell = secVals.length > 0
+      ? secVals.map(function(label) {
           return '<span class="lw-cv-tag">' + hwEsc(label) + '</span>';
         }).join('')
       : '<span style="font-size:11px;color:var(--text-3);">—</span>';
 
-    return '<tr class="lw-row" id="lw-card-' + i + '" onclick="lwOpenSectionModal(' + i + ')">'
+    return '<tr class="lw-row" id="lw-card-' + i + '" draggable="true"'
+      + ' ondragstart="lwDragStart(event,' + i + ')" ondragover="lwDragOver(event,' + i + ')"'
+      + ' ondrop="lwDrop(event,' + i + ')" ondragend="lwDragEnd(event)"'
+      + ' onclick="lwOpenSectionModal(' + i + ')">'
       + '<td class="lw-section"' + (secColor ? ' style="border-left:3px solid ' + secColor + ';"' : '') + '><span style="font-size:16px;margin-right:6px;">' + (sec.emoji || '⭐') + '</span><span' + (secColor ? ' style="color:' + secColor + ';font-weight:600;"' : '') + '>' + hwEsc(sec.name || '') + '</span></td>'
       + '<td class="lw-score-cell"><div class="lw-score-wrap" onclick="event.stopPropagation();"><div class="lw-score-bar">' + scoreBar + '</div><span class="lw-score-num" style="font-size:11px;min-width:24px;">' + (sec.score || 5) + '/10</span></div></td>'
       + '<td style="white-space:nowrap;"><span style="font-size:12px;font-weight:600;color:' + statusInfo.color + ';">' + statusInfo.label + '</span></td>'
@@ -525,7 +467,6 @@ function buildLwWheelTab() {
       + '<td class="lw-ideal"><div class="lw-ideal-text">' + hwEsc(idealText) + '</div></td>'
       + '<td class="lw-ideal"><div class="lw-ideal-text">' + hwEsc(goalText) + '</div></td>'
       + '<td class="lw-cv-cell">' + cvCell + '</td>'
-      + '<td><button class="lw-edit-btn" title="편집" onclick="event.stopPropagation();lwOpenSectionModal(' + i + ')">✏️</button></td>'
       + '</tr>';
   }).join('');
 
@@ -540,7 +481,6 @@ function buildLwWheelTab() {
     + '<th>Ideal</th>'
     + '<th>Goal</th>'
     + '<th>Value</th>'
-    + '<th></th>'
     + '</tr></thead>'
     + '<tbody>' + rows + '</tbody>'
     + '</table>'
@@ -720,11 +660,21 @@ function lwOpenSectionModal(idx) {
   var smartHtml = '<div class="smart-checks-row">' + smartFields.map(function(f) {
     var checked = sec.smart[f.key] ? ' checked' : '';
     return '<label class="smart-check">'
+      + '<span class="smart-check-top">'
       + '<input type="checkbox" id="lw-smart-' + f.key + '"' + checked + '>'
       + '<span class="smart-icon">' + f.icon + '</span>'
+      + '</span>'
       + '<span class="smart-label">' + f.label + '</span>'
       + '</label>';
   }).join('') + '</div>';
+
+  // Point(점수) 편집용 핍 바
+  var curScore = sec.score || 5;
+  var scorePips = '';
+  for (var ps = 1; ps <= 10; ps++) {
+    scorePips += '<div class="lw-score-pip' + (ps <= curScore ? ' active' : '') + '"'
+      + ' onclick="lwModalSetScore(' + ps + ')" title="' + ps + '점"></div>';
+  }
 
   var html = '<div class="lw-modal-overlay" id="lw-modal-overlay" onclick="lwModalOverlayClick(event)">'
     + '<div class="lw-modal smart-modal">'
@@ -759,17 +709,21 @@ function lwOpenSectionModal(idx) {
     + '<label style="font-size:11px;font-weight:700;color:var(--text-3);">Status</label>'
     + '<div style="display:flex;gap:16px;flex-wrap:wrap;">' + statusOpts + '</div>'
     + '</div>'
+    + '<div style="display:flex;flex-direction:column;gap:4px;">'
+    + '<label style="font-size:11px;font-weight:700;color:var(--text-3);">Point</label>'
+    + '<div class="lw-score-bar" id="lw-modal-score" data-score="' + curScore + '">' + scorePips + '</div>'
+    + '</div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">📝</span><span class="smart-label">Info</span><span class="smart-desc">이 영역에 대한 간단한 설명</span></div>'
+    + '<div class="smart-field-header"><span class="smart-icon">📝</span><span class="smart-label">Info</span></div>'
     + '<textarea class="smart-textarea" id="lw-info" placeholder="이 영역이 무엇을 의미하는지 간단히 적어보세요...">' + hwEsc(sec.info || '') + '</textarea>'
     + '</div>'
     + smartHtml
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">🏁</span><span class="smart-label">Goal</span><span class="smart-desc">이 영역에서 이루고 싶은 것</span></div>'
+    + '<div class="smart-field-header"><span class="smart-icon">🏁</span><span class="smart-label">Goal</span></div>'
     + '<textarea class="smart-textarea" id="lw-smart-finalGoal" placeholder="이 영역에서 궁극적으로 달성하고 싶은 모습을 적어보세요...">' + hwEsc(sec.smart.finalGoal || '') + '</textarea>'
     + '</div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">✨</span><span class="smart-label">Ideal</span><span class="smart-desc">이 영역이 가장 이상적일 때의 모습</span></div>'
+    + '<div class="smart-field-header"><span class="smart-icon">✨</span><span class="smart-label">Ideal</span></div>'
     + '<textarea class="smart-textarea" id="lw-ideal" placeholder="이 영역이 가장 이상적일 때의 모습을 적어보세요...">' + hwEsc(sec.ideal || '') + '</textarea>'
     + '</div>'
     + '<div class="smart-final-field" id="lw-modal-cv-block">' + lwBuildModalCvBlock(idx) + '</div>'
@@ -818,6 +772,12 @@ function lwSaveSectionModal(idx) {
   var statusEl = document.querySelector('input[name="lw-modal-status"]:checked');
   if (statusEl) sec.status = statusEl.value;
 
+  var scoreBox = document.getElementById('lw-modal-score');
+  if (scoreBox) {
+    var sc = parseInt(scoreBox.getAttribute('data-score'), 10);
+    if (!isNaN(sc)) sec.score = sc;
+  }
+
   var colorHexEl = document.getElementById('lw-modal-color-hex');
   var colorEl = document.getElementById('lw-modal-color');
   if (colorHexEl && /^#([0-9a-fA-F]{6})$/.test(colorHexEl.value.trim())) {
@@ -843,5 +803,54 @@ function lwSaveSectionModal(idx) {
   saveLifeWheel();
   if (typeof lwSyncToMandalart === 'function') lwSyncToMandalart(idx);
   lwCloseSectionModal();
+  if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
+}
+
+// ── 모달 내 Point(점수) 편집 ──────────────
+function lwModalSetScore(score) {
+  var box = document.getElementById('lw-modal-score');
+  if (!box) return;
+  box.setAttribute('data-score', score);
+  var pips = box.querySelectorAll('.lw-score-pip');
+  pips.forEach(function(p, k) { p.classList.toggle('active', k < score); });
+}
+
+// ── 섹션 드래그 순서 변경 ─────────────────
+var _lwDragFrom = null;
+
+function lwDragStart(e, i) {
+  _lwDragFrom = i;
+  if (e && e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  var tr = e && e.target && e.target.closest ? e.target.closest('tr') : null;
+  if (tr) tr.classList.add('lw-dragging');
+}
+
+function lwDragOver(e, i) {
+  if (e) e.preventDefault();
+  if (e && e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+}
+
+function lwDrop(e, i) {
+  if (e) e.preventDefault();
+  if (_lwDragFrom === null || _lwDragFrom === i) { _lwDragFrom = null; return; }
+  lwReorderSections(_lwDragFrom, i);
+  _lwDragFrom = null;
+}
+
+function lwDragEnd(e) {
+  _lwDragFrom = null;
+  var rows = document.querySelectorAll('.lw-row.lw-dragging');
+  rows.forEach(function(r) { r.classList.remove('lw-dragging'); });
+}
+
+function lwReorderSections(from, to) {
+  var yr = getLwYear(lwCurrentYear);
+  if (!yr || !Array.isArray(yr.sections)) return;
+  var arr = yr.sections;
+  if (from < 0 || from >= arr.length || to < 0 || to >= arr.length) return;
+  var moved = arr.splice(from, 1)[0];
+  arr.splice(to, 0, moved);
+  saveLifeWheel();
+  if (typeof lwSyncToMandalart === 'function') lwSyncToMandalart();
   if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
 }

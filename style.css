@@ -3329,6 +3329,10 @@ mark.search-hl {
   background: var(--surface-hover);
 }
 
+/* 섹션 드래그 순서 변경 */
+.lw-row { cursor: grab; }
+.lw-row.lw-dragging { opacity: 0.45; background: var(--surface-hover); }
+
 /* Section 컬럼 — 헤더는 가운데, 본문은 왼쪽 정렬 */
 .lw-table th.lw-th-section { text-align: center; }
 .lw-table td.lw-section {
@@ -3366,7 +3370,7 @@ mark.search-hl {
   width: 366px;
   min-width: 336px;
   max-width: 386px;
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -3388,7 +3392,7 @@ mark.search-hl {
   border-radius: 6px;
   padding: 4px 6px;
   transition: background 0.15s;
-  white-space: normal;
+  white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -4127,13 +4131,17 @@ body.light-mode .lw-cv-tag {
 }
 .smart-textarea:focus { border-color: rgba(99,179,237,0.5); }
 
-/* SMART 체크박스 (한 줄 표현 — 텍스트가 박스 밖으로 넘치지 않도록 칸 안에서 줄바꿈) */
+/* SMART 체크박스 (윗줄: 체크칸+이모지 / 아랫줄: 텍스트) */
 .smart-checks-row { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 6px; }
 .smart-check {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
-  gap: 3px 5px; cursor: pointer; text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 4px; cursor: pointer; text-align: center;
   padding: 8px 4px; border: 1px solid var(--border); border-radius: 8px;
   background: rgba(255,255,255,0.04); flex: 1 1 0; min-width: 0; overflow: hidden;
+}
+.smart-check .smart-check-top {
+  display: flex; flex-direction: row; align-items: center; justify-content: center;
+  gap: 5px; flex: none;
 }
 .smart-check input { cursor: pointer; margin: 0; flex: none; }
 .smart-check .smart-icon  { font-size: 14px; flex: none; line-height: 1; }
