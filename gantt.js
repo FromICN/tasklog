@@ -146,24 +146,41 @@ function promptNewGanttYear() {
   if (typeof appSetYear === 'function') appSetYear(y);
 }
 
-function renderGanttTitleYear() {
-  var slot = document.getElementById('topbar-mdt-year-slot');
-  if (!slot) return;
-  var cur = ganttYearVal();
-  var years = (typeof appAllSavedYears === 'function') ? appAllSavedYears().slice() : [];
-  if (years.indexOf(cur) === -1) years.push(cur);
-  years.sort(function(a, b){ return b - a; });
-  var opts = years.map(function(y){
-    return '<option value="' + y + '"' + (y === cur ? ' selected' : '') + '>' + y + '년</option>';
-  }).join('');
-  opts += '<option value="__new__">+ 새 연도 추가</option>';
-  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  slot.innerHTML = '<select class="year-select" onchange="handleGanttYearSelect(this.value)">' + opts + '</select>';
+// ─ 통합 필터/정렬 (TLFilter) ─
+function ganttProjectKey(t) {
+  return (typeof todoProjectKey === 'function') ? todoProjectKey(t)
+    : ((t.mdtAction && t.mdtAction.text) || t.lwSectionName || '프로젝트 없음');
+}
+function ganttRegisterFilter() {
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.register('project', {
+    items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
+    onChange: function(){ renderGanttView(); },
+    year: {
+      get: function(){ return ganttYearVal(); },
+      set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else renderGanttView(); },
+      years: function(){ return (typeof appAllSavedYears==='function') ? appAllSavedYears() : []; },
+      onNew: function(){ promptNewGanttYear(); },
+      onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); else renderGanttView(); }
+    },
+    filters: [
+      { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
+      { key:'project',  label:'Project',  get:function(t){ return ganttProjectKey(t); } },
+      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
+    ],
+    sorts: [
+      { key:'title',    label:'제목',   get:function(t){ return (t.text||'').replace(/^\[\d{6}\] /,'').toLowerCase(); } },
+      { key:'start',    label:'시작일', get:function(t){ return t.startDate ? new Date(t.startDate).getTime() : null; } },
+      { key:'due',      label:'마감일', get:function(t){ return t.dueDateTime ? new Date(t.dueDateTime).getTime() : null; } },
+      { key:'progress', label:'진행률', get:function(t){ return getTaskProgress(t); } }
+    ]
+  });
 }
 
 // ── 본문 렌더 (홈 Gantt 미니와 동일 엔진, 전체보기) ──
 function renderGanttView() {
-  renderGanttTitleYear();
+  ganttRegisterFilter();
+  if (typeof TLFilter !== 'undefined') TLFilter.render('project');
 
   var content = document.getElementById('page-content');
   if (!content) return;
@@ -191,6 +208,9 @@ function renderGanttView() {
     if (e)      return e >= mS && e <= mE;
     return false;
   });
+
+  // TLFilter 적용
+  if (typeof TLFilter !== 'undefined') vis = TLFilter.apply('project', vis);
 
   var navHtml = '<div class="gm-nav">'
     + '<button class="gm-arrow" onclick="ganttPrev()">‹</button>'

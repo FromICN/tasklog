@@ -2416,6 +2416,9 @@ function navToMenu(id) {
   var mdtYearSlot = document.getElementById('topbar-mdt-year-slot');
   if (mdtYearSlot) mdtYearSlot.innerHTML = '';
 
+  // 4.6) 통합 필터/정렬 슬롯 초기화 — 대상 페이지 render에서 다시 채워짐
+  if (typeof TLFilter !== 'undefined' && TLFilter.clear) TLFilter.clear();
+
   // 5) 본문 렌더
   var fnName = MENU_RENDERERS[id];
   var content = document.getElementById('page-content');

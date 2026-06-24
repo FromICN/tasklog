@@ -304,19 +304,18 @@ function renderLifeWheelView() {
 
 // ── 연도 선택 드롭다운 (타이틀 영역 슬롯, MVV와 동일) ─────────
 function renderLwYearSlot() {
-  var slot = document.getElementById('topbar-mdt-year-slot');
-  if (!slot) return;
-  var years = (typeof appAllSavedYears === 'function')
-    ? appAllSavedYears()
-    : lwYears.map(function(y){ return y.year; });
-  if (years.indexOf(lwCurrentYear) === -1) years.push(lwCurrentYear);
-  years.sort(function(a, b){ return b - a; });
-  var opts = years.map(function(yr){
-    return '<option value="' + yr + '"' + (yr === lwCurrentYear ? ' selected' : '') + '>' + yr + '년</option>';
-  }).join('');
-  opts += '<option value="__new__">+ 새 연도 추가</option>';
-  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  slot.innerHTML = '<select class="year-select" onchange="handleLwYearSelect(this.value)">' + opts + '</select>';
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.register('wheel', {
+    onChange: function(){ renderLifeWheelView(); },
+    year: {
+      get: function(){ return lwCurrentYear; },
+      set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else switchLwYear(y); },
+      years: function(){ return (typeof appAllSavedYears==='function') ? appAllSavedYears() : lwYears.map(function(o){ return o.year; }); },
+      onNew: function(){ promptNewLwYear(); },
+      onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); }
+    }
+  });
+  TLFilter.render('wheel');
 }
 
 function lwSetTab(tab) {

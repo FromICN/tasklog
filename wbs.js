@@ -12,7 +12,8 @@ function wbsYearVal() {
 function renderWbsView() {
   if (typeof appSyncVars === 'function') appSyncVars();
   if (typeof loadLifeWheel === 'function') loadLifeWheel();
-  renderWbsTitleYear();
+  wbsRegisterFilter();
+  if (typeof TLFilter !== 'undefined') TLFilter.render('wbs');
   var content = document.getElementById('page-content');
   if (!content) return;
   content.innerHTML = '<div class="wbs-wrap" id="wbs-root">' + buildWbsTree() + '</div>';
@@ -40,19 +41,34 @@ function promptNewWbsYear() {
   if (typeof appSetYear === 'function') appSetYear(y);
 }
 
-function renderWbsTitleYear() {
-  var slot = document.getElementById('topbar-mdt-year-slot');
-  if (!slot) return;
-  var cur = wbsYearVal();
-  var years = (typeof appAllSavedYears === 'function') ? appAllSavedYears().slice() : [];
-  if (years.indexOf(cur) === -1) years.push(cur);
-  years.sort(function(a, b){ return b - a; });
-  var opts = years.map(function(y){
-    return '<option value="' + y + '"' + (y === cur ? ' selected' : '') + '>' + y + '년</option>';
-  }).join('');
-  opts += '<option value="__new__">+ 새 연도 추가</option>';
-  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  slot.innerHTML = '<select class="year-select" onchange="handleWbsYearSelect(this.value)">' + opts + '</select>';
+// ── 통합 필터/정렬 (TLFilter) — 연도 선택 통합 + Status/Project 필터, 정렬 ──
+function wbsProjectKey(t) {
+  return (typeof todoProjectKey === 'function') ? todoProjectKey(t)
+    : ((t.mdtAction && t.mdtAction.text) || t.lwSectionName || '프로젝트 없음');
+}
+function wbsRegisterFilter() {
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.register('wbs', {
+    items: function(){ return (typeof tasks!=='undefined') ? tasks.filter(wbsTaskPassesFilter) : []; },
+    onChange: function(){ renderWbsView(); },
+    year: {
+      get: function(){ return wbsYearVal(); },
+      set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else renderWbsView(); },
+      years: function(){ return (typeof appAllSavedYears==='function') ? appAllSavedYears() : []; },
+      onNew: function(){ promptNewWbsYear(); },
+      onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); else renderWbsView(); }
+    },
+    filters: [
+      { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
+      { key:'project',  label:'Project',  get:function(t){ return wbsProjectKey(t); } },
+      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
+    ],
+    sorts: [
+      { key:'title',    label:'제목',   get:function(t){ return (t.text||'').replace(/^\[\d{6}\] /,'').toLowerCase(); } },
+      { key:'start',    label:'시작일', get:function(t){ return t.startDate ? new Date(t.startDate).getTime() : null; } },
+      { key:'due',      label:'마감일', get:function(t){ return t.dueDateTime ? new Date(t.dueDateTime).getTime() : null; } }
+    ]
+  });
 }
 
 // ── 연도 필터 (전역 연도 기준 · 연도 미지정 항목은 항상 표시) ──
@@ -271,6 +287,7 @@ function buildWbsTree() {
     return '<div class="wbs-empty">✨ 등록된 할 일이 없어요<br><small>TASK 추가 시 Section을 설정하면 여기서 트리로 볼 수 있어요.</small></div>';
 
   var filtered = tasks.filter(wbsTaskPassesFilter);
+  if (typeof TLFilter !== 'undefined') filtered = TLFilter.apply('wbs', filtered);
   if (!filtered.length)
     return '<div class="wbs-empty">✨ 조건에 맞는 할 일이 없어요</div>';
 

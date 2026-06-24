@@ -219,20 +219,20 @@ function renderMdtView() {
     } catch (e) {}
   }
 
-  // 연도 선택 드롭박스
-  var yearSelHtml = '';
-  if (mandalarts.length > 0) {
-    var opts = mandalarts.map(function(m){ return m.year; })
-      .sort(function(a,b){ return b-a; })
-      .map(function(y){
-        return '<option value="'+y+'"'+(y===currentMdtYear?' selected':'')+'>'+y+'년</option>';
-      }).join('');
-    opts += '<option value="__new__">+ 새 연도 추가</option>';
-    opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-    yearSelHtml = '<select class="year-select" onchange="handleMdtYearSelect(this.value)">'+opts+'</select>';
+  // 연도 선택 → 통합 필터 컴포넌트로 이동
+  if (typeof TLFilter !== 'undefined') {
+    TLFilter.register('mandalart', {
+      onChange: function(){ renderMdtView(); },
+      year: {
+        get: function(){ return currentMdtYear; },
+        set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else { currentMdtYear=y; renderMdtView(); } },
+        years: function(){ return (typeof appAllSavedYears==='function' && appAllSavedYears().length) ? appAllSavedYears() : mandalarts.map(function(m){ return m.year; }); },
+        onNew: function(){ if (typeof promptNewMdt==='function') promptNewMdt(); },
+        onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); }
+      }
+    });
+    TLFilter.render('mandalart');
   }
-  var yearSlot = document.getElementById('topbar-mdt-year-slot');
-  if (yearSlot) yearSlot.innerHTML = yearSelHtml;
 
   if (!currentMdtYear || !getMdt(currentMdtYear)) {
     content.innerHTML = '<div class="mdt-page">'

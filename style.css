@@ -8744,3 +8744,84 @@ body.light-mode .pm-btn-save { background: #f0f0f0; }
 
 /* 분기 셀: 체크박스 + 라벨 한 줄(가로) → 세로 길이 축소 */
 .mdt-q-head { display: flex; align-items: center; justify-content: center; gap: 4px; }
+
+/* ============================================
+   🧰 통합 필터/정렬 컴포넌트 (TLFilter)
+   ============================================ */
+.topbar-filter-slot { display: flex; align-items: center; gap: 6px; }
+.tlf-ctrl { position: relative; display: inline-flex; }
+.tlf-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-1);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; outline: none;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1; white-space: nowrap;
+}
+.tlf-btn svg { display: block; flex-shrink: 0; }
+.tlf-btn:hover { background: rgba(255,255,255,0.13); }
+.tlf-btn.tlf-active { border-color: rgba(99,179,237,0.6); color: #63b3ed; }
+.tlf-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: #4F6EF7; color: #fff;
+  border-radius: 8px; font-size: 11px; font-weight: 700;
+}
+body.light-mode .tlf-btn { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.12); color: #1a1a1a; }
+body.light-mode .tlf-btn:hover { background: rgba(0,0,0,0.07); }
+body.light-mode .tlf-btn.tlf-active { color: #2563eb; border-color: rgba(37,99,235,0.5); }
+
+.tlf-pop {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 200;
+  min-width: 200px; max-width: 280px;
+  max-height: 60vh; overflow-y: auto;
+  background: var(--bg-1, #1e1e24);
+  border: 1px solid var(--border, rgba(255,255,255,0.15));
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+  padding: 8px;
+  text-align: left;
+}
+body.light-mode .tlf-pop { background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,0.15); }
+.tlf-pop-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; font-weight: 700; color: var(--text-2);
+  padding: 2px 6px 8px; border-bottom: 1px solid var(--border, rgba(255,255,255,0.1));
+  margin-bottom: 6px;
+}
+.tlf-clear {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: #4F6EF7; font-weight: 600; padding: 0;
+}
+.tlf-clear:hover { text-decoration: underline; }
+.tlf-group { padding: 4px 0 6px; }
+.tlf-group + .tlf-group { border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }
+.tlf-group-label {
+  font-size: 11px; font-weight: 700; color: var(--text-3, #9aa);
+  padding: 4px 6px 2px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.tlf-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: 6px; cursor: pointer;
+  font-size: 13px; color: var(--text-1);
+}
+.tlf-opt:hover { background: var(--surface-hover, rgba(255,255,255,0.06)); }
+.tlf-opt input { cursor: pointer; margin: 0; }
+.tlf-sort-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: 6px;
+}
+.tlf-sort-row:hover { background: var(--surface-hover, rgba(255,255,255,0.06)); }
+.tlf-sort-name { flex: 1; font-size: 13px; color: var(--text-1); }
+.tlf-sort-dir {
+  background: none; border: 1px solid var(--border, rgba(255,255,255,0.15));
+  color: var(--text-2); border-radius: 5px; cursor: pointer;
+  width: 24px; height: 22px; font-size: 10px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tlf-sort-dir:hover { background: var(--surface-hover, rgba(255,255,255,0.08)); }
+.tlf-sort-dir.on { background: #4F6EF7; border-color: #4F6EF7; color: #fff; }

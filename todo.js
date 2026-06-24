@@ -99,88 +99,66 @@ function toggleTodoProjPick(e) {
   if (_todoProjPickOpen) closeTodoProjPick(); else openTodoProjPick();
 }
 
-// ── Project 헤더: 짧게 클릭=정렬 / 길게 누름=필터 드롭다운 ──
-var _todoProjPressTimer = null;
-var _todoProjLongFired  = false;
-function todoProjPressStart(e) {
-  if (e) e.stopPropagation();
-  _todoProjLongFired = false;
-  clearTimeout(_todoProjPressTimer);
-  _todoProjPressTimer = setTimeout(function(){
-    _todoProjLongFired = true;   // 길게 누름 → 필터 열기 (정렬 안 함)
-    openTodoProjPick();
-  }, 450);
-}
-function todoProjPressEnd(e) {
-  if (e) e.stopPropagation();
-  clearTimeout(_todoProjPressTimer);
-  if (_todoProjLongFired) { _todoProjLongFired = false; return; }
-  todoSortBy('project');         // 짧은 클릭 → 정렬 토글
-}
-function todoProjPressCancel() { clearTimeout(_todoProjPressTimer); }
-
-function toggleTodoProj(key) {
-  var i = _todoProjHidden.indexOf(key);
-  if (i >= 0) _todoProjHidden.splice(i, 1); else _todoProjHidden.push(key);
-  saveTodoProjHidden();
-  refreshTodoBody(); // _todoProjPickOpen 유지 → 패널 열린 채로 갱신
-}
-
-// Project 탭 헤더(가장 왼쪽 데이터 컬럼) — 클릭=정렬, 길게 누름=표시 프로젝트 필터
+// Project 탭 헤더 — 필터/정렬은 상단 통합 컴포넌트로 이동, 일반 라벨만 표시
 function todoProjFilterTh() {
-  var projItems = allProjectKeys().map(function(k){
-    var checked = _todoProjHidden.indexOf(k) === -1 ? ' checked' : '';
-    return '<label class="todo-colpick-item"><input type="checkbox"'+checked+' data-projkey="'+encodeURIComponent(k)+'" onchange="toggleTodoProj(decodeURIComponent(this.dataset.projkey))"><span>'+escapeHtml(k)+'</span></label>';
-  }).join('');
-  var disp = _todoProjPickOpen ? 'block' : 'none';
-  var ind  = (_todoSort.key === 'project') ? ' <span class="todo-sort-ind">'+(_todoSort.dir==='desc'?'▼':'▲')+'</span>' : '';
-  return '<th class="todo-th-sort todo-th-proj" id="todo-proj-th" title="클릭: 정렬 / 길게 누름: 표시 프로젝트 선택" style="position:relative;cursor:pointer;white-space:nowrap;user-select:none;" '
-    + 'onmousedown="todoProjPressStart(event)" onmouseup="todoProjPressEnd(event)" onmouseleave="todoProjPressCancel()" '
-    + 'ontouchstart="todoProjPressStart(event)" ontouchend="event.preventDefault();todoProjPressEnd(event)">'
-    + 'Project' + ind + ' <span class="todo-colpick-arrow">▾</span>'
-    + '<div class="todo-colpick-panel" id="todo-projpick-panel" style="display:'+disp+';position:absolute;top:100%;left:0;z-index:60;font-weight:normal;text-align:left;" onmousedown="event.stopPropagation();" onmouseup="event.stopPropagation();" onclick="event.stopPropagation();">'
-    + (projItems || '<div class="todo-colpick-item" style="color:var(--text-3);">프로젝트 없음</div>')
-    + '</div>'
-    + '</th>';
+  return '<th class="todo-th-proj">Project</th>';
 }
 
-// ── 정렬 ──
-var _todoSort = { key: null, dir: 'asc' };
-
-function todoSortBy(key) {
-  if (_todoSort.key === key) _todoSort.dir = (_todoSort.dir === 'asc') ? 'desc' : 'asc';
-  else { _todoSort.key = key; _todoSort.dir = 'asc'; }
-  refreshTodoBody();
+// ── 정렬/필터: 상단 통합 컴포넌트(TLFilter)로 위임 ──
+function todoTaskYear(task) {
+  if (task.mdtAction && task.mdtAction.year) return parseInt(task.mdtAction.year, 10);
+  if (task.mdtGoal   && task.mdtGoal.year)   return parseInt(task.mdtGoal.year, 10);
+  var d = task.startDate || task.dueDateTime;
+  if (d) { var y = new Date(d).getFullYear(); if (!isNaN(y)) return y; }
+  return null;
 }
 
 function todoSortValue(task, key) {
   switch (key) {
     case 'title':    return (task.text || '').replace(/^\[\d{6}\] /,'').toLowerCase();
-    case 'start':    return task.startDate ? new Date(task.startDate).getTime() : Infinity;
-    case 'due':      return task.dueDateTime ? new Date(task.dueDateTime).getTime() : Infinity;
+    case 'start':    return task.startDate ? new Date(task.startDate).getTime() : null;
+    case 'due':      return task.dueDateTime ? new Date(task.dueDateTime).getTime() : null;
     case 'progress': return getTaskProgressPct(task);
-    case 'status':   { var order=['대기','진행','중단','완료','취소']; var i=order.indexOf(task.status); return i<0?99:i; }
-    case 'coworker': { var a=Array.isArray(task.assignees)?task.assignees:(task.assignee?[task.assignee]:[]); return a.join(', ').toLowerCase(); }
-    case 'upstream': { var o=(Array.isArray(task.upstreamDepts)&&task.upstreamDepts.length)?task.upstreamDepts.join(', '):(task.upstreamDept||''); return o.toLowerCase(); }
-    case 'project':  return (((task.mdtAction&&task.mdtAction.text)||task.lwSectionName)||'').toLowerCase();
-    default: return '';
+    case 'status':   { var order=['대기','진행','중단','완료','취소']; var i=order.indexOf(task.status); return i<0?null:i; }
+    case 'coworker': { var a=Array.isArray(task.assignees)?task.assignees:(task.assignee?[task.assignee]:[]); return a.join(', ').toLowerCase()||null; }
+    case 'project':  return (((task.mdtAction&&task.mdtAction.text)||task.lwSectionName)||'').toLowerCase()||null;
+    default: return null;
   }
 }
 
-function applyTodoSort(arr) {
-  if (!_todoSort.key) return arr;
-  var k = _todoSort.key, dir = (_todoSort.dir === 'desc') ? -1 : 1;
-  return arr.slice().sort(function(a, b){
-    var va = todoSortValue(a, k), vb = todoSortValue(b, k);
-    if (va < vb) return -1 * dir;
-    if (va > vb) return  1 * dir;
-    return 0;
+function applyTodoFilter(arr) {
+  return (typeof TLFilter !== 'undefined') ? TLFilter.apply('todo', arr) : arr;
+}
+function todoHasSort() {
+  if (typeof TLFilter === 'undefined') return false;
+  var st = TLFilter.getState('todo');
+  return !!(st && st.sort && st.sort.key);
+}
+
+function todoRegisterFilter() {
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.register('todo', {
+    items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
+    onChange: function(){ renderTodoView(); },
+    filters: [
+      { key:'year',     label:'연도',     get:function(t){ return todoTaskYear(t); }, format:function(v){ return v+'년'; } },
+      { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
+      { key:'project',  label:'Project',  get:function(t){ return todoProjectKey(t); } },
+      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
+    ],
+    sorts: [
+      { key:'title',    label:'제목',    get:function(t){ return todoSortValue(t,'title'); } },
+      { key:'start',    label:'시작일',  get:function(t){ return todoSortValue(t,'start'); } },
+      { key:'due',      label:'마감일',  get:function(t){ return todoSortValue(t,'due'); } },
+      { key:'progress', label:'진행률',  get:function(t){ return todoSortValue(t,'progress'); } },
+      { key:'status',   label:'Status',  get:function(t){ return todoSortValue(t,'status'); } },
+      { key:'project',  label:'Project', get:function(t){ return todoSortValue(t,'project'); } }
+    ]
   });
 }
 
 function todoSortableTh(key, label, cls) {
-  var ind = (_todoSort.key === key) ? ' <span class="todo-sort-ind">'+(_todoSort.dir==='desc'?'▼':'▲')+'</span>' : '';
-  return '<th class="todo-th-sort '+(cls||'')+'" onclick="todoSortBy(\''+key+'\')">'+label+ind+'</th>';
+  return '<th class="'+(cls||'')+'">'+label+'</th>';
 }
 
 function todoColHeadsHtml() { return selectedTodoCols().map(function(c){ return todoSortableTh(c.key, c.label, c.thCls); }).join(''); }
@@ -189,6 +167,8 @@ function todoColCellsHtml(task) { return selectedTodoCols().map(function(c){ ret
 function renderTodoView() {
   var content = document.getElementById('page-content');
   if (!content) return;
+  todoRegisterFilter();
+  if (typeof TLFilter !== 'undefined') TLFilter.render('todo');
   content.innerHTML = '<div class="todo-view">'
     + buildTodoTabBar()
     + '<div id="todo-body">' + buildTodoBody() + '</div>'
@@ -276,9 +256,10 @@ function buildTodoRow(task) {
 
 // ── To Do 뷰 (각 Task의 To Do 항목을 개별 행으로 — 날짜 분류 없이, 완료는 하단) ───────────
 function buildTodoListView() {
-  // 모든 Task의 To Do(step)를 개별 항목으로 수집 (Task 자체는 행으로 표시하지 않음)
+  // Task에 필터/정렬 적용 후, 각 Task의 To Do(step)를 개별 항목으로 수집
+  var ftasks = applyTodoFilter(tasks);
   var entries = [];
-  tasks.forEach(function(t){ (t.steps || []).forEach(function(s){ entries.push({ task:t, step:s }); }); });
+  ftasks.forEach(function(t){ (t.steps || []).forEach(function(s){ entries.push({ task:t, step:s }); }); });
 
   if (!entries.length) {
     return '<div class="todo-empty">등록된 To Do가 없어요 ✨<br><small>Task 안에 To Do를 추가하면 여기에 표시돼요.</small></div>';
@@ -295,9 +276,9 @@ function buildTodoListView() {
     + '</tr></thead>';
   var rowFn = function(e){ return buildTodoStepRow(e.task, e.step); };
 
-  // 미완료: 분류 없이 평면 나열 (정렬 미지정 시 마감일 오름차순)
-  var activeSorted = _todoSort.key
-    ? applyTodoSortEntries(active)
+  // 정렬 지정 시 Task 정렬 순서 유지, 미지정 시 마감일 오름차순
+  var activeSorted = todoHasSort()
+    ? active
     : active.slice().sort(function(a,b){
         var va = a.step.dueDateTime ? new Date(a.step.dueDateTime).getTime() : Infinity;
         var vb = b.step.dueDateTime ? new Date(b.step.dueDateTime).getTime() : Infinity;
@@ -308,8 +289,9 @@ function buildTodoListView() {
 
   // 완료: 하단 "완료됨" 그룹 (기본 접힘)
   if (completed.length > 0) {
-    var cs = completed.slice().sort(function(a,b){ return new Date(b.step.dueDateTime||0)-new Date(a.step.dueDateTime||0); });
-    body += buildTodoGroupRows('completed', '완료됨', 'var(--text-2)', applyTodoSortEntries(cs), true, colspan, rowFn);
+    var cs = todoHasSort() ? completed
+      : completed.slice().sort(function(a,b){ return new Date(b.step.dueDateTime||0)-new Date(a.step.dueDateTime||0); });
+    body += buildTodoGroupRows('completed', '완료됨', 'var(--text-2)', cs, true, colspan, rowFn);
   }
 
   return '<div class="todo-list-table-wrap">'
@@ -332,24 +314,6 @@ function todoStepColCell(col, task, step) {
   if (col.key === 'due') return '<td class="todo-table-due">'+(step.dueDateTime?fmtTodoTableDate(step.dueDateTime):todoEmptyCell())+'</td>';
   if (col.key === 'progress') return '<td class="todo-table-progress">'+buildProgressBar(step.completed?100:0)+'</td>';
   return col.cell(task); // 나머지는 부모 Task 정보 상속
-}
-
-function todoSortValueEntry(e, key) {
-  if (key === 'title')    return (e.step.text || '').replace(/^\[\d{6}\] /,'').toLowerCase();
-  if (key === 'due')      return e.step.dueDateTime ? new Date(e.step.dueDateTime).getTime() : Infinity;
-  if (key === 'progress') return e.step.completed ? 100 : 0;
-  return todoSortValue(e.task, key);
-}
-
-function applyTodoSortEntries(arr) {
-  if (!_todoSort.key) return arr;
-  var k = _todoSort.key, dir = (_todoSort.dir === 'desc') ? -1 : 1;
-  return arr.slice().sort(function(a, b){
-    var va = todoSortValueEntry(a, k), vb = todoSortValueEntry(b, k);
-    if (va < vb) return -1 * dir;
-    if (va > vb) return  1 * dir;
-    return 0;
-  });
 }
 
 // 그룹 헤더 + 행 (rowFn으로 각 항목 렌더)
@@ -409,11 +373,12 @@ function buildTodoTableView() {
     return '<div class="todo-empty">등록된 Task가 없어요 ✨</div>';
   }
 
-  var active    = tasks.filter(function(t){ return !t.completed; });
-  var completed = tasks.filter(function(t){ return t.completed; });
+  var ftasks    = applyTodoFilter(tasks);
+  var active    = ftasks.filter(function(t){ return !t.completed; });
+  var completed = ftasks.filter(function(t){ return t.completed; });
 
-  var activeSorted = _todoSort.key
-    ? applyTodoSort(active)
+  var activeSorted = todoHasSort()
+    ? active
     : active.slice().sort(function(a,b){ return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); });
 
   var head = '<thead><tr>'
@@ -427,8 +392,7 @@ function buildTodoTableView() {
   // 완료된 Task는 하단 "완료됨" 그룹으로 이동 (기본 접힘)
   if (completed.length > 0) {
     var colspan = 2 + selectedTodoCols().length;
-    var cs = _todoSort.key
-      ? applyTodoSort(completed)
+    var cs = todoHasSort() ? completed
       : completed.slice().sort(function(a,b){ return new Date(b.completedAt||b.createdAt||0) - new Date(a.completedAt||a.createdAt||0); });
     body += buildTodoGroupRows('table-completed', '완료됨', 'var(--text-2)', cs, true, colspan, buildTodoRow);
   }
@@ -438,7 +402,7 @@ function buildTodoTableView() {
     + '<tbody>' + body + '</tbody>'
     + '</table>'
     + '</div>'
-    + '<div class="todo-table-count">총 ' + tasks.length + '개</div>';
+    + '<div class="todo-table-count">총 ' + (active.length + completed.length) + '개</div>';
 }
 
 // task가 속한 "섹션"의 이모지 가져오기
@@ -516,24 +480,24 @@ function buildTodoProjectView() {
     + otherCols.map(function(c){ return todoSortableTh(c.key, c.label, c.thCls); }).join('')
     + '</tr></thead>';
 
-  var visible = tasks.filter(function(t){ return _todoProjHidden.indexOf(todoProjectKey(t)) === -1; });
+  var visible = applyTodoFilter(tasks);
 
   if (!visible.length) {
     return '<div class="todo-table-wrap"><table class="todo-table">' + head
-      + '<tbody><tr><td colspan="'+colspan+'" style="text-align:center;padding:30px;color:var(--text-3);">표시할 프로젝트가 없어요. "Project" 헤더(▾)를 클릭해 선택하세요.</td></tr></tbody>'
+      + '<tbody><tr><td colspan="'+colspan+'" style="text-align:center;padding:30px;color:var(--text-3);">조건에 맞는 Task가 없어요.</td></tr></tbody>'
       + '</table></div>';
   }
 
   var active    = visible.filter(function(t){ return !t.completed; });
   var completed = visible.filter(function(t){ return t.completed; });
 
-  // 기본: 프로젝트 오름차순. 정렬 헤더 클릭 시 해당 기준 적용
-  var activeSorted = _todoSort.key ? applyTodoSort(active) : active.slice().sort(todoProjCompare);
+  // 기본: 프로젝트 오름차순. 통합 정렬 지정 시 해당 기준 적용
+  var activeSorted = todoHasSort() ? active : active.slice().sort(todoProjCompare);
   var body = activeSorted.map(buildTodoProjRow).join('');
 
   // 완료된 Task는 하단 "완료됨" 그룹으로 이동 (기본 접힘)
   if (completed.length > 0) {
-    var cs = _todoSort.key ? applyTodoSort(completed) : completed.slice().sort(todoProjCompare);
+    var cs = todoHasSort() ? completed : completed.slice().sort(todoProjCompare);
     body += buildTodoGroupRows('proj-completed', '완료됨', 'var(--text-2)', cs, true, colspan, buildTodoProjRow);
   }
 
