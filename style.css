@@ -8787,9 +8787,11 @@ body.light-mode .pm-btn-save { background: #f0f0f0; }
 
 /* #5: 습관형 — 주간 실적 + 캘린더 좌우 배치, 메모 */
 .mdt-hb-settings {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  font-size: 12px; color: var(--text-2);
+  display: flex; align-items: center; gap: 7px; flex-wrap: nowrap;
+  font-size: 11px; color: var(--text-2); overflow-x: auto;
 }
+.mdt-hb-settings > * { flex-shrink: 0; white-space: nowrap; }
+.mdt-hb-settings .mdt-hb-thr { width: 44px; }
 .mdt-hb-lbl { font-size: 11px; color: var(--text-3); }
 .mdt-hb-thr {
   width: 50px; background: var(--surface); border: 1px solid var(--border);
