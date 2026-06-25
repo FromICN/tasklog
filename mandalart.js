@@ -1154,8 +1154,20 @@ function saveActQuarterValue(year, sgId, actId, qIdx, value) {
 
 // PROJECT 실적이 연간목표 100% 이상이면 자동으로 완료 처리
 function mdtCheckAutoComplete(a) {
-  if (!a || a.trackingType === 'habit') return;
+  if (!a) return;
+  if (a.trackingType === 'habit') {
+    var th = +a.successThreshold || 0;
+    if (th > 0 && mdtActPct(a) >= th) a.completed = true;
+    return;
+  }
   if (mdtActPct(a) >= 100) a.completed = true;
+}
+
+// 습관형 성공기준(달성률 N% 이상) 충족 여부 뱃지
+function mdtSuccessBadge(rate, threshold) {
+  var ok = threshold > 0 && rate >= threshold;
+  return '<span class="mdt-hb-chip mdt-success-chip' + (ok ? ' ok' : '') + '">'
+    + (ok ? '🏆 성공' : '진행 중') + '</span>';
 }
 
 var MDT_MONTH_LABELS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
@@ -1263,6 +1275,10 @@ function buildHabitCardBody(m, sg, a) {
     + ' onclick="setActHabitMode(' + yr + ',' + sgId + ',' + a.id + ',\'weekly\')">🗓️ 주간형</button>'
     + '</div>';
 
+  var threshold = (a.successThreshold === undefined) ? 80 : a.successThreshold;
+  var thrInput = '<span class="mdt-hb-lbl">성공기준</span>'
+    + '<input type="number" class="mdt-hb-thr" value="' + threshold + '" min="1" max="100"'
+    + ' onchange="saveActSuccessThreshold(' + yr + ',' + sgId + ',' + a.id + ',this.value)">% 이상';
   var statsHtml;
   if (isWeekly) {
     var w = calcWeeklyStats(a, m.year, a.weeklyTarget || 1);
@@ -1270,15 +1286,19 @@ function buildHabitCardBody(m, sg, a) {
       + '<span class="mdt-hb-lbl">주간 목표</span>'
       + '<input type="number" class="mdt-hb-thr" value="' + (a.weeklyTarget || 1) + '" min="1" max="7"'
       +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'weeklyTarget\',+this.value)">회/주'
+      + thrInput
       + '<span class="mdt-hb-chip">✅ 달성 <b>' + w.achievedWeeks + '</b>/' + w.elapsedWeeks + '주</span>'
       + '<span class="mdt-hb-chip" title="연간 주간 성공률">📊 성공률 <b>' + w.rate + '</b>%</span>'
+      + mdtSuccessBadge(w.rate, threshold)
       + '</div>';
   } else {
     var s = calcHabitStats(a, m.year);
     statsHtml = '<div class="mdt-hb-settings">'
+      + thrInput
       + '<span class="mdt-hb-chip">🔥 연속 <b>' + s.streak + '</b>일</span>'
       + '<span class="mdt-hb-chip">✅ 실천 <b>' + s.doneCount + '</b>/365일</span>'
       + '<span class="mdt-hb-chip" title="365일 기준 달성률">📊 달성률 <b>' + s.rate365 + '</b>%</span>'
+      + mdtSuccessBadge(s.rate365, threshold)
       + '</div>';
   }
 
@@ -1389,6 +1409,7 @@ function toggleHabitDay(year, sgId, actId, dateKey) {
   if (!a.habitLog) a.habitLog = {};
   if (a.habitLog[dateKey]) delete a.habitLog[dateKey];
   else a.habitLog[dateKey] = true;
+  mdtCheckAutoComplete(a);
   markMdtDirty(year, sgId, actId);
   var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
   if (card) card.outerHTML = buildActionCard(m, sg, a);
@@ -1422,6 +1443,19 @@ function setActHabitMode(year, sgId, actId, mode) {
   var sg = m.subGoals.find(function(s) { return s.id === sgId; }); if (!sg) return;
   var a  = sg.actions.find(function(x) { return x.id === actId; }); if (!a) return;
   a.habitMode = mode;
+  mdtCheckAutoComplete(a);
+  markMdtDirty(year, sgId, actId);
+  var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
+  if (card) card.outerHTML = buildActionCard(m, sg, a);
+}
+
+// 습관형 성공기준(%) 저장 + 성공 여부 즉시 반영
+function saveActSuccessThreshold(year, sgId, actId, val) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s) { return s.id === sgId; }); if (!sg) return;
+  var a  = sg.actions.find(function(x) { return x.id === actId; }); if (!a) return;
+  a.successThreshold = +val || 0;
+  mdtCheckAutoComplete(a);
   markMdtDirty(year, sgId, actId);
   var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
   if (card) card.outerHTML = buildActionCard(m, sg, a);
