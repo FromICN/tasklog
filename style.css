@@ -7660,8 +7660,9 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 
 /* 달성형 2단 레이아웃 (실적 왼쪽 2줄 / 메모 오른쪽) */
 .mdt-task-main { display: flex; gap: 8px; align-items: stretch; flex-wrap: nowrap; margin-top: 4px; }
-.mdt-task-perf-col { flex: 1 1 auto; min-width: 0; }
-.mdt-task-memo-col { flex: 0 0 130px; width: 130px; display: flex; flex-direction: column; gap: 4px; }
+.mdt-task-perf-col { flex: 5 1 0%; min-width: 0; display: flex; flex-direction: column; }
+.mdt-task-perf-col .mdt-annual-block { flex: 1; margin-bottom: 0; }
+.mdt-task-memo-col { flex: 3 1 0%; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .mdt-task-memo-col .mdt-memo-box { flex: 1; min-height: 96px; }
 /* 월별 칸: 1~6월 / 7~12월 두 줄 고정 */
 .mdt-task-perf-col .mdt-m-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; }
@@ -7671,6 +7672,7 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 
 /* 습관형 메모 칼럼 (캘린더 왼쪽 / 메모 오른쪽) */
 .mdt-hb-memo-col { flex: 1; min-width: 150px; display: flex; flex-direction: column; gap: 4px; }
+.mdt-hb-memo-col .mdt-memo-box { flex: 1; }
 
 /* 습관형 성공 여부 뱃지 */
 .mdt-success-chip { font-weight: 700; }
@@ -8798,7 +8800,7 @@ body.light-mode .pm-btn-save { background: #f0f0f0; }
   border-radius: 8px; padding: 2px 9px; font-size: 11px; color: var(--text-1);
 }
 .mdt-hb-chip b { color: var(--text-1); }
-.mdt-hb-main { display: flex; gap: 12px; align-items: flex-start; margin: 10px 0 4px; flex-wrap: wrap; }
+.mdt-hb-main { display: flex; gap: 12px; align-items: stretch; margin: 10px 0 4px; flex-wrap: wrap; }
 .mdt-hb-week-col { flex: 1; min-width: 180px; }
 .mdt-hb-week-title { font-size: 11px; color: var(--text-3); margin-bottom: 6px; }
 .mdt-hb-week { display: flex; gap: 5px; flex-wrap: wrap; }

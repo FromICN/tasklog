@@ -1231,7 +1231,6 @@ function buildTargetBlock(m, sg, a) {
     +   '<span class="mdt-annual-sum">' + (achieved ? '달성' : '미달성') + ' (' + pct + '%)</span>'
     + '</div>'
     + '<div class="mdt-m-grid">' + mHtml + '</div>'
-    + '<div class="mdt-m-hint">월별 칸을 눌러 달성 여부를 점검하세요 (미점검 → 달성 → 미달성).</div>'
     + '</div>';
 }
 
@@ -1254,7 +1253,6 @@ function buildTaskCardBody(m, sg, a) {
     + '<div class="mdt-task-main">'
     +   '<div class="mdt-task-perf-col">' + perfBlock + '</div>'
     +   '<div class="mdt-task-memo-col">'
-    +     '<span class="mdt-hb-lbl">메모</span>'
     +     '<div class="mdt-memo-box" contenteditable="true" spellcheck="false" data-ph="메모를 입력하세요..."'
     +       ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
     +       ' onblur="saveActCE(this)">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>'
@@ -1283,22 +1281,19 @@ function buildHabitCardBody(m, sg, a) {
   if (isWeekly) {
     var w = calcWeeklyStats(a, m.year, a.weeklyTarget || 1);
     statsHtml = '<div class="mdt-hb-settings">'
+      + thrInput
       + '<span class="mdt-hb-lbl">주간 목표</span>'
       + '<input type="number" class="mdt-hb-thr" value="' + (a.weeklyTarget || 1) + '" min="1" max="7"'
       +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'weeklyTarget\',+this.value)">회/주'
-      + thrInput
       + '<span class="mdt-hb-chip">✅ 달성 <b>' + w.achievedWeeks + '</b>/' + w.elapsedWeeks + '주</span>'
       + '<span class="mdt-hb-chip" title="연간 주간 성공률">📊 성공률 <b>' + w.rate + '</b>%</span>'
-      + mdtSuccessBadge(w.rate, threshold)
       + '</div>';
   } else {
     var s = calcHabitStats(a, m.year);
     statsHtml = '<div class="mdt-hb-settings">'
       + thrInput
-      + '<span class="mdt-hb-chip">🔥 연속 <b>' + s.streak + '</b>일</span>'
       + '<span class="mdt-hb-chip">✅ 실천 <b>' + s.doneCount + '</b>/365일</span>'
       + '<span class="mdt-hb-chip" title="365일 기준 달성률">📊 달성률 <b>' + s.rate365 + '</b>%</span>'
-      + mdtSuccessBadge(s.rate365, threshold)
       + '</div>';
   }
 
@@ -1309,7 +1304,6 @@ function buildHabitCardBody(m, sg, a) {
     + '<div class="mdt-hb-main">'
     +   '<div class="mdt-hb-cal-col">' + buildHabitCalendar(yr, sgId, a) + '</div>'
     +   '<div class="mdt-hb-memo-col">'
-    +     '<span class="mdt-hb-lbl">메모</span>'
     +     '<div class="mdt-memo-box" contenteditable="true" spellcheck="false" data-ph="메모를 입력하세요..."'
     +       ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
     +       ' onblur="saveActCE(this)">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>'
