@@ -3340,10 +3340,28 @@ mark.search-hl {
   word-break: keep-all;
   overflow-wrap: anywhere;
   font-weight: 600;
-  width: 92px;
-  min-width: 56px;
-  max-width: 104px;
+  width: 110px;
+  min-width: 67px;
+  max-width: 125px;
   text-align: left;
+}
+
+/* Status 컬럼 — 가로 폭 절반으로 축소 */
+.lw-table th:nth-child(3),
+.lw-table td:nth-child(3) {
+  width: 52px;
+  min-width: 40px;
+  max-width: 66px;
+  white-space: normal !important;
+  word-break: keep-all;
+}
+
+/* Ideal 컬럼만 추가 확대 (Goal과 분리) */
+.lw-table th:nth-child(5),
+.lw-table td:nth-child(5) {
+  width: 330px;
+  min-width: 240px;
+  max-width: 380px;
 }
 
 .lw-section-input {
