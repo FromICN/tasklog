@@ -333,22 +333,32 @@ function buildTabBackup() {
     + '</div>'
     + '<div style="font-size:11px;color:var(--text-3);margin-top:8px;">백업 시 모든 페이지의 입력 데이터와 환경설정이 함께 저장됩니다.</div>'
     + '</div>'
-    + '<div class="settings-section-head">내보내기 / 양식</div>'
+    + '<div class="settings-section-head">전체 백업</div>'
     + '<div class="settings-row">'
     + '<div><div class="settings-row-label">전체 백업 내보내기 (JSON)</div><div class="settings-row-desc">모든 페이지 데이터 + 환경설정을 .json 파일로 다운로드</div></div>'
     + '<button class="btn-secondary" style="font-size:12px;" onclick="exportJSON()">⬇ 내보내기</button>'
     + '</div>'
+    + '<div class="settings-section-head">페이지별 엑셀 내보내기 (복원 가능)</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin:-4px 0 6px;">엑셀(.xlsx)로 내보내 편집한 뒤, 같은 파일을 아래 [파일로 복원]에 올리면 그대로 복원됩니다. (Gantt·WBS는 Board 데이터를 불러오므로 별도 백업이 없습니다.)</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">복원용 빈 양식 다운로드</div><div class="settings-row-desc">백업 파일과 동일한 형식의 빈 양식 (값을 채워 복원 가능)</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="downloadRestoreTemplate()">⬇ 양식</button>'
+    + '<div><div class="settings-row-label">WEB (Archiving)</div><div class="settings-row-desc">아카이빙 메모 내용</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportWebXlsx()">⬇ 엑셀</button>'
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">엑셀 양식 다운로드 (Task)</div><div class="settings-row-desc">현재 할 일을 엑셀(.xlsx) 표로 받아 편집 후 그대로 복원 가능</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="downloadTaskExcel()">⬇ 엑셀</button>'
+    + '<div><div class="settings-row-label">Board</div><div class="settings-row-desc">Task · 일정 · 상태 · 협업자 · 연계 등 전체</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportBoardXlsx()">⬇ 엑셀</button>'
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">CSV로 내보내기</div><div class="settings-row-desc">Task를 스프레드시트 형식으로 내보내기</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportCSV()">⬇ 내보내기</button>'
+    + '<div><div class="settings-row-label">WD (주간기록)</div><div class="settings-row-desc">연도 · 주차 · 주요성과 · 다음주계획 · 회고</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportWdXlsx()">⬇ 엑셀</button>'
+    + '</div>'
+    + '<div class="settings-row">'
+    + '<div><div class="settings-row-label">Life Wheel</div><div class="settings-row-desc">섹션별 점수 · 상태 · 이상 · 가치 · 목표(SMART)</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportLifeWheelXlsx()">⬇ 엑셀</button>'
+    + '</div>'
+    + '<div class="settings-row">'
+    + '<div><div class="settings-row-label">Mandalart</div><div class="settings-row-desc">섹션 · 프로젝트 · 유형(달성/습관) · 달성현황 · 목표</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportMandalartXlsx()">⬇ 엑셀</button>'
     + '</div>'
     + '<div class="settings-section-head">Google Drive 백업</div>'
     + '<div class="drive-section">'
@@ -459,31 +469,6 @@ function exportJSON() {
   downloadBackupJSON(data, 'tasklog-backup-' + fmtDateForFile(new Date()) + '.json');
 }
 
-// 복원용 빈 양식 다운로드 — 백업 파일과 완전히 동일한 형식
-function downloadRestoreTemplate() {
-  if (typeof buildRestoreTemplate !== 'function') { alert('백업 모듈을 불러오지 못했습니다.'); return; }
-  downloadBackupJSON(buildRestoreTemplate(), 'tasklog-복원양식.json');
-}
-
-function exportCSV() {
-  if (typeof tasks === 'undefined' || !tasks.length) { alert('내보낼 Task가 없습니다.'); return; }
-  var header = ['ID', '이름', '완료', '시작일', '마감일', '아이젠하워'];
-  var rows = tasks.map(function(t) {
-    return [t.id, '"' + t.text.replace(/"/g, '""') + '"',
-      t.completed ? '완료' : '미완료',
-      t.startDate || '', t.dueDateTime ? t.dueDateTime.slice(0, 10) : '',
-      t.eisenhower || ''].join(',');
-  });
-  var csv = '﻿' + header.join(',') + '\n' + rows.join('\n');
-  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  var url = URL.createObjectURL(blob);
-  var a = document.createElement('a');
-  a.href = url;
-  a.download = 'tasklog-tasks-' + fmtDateForFile(new Date()) + '.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 // 파일명용 날짜 포맷 (YYYY-MM-DD-HHmm)
 function fmtDateForFile(d) {
   d = d || new Date();
@@ -492,13 +477,13 @@ function fmtDateForFile(d) {
     + '-' + p(d.getHours()) + p(d.getMinutes());
 }
 
-// JSON 백업/양식 파일에서 복원 (exportJSON · downloadRestoreTemplate 와 같은 형식)
+// JSON 백업 파일에서 복원 (exportJSON 과 같은 형식). 엑셀(.xlsx)은 페이지별 통합 변환기로 위임.
 function handleRestoreFile(input) {
   var file = input && input.files && input.files[0];
   if (!file) return;
-  // 엑셀 파일이면 전용 변환기로 처리
+  // 엑셀 파일이면 페이지별 통합 변환기로 처리 (WEB·Board·WD·LifeWheel·Mandalart 자동 인식)
   if (/\.xlsx?$/i.test(file.name)) {
-    if (typeof handleRestoreXlsx === 'function') { handleRestoreXlsx(file, input); }
+    if (typeof handleRestorePageXlsx === 'function') { handleRestorePageXlsx(file, input); }
     else { alert('엑셀 모듈을 불러오지 못했습니다.'); input.value = ''; }
     return;
   }
