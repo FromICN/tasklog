@@ -316,7 +316,7 @@ function renderSubGoalCard(m, sg) {
     var doneStyle = act.completed ? ('background:'+mdtLighten(color,70)+';border-color:'+mdtLighten(color,60)+';') : '';
     return '<div class="mdt-inner-cell mdt-proj-cell'+doneCls+'" style="'+doneStyle+'" onclick="event.stopPropagation();selectMdtAction('+m.year+','+sg.id+','+act.id+')">'
       + '<span class="mdt-inner-text mdt-fit-text'+(act.text?'':' mdt-cell-empty')+(act.completed?' mdt-cell-done-text':'')+'" data-fit-base="12" data-year="'+m.year+'" data-sg="'+sg.id+'" data-act="'+act.id+'">'
-      +   escMdt(act.text)
+      +   escMdt(act.text).replace(/\n/g, '<br>')
       + '</span>'
       + '</div>';
   }).join('');
@@ -524,7 +524,7 @@ function saveMdtActText(el) {
   var m = getMdt(+el.dataset.year); if (!m) return;
   var sg = m.subGoals.find(function(s){ return s.id === +el.dataset.sg; }); if (!sg) return;
   var act = sg.actions.find(function(a){ return a.id === +el.dataset.act; });
-  if (act) act.text = el.textContent.trim();
+  if (act) act.text = (el.innerText || '').replace(/ /g, ' ').trim();
   // #4: 메모리만 반영 (저장 버튼 클릭 시 영구 저장)
   markMdtDirty(+el.dataset.year, +el.dataset.sg, +el.dataset.act);
 }
@@ -593,7 +593,7 @@ function openMdtCellEdit(year, sgId, actId) {
     saveMandalarts();
     var textEl = document.querySelector('.mdt-inner-text[data-year="'+year+'"][data-sg="'+sgId+'"][data-act="'+actId+'"]');
     if (textEl) {
-      textEl.textContent = act.text;
+      textEl.innerHTML = escMdt(act.text).replace(/\n/g, '<br>');
       textEl.classList.toggle('mdt-cell-empty', !act.text);
     }
     // 진행률 업데이트
@@ -750,14 +750,17 @@ function openMdtIdeal(year, sgId) {
   var idx = m.subGoals.findIndex(function(s){ return s.id === sgId; });
 
   var ideal = '';
+  var goal = '';
   var secName = sg.text || '';
   if (typeof getLwYear === 'function') {
     var lw = getLwYear(year);
     if (lw && lw.sections && lw.sections[idx]) {
       ideal = lw.sections[idx].ideal || '';
+      if (lw.sections[idx].smart && lw.sections[idx].smart.finalGoal) goal = lw.sections[idx].smart.finalGoal;
       if (lw.sections[idx].name) secName = lw.sections[idx].name;
     }
   }
+  if (!goal && sg.smart && sg.smart.finalGoal) goal = sg.smart.finalGoal;
 
   var body = ideal
     ? '<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;color:var(--text-1);">' + escMdt(ideal) + '</div>'
@@ -776,6 +779,10 @@ function openMdtIdeal(year, sgId) {
     + '<div class="smart-field"><div class="smart-field-header"><span class="smart-icon">&#10024;</span>'
     + '<span class="smart-label">\uc774\uc0c1\uc801\uc778 \ubaa8\uc2b5 (Life Wheel \u00b7 Ideal)</span></div>'
     + body
+    + '</div>'
+    + '<div class="smart-field"><div class="smart-field-header"><span class="smart-icon">&#127937;</span>'
+    + '<span class="smart-label">\ubaa9\ud45c (Life Wheel \u00b7 Goal)</span></div>'
+    + (goal ? '<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;color:var(--text-1);">' + escMdt(goal) + '</div>' : '<div class="smart-desc">\ubaa9\ud45c(Goal)\ub97c \uc544\uc9c1 \uc785\ub825\ud558\uc9c0 \uc54a\uc558\uc5b4\uc694.</div>')
     + '</div>'
     + '</div>'
     + '<div class="lw-modal-footer">'
@@ -1085,9 +1092,20 @@ function saveActQuarterValue(year, sgId, actId, qIdx, value) {
   var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
   if (!Array.isArray(a.quarters)) a.quarters = defaultMdtQuarters();
   a.quarters[qIdx].value = +value || 0;
+  mdtCheckAutoComplete(a);
   markMdtDirty(year, sgId, actId);
   var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
   if (card) card.outerHTML = buildActionCard(m, sg, a);
+}
+
+// PROJECT 실적이 연간목표 100% 이상이면 자동으로 완료 처리
+function mdtCheckAutoComplete(a) {
+  if (!a || a.trackingType === 'habit') return;
+  if (!Array.isArray(a.quarters)) return;
+  var target = +a.annualTarget || 0;
+  if (target <= 0) return;
+  var sum = a.quarters.reduce(function(s, q){ return s + (+q.value || 0); }, 0);
+  if (sum >= target) a.completed = true;
 }
 
 function buildAnnualTargetHtml(m, sg, a) {
@@ -1189,7 +1207,7 @@ function buildActionCard(m, sg, a) {
   if (!Array.isArray(a.quarters))   a.quarters = defaultMdtQuarters();
   var yr = m.year, sgId = sg.id;
   var isHabit = a.trackingType === 'habit';
-  var titleDisp = a.text ? escMdt(a.text) : '<span style="opacity:0.35;">Project ' + a.id + '</span>';
+  var titleDisp = a.text ? escMdt(a.text).replace(/\n/g, '<br>') : '<span style="opacity:0.35;">Project ' + a.id + '</span>';
 
   var typeToggle = '<div class="mdt-type-toggle">'
     + '<button class="mdt-type-btn' + (!isHabit ? ' active' : '') + '"'
@@ -1203,15 +1221,16 @@ function buildActionCard(m, sg, a) {
   var dirtyClass = mdtDirtyCards[mdtCardKey(yr, sgId, a.id)] ? ' mdt-card-dirty' : '';
   var saveBtn = '<button class="mdt-act-save-btn" onclick="commitMdtCard(' + yr + ',' + sgId + ',' + a.id + ')">💾 저장</button>';
 
-  return '<div class="mdt-act-card' + dirtyClass + '" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">'
+  return '<div class="mdt-act-card' + dirtyClass + '" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '"'
+    + ' ondragover="mdtProjDragOver(event)" ondrop="mdtProjDrop(event,' + yr + ',' + sgId + ',' + a.id + ')">'
     + '<div class="mdt-act-card-header">'
+    +   '<span class="mdt-act-drag" draggable="true" ondragstart="mdtProjDragStart(event,' + sgId + ',' + a.id + ')" ondragend="mdtProjDragEnd(event)" title="드래그하여 순서 변경">&#9776;</span>'
     +   '<div class="mdt-act-card-title">'
     +     '<span class="mdt-inner-cb" onclick="toggleMdtAction(' + yr + ',' + sgId + ',' + a.id + ')" style="font-size:15px;margin-right:6px;">'
     +       (a.completed ? '&#9745;' : '&#9744;') + '</span>'
     +     '<span contenteditable="true" spellcheck="false" class="mdt-act-title-text"'
     +       ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '"'
-    +       ' onblur="saveMdtActText(this)"'
-    +       ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'
+    +       ' onblur="saveMdtActText(this)">'
     +       titleDisp + '</span>'
     +   '</div>'
     +   typeToggle
@@ -1244,7 +1263,7 @@ function refreshMdtGridForAction(year, sgId, actId) {
   var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
   var textEl = document.querySelector('.mdt-inner-text[data-year="' + year + '"][data-sg="' + sgId + '"][data-act="' + actId + '"]');
   if (textEl) {
-    textEl.textContent = a.text;
+    textEl.innerHTML = escMdt(a.text).replace(/\n/g, '<br>');
     textEl.classList.toggle('mdt-cell-empty', !a.text);
     textEl.classList.toggle('mdt-cell-done-text', !!a.completed);
     var cell = textEl.closest('.mdt-inner-cell');
@@ -1304,6 +1323,7 @@ function saveActF(year,sgId,actId,field,value) {
   var sg=m.subGoals.find(function(s){return s.id===sgId;}); if(!sg) return;
   var a=sg.actions.find(function(x){return x.id===actId;}); if(!a) return;
   a[field]=value;
+  if (field === 'annualTarget') mdtCheckAutoComplete(a);
   // #4: 메모리만 반영 (저장 버튼 클릭 시 영구 저장)
   markMdtDirty(year, sgId, actId);
 }
@@ -1344,6 +1364,62 @@ function getMdtSubGoalOptions(year) {
   return m.subGoals.map(function(sg) {
     return { id: sg.id, year: m.year, text: sg.text, emoji: sg.emoji, color: sg.color };
   });
+}
+
+// ============================================
+//  🎯 PROJECT(실행항목) 드래그 순서 변경
+// ============================================
+var _mdtDragActId = null;
+var _mdtDragSgId = null;
+
+function mdtProjDragStart(e, sgId, actId) {
+  _mdtDragSgId = sgId;
+  _mdtDragActId = actId;
+  if (e && e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(actId)); } catch (_) {}
+  }
+  var card = (e && e.target && e.target.closest) ? e.target.closest('.mdt-act-card') : null;
+  if (card) card.classList.add('mdt-act-dragging');
+}
+
+function mdtProjDragOver(e) {
+  if (e) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; }
+}
+
+function mdtProjDragEnd(e) {
+  _mdtDragActId = null; _mdtDragSgId = null;
+  document.querySelectorAll('.mdt-act-card.mdt-act-dragging').forEach(function(c) {
+    c.classList.remove('mdt-act-dragging');
+  });
+}
+
+function mdtProjDrop(e, year, sgId, targetActId) {
+  if (e) e.preventDefault();
+  if (_mdtDragActId === null || _mdtDragSgId !== sgId || _mdtDragActId === targetActId) {
+    _mdtDragActId = null; _mdtDragSgId = null;
+    return;
+  }
+  mdtReorderActions(year, sgId, _mdtDragActId, targetActId);
+  _mdtDragActId = null; _mdtDragSgId = null;
+}
+
+function mdtReorderActions(year, sgId, fromId, toId) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  var arr = sg.actions;
+  var fromIdx = arr.findIndex(function(a){ return a.id === fromId; });
+  var toIdx = arr.findIndex(function(a){ return a.id === toId; });
+  if (fromIdx < 0 || toIdx < 0) return;
+  var moved = arr.splice(fromIdx, 1)[0];
+  arr.splice(toIdx, 0, moved);
+  saveMandalarts();
+  // 그리드 셀 순서 갱신
+  var cardEl = document.getElementById('mdt-card-' + year + '-' + sgId);
+  if (cardEl) cardEl.outerHTML = renderSubGoalCard(m, sg);
+  // 실적 패널(프로젝트 카드 목록) 갱신
+  renderMdtPerfPanel(year);
+  setTimeout(function(){ mdtAutoFitText(); }, 0);
 }
 
 // ============================================

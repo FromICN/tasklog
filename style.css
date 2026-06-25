@@ -3919,7 +3919,7 @@ body.light-mode .lw-cv-tag {
   border-color: rgba(255,255,255,0.16);
 }
 .mdt-inner-cell.mdt-done { opacity: 0.45; }
-.mdt-inner-cell.mdt-done .mdt-inner-text { text-decoration: line-through; }
+.mdt-inner-cell.mdt-done .mdt-inner-text { text-decoration: none; }
 
 /* 셀 내부 레이아웃 */
 .mdt-cell-top-row {
@@ -7479,10 +7479,22 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
   font-size: 13px;
   font-weight: 600;
   color: var(--text-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
+.mdt-act-drag {
+  cursor: grab;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.mdt-act-drag:active { cursor: grabbing; }
+.mdt-act-card.mdt-act-dragging { opacity: 0.5; }
 .mdt-act-card-body {
   padding: 10px 14px;
   font-size: 12px;
@@ -8596,7 +8608,7 @@ body.light-mode .pm-btn-save { background: #f0f0f0; }
 }
 /* 완료 시: 텍스트 대비 확보(밝은 배경) + 취소선 */
 .mdt-inner-cell.mdt-proj-done .mdt-inner-text { color: rgba(0,0,0,0.72); font-weight: 600; }
-.mdt-inner-text.mdt-cell-done-text { text-decoration: line-through; }
+.mdt-inner-text.mdt-cell-done-text { text-decoration: none; }
 
 /* #2: section 최종목표(중앙 셀 보조 텍스트) */
 .mdt-ic-final {
