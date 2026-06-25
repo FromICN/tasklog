@@ -311,7 +311,6 @@ async function fetchCalendarEvents(silent) {
         calColor: calColor,            // 구글 캘린더 테마 색상
         calendarEventId: event.id,
         completed: false,
-        starred: false,
       };
     }).filter(function (e) { return e.dueDateTime; });
 

@@ -545,8 +545,6 @@ function buildTodoTaskItem(task) {
        + '<span class="task-title">'+escapeHtml(task.text)+'</span>'
        + (meta ? '<div class="task-meta">'+meta+'</div>' : '')
        + '</div>'
-       + '<button class="task-star '+(task.starred?'starred':'')+'" onclick="event.stopPropagation();toggleStar('+task.id+')">'
-       + (task.starred?'★':'☆')+'</button>'
        + '</div>';
 }
 

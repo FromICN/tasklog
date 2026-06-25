@@ -718,29 +718,6 @@ body {
   color: #6b9fff;
 }
 
-/* 별 버튼 (오른쪽) */
-.task-star {
-  background: none;
-  border: none;
-  font-size: 18px;
-  color: rgba(255,255,255,0.25);
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition: color 0.15s, transform 0.15s;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.task-star:hover {
-  color: rgba(255,255,255,0.6);
-  transform: scale(1.1);
-}
-
-.task-star.starred {
-  color: #f5c842;
-}
-
 /* 캘린더에서 가져온 일정 */
 .task-item.is-calendar {
   border-left: 3px solid #6b9fff;
@@ -1108,27 +1085,6 @@ body {
 
 .dp-title-area::placeholder {
   color: var(--text-3);
-}
-
-.dp-star {
-  background: none;
-  border: none;
-  font-size: 22px;
-  color: rgba(255,255,255,0.25);
-  cursor: pointer;
-  padding: 2px;
-  transition: color 0.15s, transform 0.15s;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.dp-star:hover {
-  color: rgba(255,255,255,0.6);
-  transform: scale(1.1);
-}
-
-.dp-star.starred {
-  color: #f5c842;
 }
 
 /* 디테일 패널 본문 */
@@ -4467,17 +4423,6 @@ body.light-mode .lw-cv-tag {
   color: var(--text-2);
   border: 1px solid var(--border);
 }
-
-.hw-task-star {
-  font-size: 13px;
-  color: var(--text-3);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: color 0.12s;
-  padding: 0 2px;
-}
-.hw-task-star:hover { color: #f6ad55; }
-.hw-task-star.starred { color: #f6ad55; }
 
 /* 완료됨 토글 */
 .hw-done-toggle {

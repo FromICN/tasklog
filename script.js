@@ -96,7 +96,7 @@ function addTask(text, dueDate, dueTime) {
   let dueDateTime = null;
   if (dueDate) dueDateTime = dueTime ? dueDate+'T'+dueTime+':00' : dueDate+'T09:00:00';
   const task = {
-    id: Date.now(), text: text.trim(), completed: false, starred: false,
+    id: Date.now(), text: text.trim(), completed: false,
     createdAt: new Date().toISOString(), dueDateTime, hasTime: !!dueTime,
     steps: [], reminder: null, assignee: '', assignees: [], repeat: null, startDate: null, prevTaskIds: [], nextTaskIds: []
   };
@@ -155,17 +155,6 @@ function toggleComplete(id) {
     // 디테일 패널 타이틀도 업데이트
     const ta = document.getElementById('dp-title-area');
     if (ta) { ta.value = task.text; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
-  }
-}
-
-function toggleStar(id) {
-  const task = tasks.find(t => t.id === id);
-  if (!task) return;
-  task.starred = !task.starred;
-  saveTasks(); renderTasks(); updateCategoryCounts();
-  if (detailTaskId === id) {
-    const btn = document.querySelector('.dp-star');
-    if (btn) { btn.textContent = task.starred ? '★' : '☆'; btn.classList.toggle('starred', task.starred); }
   }
 }
 
@@ -229,7 +218,6 @@ function getFilteredTasks() {
       return false;
     });
   }
-  if (currentCategory === 'important') return tasks.filter(t => t.starred);
   if (currentCategory === 'today') {
     const today = new Date().toDateString();
     return tasks.filter(t => {
@@ -288,8 +276,7 @@ function renderTaskItem(task) {
     + '<span class="task-title">'+highlightText(task.text, searchQuery)+'</span>'
     + (badges ? '<div class="task-meta">'+badges+'</div>' : '')
     + '</div>'
-    + '<button class="task-star '+(task.starred?'starred':'')+'" onclick="event.stopPropagation();toggleStar('+task.id+')">'
-    + (task.starred?'★':'☆')+'</button></div>';
+    + '</div>';
 }
 
 // ============================================
@@ -415,7 +402,6 @@ function updateCategoryCounts() {
   const set = (id, n) => { const el = document.getElementById(id); if(el) el.textContent = n>0?n:''; };
   // count-today는 홈 메뉴 뱃지로 재사용 (오늘 마감 건수)
   set('count-today', todayCount);
-  set('count-important', active.filter(t=>t.starred).length);
   set('count-planned', active.filter(t=>t.dueDateTime).length);
   set('count-all', active.length);
 }
@@ -923,8 +909,7 @@ function buildDetailPanelHTML(task) {
     + '<div class="task-check dp-check '+(task.completed?'is-done':'')+'" onclick="toggleCompleteFromPanel()"></div>'
     + '<textarea class="dp-title-area" id="dp-title-area" oninput="scheduleDpTitleSave()" rows="1">'+escapeHtml(task.text)+'</textarea>'
     + '</div>'
-    + '<button class="dp-star task-star '+(task.starred?'starred':'')+'" onclick="toggleStarFromPanel()">'
-    + (task.starred?'★':'☆')+'</button></div>';
+    + '</div>';
 
   // 단계 섹션
   html += '<div class="dp-steps-section"><div class="dp-section-label">📋 TO DO</div>'
@@ -1315,7 +1300,6 @@ function saveDpTitle() {
 }
 
 function toggleCompleteFromPanel() { if (detailTaskId) toggleComplete(detailTaskId); }
-function toggleStarFromPanel()     { if (detailTaskId) toggleStar(detailTaskId); }
 
 function deleteFromPanel() {
   if (!detailTaskId) return;
@@ -1807,7 +1791,6 @@ var rpState = {
   prevTaskIds: [],
   nextTaskIds: [],
   completed: false,
-  starred: false,
   createdAt: null,
 };
 
@@ -1832,7 +1815,6 @@ function openNewTaskPanel(taskId) {
   rpState.prevTaskIds = task ? (Array.isArray(task.prevTaskIds) ? task.prevTaskIds.slice() : []) : [];
   rpState.nextTaskIds = task ? (Array.isArray(task.nextTaskIds) ? task.nextTaskIds.slice() : []) : [];
   rpState.completed   = task ? !!task.completed : false;
-  rpState.starred     = task ? !!task.starred : false;
   rpState.createdAt   = task ? (task.createdAt || null) : null;
   detailTaskId        = taskId || null;
 
@@ -2253,7 +2235,6 @@ function saveRightPanel() {
     if (task) {
       task.text        = applyCompletePrefix(name, rpState.completed, task.text);
       task.completed   = rpState.completed;
-      task.starred     = rpState.starred;
       task.eisenhower  = rpState.eisenhower;
       task.status      = rpState.status;
       task.startDate   = startDate ? startDate+'T09:00:00' : null;
@@ -2274,7 +2255,7 @@ function saveRightPanel() {
   } else {
     var newTask = {
       id: Date.now(), text: applyCompletePrefix(name, rpState.completed, ''),
-      completed: rpState.completed, starred: rpState.starred,
+      completed: rpState.completed,
       createdAt: new Date().toISOString(),
       dueDateTime: dueDateTime, hasTime: hasTime,
       startDate: startDate ? startDate+'T09:00:00' : null,
