@@ -3,8 +3,8 @@
 // ============================================
 
 var BOARD_HEADERS = [
-  'ID', 'TASK', 'START', 'DUE', '마감시간', 'TO DO(기한 포함)', 'PRIORITY', 'STATUS',
-  'COWORKER', 'UPSTREAM DEPT.', 'PROJECT', 'LINKED TASKS(이전)', 'LINKED TASKS(후행)', 'MEMO', '완료', '완료일'
+  'ID', 'TASK', 'START', 'DUE', '마감시간', '완료일', 'TO DO(기한 포함)', 'PRIORITY', 'STATUS',
+  'COWORKER', 'UPSTREAM DEPT.', 'PROJECT', 'LINKED TASKS(이전)', 'LINKED TASKS(후행)', 'MEMO'
 ];
 
 // ── 완료 접두사 [YYMMDD] ↔ 날짜 (완료한 Task·To Do 는 텍스트 앞에 [YYMMDD]) ──
@@ -64,15 +64,16 @@ function exportBoardXlsx() {
       pxStr(t.id), boardStripDonePrefix(t.text),
       t.startDate ? String(t.startDate).slice(0, 10) : '',
       due ? String(due).slice(0, 10) : '', (due && t.hasTime) ? String(due).slice(11, 16) : '',
+      doneDate,
       boardStepsToStr(t.steps), pxStr(t.eisenhower), pxStr(t.status),
       coworker, upstream, project,
       titlesOf(t.prevTaskIds), titlesOf(t.nextTaskIds),
-      pxStr(t.notes), t.completed ? '완료' : '', doneDate
+      pxStr(t.notes)
     ];
   });
   if (!rows.length) {
-    rows.push(['', '예) 보고서 초안 작성', '2026-06-21', '2026-06-25', '18:00',
-      '자료수집 @2026-06-22 | [v]목차정리', 'SCHEDULE', '진행', '홍길동', '기획팀', '', '', '', '비고 메모', '', '']);
+    rows.push(['', '예) 보고서 초안 작성', '2026-06-21', '2026-06-25', '18:00', '',
+      '자료수집 @2026-06-22 | [v]목차정리', 'SCHEDULE', '진행', '홍길동', '기획팀', '', '', '', '비고 메모']);
   }
   var guide = [
     ['📊 TaskLog — Board 백업/복원 서식'], [''],
@@ -84,19 +85,18 @@ function exportBoardXlsx() {
     ['START / DUE', 'YYYY-MM-DD. 마감시간은 HH:MM(선택).'],
     ['TO DO(기한 포함)', '하위 단계를 " | " 로 구분. 완료는 앞에 [v], 기한은 뒤에 @YYYY-MM-DD(HH:MM).'],
     ['PRIORITY', '아이젠하워: DO / SCHEDULE / DELEGATE / DROP. 비워도 됨.'],
-    ['STATUS', '대기 / 진행 / 중단 / 완료 / 취소.'],
+    ['완료일', 'YYYY-MM-DD. 이 값이 있으면 복원 시 완료 처리되고 제목 앞에 [YYMMDD] 가 붙습니다. (완료 여부는 이 칸으로 판단)'],
+    ['', '※ TO DO 도 동일: [v] 로 완료 표시하면 복원 시 그 항목 앞에도 [YYMMDD] 부착.'],
+    ['STATUS', '대기 / 진행 / 중단 / 완료 / 취소 (업무 상태 — 완료 체크와는 별개의 값).'],
     ['COWORKER', '협업자 이름(여러 명은 쉼표로 구분).'],
     ['UPSTREAM DEPT.', '상위·협의 부서(쉼표로 구분).'],
     ['PROJECT', '연결된 만다라트 프로젝트(읽기용). 복원 시 기존 Task 연결값 보존.'],
     ['LINKED TASKS(이전/후행)', '연계 Task 제목을 " | " 로 구분. 파일 안의 다른 Task 제목과 매칭.'],
-    ['MEMO', '메모(비고).'],
-    ['완료', '완료했으면 완료 또는 O. 아니면 비워 둡니다.'],
-    ['완료일', 'YYYY-MM-DD. 값이 있으면 복원 시 자동 완료 처리 + 제목 앞에 [YYMMDD] 부착.'],
-    ['', '※ TO DO 도 동일: [v] 로 완료 표시하면 복원 시 그 항목 앞에도 [YYMMDD] 부착.'], [''],
+    ['MEMO', '메모(비고).'], [''],
     ['⚠️ 복원하면 현재 Task 목록 전체가 이 엑셀 내용으로 교체됩니다.']
   ];
   pxBuildAndSave('Board', BOARD_HEADERS, rows,
-    [16, 32, 12, 12, 10, 36, 12, 8, 16, 16, 20, 22, 22, 28, 8, 12], guide,
+    [16, 32, 12, 12, 10, 12, 36, 12, 8, 16, 16, 20, 22, 22, 28], guide,
     'tasklog-Board-' + pxFileDate() + '.xlsx');
 }
 function boardRowsToTasks(rows) {
@@ -108,7 +108,7 @@ function boardRowsToTasks(rows) {
       cPRI = col('PRIORITY'), cSTAT = col('STATUS'), cCO = col('COWORKER', '담당자'),
       cUP = col('UPSTREAM DEPT.'), cPROJ = col('PROJECT'),
       cPREV = col('LINKED TASKS(이전)'), cNEXT = col('LINKED TASKS(후행)'),
-      cMEMO = col('MEMO'), cDONE = col('완료'), cDONEDATE = col('완료일');
+      cMEMO = col('MEMO'), cDONEDATE = col('완료일');
   var existing = pxReadJSON(PX_KEY_TASK, []) || []; if (!Array.isArray(existing)) existing = [];
   var byId = {}; existing.forEach(function (t) { if (t && t.id != null) byId[String(t.id)] = t; });
   var out = [], usedIds = {}, titleToId = {};
@@ -129,11 +129,11 @@ function boardRowsToTasks(rows) {
     var finalId = task.id;
     if (usedIds[String(finalId)]) finalId = Date.now() + out.length + Math.floor(Math.random() * 1000);
     usedIds[String(finalId)] = true; task.id = finalId;
-    var doneCol = pxTruthy(pxCell(row, cDONE));
+    // 완료 여부는 '완료일' 칸으로 판단(값이 있으면 완료 + [YYMMDD] 부착). STATUS 와는 별개.
     var ymd = boardDateToYYMMDD(pxTrim(pxCell(row, cDONEDATE)));
-    if (!ymd) ymd = boardPrefixYYMMDD(rawTitle);
-    task.completed = doneCol || !!ymd;
-    task.text = (task.completed && ymd) ? ('[' + ymd + '] ' + text) : text;
+    if (!ymd) ymd = boardPrefixYYMMDD(rawTitle);   // TASK 칸에 접두사를 남겼다면 사용
+    task.completed = !!ymd;
+    task.text = ymd ? ('[' + ymd + '] ' + text) : text;
     var sd = pxDateStr(pxCell(row, cSTART));
     task.startDate = sd ? (sd + 'T09:00:00') : null;
     var dd = pxDateStr(pxCell(row, cDUE)), dt = pxTimeStr(pxCell(row, cTIME));
