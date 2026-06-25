@@ -1857,7 +1857,8 @@ function openNewTaskPanel(taskId) {
 }
 
 function buildRpForm(task) {
-  var name       = task ? task.text.replace(/^\[\d{6}\] /, '') : '';
+  // 완료 시 부여되는 [YYMMDD] 접두사를 제거하지 않고 그대로 노출 → 사용자가 날짜를 직접 수정 가능
+  var name       = task ? (task.text || '') : '';
   var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
   var dueStr     = (task && task.dueDateTime) ? toDateInputVal(task.dueDateTime) : '';
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
@@ -1972,7 +1973,7 @@ function rpBuildStepsHtml() {
     return '<div class="dp-step" id="rp-step-'+s.id+'">'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text '+(s.completed?'is-done':'')+'">'+escapeHtml(s.text)+'</span>'
+      + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false" onblur="rpSaveStepText('+s.id+',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escapeHtml(s.text)+'</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
@@ -2036,6 +2037,16 @@ function rpToggleStep(stepId) {
   s.text = applyDonePrefix(s.text, s.completed);
   rpState.dirty = true;
   rpRefreshSteps();
+}
+
+// TO DO 항목 텍스트(및 [YYMMDD] 날짜) 직접 수정
+function rpSaveStepText(stepId, el) {
+  var s = rpState.steps.find(function(x){ return x.id === stepId; });
+  if (!s) return;
+  var v = (el.textContent || '').trim();
+  if (v) s.text = v;
+  else el.textContent = s.text; // 빈 값이면 기존 텍스트 복원
+  rpState.dirty = true;
 }
 
 function rpDeleteStep(stepId) {
@@ -2224,9 +2235,11 @@ function saveRightPanel() {
   var reminderVal = reminderDate ? reminderDate+'T09:00:00' : null;
 
   function applyCompletePrefix(baseName, completed, existingText) {
-    if (!completed) return baseName;
-    var m = existingText && existingText.match(/^(\[\d{6}\] )/);
-    if (m) return m[1] + baseName;
+    // 미완료: 날짜 접두사 제거
+    if (!completed) return baseName.replace(/^\[\d{6}\] /, '');
+    // 완료인데 사용자가 직접 입력/수정한 날짜가 있으면 그대로 유지 (수정 허용)
+    if (/^\[\d{6}\] /.test(baseName)) return baseName;
+    // 완료이고 날짜가 없으면 오늘 날짜 자동 부여
     var now = new Date();
     var yy = String(now.getFullYear()).slice(2);
     var mm = String(now.getMonth()+1).padStart(2,'0');
