@@ -1282,7 +1282,7 @@ function buildHabitCardBody(m, sg, a) {
     var w = calcWeeklyStats(a, m.year, a.weeklyTarget || 1);
     statsHtml = '<div class="mdt-hb-settings">'
       + thrInput
-      + '<span class="mdt-hb-lbl">주간 목표</span>'
+      + '<span class="mdt-hb-lbl">목표</span>'
       + '<input type="number" class="mdt-hb-thr" value="' + (a.weeklyTarget || 1) + '" min="1" max="7"'
       +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'weeklyTarget\',+this.value)">회/주'
       + '<span class="mdt-hb-chip">✅ 달성 <b>' + w.achievedWeeks + '</b>/' + w.elapsedWeeks + '주</span>'
