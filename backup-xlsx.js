@@ -31,10 +31,31 @@ function pxTruthy(v) {
       || s === '1' || s === 'true' || s === '✓' || s === 'v' || s === 'x';
 }
 function pxFileDate() { return (typeof fmtDateForFile === 'function') ? fmtDateForFile(new Date()) : String(Date.now()); }
-function pxDateStr(v) {
+// 다양한 날짜 입력을 'YYYY-MM-DD'로 정규화 (엑셀 Date, 2026-04-30, 2026/4/30, 4/30/26, 4.30.26, 260430, [260430] …)
+function pxParseLooseDate(v) {
   if (v === null || v === undefined || v === '') return '';
   if (v instanceof Date) return v.getFullYear() + '-' + pxPad2(v.getMonth() + 1) + '-' + pxPad2(v.getDate());
-  return String(v).trim();
+  var s = String(v).trim();
+  if (!s) return '';
+  var m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (m) return m[1] + '-' + pxPad2(m[2]) + '-' + pxPad2(m[3]);
+  m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^\[?(\d{2})(\d{2})(\d{2})\]?$/);
+  if (m) return '20' + m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+  if (m) {
+    var a = +m[1], b = +m[2], y = +m[3], mo, d;
+    if (a > 12 && b <= 12) { d = a; mo = b; } else { mo = a; d = b; }
+    if (y < 100) y += 2000;
+    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return y + '-' + pxPad2(mo) + '-' + pxPad2(d);
+  }
+  return '';
+}
+function pxDateStr(v) {
+  if (v === null || v === undefined || v === '') return '';
+  var iso = pxParseLooseDate(v);
+  return iso || String(v).trim();
 }
 function pxTimeStr(v) {
   if (v === null || v === undefined || v === '') return '';
@@ -111,8 +132,8 @@ function webRowsToNotes(rows) {
     out.push({
       id: pxTrim(pxCell(row, map['ID'])) || (Date.now() + Math.random()),
       text: text, type: 'memo', taskId: null,
-      dueDate: pxTrim(pxCell(row, map['마감일'])) || null,
-      dueTime: pxTrim(pxCell(row, map['마감시간'])) || null,
+      dueDate: pxDateStr(pxCell(row, map['마감일'])) || null,
+      dueTime: pxTimeStr(pxCell(row, map['마감시간'])) || null,
       createdAt: pxTrim(pxCell(row, map['작성일'])) || new Date().toISOString()
     });
   }

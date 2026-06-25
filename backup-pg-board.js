@@ -12,11 +12,9 @@ function boardStripDonePrefix(t) { return pxStr(t).replace(/^\[\d{6}\]\s*/, '');
 function boardPrefixYYMMDD(t) { var m = pxStr(t).match(/^\[(\d{6})\]/); return m ? m[1] : ''; }
 function boardYYMMDDtoDate(s) { return /^\d{6}$/.test(s) ? ('20' + s.slice(0, 2) + '-' + s.slice(2, 4) + '-' + s.slice(4, 6)) : ''; }
 function boardDateToYYMMDD(s) {
-  s = pxTrim(s);
-  var d = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (d) return String(d[1]).slice(2) + pxPad2(d[2]) + pxPad2(d[3]);
-  var m = s.match(/\[?(\d{6})\]?$/);
-  return m ? m[1] : '';
+  var iso = pxParseLooseDate(s);   // 엑셀 Date·슬래시·2자리연도 등 모두 처리
+  if (iso) { var p = iso.split('-'); return p[0].slice(2) + p[1] + p[2]; }
+  return '';
 }
 function boardTodayYYMMDD() {
   var n = new Date();
