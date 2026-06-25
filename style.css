@@ -3336,9 +3336,13 @@ mark.search-hl {
 /* Section 컬럼 — 헤더는 가운데, 본문은 왼쪽 정렬 */
 .lw-table th.lw-th-section { text-align: center; }
 .lw-table td.lw-section {
-  white-space: nowrap;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   font-weight: 600;
-  min-width: 28px;
+  width: 92px;
+  min-width: 56px;
+  max-width: 104px;
   text-align: left;
 }
 
@@ -3367,19 +3371,19 @@ mark.search-hl {
 .lw-info {
   color: var(--text-2);
   font-size: 12px;
-  width: 366px;
-  min-width: 336px;
-  max-width: 386px;
+  width: 256px;
+  min-width: 235px;
+  max-width: 270px;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-/* Ideal / Goal (가로 폭 80%로 축소, 줄인 만큼 Info로 이동) */
+/* Ideal / Goal (Section·Info를 70%로 줄이고 그만큼 가로 폭 확대) */
 .lw-ideal {
-  width: 192px;
-  min-width: 141px;
-  max-width: 230px;
+  width: 270px;
+  min-width: 210px;
+  max-width: 320px;
 }
 
 .lw-ideal-text {
