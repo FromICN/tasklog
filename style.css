@@ -7619,6 +7619,30 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-q-cb { font-size: 14px; cursor: pointer; color: var(--text-2); }
 .mdt-q-cell.mdt-q-done .mdt-q-cb { color: #c4b5fd; }
 .mdt-q-val { width: 100%; text-align: center; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 5px; color: inherit; font-size: 11px; padding: 2px 2px; box-sizing: border-box; }
+
+/* PROJECT 실적 — 월별 그리드 (누적형/실적형) */
+.mdt-m-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 8px; }
+.mdt-m-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 6px; padding: 4px 3px; }
+.mdt-m-label { font-size: 9px; color: var(--text-3); }
+.mdt-m-val { width: 100%; text-align: center; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; color: inherit; font-size: 10px; padding: 2px 1px; box-sizing: border-box; }
+.mdt-m-cell-toggle { cursor: pointer; user-select: none; }
+.mdt-m-mark { font-size: 13px; line-height: 1.1; color: var(--text-2); }
+.mdt-m-cell.mdt-m-on { background: rgba(46,204,113,0.18); border-color: rgba(46,204,113,0.5); }
+.mdt-m-cell.mdt-m-on .mdt-m-mark { color: #2ecc71; }
+.mdt-m-cell.mdt-m-off { background: rgba(231,76,60,0.16); border-color: rgba(231,76,60,0.45); }
+.mdt-m-cell.mdt-m-off .mdt-m-mark { color: #e74c3c; }
+.mdt-m-hint { font-size: 10px; color: var(--text-3); margin-top: 6px; }
+.mdt-annual-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mdt-annual-lbl { font-size: 11px; color: var(--text-3); }
+.mdt-sub-toggle { margin-bottom: 10px; }
+
+/* 달성형 2단 레이아웃 (실적 왼쪽 / 메모 오른쪽) */
+.mdt-task-main { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-top: 4px; }
+.mdt-task-perf-col { flex: 1; min-width: 280px; }
+.mdt-task-memo-col { width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; }
+
+/* 습관형 메모 칼럼 (캘린더 왼쪽 / 메모 오른쪽) */
+.mdt-hb-memo-col { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 4px; }
 .mdt-outer-card.mdt-section-active { box-shadow: 0 0 0 2px var(--brand-primary); }
 
 /* =============================================
