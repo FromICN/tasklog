@@ -77,20 +77,12 @@ function wbsRegisterFilter() {
       { key:'year',     label:'연도',     get:function(t){ return wbsFilterYear(t); }, format:function(v){ return v+'년'; } },
       { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
       { key:'project',  label:'Project',  get:function(t){ return wbsProjectKey(t); } },
-      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } },
-      { key:'priority', label:'Priority', options:function(){ return ['DO','SCHEDULE','DELEGATE','DROP']; }, get:function(t){ return t.eisenhower||''; }, format:function(v){ return (typeof RP_EI_NAME!=='undefined'&&RP_EI_NAME[v])?RP_EI_NAME[v]:v; } },
-      { key:'linkedPrev', label:'선행 Task', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.prevTaskIds) : []; } },
-      { key:'linkedNext', label:'후행 Task', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.nextTaskIds) : []; } }
+      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
     ],
     sorts: [
       { key:'title',    label:'제목',   get:function(t){ return (t.text||'').replace(/^\[\d{6}\] /,'').toLowerCase(); } },
       { key:'start',    label:'시작일', get:function(t){ return t.startDate ? new Date(t.startDate).getTime() : null; } },
-      { key:'due',      label:'마감일', get:function(t){ return t.dueDateTime ? new Date(t.dueDateTime).getTime() : null; } },
-      { key:'status',   label:'Status',   get:function(t){ var o=['대기','진행','중단','완료','취소']; var i=o.indexOf(wbsTaskStatusLabel(t)); return i<0?null:i; } },
-      { key:'project',  label:'Project',  get:function(t){ return (wbsProjectKey(t)||'').toLowerCase()||null; } },
-      { key:'priority', label:'Priority', get:function(t){ var po=['DO','SCHEDULE','DELEGATE','DROP']; var pi=po.indexOf(t.eisenhower); return pi<0?null:pi; } },
-      { key:'linkedPrev', label:'선행 수', get:function(t){ return Array.isArray(t.prevTaskIds)?t.prevTaskIds.length:0; } },
-      { key:'linkedNext', label:'후행 수', get:function(t){ return Array.isArray(t.nextTaskIds)?t.nextTaskIds.length:0; } }
+      { key:'due',      label:'마감일', get:function(t){ return t.dueDateTime ? new Date(t.dueDateTime).getTime() : null; } }
     ]
   });
 }
@@ -122,36 +114,11 @@ function wbsTaskSgId(task) {
   return null;
 }
 
-// 작업의 라이프휠 섹션 인덱스 (드래그·드롭 등 lwSection 기준 로직용)
+// 작업의 라이프휠 섹션 인덱스 (lwSection 우선, 없으면 sgId 로 역산: subGoal.id = i+1)
 function wbsTaskSection(task) {
-  var sgId = wbsTaskSgId(task);
-  if (sgId != null) return sgId - 1;
   if (task.lwSection !== null && task.lwSection !== undefined) return task.lwSection;
-  return null;
-}
-
-// ── 영역(Section) 키: 만다라트 핵심목표(sgId) 기준으로 통일 ──
-//  - WBS 최상위 'Section' 단계는 만다라트 핵심목표 하나로 표현한다.
-//    (라이프휠 섹션과 핵심목표가 같은 영역을 두 단계로 중첩 표시하던 문제 제거)
-//  - 핵심목표 연결이 없으면 라이프휠 섹션 인덱스를 핵심목표 id(i+1)로 환산해 같은 공간에 매핑.
-function wbsTaskArea(task) {
   var sgId = wbsTaskSgId(task);
-  if (sgId != null) return sgId;
-  if (task.lwSection !== null && task.lwSection !== undefined) return task.lwSection + 1;
-  return null;
-}
-
-// 영역 라벨: 라이브 만다라트 핵심목표명(이모지 포함) 우선, 없으면 라이프휠 섹션명으로 폴백
-function wbsAreaLabel(sgId, stored) {
-  var mdt = wbsLiveMdt();
-  if (mdt && sgId) {
-    var sg = (mdt.subGoals || []).find(function(s){ return s.id === sgId; });
-    if (sg && sg.text) return (sg.emoji ? sg.emoji + ' ' : '') + sg.text;
-  }
-  var lwSecs = (typeof getLwSections === 'function') ? getLwSections() : null;
-  var sec = (lwSecs && sgId) ? lwSecs[sgId - 1] : null;
-  if (sec && sec.name) return (sec.emoji ? sec.emoji + ' ' : '') + sec.name;
-  return stored || ('영역 ' + (sgId || '?'));
+  return (sgId != null) ? (sgId - 1) : null;
 }
 
 function wbsGoalText(sgId, fallback) {
@@ -189,25 +156,17 @@ function wbsSectionLabel(lk, lwSecs) {
 // ── 우측 컬럼: START / DUE / STATUS (날짜는 TASK 행에만 표시) ──
 function wbsEmptyCol(role) { return '<span class="wbs-col wbs-col-' + (role || 'start') + '"></span>'; }
 
-// 날짜 표시 형식: yyyy.mm.dd
-function wbsFmtDate(iso) {
-  var d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso).slice(0, 10).replace(/-/g, '.');
-  var y = d.getFullYear();
-  var m = String(d.getMonth() + 1).padStart(2, '0');
-  var day = String(d.getDate()).padStart(2, '0');
-  return y + '.' + m + '.' + day;
-}
-
 function wbsStartCol(task) {
   if (!task.startDate) return wbsEmptyCol('start');
-  return '<span class="wbs-col wbs-col-start set">' + wbsEsc(wbsFmtDate(task.startDate)) + '</span>';
+  var txt = (typeof formatDueDate === 'function') ? formatDueDate(task.startDate, false) : String(task.startDate).slice(5, 10);
+  return '<span class="wbs-col wbs-col-start set">' + wbsEsc(txt) + '</span>';
 }
 
 function wbsDueCol(task) {
   if (!task.dueDateTime) return wbsEmptyCol('due');
+  var txt = (typeof formatDueDate === 'function') ? formatDueDate(task.dueDateTime, !!task.hasTime) : String(task.dueDateTime).slice(5, 10);
   var st  = (typeof getDueStatus === 'function') ? getDueStatus(task.dueDateTime) : '';
-  return '<span class="wbs-col wbs-col-due set ' + (st || '') + '">' + wbsEsc(wbsFmtDate(task.dueDateTime)) + '</span>';
+  return '<span class="wbs-col wbs-col-due set ' + (st || '') + '">' + wbsEsc(txt) + '</span>';
 }
 
 // 컬럼 머리글 행
@@ -337,9 +296,7 @@ function wbsToggleStep(taskId, stepId) {
   renderWbsView();
 }
 
-// ── 트리 빌드 (Section[만다라트 핵심목표] → Project[실행과제] → TASK → TO-DO) ──
-//   라이프휠 섹션 단계를 제거하고, 만다라트 핵심목표를 단일 Section 단계로 사용한다.
-//   (예전: Health[라이프휠] ▸ WORK[핵심목표] ▸ … → 변경: WORK[핵심목표] ▸ …)
+// ── 트리 빌드 (5단계: Section → Project → TASK → TO-DO) ──
 
 function buildWbsTree() {
   if (typeof tasks === 'undefined' || !tasks.length)
@@ -349,49 +306,52 @@ function buildWbsTree() {
   if (!filtered.length)
     return '<div class="wbs-empty">✨ 조건에 맞는 할 일이 없어요</div>';
 
-  // groups[areaKey][actionKey] = [task, ...]   (areaKey = 만다라트 핵심목표 id)
+  var lwSecs = (typeof getLwSections === 'function') ? getLwSections() : null;
+
+  // groups[lk][sgKey][actionKey] = [task, ...]
+  // 섹션(lk)·목표(sk)는 mdtAction 만 지정된 작업도 sgId 로 역산해 올바른 가지에 연결
   var groups = {};
-  var areaSample = {};
   filtered.forEach(function(task) {
-    var sgId = wbsTaskArea(task);
-    var ak   = (task.mdtAction && task.mdtAction.actionId) ? String(task.mdtAction.actionId) : '_';
-    var areaKey = (sgId != null) ? String(sgId) : '_';
-    if (!groups[areaKey])     groups[areaKey]     = {};
-    if (!groups[areaKey][ak]) groups[areaKey][ak] = [];
-    groups[areaKey][ak].push(task);
-    if (!areaSample[areaKey]) areaSample[areaKey] = task;
+    var secIdx = wbsTaskSection(task);
+    var sgId   = wbsTaskSgId(task);
+    var lk  = (secIdx != null) ? String(secIdx) : '_';
+    var sk  = (sgId != null)   ? String(sgId)   : '_';
+    var ak  = (task.mdtAction && task.mdtAction.actionId) ? String(task.mdtAction.actionId) : '_';
+    if (!groups[lk])      groups[lk]      = {};
+    if (!groups[lk][sk])  groups[lk][sk]  = {};
+    if (!groups[lk][sk][ak]) groups[lk][sk][ak] = [];
+    groups[lk][sk][ak].push(task);
   });
 
   var html = wbsHeaderRow();
   Object.keys(groups).filter(function(k){ return k !== '_'; })
     .sort(function(a,b){ return +a - +b; })
-    .forEach(function(areaKey) {
-      var sgId = parseInt(areaKey);
-      var sample = areaSample[areaKey];
-      var stored = (sample && sample.mdtGoal) ? sample.mdtGoal.text : '';
-      html += renderWbsSection('sg-' + areaKey, wbsAreaLabel(sgId, stored), groups[areaKey], sgId);
+    .forEach(function(lk) {
+      html += renderWbsSection('lw-' + lk, wbsSectionLabel(lk, lwSecs), groups[lk], lk);
     });
-  if (groups['_']) html += renderWbsSection('sg-none', '📂 미분류', groups['_'], null);
+  if (groups['_']) html += renderWbsSection('lw-none', '📂 미분류', groups['_'], '_');
   return html || '<div class="wbs-empty">✨ 등록된 할 일이 없어요</div>';
 }
 
-// 1단계: SECTION (만다라트 핵심목표) — 하위에 Project(실행과제)를 직접 배치
-function renderWbsSection(nodeId, label, actionGroups, sgId) {
+// 1단계: SECTION
+function renderWbsSection(nodeId, label, sgGroups, lk) {
   if (_wbsOpen[nodeId] === undefined) _wbsOpen[nodeId] = true;
   var open = _wbsOpen[nodeId];
-  var lk = (sgId != null) ? (sgId - 1) : '_';   // 드래그·드롭(lwSection) 호환용
   var inner = '';
-  // Project(실행과제) 미연결 그룹
-  if (actionGroups['_'])
-    inner += renderWbsActionGroup(nodeId + '-none', 'Project 미연결', actionGroups['_'], lk, '_', '');
-  Object.keys(actionGroups).filter(function(k){ return k !== '_'; }).forEach(function(ak) {
-    var taskArr = actionGroups[ak];
-    var first = taskArr[0];
-    var stored = (first && first.mdtAction) ? first.mdtAction.text : '';
-    var akText = wbsActionText(sgId, parseInt(ak), stored);   // 라이브 만다라트 실행과제명
-    inner += renderWbsActionGroup(nodeId + '-' + ak, akText, taskArr, lk, ak, akText);
+  // 미분류(Section 없음) 그룹
+  if (sgGroups['_']) inner += renderWbsCoreGroup(nodeId + '-none', 'Section 미연결', sgGroups['_'], lk);
+  Object.keys(sgGroups).filter(function(k){ return k !== '_'; }).forEach(function(sk) {
+    var actionGroups = sgGroups[sk];
+    var first = Object.values(actionGroups)[0];
+    var firstTask = first ? first[0] : null;
+    var stored = (firstTask && firstTask.mdtGoal) ? firstTask.mdtGoal.text : '';
+    var coreLabel = wbsGoalText(parseInt(sk), stored);   // 라이브 만다라트 목표명
+    inner += renderWbsCoreGroup(nodeId + '-' + sk, coreLabel, actionGroups, lk, parseInt(sk));
   });
-  var secTasks = [].concat.apply([], Object.values(actionGroups));
+  var secTasks = [];
+  Object.keys(sgGroups).forEach(function(sk){
+    Object.keys(sgGroups[sk]).forEach(function(ak){ secTasks = secTasks.concat(sgGroups[sk][ak]); });
+  });
   var secDone = wbsDoneCount(secTasks);
   var secTotal = secTasks.length;
   return '<div class="wbs-section-node">'

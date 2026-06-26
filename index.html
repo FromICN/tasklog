@@ -57,8 +57,18 @@
       <!-- JS로 채워짐 -->
     </nav>
 
-    <!-- 하단: 설정 -->
+    <!-- 하단: 백업 + 설정 -->
     <div class="sidebar-bottom">
+      <button class="nav-item" id="backup-nav-btn" title="지금 백업" onclick="backupToDrive()">
+        <span class="nav-item-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 16l-4-4-4 4"/>
+            <path d="M12 12v9"/>
+            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+          </svg>
+        </span>
+        <span class="nav-item-label">백업</span>
+      </button>
       <button class="nav-item" id="settings-nav-btn" title="설정" onclick="openSettings()">
         <span class="nav-item-icon">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -86,10 +96,8 @@
           <div class="topbar-date" id="topbar-date"></div>
           <!-- 만다라트 연도 선택 슬롯 -->
           <div class="topbar-mdt-year-slot" id="topbar-mdt-year-slot"></div>
-          <!-- 통합 필터/정렬 슬롯 (타이틀 오른쪽 · 테마 버튼 왼쪽) -->
+          <!-- 통합 필터/정렬 슬롯 (타이틀 오른쪽) -->
           <div class="topbar-filter-slot" id="topbar-filter-slot"></div>
-          <!-- 다크모드 토글 -->
-          <button class="btn-icon" id="dark-toggle-btn" title="다크 모드 전환" onclick="toggleDarkMode()">🌙</button>
           <!-- TO-DO(계획된 일정)에서만: 새 Task 버튼 -->
           <button class="btn-primary" id="new-task-btn" onclick="openNewTaskPanel()" style="display:none;">
             <span style="font-size:16px;line-height:1">+</span> Task
