@@ -44,7 +44,39 @@ var TODO_COLS = [
       else if (t.lwSectionName) p = (_em ? _em + ' ' : '') + t.lwSectionName;
       return '<td class="todo-table-proj">'+(p?escapeHtml(p):todoEmptyCell())+'</td>';
   } },
+  { key:'priority', label:'Priority', cell:function(t){
+      return '<td class="todo-table-priority">'+buildTodoPriorityCell(t)+'</td>';
+  } },
+  { key:'linkedPrev', label:'선행 Task', cell:function(t){
+      return '<td class="todo-table-linked">'+todoLinkedCell(t.prevTaskIds)+'</td>';
+  } },
+  { key:'linkedNext', label:'후행 Task', cell:function(t){
+      return '<td class="todo-table-linked">'+todoLinkedCell(t.nextTaskIds)+'</td>';
+  } },
 ];
+
+// ── Priority(아이젠하워) / 연계 Task 셀 도우미 ──
+function buildTodoPriorityCell(task) {
+  var k = task && task.eisenhower;
+  if (!k) return todoEmptyCell();
+  var color = (typeof RP_EI_COLORS !== 'undefined' && RP_EI_COLORS[k]) ? RP_EI_COLORS[k] : '#9CA3AF';
+  var name  = (typeof RP_EI_NAME   !== 'undefined' && RP_EI_NAME[k])   ? RP_EI_NAME[k]   : k;
+  return '<span class="todo-priority-badge" style="color:'+color+';background:'+color+'1f;border:1px solid '+color+'55;">'+escapeHtml(name)+'</span>';
+}
+function todoTaskTitleById(id) {
+  var arr = (typeof tasks !== 'undefined') ? tasks : [];
+  var t = arr.find(function(x){ return x.id === id; });
+  return t ? String(t.text || '').replace(/^\[\d{6}\] /, '') : '';
+}
+function todoLinkedTitles(ids) {
+  if (!Array.isArray(ids) || !ids.length) return [];
+  return ids.map(todoTaskTitleById).filter(Boolean);
+}
+function todoLinkedCell(ids) {
+  var titles = todoLinkedTitles(ids);
+  if (!titles.length) return todoEmptyCell();
+  return titles.map(function(x){ return '<span class="todo-link-badge">'+escapeHtml(x)+'</span>'; }).join(' ');
+}
 
 var _todoCols = ['start','due','progress','status','coworker','project'];
 try {
@@ -122,6 +154,9 @@ function todoSortValue(task, key) {
     case 'status':   { var order=['대기','진행','중단','완료','취소']; var i=order.indexOf(task.status); return i<0?null:i; }
     case 'coworker': { var a=Array.isArray(task.assignees)?task.assignees:(task.assignee?[task.assignee]:[]); return a.join(', ').toLowerCase()||null; }
     case 'project':  return (((task.mdtAction&&task.mdtAction.text)||task.lwSectionName)||'').toLowerCase()||null;
+    case 'priority': { var po=['DO','SCHEDULE','DELEGATE','DROP']; var pi=po.indexOf(task.eisenhower); return pi<0?null:pi; }
+    case 'linkedPrev': return Array.isArray(task.prevTaskIds) ? task.prevTaskIds.length : 0;
+    case 'linkedNext': return Array.isArray(task.nextTaskIds) ? task.nextTaskIds.length : 0;
     default: return null;
   }
 }
@@ -151,7 +186,10 @@ function todoRegisterFilter() {
       { key:'year',     label:'연도',     get:function(t){ return todoTaskYear(t); }, format:function(v){ return v+'년'; } },
       { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
       { key:'project',  label:'Project',  get:function(t){ return todoProjectKey(t); } },
-      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
+      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } },
+      { key:'priority', label:'Priority', options:function(){ return ['DO','SCHEDULE','DELEGATE','DROP']; }, get:function(t){ return t.eisenhower||''; }, format:function(v){ return (typeof RP_EI_NAME!=='undefined'&&RP_EI_NAME[v])?RP_EI_NAME[v]:v; } },
+      { key:'linkedPrev', label:'선행 Task', get:function(t){ return todoLinkedTitles(t.prevTaskIds); } },
+      { key:'linkedNext', label:'후행 Task', get:function(t){ return todoLinkedTitles(t.nextTaskIds); } }
     ],
     sorts: [
       { key:'title',    label:'제목',    get:function(t){ return todoSortValue(t,'title'); } },
@@ -159,7 +197,10 @@ function todoRegisterFilter() {
       { key:'due',      label:'마감일',  get:function(t){ return todoSortValue(t,'due'); } },
       { key:'progress', label:'진행률',  get:function(t){ return todoSortValue(t,'progress'); } },
       { key:'status',   label:'Status',  get:function(t){ return todoSortValue(t,'status'); } },
-      { key:'project',  label:'Project', get:function(t){ return todoSortValue(t,'project'); } }
+      { key:'project',  label:'Project', get:function(t){ return todoSortValue(t,'project'); } },
+      { key:'priority', label:'Priority', get:function(t){ return todoSortValue(t,'priority'); } },
+      { key:'linkedPrev', label:'선행 수', get:function(t){ return todoSortValue(t,'linkedPrev'); } },
+      { key:'linkedNext', label:'후행 수', get:function(t){ return todoSortValue(t,'linkedNext'); } }
     ]
   });
 }
@@ -415,32 +456,64 @@ function buildTodoTableView() {
 //  1) task.lwSectionEmoji (직접 지정)
 //  2) 만다라트 subGoal 이모지 (프로젝트 연결의 sgId로 역산)
 //  3) 라이프휠 섹션 이모지
+// 특정 연도 LW 섹션(idx)의 이모지 — 이름이 비어있으면 기본값 폴백 (LW가 원천)
+function todoLwEmojiAt(year, idx) {
+  if (idx === null || idx === undefined || idx < 0) return '';
+  try {
+    var secs = null;
+    if (typeof getLwYear === 'function' && year) {
+      var yr = getLwYear(parseInt(year, 10));
+      if (yr && Array.isArray(yr.sections)) secs = yr.sections;
+    }
+    if (secs && secs[idx] && secs[idx].emoji) return secs[idx].emoji;
+    if (typeof LW_SECTION_DEFAULTS !== 'undefined' && LW_SECTION_DEFAULTS[idx] && LW_SECTION_DEFAULTS[idx].emoji)
+      return LW_SECTION_DEFAULTS[idx].emoji;
+  } catch (e) {}
+  return '';
+}
+
+// task가 속한 "섹션"의 이모지 — BOARD가 LW와 항상 일치하도록 LW 섹션 이모지를 원천으로 사용
+//  - 프로젝트 연결(sgId)은 subGoal.id 로 현재 배열 위치를 역산 → 섹션 순서 변경에도 안전
+//  - 매핑 SECTION[i] ↔ subGoals[i] 기준으로 LW 섹션[i].emoji 반환
 function todoSectionEmoji(task) {
   if (!task) return '';
-  if (task.lwSectionEmoji) return task.lwSectionEmoji;
-  var sgId = (task.mdtAction && task.mdtAction.sgId) ||
-             (task.mdtGoal   && task.mdtGoal.sgId)   || null;
-  var idx = (task.lwSection !== null && task.lwSection !== undefined)
-            ? task.lwSection
-            : (sgId ? parseInt(sgId, 10) - 1 : null);
-  if (idx === null || idx === undefined || idx < 0) return '';
   var year = (task.mdtAction && task.mdtAction.year) ||
              (task.mdtGoal   && task.mdtGoal.year)   ||
              (typeof appGetYear === 'function' ? appGetYear() : null);
+  if (year) year = parseInt(year, 10);
+
+  // 섹션 배열 인덱스 결정
+  var idx = null;
+  var sgId = (task.mdtAction && task.mdtAction.sgId) ||
+             (task.mdtGoal   && task.mdtGoal.sgId)   || null;
+  if (sgId != null && year && typeof getMdt === 'function') {
+    try {
+      var mdt = getMdt(year);
+      if (mdt && Array.isArray(mdt.subGoals)) {
+        var pos = mdt.subGoals.findIndex(function(g){ return g && String(g.id) === String(sgId); });
+        if (pos >= 0) idx = pos;
+      }
+    } catch (e) {}
+  }
+  if (idx === null && task.lwSection !== null && task.lwSection !== undefined) idx = task.lwSection;
+  if (idx === null && sgId != null) idx = parseInt(sgId, 10) - 1;   // 최후 폴백
+  if (idx === null || idx < 0) return task.lwSectionEmoji || '';
+
+  // 1) LW 섹션 이모지(원천)
+  var lwEmoji = todoLwEmojiAt(year, idx);
+  if (lwEmoji) return lwEmoji;
+
+  // 2) 만다라트 subGoal 이모지
   try {
-    if (typeof getMdt === 'function') {
-      var mdt = getMdt(parseInt(year, 10));
-      if (mdt && mdt.subGoals && mdt.subGoals[idx] && mdt.subGoals[idx].emoji)
-        return mdt.subGoals[idx].emoji;
+    if (year && typeof getMdt === 'function') {
+      var mdt2 = getMdt(year);
+      if (mdt2 && mdt2.subGoals && mdt2.subGoals[idx] && mdt2.subGoals[idx].emoji)
+        return mdt2.subGoals[idx].emoji;
     }
   } catch (e) {}
-  try {
-    if (typeof getLwSections === 'function') {
-      var secs = getLwSections();
-      if (secs && secs[idx] && secs[idx].emoji) return secs[idx].emoji;
-    }
-  } catch (e) {}
-  return '';
+
+  // 3) task에 저장된 값(최후)
+  return task.lwSectionEmoji || '';
 }
 
 // ── Project 뷰 — Task 탭 구성 + Project 기준 그룹 ────────────

@@ -8926,3 +8926,18 @@ body.cr-resizing * { cursor: col-resize !important; }
   color: var(--text-2); border-bottom: 1px solid var(--border, rgba(255,255,255,0.1));
   margin-bottom: 4px; letter-spacing: 0.02em;
 }
+
+
+/* ── Board 추가 구분: Priority / 연계 Task 셀 ── */
+.todo-table-priority, .todo-table-linked { white-space: normal; }
+.todo-priority-badge {
+  display: inline-block; padding: 1px 8px; border-radius: 11px;
+  font-size: 11px; font-weight: 700; line-height: 1.6; white-space: nowrap;
+}
+.todo-link-badge {
+  display: inline-block; margin: 1px 2px; padding: 1px 7px;
+  border-radius: 10px; font-size: 11px; line-height: 1.6;
+  color: var(--text-2); background: var(--surface-hover, rgba(255,255,255,0.07));
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
+}
