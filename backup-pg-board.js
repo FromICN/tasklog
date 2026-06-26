@@ -97,6 +97,37 @@ function exportBoardXlsx() {
     [16, 32, 12, 12, 10, 12, 36, 12, 8, 16, 16, 20, 22, 22, 28], guide,
     'tasklog-Board-' + pxFileDate() + '.xlsx');
 }
+// PROJECT 셀("YYYY년 실행과제명" 또는 "실행과제명")을 만다라트 실행과제와 연결
+//  - 해당 연도(없으면 전체 연도) 만다라트에서 실행과제명이 일치하면 sgId/actionId까지 연결
+//  - 일치 항목이 없으면 텍스트만 보존(보드 PROJECT 열에는 표시됨)
+function boardResolveProject(proj) {
+  if (!proj) return null;
+  var ym = String(proj).match(/(\d{4})\s*년\s*(.*)$/);
+  var year = ym ? parseInt(ym[1], 10) : null;
+  var text = (ym ? ym[2] : proj).trim();
+  if (!text) return null;
+  try {
+    if (typeof loadMandalarts === 'function') loadMandalarts();
+    var years = [];
+    if (year) years = [year];
+    else if (typeof mandalarts !== 'undefined' && Array.isArray(mandalarts)) years = mandalarts.map(function (m) { return m.year; });
+    for (var i = 0; i < years.length; i++) {
+      var mdt = (typeof getMdt === 'function') ? getMdt(years[i]) : null;
+      if (!mdt || !Array.isArray(mdt.subGoals)) continue;
+      for (var sIdx = 0; sIdx < mdt.subGoals.length; sIdx++) {
+        var sg = mdt.subGoals[sIdx]; if (!sg || !Array.isArray(sg.actions)) continue;
+        for (var aIdx = 0; aIdx < sg.actions.length; aIdx++) {
+          var act = sg.actions[aIdx];
+          if (act && act.text && String(act.text).trim() === text) {
+            return { year: years[i], sgId: sg.id, actionId: act.id, text: act.text };
+          }
+        }
+      }
+    }
+  } catch (e) {}
+  return year ? { year: year, text: text } : { text: text };
+}
+
 function boardRowsToTasks(rows) {
   var hIdx = pxFindHeaderIdx(rows, ['TASK', '할 일', 'ID']);
   var map = pxColMap(rows[hIdx]);
@@ -147,9 +178,11 @@ function boardRowsToTasks(rows) {
     var up = pxTrim(pxCell(row, cUP));
     task.upstreamDepts = up ? up.split(',').map(function (x) { return x.trim(); }).filter(Boolean) : [];
     task.upstreamDept = task.upstreamDepts.join(', ');
-    if (!base) {
-      var proj = pxTrim(pxCell(row, cPROJ));
-      if (proj) { var ym = proj.match(/(\d{4})\s*년\s*(.*)$/); task.mdtAction = ym ? { year: parseInt(ym[1]), text: ym[2].trim() } : { text: proj }; }
+    // PROJECT: 값이 있으면 신규·기존 Task 모두에 적용(만다라트 실행과제명으로 연결 시도), 비어 있으면 기존 연결 보존
+    var proj = pxTrim(pxCell(row, cPROJ));
+    if (proj) {
+      var pj = boardResolveProject(proj);
+      if (pj) task.mdtAction = pj; else delete task.mdtAction;
     }
     task.notes = pxStr(pxCell(row, cMEMO));
     task._prevTitles = pxTrim(pxCell(row, cPREV));
