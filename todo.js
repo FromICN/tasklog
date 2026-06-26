@@ -101,7 +101,7 @@ function toggleTodoProjPick(e) {
 
 // Project 탭 헤더 — 필터/정렬은 상단 통합 컴포넌트로 이동, 일반 라벨만 표시
 function todoProjFilterTh() {
-  return '<th class="todo-th-proj">Project</th>';
+  return '<th class="todo-th-proj" data-cr-key="project">Project</th>';
 }
 
 // ── 정렬/필터: 상단 통합 컴포넌트(TLFilter)로 위임 ──
@@ -165,7 +165,7 @@ function todoRegisterFilter() {
 }
 
 function todoSortableTh(key, label, cls) {
-  return '<th class="'+(cls||'')+'">'+label+'</th>';
+  return '<th class="'+(cls||'')+'" data-cr-key="'+key+'">'+label+'</th>';
 }
 
 function todoColHeadsHtml() { return selectedTodoCols().map(function(c){ return todoSortableTh(c.key, c.label, c.thCls); }).join(''); }
@@ -180,6 +180,7 @@ function renderTodoView() {
     + buildTodoTabBar()
     + '<div id="todo-body">' + buildTodoBody() + '</div>'
     + '</div>';
+  applyTodoColResize();
 }
 
 function buildTodoBody() {
@@ -191,6 +192,15 @@ function buildTodoBody() {
 function refreshTodoBody() {
   var el = document.getElementById('todo-body');
   if (el) el.innerHTML = buildTodoBody();
+  applyTodoColResize();
+}
+
+// 표 열 너비 드래그 조정 적용 (Board)
+function applyTodoColResize() {
+  if (typeof TLColResize === 'undefined') return;
+  var c = document.getElementById('page-content');
+  if (!c) return;
+  Array.prototype.forEach.call(c.querySelectorAll('table.todo-table'), function(t){ TLColResize.table(t, 'cr-todo'); });
 }
 
 // ── 탭 바 + 구분(컬럼) 다중 선택 ───────────────
@@ -266,7 +276,7 @@ function buildTodoListView() {
 
   var colspan = 2 + selectedTodoCols().length;
   var head = '<thead><tr>'
-    + '<th class="c-check"></th>'
+    + '<th class="c-check" data-cr-key="check"></th>'
     + todoSortableTh('title', 'To Do', 'todo-th-title')
     + todoColHeadsHtml()
     + '</tr></thead>';
@@ -378,7 +388,7 @@ function buildTodoTableView() {
     : active.slice().sort(function(a,b){ return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); });
 
   var head = '<thead><tr>'
-    + '<th class="c-check"></th>'
+    + '<th class="c-check" data-cr-key="check"></th>'
     + todoSortableTh('title', 'Task', 'todo-th-title')
     + todoColHeadsHtml()
     + '</tr></thead>';
@@ -470,7 +480,7 @@ function buildTodoProjectView() {
   var otherCols = selectedTodoCols().filter(function(c){ return c.key !== 'project'; });
   var colspan = 3 + otherCols.length;
   var head = '<thead><tr>'
-    + '<th class="c-check"></th>'
+    + '<th class="c-check" data-cr-key="check"></th>'
     + todoProjFilterTh()
     + todoSortableTh('title', 'Task', 'todo-th-title')
     + otherCols.map(function(c){ return todoSortableTh(c.key, c.label, c.thCls); }).join('')

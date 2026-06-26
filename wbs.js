@@ -17,6 +17,20 @@ function renderWbsView() {
   var content = document.getElementById('page-content');
   if (!content) return;
   content.innerHTML = '<div class="wbs-wrap" id="wbs-root">' + buildWbsTree() + '</div>';
+  applyWbsColResize();
+}
+
+// 컬럼 너비 드래그 조정 적용 (WBS — START/DUE/STATUS)
+function applyWbsColResize() {
+  if (typeof TLColResize === 'undefined') return;
+  var root = document.getElementById('wbs-root');
+  var header = root ? root.querySelector('.wbs-header-row') : null;
+  if (!root || !header) return;
+  TLColResize.flex(root, header, 'cr-wbs', [
+    { key: 'start',  headSel: '.wbs-colhead-start',  varName: '--wbs-w-start' },
+    { key: 'due',    headSel: '.wbs-colhead-due',    varName: '--wbs-w-due' },
+    { key: 'status', headSel: '.wbs-colhead-status', varName: '--wbs-w-status' }
+  ]);
 }
 
 // ── 타이틀 영역 연도 선택 (전역 연도 — MVV·LifeWheel·Mandalart·Task 함께 이동) ──
@@ -140,19 +154,19 @@ function wbsSectionLabel(lk, lwSecs) {
 }
 
 // ── 우측 컬럼: START / DUE / STATUS (날짜는 TASK 행에만 표시) ──
-function wbsEmptyCol() { return '<span class="wbs-col"></span>'; }
+function wbsEmptyCol(role) { return '<span class="wbs-col wbs-col-' + (role || 'start') + '"></span>'; }
 
 function wbsStartCol(task) {
-  if (!task.startDate) return wbsEmptyCol();
+  if (!task.startDate) return wbsEmptyCol('start');
   var txt = (typeof formatDueDate === 'function') ? formatDueDate(task.startDate, false) : String(task.startDate).slice(5, 10);
-  return '<span class="wbs-col set">' + wbsEsc(txt) + '</span>';
+  return '<span class="wbs-col wbs-col-start set">' + wbsEsc(txt) + '</span>';
 }
 
 function wbsDueCol(task) {
-  if (!task.dueDateTime) return wbsEmptyCol();
+  if (!task.dueDateTime) return wbsEmptyCol('due');
   var txt = (typeof formatDueDate === 'function') ? formatDueDate(task.dueDateTime, !!task.hasTime) : String(task.dueDateTime).slice(5, 10);
   var st  = (typeof getDueStatus === 'function') ? getDueStatus(task.dueDateTime) : '';
-  return '<span class="wbs-col set ' + (st || '') + '">' + wbsEsc(txt) + '</span>';
+  return '<span class="wbs-col wbs-col-due set ' + (st || '') + '">' + wbsEsc(txt) + '</span>';
 }
 
 // 컬럼 머리글 행
@@ -160,8 +174,8 @@ function wbsHeaderRow() {
   return '<div class="wbs-row wbs-header-row">'
     + '<span class="wbs-tog-empty"></span>'
     + '<span class="wbs-sec-label wbs-head-label">항목</span>'
-    + '<span class="wbs-colhead">START</span>'
-    + '<span class="wbs-colhead">DUE</span>'
+    + '<span class="wbs-colhead wbs-colhead-start">START</span>'
+    + '<span class="wbs-colhead wbs-colhead-due">DUE</span>'
     + '<span class="wbs-colhead wbs-colhead-status">STATUS</span>'
     + '<span class="wbs-count-spacer"></span>'
     + '</div>';
@@ -183,7 +197,7 @@ var WBS_STATUS_COLORS = { '대기':'#9CA3AF', '진행':'#2ecc71', '중단':'#ef4
 
 function wbsStatusBadge(label) {
   var c = WBS_STATUS_COLORS[label] || '#9CA3AF';
-  return '<span class="wbs-badge" style="color:' + c + ';border:1px solid ' + c + '66;background:' + c + '22;">' + label + '</span>';
+  return '<span class="wbs-col wbs-col-status"><span class="wbs-badge" style="color:' + c + ';border:1px solid ' + c + '66;background:' + c + '22;">' + label + '</span></span>';
 }
 
 // TASK 자체 상태값 기준 (완료 체크 우선, 없으면 task.status, 기본 대기)
@@ -344,7 +358,7 @@ function renderWbsSection(nodeId, label, sgGroups, lk) {
     + '<div class="wbs-row wbs-section-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '">'
     + '<span class="wbs-tog" id="tog-' + nodeId + '">' + (open?'▼':'▶') + '</span>'
     + '<span class="wbs-sec-label">' + wbsEsc(label) + '</span>'
-    + wbsEmptyCol() + wbsEmptyCol()
+    + wbsEmptyCol('start') + wbsEmptyCol('due')
     + wbsStatusBadge(wbsRollupStatus(secTasks))
     + '<span class="wbs-count">' + secDone + '/' + secTotal + '</span>'
     + '</div>'
@@ -372,7 +386,7 @@ function renderWbsCoreGroup(nodeId, label, actionGroups, lk, sgId) {
     + '<div class="wbs-row wbs-core-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '">'
     + '<span class="wbs-tog" id="tog-' + nodeId + '">' + (open ? '▼' : '▶') + '</span>'
     + '<span class="wbs-sg-label">' + wbsEsc(label) + '</span>'
-    + wbsEmptyCol() + wbsEmptyCol()
+    + wbsEmptyCol('start') + wbsEmptyCol('due')
     + wbsStatusBadge(wbsRollupStatus(allTasks))
     + '<span class="wbs-count">' + done + '/' + total + '</span>'
     + '</div>'
@@ -391,7 +405,7 @@ function renderWbsActionGroup(nodeId, label, taskArr, lk, ak, akText) {
     + '<div class="wbs-row wbs-action-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '" data-wbs-drop-ak="' + ak + '" data-wbs-drop-ak-text="' + encodeURIComponent(akText || '') + '">'
     + '<span class="wbs-tog" id="tog-' + nodeId + '">' + (open ? '▼' : '▶') + '</span>'
     + '<span class="wbs-sg-label">' + wbsEsc(label) + '</span>'
-    + wbsEmptyCol() + wbsEmptyCol()
+    + wbsEmptyCol('start') + wbsEmptyCol('due')
     + wbsStatusBadge(wbsRollupStatus(taskArr))
     + '<span class="wbs-count">' + done + '/' + total + '</span>'
     + '</div>'
@@ -413,7 +427,7 @@ function renderWbsTask(task) {
           return '<div class="wbs-row wbs-step-row" draggable="true" data-wbs-drag-step="' + cbKey + '">'
             + '<span class="wbs-step-cb" data-wbs-step-cb="' + cbKey + '">' + (step.done ? '☑' : '☐') + '</span>'
             + '<span class="wbs-step-text' + (step.done ? ' done' : '') + '" data-wbs-step-edit="' + cbKey + '" title="클릭해서 편집">' + wbsEsc(step.text) + '</span>'
-            + wbsEmptyCol() + wbsEmptyCol()
+            + wbsEmptyCol('start') + wbsEmptyCol('due')
             + wbsStatusBadge(step.done ? '완료' : '대기')
             + '<span class="wbs-count-spacer"></span>'
             + '</div>';

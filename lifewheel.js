@@ -327,6 +327,10 @@ function lwRenderTabContent() {
   var el = document.getElementById('lw-tab-content');
   if (!el) return;
   el.innerHTML = buildLwWheelTab();
+  if (typeof TLColResize !== 'undefined') {
+    var t = el.querySelector('.lw-table');
+    if (t) TLColResize.table(t, 'cr-lw');
+  }
 }
 
 // MVV 데이터의 영역 이름 매핑 (인덱스 → 고정 이름)
@@ -474,13 +478,13 @@ function buildLwWheelTab() {
     + '<div class="lw-table-wrap" style="flex:1;min-height:0;">'
     + '<table class="lw-table">'
     + '<thead><tr>'
-    + '<th class="lw-th-section">Section</th>'
-    + '<th>Point</th>'
-    + '<th>Status</th>'
-    + '<th>Info</th>'
-    + '<th>Ideal</th>'
-    + '<th>Goal</th>'
-    + '<th>Value</th>'
+    + '<th class="lw-th-section" data-cr-key="section">Section</th>'
+    + '<th data-cr-key="point">Point</th>'
+    + '<th data-cr-key="status">Status</th>'
+    + '<th data-cr-key="info">Info</th>'
+    + '<th data-cr-key="ideal">Ideal</th>'
+    + '<th data-cr-key="goal">Goal</th>'
+    + '<th data-cr-key="value">Value</th>'
     + '</tr></thead>'
     + '<tbody>' + rows + '</tbody>'
     + '</table>'

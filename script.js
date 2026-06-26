@@ -1066,16 +1066,37 @@ function toggleMdtFavKey(key) {
 }
 
 // 가장 최근(또는 현재) 만다라트의 비어있지 않은 실행과제 목록 — 즐겨찾기 우선 정렬
-function getMdtProjects() {
-  if (typeof loadMandalarts === 'function') loadMandalarts();
-  var mdt = null, year = null;
-  if (typeof mandalarts !== 'undefined' && mandalarts.length) {
-    var yr = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear
-           : (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : null;
-    mdt = (yr && typeof getMdt === 'function') ? getMdt(yr) : null;
-    if (!mdt) mdt = mandalarts.slice().sort(function(a, b){ return b.year - a.year; })[0];
-    if (mdt) year = mdt.year;
+// 프로젝트 드롭다운에 쓸 "연도" 결정: TASK START(시작일) 연도 → 없으면 전역 연도
+function projDDYear(domId) {
+  var y = null;
+  if (domId === 'rp-proj') {
+    var el = document.getElementById('rp-start-date');
+    if (el && el.value) y = parseInt(String(el.value).slice(0, 4), 10);
+  } else if (domId === 'dp-proj') {
+    var t = (typeof detailTaskId !== 'undefined' && detailTaskId)
+      ? (tasks || []).find(function(x){ return x.id === detailTaskId; }) : null;
+    if (t && t.startDate) y = parseInt(String(t.startDate).slice(0, 4), 10);
   }
+  if (!y || isNaN(y)) y = (typeof appGetYear === 'function') ? appGetYear() : new Date().getFullYear();
+  return y;
+}
+
+// 지정 연도(year) 만다라트의 비어있지 않은 실행과제(PROJECT) 목록 — 즐겨찾기 우선 정렬
+//  year 미지정 시에만 전역/최신 연도로 폴백
+function getMdtProjects(year) {
+  if (typeof loadMandalarts === 'function') loadMandalarts();
+  var mdt = null;
+  if (typeof mandalarts !== 'undefined' && mandalarts.length) {
+    if (year && typeof getMdt === 'function') {
+      mdt = getMdt(parseInt(year, 10));   // TASK START 연도의 만다라트
+    } else if (!year) {
+      var yr = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear
+             : (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : null;
+      mdt = (yr && typeof getMdt === 'function') ? getMdt(yr) : null;
+      if (!mdt) mdt = mandalarts.slice().sort(function(a, b){ return b.year - a.year; })[0];
+    }
+  }
+  year = mdt ? mdt.year : (year || null);
   var list = [];
   if (mdt) {
     (mdt.subGoals || []).forEach(function(sg) {
@@ -1117,10 +1138,13 @@ function toggleProjDD(domId) {
 }
 
 function buildProjDDList(domId) {
-  var list = getMdtProjects();
-  var html = '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 프로젝트 없음 —</div>';
+  var year = projDDYear(domId);
+  var list = getMdtProjects(year);
+  var yhdr = '<div class="proj-dd-yearhdr">📅 ' + year + '년 만다라트 PROJECT</div>';
+  var html = yhdr
+    + '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 프로젝트 없음 —</div>';
   if (!list.length) {
-    return html + '<div class="proj-dd-empty">만다라트에 등록된 실행과제가 없어요</div>';
+    return html + '<div class="proj-dd-empty">' + year + '년 만다라트에 등록된 실행과제가 없어요</div>';
   }
   list.forEach(function(p) {
     html += '<div class="proj-dd-opt">'
@@ -1143,7 +1167,7 @@ function projDDToggleFav(domId, key) {
 function projDDSelect(domId, key) {
   var sel = null;
   if (key) {
-    var p = getMdtProjects().find(function(x){ return x.key === key; });
+    var p = getMdtProjects(projDDYear(domId)).find(function(x){ return x.key === key; });
     if (p) sel = { year: p.year, sgId: p.sgId, actionId: p.actionId, text: p.text };
   }
   var dd = document.getElementById(domId);
@@ -1923,7 +1947,7 @@ function buildRpForm(task) {
     + '</div></div>'
     + '<div style="display:flex;gap:10px;">'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Start</label>'
-    + '<input type="date" class="field-input" id="rp-start-date" value="'+startStr+'" onchange="rpState.dirty=true"></div>'
+    + '<input type="date" class="field-input" id="rp-start-date" value="'+startStr+'" onchange="rpOnStartChange()"></div>'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Due</label>'
     + '<input type="date" class="field-input" id="rp-due-date" value="'+dueStr+'" onchange="rpState.dirty=true"></div>'
     + '</div>'
@@ -1952,7 +1976,10 @@ function rpBuildStepsHtml() {
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
       + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, null)
       + '</div>';
-    return '<div class="dp-step" id="rp-step-'+s.id+'">'
+    return '<div class="dp-step rp-step-row" id="rp-step-'+s.id+'" data-rp-step="'+s.id+'"'
+      + ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
+      + '<span class="rp-step-drag" draggable="true" title="드래그하여 순서 변경"'
+      + ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">⠿</span>'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false" onblur="rpSaveStepText('+s.id+',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escapeHtml(s.text)+'</span>'
@@ -2042,6 +2069,59 @@ function rpHandleStepInput(event) { if (event.key === 'Enter') rpAddStep(); }
 function rpRefreshSteps() {
   var list = document.getElementById('rp-steps-list');
   if (list) list.innerHTML = rpBuildStepsHtml();
+}
+
+// ── To Do 드래그 순서 변경 ──
+var _rpDragStepId = null;
+function rpStepDragStart(ev, id) {
+  _rpDragStepId = id;
+  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(id)); } catch (e) {} }
+  var row = document.getElementById('rp-step-' + id);
+  if (row) row.classList.add('rp-step-dragging');
+}
+function rpStepDragEnd(ev) {
+  _rpDragStepId = null;
+  document.querySelectorAll('.rp-step-row').forEach(function(r){ r.classList.remove('rp-step-dragging','rp-drop-target'); });
+}
+function rpStepDragOver(ev, id) {
+  if (_rpDragStepId == null || _rpDragStepId === id) return;
+  ev.preventDefault();
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+  var row = document.getElementById('rp-step-' + id);
+  if (row) row.classList.add('rp-drop-target');
+}
+function rpStepDragLeave(ev) {
+  var row = ev.currentTarget;
+  if (row && row.classList) row.classList.remove('rp-drop-target');
+}
+function rpStepDrop(ev, id) {
+  ev.preventDefault();
+  var row = document.getElementById('rp-step-' + id);
+  if (row) row.classList.remove('rp-drop-target');
+  rpReorderStep(_rpDragStepId, id);
+}
+function rpReorderStep(fromId, toId) {
+  if (fromId == null || fromId === toId) return;
+  var arr = rpState.steps || [];
+  var fi = arr.findIndex(function(s){ return s.id === fromId; });
+  var ti = arr.findIndex(function(s){ return s.id === toId; });
+  if (fi < 0 || ti < 0) return;
+  var moved = arr.splice(fi, 1)[0];
+  arr.splice(ti, 0, moved);
+  rpState.dirty = true;
+  rpRefreshSteps();
+}
+
+// ── 시작일(START) 변경 시: 프로젝트 드롭다운을 해당 연도로 갱신 ──
+function rpOnStartChange() {
+  rpState.dirty = true;
+  var y = projDDYear('rp-proj');
+  // 선택된 프로젝트가 다른 연도 만다라트 것이면 무효화
+  if (rpState.mdtAction && rpState.mdtAction.year && parseInt(rpState.mdtAction.year, 10) !== y) {
+    rpState.mdtAction = null;
+  }
+  var dd = document.getElementById('rp-proj');
+  if (dd) dd.outerHTML = buildProjectDropdown('rp-proj', rpState.mdtAction || null);
 }
 
 // ── COWORKER (rp-form draft) ──
