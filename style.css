@@ -7605,9 +7605,9 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 
 /* 달성형 2단 레이아웃 (실적 왼쪽 2줄 / 메모 오른쪽) */
 .mdt-task-main { display: flex; gap: 8px; align-items: stretch; flex-wrap: nowrap; margin-top: 4px; }
-.mdt-task-perf-col { flex: 5 1 0%; min-width: 0; display: flex; flex-direction: column; }
+.mdt-task-perf-col { flex: 3.75 1 0%; min-width: 0; display: flex; flex-direction: column; }
 .mdt-task-perf-col .mdt-annual-block { flex: 1; margin-bottom: 0; }
-.mdt-task-memo-col { flex: 3 1 0%; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mdt-task-memo-col { flex: 4.25 1 0%; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .mdt-task-memo-col .mdt-memo-box { flex: 1; min-height: 96px; }
 /* 월별 칸: 1~6월 / 7~12월 두 줄 고정 */
 .mdt-task-perf-col .mdt-m-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; }
