@@ -77,12 +77,20 @@ function wbsRegisterFilter() {
       { key:'year',     label:'연도',     get:function(t){ return wbsFilterYear(t); }, format:function(v){ return v+'년'; } },
       { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
       { key:'project',  label:'Project',  get:function(t){ return wbsProjectKey(t); } },
-      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } }
+      { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } },
+      { key:'priority', label:'Priority', options:function(){ return ['DO','SCHEDULE','DELEGATE','DROP']; }, get:function(t){ return t.eisenhower||''; }, format:function(v){ return (typeof RP_EI_NAME!=='undefined'&&RP_EI_NAME[v])?RP_EI_NAME[v]:v; } },
+      { key:'linkedPrev', label:'선행 Task', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.prevTaskIds) : []; } },
+      { key:'linkedNext', label:'후행 Task', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.nextTaskIds) : []; } }
     ],
     sorts: [
       { key:'title',    label:'제목',   get:function(t){ return (t.text||'').replace(/^\[\d{6}\] /,'').toLowerCase(); } },
       { key:'start',    label:'시작일', get:function(t){ return t.startDate ? new Date(t.startDate).getTime() : null; } },
-      { key:'due',      label:'마감일', get:function(t){ return t.dueDateTime ? new Date(t.dueDateTime).getTime() : null; } }
+      { key:'due',      label:'마감일', get:function(t){ return t.dueDateTime ? new Date(t.dueDateTime).getTime() : null; } },
+      { key:'status',   label:'Status',   get:function(t){ var o=['대기','진행','중단','완료','취소']; var i=o.indexOf(wbsTaskStatusLabel(t)); return i<0?null:i; } },
+      { key:'project',  label:'Project',  get:function(t){ return (wbsProjectKey(t)||'').toLowerCase()||null; } },
+      { key:'priority', label:'Priority', get:function(t){ var po=['DO','SCHEDULE','DELEGATE','DROP']; var pi=po.indexOf(t.eisenhower); return pi<0?null:pi; } },
+      { key:'linkedPrev', label:'선행 수', get:function(t){ return Array.isArray(t.prevTaskIds)?t.prevTaskIds.length:0; } },
+      { key:'linkedNext', label:'후행 수', get:function(t){ return Array.isArray(t.nextTaskIds)?t.nextTaskIds.length:0; } }
     ]
   });
 }
@@ -114,11 +122,16 @@ function wbsTaskSgId(task) {
   return null;
 }
 
-// 작업의 라이프휠 섹션 인덱스 (lwSection 우선, 없으면 sgId 로 역산: subGoal.id = i+1)
+// 작업의 라이프휠 섹션 인덱스
+//  - 연결된 만다라트 핵심목표(sgId) 가 있으면 그 값(subGoal.id = i+1)으로 섹션을 정한다.
+//    이렇게 해야 1단계(섹션)와 2단계(핵심목표)가 항상 같은 영역을 가리켜,
+//    서로 다른 영역(예: health / work)이 상하로 중첩되지 않고 동일 수준 형제로 표시된다.
+//  - sgId 가 없을 때만 lwSection 값으로 폴백.
 function wbsTaskSection(task) {
-  if (task.lwSection !== null && task.lwSection !== undefined) return task.lwSection;
   var sgId = wbsTaskSgId(task);
-  return (sgId != null) ? (sgId - 1) : null;
+  if (sgId != null) return sgId - 1;
+  if (task.lwSection !== null && task.lwSection !== undefined) return task.lwSection;
+  return null;
 }
 
 function wbsGoalText(sgId, fallback) {
@@ -156,17 +169,25 @@ function wbsSectionLabel(lk, lwSecs) {
 // ── 우측 컬럼: START / DUE / STATUS (날짜는 TASK 행에만 표시) ──
 function wbsEmptyCol(role) { return '<span class="wbs-col wbs-col-' + (role || 'start') + '"></span>'; }
 
+// 날짜 표시 형식: yyyy.mm.dd
+function wbsFmtDate(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso).slice(0, 10).replace(/-/g, '.');
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, '0');
+  var day = String(d.getDate()).padStart(2, '0');
+  return y + '.' + m + '.' + day;
+}
+
 function wbsStartCol(task) {
   if (!task.startDate) return wbsEmptyCol('start');
-  var txt = (typeof formatDueDate === 'function') ? formatDueDate(task.startDate, false) : String(task.startDate).slice(5, 10);
-  return '<span class="wbs-col wbs-col-start set">' + wbsEsc(txt) + '</span>';
+  return '<span class="wbs-col wbs-col-start set">' + wbsEsc(wbsFmtDate(task.startDate)) + '</span>';
 }
 
 function wbsDueCol(task) {
   if (!task.dueDateTime) return wbsEmptyCol('due');
-  var txt = (typeof formatDueDate === 'function') ? formatDueDate(task.dueDateTime, !!task.hasTime) : String(task.dueDateTime).slice(5, 10);
   var st  = (typeof getDueStatus === 'function') ? getDueStatus(task.dueDateTime) : '';
-  return '<span class="wbs-col wbs-col-due set ' + (st || '') + '">' + wbsEsc(txt) + '</span>';
+  return '<span class="wbs-col wbs-col-due set ' + (st || '') + '">' + wbsEsc(wbsFmtDate(task.dueDateTime)) + '</span>';
 }
 
 // 컬럼 머리글 행

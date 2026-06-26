@@ -8898,7 +8898,7 @@ body.cr-resizing * { cursor: col-resize !important; }
 .todo-table td, .lw-table td { text-overflow: ellipsis; }
 
 /* WBS 컬럼 너비(START/DUE/STATUS) — CSS 변수로 헤더/본문 동시 제어 */
-.wbs-wrap { --wbs-w-start: 54px; --wbs-w-due: 54px; --wbs-w-status: 92px; }
+.wbs-wrap { --wbs-w-start: 88px; --wbs-w-due: 88px; --wbs-w-status: 92px; }
 .wbs-col-start,  .wbs-colhead-start  { width: var(--wbs-w-start); }
 .wbs-col-due,    .wbs-colhead-due    { width: var(--wbs-w-due); }
 .wbs-col-status, .wbs-colhead-status { width: var(--wbs-w-status); }
