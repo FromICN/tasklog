@@ -8836,6 +8836,33 @@ body.light-mode .tlf-pop { background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,0
 }
 .tlf-opt:hover { background: var(--surface-hover, rgba(255,255,255,0.06)); }
 .tlf-opt input { cursor: pointer; margin: 0; }
+
+/* ── 통합 필터: 항목별 드롭다운(아코디언) ───────────────── */
+.tlf-acc + .tlf-acc { border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }
+.tlf-acc-head {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer;
+  padding: 7px 6px; border-radius: 6px;
+  font-size: 13px; font-weight: 600; color: var(--text-1);
+  text-align: left;
+}
+.tlf-acc-head:hover { background: var(--surface-hover, rgba(255,255,255,0.06)); }
+.tlf-acc-arrow {
+  flex-shrink: 0; color: var(--text-3, #9aa); font-size: 13px;
+  transition: transform 0.15s ease; display: inline-block; width: 10px;
+}
+.tlf-acc.open .tlf-acc-arrow { transform: rotate(90deg); }
+.tlf-acc-name { flex: 1; }
+.tlf-acc-badge {
+  flex-shrink: 0; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px; font-size: 11px; font-weight: 700; line-height: 18px;
+  text-align: center; color: var(--text-3, #9aa);
+  background: var(--surface-hover, rgba(255,255,255,0.08));
+}
+.tlf-acc-badge.on { color: #fff; background: #4F6EF7; }
+.tlf-acc-body { padding: 2px 0 6px 14px; }
+body.light-mode .tlf-acc-badge { background: rgba(0,0,0,0.06); }
+
 .tlf-sort-row {
   display: flex; align-items: center; gap: 6px;
   padding: 4px 6px; border-radius: 6px;

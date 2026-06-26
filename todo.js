@@ -140,6 +140,13 @@ function todoRegisterFilter() {
   TLFilter.register('todo', {
     items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
     onChange: function(){ renderTodoView(); },
+    // 표시 항목(컬럼 표시/숨김) — 필터와 통합된 1차 영역
+    display: {
+      label: '표시 항목',
+      options: function(){ return TODO_COLS.map(function(c){ return { value:c.key, label:c.label }; }); },
+      isOn: function(key){ return _todoCols.indexOf(key) !== -1; },
+      toggle: function(key){ toggleTodoCol(key); }
+    },
     filters: [
       { key:'year',     label:'연도',     get:function(t){ return todoTaskYear(t); }, format:function(v){ return v+'년'; } },
       { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:function(t){ return t.status||''; } },
@@ -188,23 +195,12 @@ function refreshTodoBody() {
 
 // ── 탭 바 + 구분(컬럼) 다중 선택 ───────────────
 function buildTodoTabBar() {
-  var items = TODO_COLS.map(function(c){
-    var checked = _todoCols.indexOf(c.key) !== -1 ? ' checked' : '';
-    return '<label class="todo-colpick-item"><input type="checkbox"'+checked+' onchange="toggleTodoCol(\''+c.key+'\')"><span>'+c.label+'</span></label>';
-  }).join('');
-  // Project 탭의 표시 프로젝트 필터는 Project 컬럼 헤더 클릭으로 이동됨
+  // 표시 항목 선택은 상단 통합 필터(TLFilter)의 "표시 항목" 영역으로 이동됨
   return '<div class="todo-tabs">'
     + '<div class="todo-tabs-left">'
     + '<button class="todo-tab' + (_todoActiveTab==='list'?' active':'') + '" onclick="switchTodoTab(\'list\')">To Do</button>'
     + '<button class="todo-tab' + (_todoActiveTab==='table'?' active':'') + '" onclick="switchTodoTab(\'table\')">Task</button>'
     + '<button class="todo-tab' + (_todoActiveTab==='project'?' active':'') + '" onclick="switchTodoTab(\'project\')">Project</button>'
-    + '</div>'
-    + '<div class="todo-tabs-right">'
-    + '<div class="todo-colpick" id="todo-colpick">'
-    + '<span class="todo-groupby-label">구분</span>'
-    + '<button class="todo-colpick-btn" onclick="toggleTodoColPick(event)">표시 항목 선택 <span class="todo-colpick-arrow">▾</span></button>'
-    + '<div class="todo-colpick-panel" id="todo-colpick-panel" style="display:none;">' + items + '</div>'
-    + '</div>'
     + '</div>'
     + '</div>';
 }

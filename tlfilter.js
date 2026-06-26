@@ -13,6 +13,7 @@ var TLFilter = (function () {
   var _state = {};
   var _openPop = null;
   var _activeMenu = null;
+  var _openGroups = {};   // 아코디언(영역별 드롭다운) 펼침 상태: { key: true }
 
   try {
     var raw = localStorage.getItem(STATE_KEY);
@@ -41,7 +42,7 @@ var TLFilter = (function () {
   function hasConfig(menu) {
     var c = CONFIGS[menu];
     if (!c) return false;
-    return !!(c.year || (c.filters && c.filters.length) || (c.sorts && c.sorts.length));
+    return !!(c.year || c.display || (c.filters && c.filters.length) || (c.sorts && c.sorts.length));
   }
 
   function fieldOptions(menu, field) {
@@ -142,6 +143,22 @@ var TLFilter = (function () {
     renderPopover(menu);
   }
 
+  // 1차 영역(아코디언) 펼치기/접기 — 항목별 드롭다운
+  function toggleGroup(menu, key, e) {
+    if (e) e.stopPropagation();
+    _openGroups[key] = !_openGroups[key];
+    renderPopover(menu);
+  }
+
+  // 표시 항목(컬럼) 표시/숨김 토글 — 페이지 콜백 위임
+  function toggleDisplay(menu, key) {
+    var cfg = CONFIGS[menu] || {};
+    if (cfg.display && typeof cfg.display.toggle === 'function') {
+      try { cfg.display.toggle(key); } catch (e) {}
+    }
+    renderPopover(menu);
+  }
+
   function setSort(menu, key, dir) {
     var st = getState(menu);
     if (!key) st.sort = null;
@@ -212,7 +229,7 @@ var TLFilter = (function () {
     var html = '';
     if (cfg.year) html += yearSelectHtml(menu, cfg.year);
 
-    if (cfg.filters && cfg.filters.length) {
+    if ((cfg.filters && cfg.filters.length) || cfg.display) {
       var cnt = activeFilterCount(menu);
       html += '<div class="tlf-ctrl" id="tlf-filter-ctrl">'
         + '<button class="tlf-btn' + (cnt ? ' tlf-active' : '') + '" onclick="TLFilter.togglePop(\'' + menu + '\',\'filter\',event)" title="필터">'
@@ -301,25 +318,60 @@ var TLFilter = (function () {
     }
   }
 
+  // 아코디언 영역 1개(헤더 + 펼침 시 본문) 렌더
+  //  - 1차: 영역(헤더) 선택 → 2차: 본문에서 표시/숨김 토글
+  function accordionHtml(menu, key, label, badgeHtml, bodyHtml) {
+    var open = !!_openGroups[key];
+    return '<div class="tlf-acc' + (open ? ' open' : '') + '">'
+      + '<button class="tlf-acc-head" onclick="TLFilter.toggleGroup(\'' + menu + '\',\'' + esc(key) + '\',event)">'
+      +   '<span class="tlf-acc-arrow">›</span>'
+      +   '<span class="tlf-acc-name">' + esc(label) + '</span>'
+      +   (badgeHtml || '')
+      + '</button>'
+      + (open ? '<div class="tlf-acc-body">' + bodyHtml + '</div>' : '')
+      + '</div>';
+  }
+
   function buildFilterPanel(menu, cfg) {
     var st = getState(menu);
     var html = '<div class="tlf-pop-head">필터'
       + (activeFilterCount(menu) ? ' <button class="tlf-clear" onclick="TLFilter.clearFilters(\'' + menu + '\')">전체 해제</button>' : '')
       + '</div>';
+
+    // 1차 영역: 표시 항목(컬럼 표시/숨김) — 페이지가 display 설정을 등록한 경우
+    if (cfg.display) {
+      var dc = cfg.display;
+      var dopts = [];
+      try { dopts = dc.options() || []; } catch (e) { dopts = []; }
+      var onCount = 0, dbody = '';
+      dopts.forEach(function (o) {
+        var on = false;
+        try { on = !!dc.isOn(o.value); } catch (e) {}
+        if (on) onCount++;
+        dbody += '<label class="tlf-opt">'
+          + '<input type="checkbox"' + (on ? ' checked' : '') + ' onchange="TLFilter.toggleDisplay(\'' + menu + '\',this.dataset.k)" data-k="' + esc(o.value) + '">'
+          + '<span>' + esc(o.label) + '</span></label>';
+      });
+      var dbadge = '<span class="tlf-acc-badge">' + onCount + '/' + dopts.length + '</span>';
+      html += accordionHtml(menu, '__display__', (dc.label || '표시 항목'), dbadge, dbody);
+    }
+
+    // 1차 영역: 각 필터 항목(드롭다운). 펼치면 2차로 값 표시/숨김 선택
     (cfg.filters || []).forEach(function (field) {
       var opts = fieldOptions(menu, field);
       if (!opts.length) return;
       var sel = st.filters[field.key] || [];
       var selSet = {}; sel.forEach(function (v) { selSet[String(v)] = 1; });
-      html += '<div class="tlf-group"><div class="tlf-group-label">' + esc(field.label) + '</div>';
+      var body = '';
       opts.forEach(function (opt) {
         var checked = selSet[String(opt)] ? ' checked' : '';
         var lbl = (field.format ? field.format(opt) : opt);
-        html += '<label class="tlf-opt">'
+        body += '<label class="tlf-opt">'
           + '<input type="checkbox"' + checked + ' onchange="TLFilter.toggleFilterValue(\'' + menu + '\',\'' + esc(field.key) + '\',this.dataset.v)" data-v="' + esc(opt) + '">'
           + '<span>' + esc(lbl) + '</span></label>';
       });
-      html += '</div>';
+      var badge = sel.length ? '<span class="tlf-acc-badge on">' + sel.length + '</span>' : '';
+      html += accordionHtml(menu, field.key, field.label, badge, body);
     });
     return html;
   }
@@ -366,6 +418,8 @@ var TLFilter = (function () {
     setSort: setSort,
     setFilter: setFilter,
     onYear: onYearSelect,
+    toggleGroup: toggleGroup,
+    toggleDisplay: toggleDisplay,
     getState: getState
   };
 })();
