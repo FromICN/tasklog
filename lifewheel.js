@@ -855,6 +855,25 @@ function lwReorderSections(from, to) {
   var moved = arr.splice(from, 1)[0];
   arr.splice(to, 0, moved);
   saveLifeWheel();
+  // 같은 연도 만다라트의 해당 SECTION(subGoal)과 그 PROJECT(실행과제)들도 함께 이동
+  lwReorderMandalartSubGoals(from, to);
   if (typeof lwSyncToMandalart === 'function') lwSyncToMandalart();
   if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
+  // 만다라트 화면이 열려 있으면 즉시 반영
+  if (typeof currentMenu !== 'undefined' && currentMenu === 'mandalart' && typeof renderMdtView === 'function') {
+    try { renderMdtView(); } catch (e) {}
+  }
+}
+
+// LW 섹션 순서 변경에 맞춰, 같은 연도 만다라트의 subGoal(섹션) 배열을 동일하게 재배치한다.
+//  subGoal에는 그 섹션의 PROJECT(actions) 목록이 들어있으므로, 함께 이동되어 매핑(SECTION[i]→subGoals[i])이 유지된다.
+function lwReorderMandalartSubGoals(from, to) {
+  if (typeof getMdt !== 'function' || typeof saveMandalarts !== 'function') return;
+  var mdt = getMdt(lwCurrentYear);
+  if (!mdt || !Array.isArray(mdt.subGoals)) return;
+  var sgs = mdt.subGoals;
+  if (from < 0 || from >= sgs.length || to < 0 || to >= sgs.length) return;
+  var moved = sgs.splice(from, 1)[0];
+  sgs.splice(to, 0, moved);
+  saveMandalarts();
 }
