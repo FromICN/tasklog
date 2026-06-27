@@ -8967,3 +8967,160 @@ body.cr-resizing * { cursor: col-resize !important; }
   border: 1px solid var(--border, rgba(255,255,255,0.12));
   max-width: 160px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
 }
+
+/* =========================================================
+   📱 반응형 레이아웃 (Responsive)
+   - 데스크탑 창 축소 + 모바일 접속 대응
+   - 햄버거 드로어 사이드바 / 패널 오버레이화 / 그리드 스택
+   ========================================================= */
+
+/* 햄버거 토글 버튼: 기본(넓은 화면)에서는 숨김 */
+.sidebar-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin: -6px 6px -6px -6px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-1);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.sidebar-toggle:hover { background: var(--surface-hover); }
+
+/* 드로어 배경막: 기본 숨김 */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 90;
+}
+
+/* 탑바 좌측을 가로 정렬 (햄버거 + 제목) */
+.topbar-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.topbar-left .topbar-title { min-width: 0; }
+
+/* ── 중간 폭(태블릿/축소된 데스크탑 창): ≤ 1024px ───────────
+   오른쪽 패널이 본문을 밀어내지 않고 오버레이로 뜨도록 전환 */
+@media (max-width: 1024px) {
+  .right-panel,
+  .wbs-side-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100%;
+    max-width: 92vw;
+    z-index: 95;
+    box-shadow: -8px 0 26px rgba(0, 0, 0, 0.38);
+  }
+
+  /* 다중 컬럼 대시보드/저널/노트를 2열로 축소 */
+  .hp-grid { grid-template-columns: 1fr 1fr; }
+  .home-grid-row2 { grid-template-columns: 1fr 1fr; height: auto; }
+  .nb-board { grid-template-columns: 1fr 1fr; }
+  .cv-5col-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── 모바일 / 좁은 화면: ≤ 768px ───────────────────────── */
+@media (max-width: 768px) {
+
+  /* 사이드바 → 슬라이드 드로어 */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+    box-shadow: 2px 0 18px rgba(0, 0, 0, 0.45);
+  }
+  .app.sidebar-open .sidebar { transform: translateX(0); }
+  .app.sidebar-open .sidebar-backdrop { display: block; }
+
+  /* 햄버거 노출 */
+  .sidebar-toggle { display: flex; }
+
+  /* 본문 여백 축소 */
+  .main-content { padding: 18px 12px 16px; }
+  .topbar {
+    margin: -12px -12px 14px -12px;
+    padding: 12px 12px 12px;
+    top: -12px;
+    min-height: 52px;
+  }
+  .topbar-title { font-size: 18px; }
+  .topbar-page-icon { font-size: 19px; }
+  .topbar-page-icon svg { width: 18px; height: 18px; }
+  .topbar-right { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* 다중 컬럼 레이아웃 → 단일 컬럼 스택 */
+  .hp-grid,
+  .home-grid-row1,
+  .home-grid-row2,
+  .jnl-body,
+  .nb-board,
+  .settings-backup-grid,
+  .cv-5col-grid {
+    grid-template-columns: 1fr;
+  }
+  .jnl-body { grid-template-rows: auto; }
+
+  /* 홈 대시보드: 고정 높이 해제하고 자연스럽게 흐르도록 */
+  .home-page {
+    height: auto;
+    overflow: visible;
+  }
+  .home-grid-row1,
+  .home-grid-row2 {
+    height: auto;
+    min-height: 0;
+  }
+  .home-grid-row1 > .card,
+  .home-grid-row2 > .card {
+    height: auto;
+    min-height: 200px;
+  }
+
+  /* 오른쪽 패널/ WBS 패널: 거의 전체 폭 */
+  .right-panel.open,
+  .wbs-side-panel.open { width: 92vw; }
+
+  /* 모달: 화면 폭에 맞춤 */
+  .mdt-modal,
+  .lw-modal,
+  .lw-cv-picker-modal,
+  .mdt-cedit-modal,
+  .settings-modal,
+  .smart-modal {
+    width: 94vw !important;
+    max-width: 94vw !important;
+  }
+
+  /* 넓은 그리드(만다라트 9칸 등)는 가로 스크롤로 보존 */
+  .mdt-grid,
+  .mdt-inner-grid {
+    overflow-x: auto;
+  }
+}
+
+/* ── 초소형 화면: ≤ 480px ──────────────────────────────── */
+@media (max-width: 480px) {
+  .main-content { padding: 16px 10px 14px; }
+  .topbar { margin: -12px -10px 12px -10px; padding: 11px 10px; }
+  .topbar-title { font-size: 17px; }
+  .right-panel.open,
+  .wbs-side-panel.open { width: 100vw; max-width: 100vw; }
+  .hp-grid,
+  .cv-5col-grid { grid-template-columns: 1fr; }
+}

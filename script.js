@@ -2446,10 +2446,26 @@ var MENU_RENDERERS = {
   journal:   'renderJournalView',
 };
 
+// ============================================
+//  📱 모바일 드로어 사이드바
+// ============================================
+function toggleMobileSidebar() {
+  var app = document.querySelector('.app');
+  if (!app) return;
+  app.classList.toggle('sidebar-open');
+}
+function closeMobileSidebar() {
+  var app = document.querySelector('.app');
+  if (app) app.classList.remove('sidebar-open');
+}
+
 // 🧭 화면 전환 엔진
 function navToMenu(id) {
   if (!id) return;
   currentMenu = id;
+
+  // 모바일: 메뉴 선택 시 드로어 닫기
+  closeMobileSidebar();
 
   // 1) 사이드바 활성 표시
   var navButtons = document.querySelectorAll('#sidebar-nav .nav-item');
@@ -2516,6 +2532,7 @@ function bootApp() {
 
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
+    if (typeof closeMobileSidebar === 'function') closeMobileSidebar();
     if (typeof closeRightPanel === 'function') closeRightPanel();
   }
 });

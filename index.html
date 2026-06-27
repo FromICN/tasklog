@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskLog</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234F6EF7'>TL</text></svg>">
-  <link rel="stylesheet" href="style.css?v=20260627c">
+  <link rel="stylesheet" href="style.css?v=20260627d">
   <link rel="stylesheet" href="profile-modal.css?v=20260625a">
   <link rel="stylesheet" href="login.css?v=20260625a">
   <script>
@@ -43,6 +43,9 @@
 </div>
 
 <div class="app">
+
+  <!-- 모바일 드로어 배경 (사이드바 열렸을 때 본문을 덮음) -->
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
   <!-- ===== 66px 사이드바 ===== -->
   <aside class="sidebar" id="sidebar">
@@ -90,6 +93,11 @@
       <!-- 탑바 -->
       <div class="topbar" id="topbar">
         <div class="topbar-left">
+          <button class="sidebar-toggle" id="sidebar-toggle" aria-label="메뉴 열기" onclick="toggleMobileSidebar()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+          </button>
           <div class="topbar-title" id="topbar-title">홈</div>
         </div>
         <div class="topbar-right" id="topbar-right">
@@ -153,7 +161,7 @@
 <script src="yearsync.js?v=20260625a"></script>
 <script src="tlfilter.js?v=20260627c"></script>
 <script src="colresize.js?v=20260626a"></script>
-<script src="script.js?v=20260627c"></script>
+<script src="script.js?v=20260627d"></script>
 
 </body>
 </html>
