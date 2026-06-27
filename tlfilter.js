@@ -180,18 +180,20 @@ var TLFilter = (function () {
     }
   }
 
-  // 검색어 입력 — 상태 저장 후 목록 갱신, 입력 포커스/커서 유지
+  // 검색어 입력 — 입력창(슬롯)은 그대로 두고 목록만 가볍게 갱신한다.
+  //  ⚠ 슬롯을 다시 그리면 입력 중인 IME(한글) 조합이 끊겨 'ㅋㅏㄷㅡ'처럼 깨지므로,
+  //     페이지가 등록한 onSearch(본문만 갱신)를 우선 사용한다.
+  function refreshList(menu) {
+    var cfg = CONFIGS[menu] || {};
+    if (typeof cfg.onSearch === 'function') { try { cfg.onSearch(); return; } catch (e) {} }
+    fireChange(menu);
+  }
+
   function setSearch(menu, val) {
     var st = getState(menu);
     st.search = val || '';
     saveState();
-    fireChange(menu);
-    // fireChange가 슬롯을 다시 그리므로 입력창을 다시 찾아 포커스/커서 복원
-    var inp = document.getElementById('tlf-search-input');
-    if (inp) {
-      inp.focus();
-      try { var p = String(st.search).length; inp.setSelectionRange(p, p); } catch (e) {}
-    }
+    refreshList(menu);
     refreshButtons(menu);
   }
 
@@ -199,7 +201,7 @@ var TLFilter = (function () {
     var st = getState(menu);
     st.search = '';
     saveState();
-    fireChange(menu);
+    refreshList(menu);
     renderPopover(menu);
   }
 
@@ -389,6 +391,11 @@ var TLFilter = (function () {
     if (sctrl) {
       var sbtn = sctrl.querySelector('.tlf-btn');
       if (sbtn) sbtn.classList.toggle('tlf-active', !!(st.sort && st.sort.key));
+    }
+    var hctrl = document.getElementById('tlf-search-ctrl');
+    if (hctrl) {
+      var hbtn = hctrl.querySelector('.tlf-btn');
+      if (hbtn) hbtn.classList.toggle('tlf-active', !!(st.search && String(st.search).trim()));
     }
   }
 

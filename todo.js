@@ -186,19 +186,15 @@ function todoRegisterFilter() {
       current: function(){ return _todoActiveTab; },
       select: function(v){ switchTodoTab(v); }
     },
-    // 검색 — 제목/프로젝트/담당자/상태/To Do·연계 Task 제목 대상 부분 일치
+    // 검색 — 제목(To Do·Task·Project)에만 적용. 입력창이 다시 그려지지 않도록 본문만 갱신
+    onSearch: function(){ refreshTodoBody(); },
     search: {
-      placeholder: '제목·프로젝트·담당자 검색',
+      placeholder: '제목 검색',
       get: function(t){
         var parts = [];
-        if (t.text) parts.push(String(t.text).replace(/^\[\d{6}\] /,''));
-        parts.push(todoProjectKey(t));
-        var a = Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []);
-        if (a.length) parts.push(a.join(' '));
-        if (t.status) parts.push(t.status);
-        (t.steps || []).forEach(function(s){ if (s && s.text) parts.push(s.text); });
-        parts = parts.concat(todoLinkedTitles(t.prevTaskIds));
-        parts = parts.concat(todoLinkedTitles(t.nextTaskIds));
+        if (t.text) parts.push(String(t.text).replace(/^\[\d{6}\] /,''));   // Task / Project 보기의 제목
+        parts.push(todoProjectKey(t));                                      // Project 명
+        (t.steps || []).forEach(function(s){ if (s && s.text) parts.push(s.text); }); // To Do 보기의 제목
         return parts.join(' ');
       }
     },
