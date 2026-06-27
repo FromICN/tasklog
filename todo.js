@@ -175,6 +175,17 @@ function todoRegisterFilter() {
   TLFilter.register('todo', {
     items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
     onChange: function(){ renderTodoView(); },
+    // 보기(To Do / Task / Project) — 단일 선택. 기존 상단 탭을 필터로 통합
+    view: {
+      label: '보기',
+      options: function(){ return [
+        { value:'list',    label:'To Do' },
+        { value:'table',   label:'Task' },
+        { value:'project', label:'Project' }
+      ]; },
+      current: function(){ return _todoActiveTab; },
+      select: function(v){ switchTodoTab(v); }
+    },
     // 표시 항목(컬럼 표시/숨김) — 필터와 통합된 1차 영역
     display: {
       label: '표시 항목',
@@ -218,7 +229,6 @@ function renderTodoView() {
   todoRegisterFilter();
   if (typeof TLFilter !== 'undefined') TLFilter.render('todo');
   content.innerHTML = '<div class="todo-view">'
-    + buildTodoTabBar()
     + '<div id="todo-body">' + buildTodoBody() + '</div>'
     + '</div>';
   applyTodoColResize();
@@ -244,18 +254,7 @@ function applyTodoColResize() {
   Array.prototype.forEach.call(c.querySelectorAll('table.todo-table'), function(t){ TLColResize.table(t, 'cr-todo'); });
 }
 
-// ── 탭 바 + 구분(컬럼) 다중 선택 ───────────────
-function buildTodoTabBar() {
-  // 표시 항목 선택은 상단 통합 필터(TLFilter)의 "표시 항목" 영역으로 이동됨
-  return '<div class="todo-tabs">'
-    + '<div class="todo-tabs-left">'
-    + '<button class="todo-tab' + (_todoActiveTab==='list'?' active':'') + '" onclick="switchTodoTab(\'list\')">To Do</button>'
-    + '<button class="todo-tab' + (_todoActiveTab==='table'?' active':'') + '" onclick="switchTodoTab(\'table\')">Task</button>'
-    + '<button class="todo-tab' + (_todoActiveTab==='project'?' active':'') + '" onclick="switchTodoTab(\'project\')">Project</button>'
-    + '</div>'
-    + '</div>';
-}
-
+// ── 보기 전환 (상단 탭 → 통합 필터의 "보기" 영역으로 통합) ──────────
 function switchTodoTab(tab) {
   _todoActiveTab = tab;
   renderTodoView();
@@ -631,3 +630,4 @@ function toggleTodoSection(key) {
   _todoCollapsed[key] = !_todoCollapsed[key];
   refreshTodoBody();
 }
+// (end of todo.js)

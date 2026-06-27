@@ -7982,12 +7982,14 @@ body.light-mode select option:hover {
 }
 /* 탭 + 구분 영역: 상단 고정 */
 .todo-view > .todo-tabs { flex: 0 0 auto; }
-/* 콘텐트(표) 영역: 내부에서 스크롤 */
+/* 콘텐트(표) 영역: 표 래퍼가 내부에서 스크롤 → 헤더(제목 줄) 고정 가능 */
 .todo-view > #todo-body {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 60px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
 }
 .todo-section {
   margin-bottom: 4px;
@@ -8178,11 +8180,13 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
 
 /* ── 전체 내역 표 ── (다른 페이지와 동일한 카드 스타일) */
 .todo-table-wrap {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 4px 10px;
+  padding: 0 10px 4px;
 }
 .todo-table {
   width: 100%;
@@ -8190,11 +8194,15 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   font-size: 13px;
 }
 .todo-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   text-align: center;
   padding: 8px 10px;
   color: var(--text-1);
   font-weight: 700;
   font-size: 14px;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -8239,11 +8247,13 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
 
 /* To Do 탭: 날짜 그룹 + 컬럼 표 (다른 페이지와 동일한 카드 스타일) */
 .todo-list-table-wrap {
-  overflow-x: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 4px 10px;
+  padding: 0 10px 4px;
 }
 .todo-ltable th.c-check { width: 28px; }
 .todo-ltable th.c-star  { width: 64px; text-align: center; }

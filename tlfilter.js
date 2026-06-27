@@ -8,6 +8,7 @@
 // ============================================
 
 var TLFilter = (function () {
+  // (보기/필터/정렬 통합 컴포넌트)
   var CONFIGS = {};
   var STATE_KEY = 'tlfilter-state';
   var _state = {};
@@ -42,7 +43,7 @@ var TLFilter = (function () {
   function hasConfig(menu) {
     var c = CONFIGS[menu];
     if (!c) return false;
-    return !!(c.year || c.display || (c.filters && c.filters.length) || (c.sorts && c.sorts.length));
+    return !!(c.year || c.view || c.display || (c.filters && c.filters.length) || (c.sorts && c.sorts.length));
   }
 
   function fieldOptions(menu, field) {
@@ -159,6 +160,14 @@ var TLFilter = (function () {
     renderPopover(menu);
   }
 
+  // 보기(단일 선택) 변경 — 페이지 콜백 위임
+  function setView(menu, key) {
+    var cfg = CONFIGS[menu] || {};
+    if (cfg.view && typeof cfg.view.select === 'function') {
+      try { cfg.view.select(key); } catch (e) {}
+    }
+  }
+
   function setSort(menu, key, dir) {
     var st = getState(menu);
     if (!key) st.sort = null;
@@ -229,7 +238,7 @@ var TLFilter = (function () {
     var html = '';
     if (cfg.year) html += yearSelectHtml(menu, cfg.year);
 
-    if ((cfg.filters && cfg.filters.length) || cfg.display) {
+    if ((cfg.filters && cfg.filters.length) || cfg.display || cfg.view) {
       var cnt = activeFilterCount(menu);
       html += '<div class="tlf-ctrl" id="tlf-filter-ctrl">'
         + '<button class="tlf-btn' + (cnt ? ' tlf-active' : '') + '" onclick="TLFilter.togglePop(\'' + menu + '\',\'filter\',event)" title="필터">'
@@ -338,6 +347,26 @@ var TLFilter = (function () {
       + (activeFilterCount(menu) ? ' <button class="tlf-clear" onclick="TLFilter.clearFilters(\'' + menu + '\')">전체 해제</button>' : '')
       + '</div>';
 
+    // 1차 영역: 보기(단일 선택) — 페이지가 view 설정을 등록한 경우
+    if (cfg.view) {
+      var vc = cfg.view;
+      var vopts = [];
+      try { vopts = vc.options() || []; } catch (e) { vopts = []; }
+      var curView = '';
+      try { curView = vc.current(); } catch (e) {}
+      var vbody = '', curLabel = '';
+      vopts.forEach(function (o) {
+        var on = String(o.value) === String(curView);
+        if (on) curLabel = o.label;
+        vbody += '<label class="tlf-opt">'
+          + '<input type="radio" name="tlf-view-' + menu + '"' + (on ? ' checked' : '')
+          + ' onchange="TLFilter.setView(\'' + menu + '\',this.dataset.k)" data-k="' + esc(o.value) + '">'
+          + '<span>' + esc(o.label) + '</span></label>';
+      });
+      var vbadge = '<span class="tlf-acc-badge on">' + esc(curLabel) + '</span>';
+      html += accordionHtml(menu, '__view__', (vc.label || '보기'), vbadge, vbody);
+    }
+
     // 1차 영역: 표시 항목(컬럼 표시/숨김) — 페이지가 display 설정을 등록한 경우
     if (cfg.display) {
       var dc = cfg.display;
@@ -420,6 +449,7 @@ var TLFilter = (function () {
     onYear: onYearSelect,
     toggleGroup: toggleGroup,
     toggleDisplay: toggleDisplay,
+    setView: setView,
     getState: getState
   };
 })();

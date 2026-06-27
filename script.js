@@ -1819,8 +1819,7 @@ var rpState = {
 };
 
 var RP_EI_COLORS = { DO:'#EF4444', SCHEDULE:'#4F6EF7', DELEGATE:'#F5A623', DROP:'#9CA3AF' };
-var RP_EI_NAME   = { DO:'Do', SCHEDULE:'Plan', DELEGATE:'Delegate', DROP:'Delete' };
-var RP_EI_DESC   = { DO:'긴급·중요', SCHEDULE:'중요·비긴급', DELEGATE:'긴급·비중요', DROP:'비긴급·비중요' };
+var RP_EI_NAME   = { DO:'ASAP', SCHEDULE:'Next', DELEGATE:'Schedule', DROP:'Someday' };
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
 var RP_STATUS_COLORS = { '대기':'#9CA3AF', '진행':'#2ecc71', '중단':'#ef4444', '완료':'#4F6EF7', '취소':'#6b7280' };
 
@@ -1870,14 +1869,13 @@ function buildRpForm(task) {
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
   var notesVal   = task ? (task.notes || '') : '';
 
-  // Priority (Do / Plan / Delegate / Delete)
+  // Priority (ASAP / Next / Schedule / Someday)
   var eiHtml = '<div class="rp-sect"><div class="rp-section-head">Priority</div><div class="rp-ei-grid">';
   ['DO','SCHEDULE','DELEGATE','DROP'].forEach(function(k) {
     var sel = rpState.eisenhower === k;
     var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:'+RP_EI_COLORS[k]+'18;' : '';
     eiHtml += '<button class="rp-ei-btn'+(sel?' rp-ei-sel':'')+'" data-ei="'+k+'" style="'+selStyle+'" onclick="rpSetEi(\''+k+'\')">'
       + '<span class="rp-ei-name" style="color:'+RP_EI_COLORS[k]+';">'+RP_EI_NAME[k]+'</span>'
-      + '<span class="rp-ei-desc">'+RP_EI_DESC[k]+'</span>'
       + '</button>';
   });
   eiHtml += '</div></div>';
@@ -2478,10 +2476,6 @@ function navToMenu(id) {
       dateEl.textContent = '';
     }
   }
-
-  // 3) '새 Task' 버튼은 TO-DO(계획된 일정)에서만
-  var newBtn = document.getElementById('new-task-btn');
-  if (newBtn) newBtn.style.display = (id === 'todo') ? '' : 'none';
 
   // 4) 우측 패널 닫기
   if (typeof closeRightPanel === 'function') closeRightPanel();
