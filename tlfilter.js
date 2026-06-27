@@ -26,9 +26,10 @@ var TLFilter = (function () {
   }
 
   function getState(menu) {
-    if (!_state[menu]) _state[menu] = { filters: {}, sort: null };
+    if (!_state[menu]) _state[menu] = { filters: {}, sort: null, search: '' };
     if (!_state[menu].filters) _state[menu].filters = {};
     if (!('sort' in _state[menu])) _state[menu].sort = null;
+    if (!('search' in _state[menu])) _state[menu].search = '';
     return _state[menu];
   }
 
@@ -43,7 +44,7 @@ var TLFilter = (function () {
   function hasConfig(menu) {
     var c = CONFIGS[menu];
     if (!c) return false;
-    return !!(c.year || c.view || c.display || (c.filters && c.filters.length) || (c.sorts && c.sorts.length));
+    return !!(c.year || c.view || c.display || c.search || (c.filters && c.filters.length) || (c.sorts && c.sorts.length));
   }
 
   function fieldOptions(menu, field) {
@@ -76,6 +77,17 @@ var TLFilter = (function () {
     if (!cfg || !Array.isArray(arr)) return arr;
     var st = getState(menu);
     var out = arr.slice();
+
+    // 검색어 필터 (대소문자 무시, 부분 일치)
+    var sq = (st.search || '').trim().toLowerCase();
+    if (sq && cfg.search && typeof cfg.search.get === 'function') {
+      out = out.filter(function (it) {
+        var hay = '';
+        try { hay = cfg.search.get(it); } catch (e) { hay = ''; }
+        if (Array.isArray(hay)) hay = hay.join(' ');
+        return String(hay == null ? '' : hay).toLowerCase().indexOf(sq) !== -1;
+      });
+    }
 
     (cfg.filters || []).forEach(function (field) {
       var sel = st.filters[field.key];
@@ -168,6 +180,29 @@ var TLFilter = (function () {
     }
   }
 
+  // 검색어 입력 — 상태 저장 후 목록 갱신, 입력 포커스/커서 유지
+  function setSearch(menu, val) {
+    var st = getState(menu);
+    st.search = val || '';
+    saveState();
+    fireChange(menu);
+    // fireChange가 슬롯을 다시 그리므로 입력창을 다시 찾아 포커스/커서 복원
+    var inp = document.getElementById('tlf-search-input');
+    if (inp) {
+      inp.focus();
+      try { var p = String(st.search).length; inp.setSelectionRange(p, p); } catch (e) {}
+    }
+    refreshButtons(menu);
+  }
+
+  function clearSearch(menu) {
+    var st = getState(menu);
+    st.search = '';
+    saveState();
+    fireChange(menu);
+    renderPopover(menu);
+  }
+
   function setSort(menu, key, dir) {
     var st = getState(menu);
     if (!key) st.sort = null;
@@ -243,7 +278,6 @@ var TLFilter = (function () {
       html += '<div class="tlf-ctrl" id="tlf-filter-ctrl">'
         + '<button class="tlf-btn' + (cnt ? ' tlf-active' : '') + '" onclick="TLFilter.togglePop(\'' + menu + '\',\'filter\',event)" title="필터">'
         + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>'
-        + '<span class="tlf-btn-label">필터</span>'
         + (cnt ? '<span class="tlf-badge">' + cnt + '</span>' : '')
         + '</button>'
         + '<div class="tlf-pop" id="tlf-filter-pop" style="display:none;"></div>'
@@ -256,9 +290,18 @@ var TLFilter = (function () {
       html += '<div class="tlf-ctrl" id="tlf-sort-ctrl">'
         + '<button class="tlf-btn' + (sortOn ? ' tlf-active' : '') + '" onclick="TLFilter.togglePop(\'' + menu + '\',\'sort\',event)" title="정렬">'
         + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h9M3 18h5M17 7v12M17 19l3-3M17 19l-3-3"/></svg>'
-        + '<span class="tlf-btn-label">정렬</span>'
         + '</button>'
         + '<div class="tlf-pop" id="tlf-sort-pop" style="display:none;"></div>'
+        + '</div>';
+    }
+
+    if (cfg.search) {
+      var sq = getState(menu).search || '';
+      html += '<div class="tlf-ctrl" id="tlf-search-ctrl">'
+        + '<button class="tlf-btn' + (sq ? ' tlf-active' : '') + '" onclick="TLFilter.togglePop(\'' + menu + '\',\'search\',event)" title="검색">'
+        + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
+        + '</button>'
+        + '<div class="tlf-pop tlf-search-pop" id="tlf-search-pop" style="display:none;"></div>'
         + '</div>';
     }
 
@@ -293,8 +336,10 @@ var TLFilter = (function () {
     var cfg = CONFIGS[menu] || {};
     var fp = document.getElementById('tlf-filter-pop');
     var sp = document.getElementById('tlf-sort-pop');
+    var hp = document.getElementById('tlf-search-pop');
     if (fp) fp.style.display = 'none';
     if (sp) sp.style.display = 'none';
+    if (hp) hp.style.display = 'none';
     refreshButtons(menu);
     if (_openPop === 'filter' && fp) {
       fp.innerHTML = buildFilterPanel(menu, cfg);
@@ -302,7 +347,27 @@ var TLFilter = (function () {
     } else if (_openPop === 'sort' && sp) {
       sp.innerHTML = buildSortPanel(menu, cfg);
       sp.style.display = 'block';
+    } else if (_openPop === 'search' && hp) {
+      hp.innerHTML = buildSearchPanel(menu, cfg);
+      hp.style.display = 'block';
+      var inp = document.getElementById('tlf-search-input');
+      if (inp) { inp.focus(); try { var p = inp.value.length; inp.setSelectionRange(p, p); } catch (e) {} }
     }
+  }
+
+  function buildSearchPanel(menu, cfg) {
+    var st = getState(menu);
+    var val = st.search || '';
+    var ph = (cfg.search && cfg.search.placeholder) || '검색어 입력';
+    var valAttr = esc(val).replace(/"/g, '&quot;');
+    return '<div class="tlf-pop-head">검색'
+      + (val ? ' <button class="tlf-clear" onclick="TLFilter.clearSearch(\'' + menu + '\')">지우기</button>' : '')
+      + '</div>'
+      + '<div class="tlf-search-box">'
+      + '<input type="text" id="tlf-search-input" class="tlf-search-input" placeholder="' + esc(ph) + '"'
+      + ' value="' + valAttr + '" autocomplete="off"'
+      + ' oninput="TLFilter.setSearch(\'' + menu + '\',this.value)" onclick="event.stopPropagation()">'
+      + '</div>';
   }
 
   function refreshButtons(menu) {
@@ -450,6 +515,8 @@ var TLFilter = (function () {
     toggleGroup: toggleGroup,
     toggleDisplay: toggleDisplay,
     setView: setView,
+    setSearch: setSearch,
+    clearSearch: clearSearch,
     getState: getState
   };
 })();

@@ -47,10 +47,10 @@ var TODO_COLS = [
   { key:'priority', label:'Priority', cell:function(t){
       return '<td class="todo-table-priority">'+buildTodoPriorityCell(t)+'</td>';
   } },
-  { key:'linkedPrev', label:'선행 Task', cell:function(t){
+  { key:'linkedPrev', label:'Pred', cell:function(t){
       return '<td class="todo-table-linked">'+todoLinkedCell(t.prevTaskIds)+'</td>';
   } },
-  { key:'linkedNext', label:'후행 Task', cell:function(t){
+  { key:'linkedNext', label:'Succ', cell:function(t){
       return '<td class="todo-table-linked">'+todoLinkedCell(t.nextTaskIds)+'</td>';
   } },
 ];
@@ -186,6 +186,22 @@ function todoRegisterFilter() {
       current: function(){ return _todoActiveTab; },
       select: function(v){ switchTodoTab(v); }
     },
+    // 검색 — 제목/프로젝트/담당자/상태/To Do·연계 Task 제목 대상 부분 일치
+    search: {
+      placeholder: '제목·프로젝트·담당자 검색',
+      get: function(t){
+        var parts = [];
+        if (t.text) parts.push(String(t.text).replace(/^\[\d{6}\] /,''));
+        parts.push(todoProjectKey(t));
+        var a = Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []);
+        if (a.length) parts.push(a.join(' '));
+        if (t.status) parts.push(t.status);
+        (t.steps || []).forEach(function(s){ if (s && s.text) parts.push(s.text); });
+        parts = parts.concat(todoLinkedTitles(t.prevTaskIds));
+        parts = parts.concat(todoLinkedTitles(t.nextTaskIds));
+        return parts.join(' ');
+      }
+    },
     // 표시 항목(컬럼 표시/숨김) — 필터와 통합된 1차 영역
     display: {
       label: '표시 항목',
@@ -199,8 +215,8 @@ function todoRegisterFilter() {
       { key:'project',  label:'Project',  get:function(t){ return todoProjectKey(t); } },
       { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } },
       { key:'priority', label:'Priority', options:function(){ return ['DO','SCHEDULE','DELEGATE','DROP']; }, get:function(t){ return t.eisenhower||''; }, format:function(v){ return (typeof RP_EI_NAME!=='undefined'&&RP_EI_NAME[v])?RP_EI_NAME[v]:v; } },
-      { key:'linkedPrev', label:'선행 Task', get:function(t){ return todoLinkedTitles(t.prevTaskIds); } },
-      { key:'linkedNext', label:'후행 Task', get:function(t){ return todoLinkedTitles(t.nextTaskIds); } }
+      { key:'linkedPrev', label:'Pred', get:function(t){ return todoLinkedTitles(t.prevTaskIds); } },
+      { key:'linkedNext', label:'Succ', get:function(t){ return todoLinkedTitles(t.nextTaskIds); } }
     ],
     sorts: [
       { key:'title',    label:'제목',    get:function(t){ return todoSortValue(t,'title'); } },
@@ -210,8 +226,8 @@ function todoRegisterFilter() {
       { key:'status',   label:'Status',  get:function(t){ return todoSortValue(t,'status'); } },
       { key:'project',  label:'Project', get:function(t){ return todoSortValue(t,'project'); } },
       { key:'priority', label:'Priority', get:function(t){ return todoSortValue(t,'priority'); } },
-      { key:'linkedPrev', label:'선행 수', get:function(t){ return todoSortValue(t,'linkedPrev'); } },
-      { key:'linkedNext', label:'후행 수', get:function(t){ return todoSortValue(t,'linkedNext'); } }
+      { key:'linkedPrev', label:'Pred', get:function(t){ return todoSortValue(t,'linkedPrev'); } },
+      { key:'linkedNext', label:'Succ', get:function(t){ return todoSortValue(t,'linkedNext'); } }
     ]
   });
 }

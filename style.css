@@ -8183,7 +8183,7 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 0 10px 4px;
@@ -8202,8 +8202,9 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   color: var(--text-1);
   font-weight: 700;
   font-size: 14px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  /* 불투명 배경 + 그림자 경계선 → 스크롤 시 본문이 헤더에 비쳐 겹치는 현상 방지 */
+  background: var(--bg);
+  box-shadow: inset 0 -1px 0 var(--border);
   white-space: nowrap;
 }
 .todo-table-row {
@@ -8250,7 +8251,7 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 0 10px 4px;
@@ -8846,6 +8847,21 @@ body.light-mode .tlf-pop { background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,0
 }
 .tlf-opt:hover { background: var(--surface-hover, rgba(255,255,255,0.06)); }
 .tlf-opt input { cursor: pointer; margin: 0; }
+
+/* ── 검색 드롭다운 ───────────────── */
+.tlf-search-pop { min-width: 240px; }
+.tlf-search-box { padding: 4px 4px 2px; }
+.tlf-search-input {
+  width: 100%; box-sizing: border-box;
+  padding: 7px 10px;
+  background: var(--surface, rgba(255,255,255,0.05));
+  border: 1px solid var(--border, rgba(255,255,255,0.15));
+  border-radius: 7px;
+  color: var(--text-1); font-size: 13px; outline: none;
+}
+.tlf-search-input::placeholder { color: var(--text-3, #9aa); }
+.tlf-search-input:focus { border-color: rgba(99,179,237,0.6); }
+body.light-mode .tlf-search-input { background: #fff; }
 
 /* ── 통합 필터: 항목별 드롭다운(아코디언) ───────────────── */
 .tlf-acc + .tlf-acc { border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }

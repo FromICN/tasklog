@@ -971,22 +971,22 @@ function buildDetailPanelHTML(task) {
   html += '<div class="field-group"><label class="field-label">🔗 연계 TASK</label>'
     + '<div class="dp-dep-wrap" style="display:flex;flex-direction:column;gap:8px;">'
     + '<div class="dep-section">'
-    + '<div class="dep-label">⬅️ 이전 TASK <small>(이 작업 전에 완료되어야 할 것)</small></div>'
+    + '<div class="dep-label">⬅️ Pred <small>(이 작업 전에 완료되어야 할 것)</small></div>'
     + '<div class="dep-tags" id="dp-prev-tags">' + prevTags + '</div>'
     + '<div style="display:flex;gap:6px;">'
     + '<select class="dep-pick-sel" id="dp-prev-sel">'
-    + '<option value="">— 이전 TASK 선택 —</option>'
+    + '<option value="">— Pred 선택 —</option>'
     + tasks.filter(t => t.id !== task.id && !prevTaskIds.includes(t.id))
         .map(t => '<option value="'+t.id+'">'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>').join('')
     + '</select>'
     + '<button class="sub-form-save" onclick="addDepTask('+task.id+',\'prev\')">추가</button>'
     + '</div></div>'
     + '<div class="dep-section">'
-    + '<div class="dep-label">➡️ 다음 TASK <small>(이 작업 후에 시작될 것)</small></div>'
+    + '<div class="dep-label">➡️ Succ <small>(이 작업 후에 시작될 것)</small></div>'
     + '<div class="dep-tags" id="dp-next-tags">' + nextTags + '</div>'
     + '<div style="display:flex;gap:6px;">'
     + '<select class="dep-pick-sel" id="dp-next-sel">'
-    + '<option value="">— 다음 TASK 선택 —</option>'
+    + '<option value="">— Succ 선택 —</option>'
     + tasks.filter(t => t.id !== task.id && !nextTaskIds.includes(t.id))
         .map(t => '<option value="'+t.id+'">'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>').join('')
     + '</select>'
@@ -1922,9 +1922,9 @@ function buildRpForm(task) {
   // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
   var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
     + '<div style="display:flex;gap:10px;">'
-    + '<div class="field-group" style="flex:1;"><label class="field-label">이전 (선행)</label>'
+    + '<div class="field-group" style="flex:1;"><label class="field-label">Pred</label>'
     + '<select class="field-input" id="rp-prev-sel" onchange="rpSetDep(\'prev\',this.value)">'+rpDepSingleOptions('prev')+'</select></div>'
-    + '<div class="field-group" style="flex:1;"><label class="field-label">다음 (후행)</label>'
+    + '<div class="field-group" style="flex:1;"><label class="field-label">Succ</label>'
     + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
     + '</div></div>';
 

@@ -79,8 +79,8 @@ function wbsRegisterFilter() {
       { key:'project',  label:'Project',  get:function(t){ return wbsProjectKey(t); } },
       { key:'coworker', label:'Coworker', get:function(t){ var a=Array.isArray(t.assignees)?t.assignees:(t.assignee?[t.assignee]:[]); return a; } },
       { key:'priority', label:'Priority', options:function(){ return ['DO','SCHEDULE','DELEGATE','DROP']; }, get:function(t){ return t.eisenhower||''; }, format:function(v){ return (typeof RP_EI_NAME!=='undefined'&&RP_EI_NAME[v])?RP_EI_NAME[v]:v; } },
-      { key:'linkedPrev', label:'선행 Task', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.prevTaskIds) : []; } },
-      { key:'linkedNext', label:'후행 Task', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.nextTaskIds) : []; } }
+      { key:'linkedPrev', label:'Pred', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.prevTaskIds) : []; } },
+      { key:'linkedNext', label:'Succ', get:function(t){ return (typeof todoLinkedTitles==='function') ? todoLinkedTitles(t.nextTaskIds) : []; } }
     ],
     sorts: [
       { key:'title',    label:'제목',   get:function(t){ return (t.text||'').replace(/^\[\d{6}\] /,'').toLowerCase(); } },
@@ -89,8 +89,8 @@ function wbsRegisterFilter() {
       { key:'status',   label:'Status',   get:function(t){ var o=['대기','진행','중단','완료','취소']; var i=o.indexOf(wbsTaskStatusLabel(t)); return i<0?null:i; } },
       { key:'project',  label:'Project',  get:function(t){ return (wbsProjectKey(t)||'').toLowerCase()||null; } },
       { key:'priority', label:'Priority', get:function(t){ var po=['DO','SCHEDULE','DELEGATE','DROP']; var pi=po.indexOf(t.eisenhower); return pi<0?null:pi; } },
-      { key:'linkedPrev', label:'선행 수', get:function(t){ return Array.isArray(t.prevTaskIds)?t.prevTaskIds.length:0; } },
-      { key:'linkedNext', label:'후행 수', get:function(t){ return Array.isArray(t.nextTaskIds)?t.nextTaskIds.length:0; } }
+      { key:'linkedPrev', label:'Pred', get:function(t){ return Array.isArray(t.prevTaskIds)?t.prevTaskIds.length:0; } },
+      { key:'linkedNext', label:'Succ', get:function(t){ return Array.isArray(t.nextTaskIds)?t.nextTaskIds.length:0; } }
     ]
   });
 }
