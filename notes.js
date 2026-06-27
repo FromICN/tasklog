@@ -70,12 +70,101 @@ function nbDueToIso(dueDate, dueTime) {
 }
 
 // ============================================
+//  🧰 통합 필터 / 정렬 / 검색 (BOARD와 동일한 TLFilter 컴포넌트 사용)
+//  - WEB(Archiving 보드)의 세 칼럼(Archiving / TASK / TO DO) 카드에 적용
+//  - 카드 종류가 달라도 동일 기준으로 검색·필터·정렬되도록 래퍼로 통일
+// ============================================
+function nbWrap(kind, obj, task) { return { _kind: kind, _obj: obj, _task: task || null }; }
+
+function nbAllWrapped() {
+  var memos = getArchivingNotes().map(function(n){ return nbWrap('memo', n); });
+  var taskItems = getActiveTasks().map(function(t){ return nbWrap('task', t); });
+  var stepItems = getActiveSteps().map(function(e){ return nbWrap('step', e.step, e.task); });
+  return memos.concat(taskItems, stepItems);
+}
+
+// 종류 라벨
+function nbKindLabel(k) { return k === 'memo' ? 'Archiving' : (k === 'task' ? 'TASK' : 'TO DO'); }
+// task/step의 기준 Task (memo는 없음)
+function nbBaseTask(w) { return w._kind === 'task' ? w._obj : (w._kind === 'step' ? w._task : null); }
+
+function nbCardText(w) { return (w._obj && w._obj.text) ? String(w._obj.text) : ''; }
+
+function nbCardDueIso(w) {
+  if (w._kind === 'memo') return w._obj.dueDate ? nbDueToIso(w._obj.dueDate, w._obj.dueTime) : null;
+  return w._obj.dueDateTime || null;   // task / step
+}
+
+function nbCardCreated(w) {
+  if (w._kind === 'memo' && w._obj.createdAt) { var t = new Date(w._obj.createdAt).getTime(); if (!isNaN(t)) return t; }
+  return parseFloat(w._obj.id) || 0;   // id가 타임스탬프 기반이라 등록순 근사
+}
+
+function nbCardProject(w) {
+  var t = nbBaseTask(w);
+  if (!t) return '';
+  if (t.mdtAction && t.mdtAction.text) return t.mdtAction.text;
+  if (t.lwSectionName) return t.lwSectionName;
+  return '';
+}
+
+function nbCardStatus(w) { var t = nbBaseTask(w); return t ? (t.status || '') : ''; }
+function nbCardPriority(w) { var t = nbBaseTask(w); return t ? (t.eisenhower || '') : ''; }
+function nbCardCoworker(w) {
+  var t = nbBaseTask(w);
+  if (!t) return [];
+  return Array.isArray(t.assignees) ? t.assignees : (t.assignee ? [t.assignee] : []);
+}
+
+function nbSearchText(w) {
+  var parts = [nbCardText(w)];
+  if (w._kind === 'step' && w._task && w._task.text) parts.push(w._task.text); // 상위 Task 명
+  var p = nbCardProject(w); if (p) parts.push(p);
+  return parts.join(' ');
+}
+
+function nbRegisterFilter() {
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.register('cloud', {
+    items: function(){ return nbAllWrapped(); },
+    onChange: function(){ renderNoteBoard(); },
+    onSearch: function(){ renderNoteBoard(); },
+    search: { placeholder: '카드 검색', get: nbSearchText },
+    filters: [
+      { key:'kind',     label:'종류',     options:function(){ return ['Archiving','TASK','TO DO']; }, get:function(w){ return nbKindLabel(w._kind); } },
+      { key:'status',   label:'Status',   options:function(){ return ['대기','진행','중단','완료','취소']; }, get:nbCardStatus },
+      { key:'project',  label:'Project',  get:nbCardProject },
+      { key:'coworker', label:'Coworker', get:nbCardCoworker },
+      { key:'priority', label:'Priority', options:function(){ return ['DO','SCHEDULE','DELEGATE','DROP']; }, get:nbCardPriority, format:function(v){ return (typeof RP_EI_NAME!=='undefined'&&RP_EI_NAME[v])?RP_EI_NAME[v]:v; } },
+      { key:'due',      label:'마감',     options:function(){ return ['있음','없음']; }, get:function(w){ return nbCardDueIso(w) ? '있음' : '없음'; } }
+    ],
+    sorts: [
+      { key:'title',   label:'제목',   get:function(w){ return nbCardText(w).toLowerCase() || null; } },
+      { key:'due',     label:'마감일', get:function(w){ var d=nbCardDueIso(w); return d ? new Date(d).getTime() : null; } },
+      { key:'created', label:'등록순', get:nbCardCreated },
+      { key:'status',  label:'Status', get:function(w){ var o=['대기','진행','중단','완료','취소']; var i=o.indexOf(nbCardStatus(w)); return i<0?null:i; } },
+      { key:'project', label:'Project', get:function(w){ return nbCardProject(w).toLowerCase() || null; } }
+    ]
+  });
+}
+
+// 칼럼별 카드 목록에 통합 필터/정렬/검색 적용
+function nbApplyFilter(kind, wrapped) {
+  if (typeof TLFilter !== 'undefined' && TLFilter.hasConfig && TLFilter.hasConfig('cloud')) {
+    return TLFilter.apply('cloud', wrapped);
+  }
+  return wrapped;
+}
+
+// ============================================
 //  화면 렌더
 // ============================================
 function renderNotesView() {
   loadNotes();
   var content = document.getElementById('page-content');
   if (!content) return;
+  nbRegisterFilter();
+  if (typeof TLFilter !== 'undefined') TLFilter.render('cloud');
   content.innerHTML =
     '<div class="nb-layout">'
     + '<div class="nb-write-panel">'
@@ -106,14 +195,14 @@ function buildNbColumn(type, title, hint) {
 function renderNoteBoard() {
   removeStepPickers();
   // Archiving (메모)
-  var memos = getArchivingNotes();
-  _nbFillColumn('memo', memos.length, memos.map(function(n){ return buildMemoCard(n); }).join(''));
+  var memos = nbApplyFilter('memo', getArchivingNotes().map(function(n){ return nbWrap('memo', n); }));
+  _nbFillColumn('memo', memos.length, memos.map(function(w){ return buildMemoCard(w._obj); }).join(''));
   // TASK
-  var actTasks = getActiveTasks();
-  _nbFillColumn('task', actTasks.length, actTasks.map(function(t){ return buildTaskCard(t); }).join(''));
+  var actTasks = nbApplyFilter('task', getActiveTasks().map(function(t){ return nbWrap('task', t); }));
+  _nbFillColumn('task', actTasks.length, actTasks.map(function(w){ return buildTaskCard(w._obj); }).join(''));
   // TO DO
-  var actSteps = getActiveSteps();
-  _nbFillColumn('step', actSteps.length, actSteps.map(function(e){ return buildStepCard(e.task, e.step); }).join(''));
+  var actSteps = nbApplyFilter('step', getActiveSteps().map(function(e){ return nbWrap('step', e.step, e.task); }));
+  _nbFillColumn('step', actSteps.length, actSteps.map(function(w){ return buildStepCard(w._task, w._obj); }).join(''));
 }
 
 function _nbFillColumn(type, count, html) {
