@@ -98,7 +98,12 @@ try {
 } catch(e) {}
 
 function saveTodoCols() { try { localStorage.setItem('todoCols', JSON.stringify(_todoCols)); } catch(e) {} }
-function selectedTodoCols() { return TODO_COLS.filter(function(c){ return _todoCols.indexOf(c.key) !== -1; }); }
+// _todoCols 의 순서를 그대로 반영(드래그로 바꾼 컬럼 순서 유지)
+function selectedTodoCols() {
+  return _todoCols.map(function(k){
+    return TODO_COLS.find(function(c){ return c.key === k; });
+  }).filter(Boolean);
+}
 
 // ── Project 탭: 표시할 프로젝트 필터 (체크 해제 = 숨김) ──
 var _todoProjHidden = [];
@@ -229,7 +234,50 @@ function todoRegisterFilter() {
 }
 
 function todoSortableTh(key, label, cls) {
-  return '<th class="'+(cls||'')+'" data-cr-key="'+key+'">'+label+'</th>';
+  // 클릭&드래그로 컬럼(구분 항목) 순서 변경 가능
+  return '<th class="todo-col-th '+(cls||'')+'" data-cr-key="'+key+'" draggable="true"'
+    + ' ondragstart="todoColDragStart(event,\''+key+'\')"'
+    + ' ondragover="todoColDragOver(event,\''+key+'\')"'
+    + ' ondragleave="todoColDragLeave(event)"'
+    + ' ondrop="todoColDrop(event,\''+key+'\')"'
+    + ' ondragend="todoColDragEnd(event)">'+label+'</th>';
+}
+
+// ── 컬럼(구분 항목) 드래그 순서 변경 ──
+var _todoColDragKey = null;
+function todoColDragStart(e, key) {
+  _todoColDragKey = key;
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', key); } catch(_){} }
+}
+function todoColDragOver(e, key) {
+  if (_todoColDragKey == null || key === _todoColDragKey) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  if (e.currentTarget) e.currentTarget.classList.add('todo-col-dragover');
+}
+function todoColDragLeave(e) {
+  if (e.currentTarget) e.currentTarget.classList.remove('todo-col-dragover');
+}
+function todoColDrop(e, targetKey) {
+  e.preventDefault();
+  if (e.currentTarget) e.currentTarget.classList.remove('todo-col-dragover');
+  var dragKey = _todoColDragKey;
+  _todoColDragKey = null;
+  if (!dragKey || dragKey === targetKey) return;
+  var arr = _todoCols.slice();
+  var from = arr.indexOf(dragKey);
+  if (from < 0) return;
+  arr.splice(from, 1);
+  var to = arr.indexOf(targetKey);
+  if (to < 0) arr.push(dragKey);
+  else arr.splice(to, 0, dragKey);   // 드롭한 컬럼 바로 앞에 배치
+  _todoCols = arr;
+  saveTodoCols();
+  if (typeof refreshTodoBody === 'function') refreshTodoBody();
+}
+function todoColDragEnd(e) {
+  _todoColDragKey = null;
+  document.querySelectorAll('.todo-col-dragover').forEach(function(x){ x.classList.remove('todo-col-dragover'); });
 }
 
 function todoColHeadsHtml() { return selectedTodoCols().map(function(c){ return todoSortableTh(c.key, c.label, c.thCls); }).join(''); }

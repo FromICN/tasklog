@@ -4619,6 +4619,21 @@ body.light-mode .lw-cv-tag {
 .notif-card:hover { opacity: 0.85; }
 .notif-danger  { background: rgba(239,68,68,0.12);  color: #f87171; border-left: 3px solid #ef4444; }
 .notif-warning { background: rgba(245,166,35,0.12); color: #fbbf24; border-left: 3px solid #f5a623; }
+/* 이름은 좌측(넘치면 …), 기한 일자는 우측 끝에 표시 */
+.notif-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notif-due {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 11px;
+  opacity: 0.95;
+}
 
 /* ── 캘린더 위젯 ── */
 .cal-header {
@@ -4760,6 +4775,11 @@ body.light-mode .lw-cv-tag {
   padding-top: 10px;
   border-top: 1px solid var(--border);
 }
+/* 하단 목록이 길어지면 카드를 넘기지 않고 내부 스크롤 */
+.cal-detail-list {
+  max-height: 150px;
+  overflow-y: auto;
+}
 .cal-detail-header {
   font-size: 12px;
   font-weight: 700;
@@ -4844,6 +4864,11 @@ body.light-mode .lw-cv-tag {
 .todo-text.done { text-decoration: line-through; color: var(--text-3); }
 
 /* ── Habit Tracker ── */
+/* 표시 개수(약 5개)에 맞춰 내부 스크롤 — 습관이 많아도 카드 높이 유지 */
+.habit-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
 .habit-row {
   display: flex;
   align-items: center;
@@ -7592,6 +7617,10 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-m-cell { display: flex; flex-direction: column; align-items: center; gap: 3px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 6px; padding: 4px 3px; }
 .mdt-m-label { font-size: 9px; color: var(--text-3); }
 .mdt-m-val { width: 100%; text-align: center; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 4px; color: inherit; font-size: 10px; padding: 2px 1px; box-sizing: border-box; }
+/* 누적형 월별 실적: 클릭 증감(스피너) 버튼 제거 — 직접 타이핑만 */
+.mdt-m-val::-webkit-outer-spin-button,
+.mdt-m-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mdt-m-val { -moz-appearance: textfield; appearance: textfield; }
 .mdt-m-cell-toggle { cursor: pointer; user-select: none; }
 .mdt-m-mark { font-size: 13px; line-height: 1.1; color: var(--text-2); }
 .mdt-m-cell.mdt-m-on { background: rgba(46,204,113,0.18); border-color: rgba(46,204,113,0.5); }
@@ -8220,6 +8249,10 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
 }
 /* 이름(To Do/Task/Project) 열은 왼쪽 정렬 (.todo-table-row td 보다 우선하도록 명시도 ↑) */
 .todo-table thead th.todo-th-title { text-align: left; }
+/* 컬럼 순서 드래그 */
+.todo-col-th { cursor: grab; }
+.todo-col-th:active { cursor: grabbing; }
+.todo-col-th.todo-col-dragover { box-shadow: inset 2px 0 0 0 var(--brand-primary, #60a5fa); background: var(--surface-hover); }
 .todo-table-row td.todo-table-title { text-align: left; }
 .todo-table-row.is-done .todo-table-title { color: var(--text-2); text-decoration: line-through; }
 .todo-table-title { color: var(--text-1); }

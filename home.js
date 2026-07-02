@@ -77,13 +77,9 @@ function renderHomeNotif() {
   var items = [];
   var today = new Date(); today.setHours(0,0,0,0);
 
-  // 마감 라벨 (하루 전 D-1 → 당일 → 지남)
-  function _dueLabel(name, diff) {
-    var clean = String(name || '').replace(/^\[\d{6}\]\s*/, '');
-    if (diff > 0)  return clean + ' 마감 D-' + diff + '일';
-    if (diff === 0) return clean + ' 오늘 마감';
-    return clean + ' 마감 ' + Math.abs(diff) + '일 지남';
-  }
+  // 이름 정리 / 기한 일자 포맷 (기한 라벨 텍스트는 제거하고 우측에 날짜만 표시)
+  function _cleanName(name) { return String(name || '').replace(/^\[\d{6}\]\s*/, ''); }
+  function _fmtDue(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
 
   // 마감일 하루 전(D-1)부터 알림: 모든 Task + 모든 To Do(하위 단계)
   if (typeof tasks !== 'undefined') {
@@ -93,7 +89,7 @@ function renderHomeNotif() {
         var dueT = new Date(t.dueDateTime); dueT.setHours(0,0,0,0);
         var diffT = Math.round((dueT - today) / 86400000);
         if (diffT <= 1) {
-          items.push({ type:'danger', text: _dueLabel(t.text, diffT), taskId: t.id, _d: diffT });
+          items.push({ type:'danger', text: _cleanName(t.text), due: dueT, taskId: t.id, _d: diffT });
         }
       }
       // 2) 하위 To Do (steps)
@@ -102,7 +98,7 @@ function renderHomeNotif() {
         var dueS = new Date(s.dueDateTime); dueS.setHours(0,0,0,0);
         var diffS = Math.round((dueS - today) / 86400000);
         if (diffS <= 1) {
-          items.push({ type:'danger', text: '☑ ' + _dueLabel(s.text, diffS), taskId: t.id, _d: diffS });
+          items.push({ type:'danger', text: '☑ ' + _cleanName(s.text), due: dueS, taskId: t.id, _d: diffS });
         }
       });
     });
@@ -122,7 +118,9 @@ function renderHomeNotif() {
     var onclick = item.taskId
       ? 'onclick="openDetailPanel(' + item.taskId + ')"'
       : (item.action ? 'onclick="' + item.action + '"' : '');
-    return '<div class="notif-card ' + cls + '" ' + onclick + '>' + hwEsc(item.text) + '</div>';
+    var dueHtml = item.due ? '<span class="notif-due">' + _fmtDue(item.due) + '</span>' : '';
+    return '<div class="notif-card ' + cls + '" ' + onclick + '>'
+      + '<span class="notif-text">' + hwEsc(item.text) + '</span>' + dueHtml + '</div>';
   }).join('');
 }
 
@@ -339,10 +337,11 @@ function renderCalDetail() {
 
   var items = collectDayItems(homeCalSelectedKey);
   var html = '<div class="cal-detail-header">' + dayStr + '</div>';
+  var listBody;
   if (!items.length) {
-    html += '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
+    listBody = '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
   } else {
-    html += items.map(function(item) {
+    listBody = items.map(function(item) {
       var timeStr = item.time
         ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2,'0') + ':' + String(item.time.getMinutes()).padStart(2,'0') + '</span>'
         : '';
@@ -353,6 +352,8 @@ function renderCalDetail() {
         + timeStr + badge + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
     }).join('');
   }
+  // 항목이 많아도 카드를 넘기지 않도록 목록에 내부 스크롤 적용
+  html += '<div class="cal-detail-list">' + listBody + '</div>';
   el.innerHTML = html;
 }
 
@@ -430,7 +431,8 @@ function renderHomeHabitWidget() {
       + '<div class="habit-week">'+dots+'</div>'
       + '</div>';
   }).join('');
-  el.innerHTML = html;
+  // 표시 개수를 넘어가면 목록 안에서 스크롤 (카드 높이 고정)
+  el.innerHTML = '<div class="habit-list">' + html + '</div>';
 }
 
 function hpToggleHabitDay(year, sgId, actId, dateKey) {

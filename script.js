@@ -627,9 +627,9 @@ function buildPickerHtml(id, dateStr, timeStr) {
     + ' placeholder="YYYYMMDD"'
     + ' value="' + dateDisp + '"'
     + ' oninput="onPickerText(\'' + id + '\')"'
-    + ' onfocus="openPickerCal(\'' + id + '\')"'
+    + ' onfocus="openPickerCal(\'' + id + '\');this.select();"'
     + ' onkeydown="onPickerKey(event,\'' + id + '\')"'
-    + ' autocomplete="off" readonly>'
+    + ' inputmode="numeric" autocomplete="off">'
     + '</div>'
     + (s.dateStr ? '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕</button>' : '')
     + '</div>'
