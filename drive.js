@@ -2,40 +2,87 @@
 //  ☁️ 구글 드라이브 백업
 // ============================================
 
-// 백업 파일 이름 (드라이브에서 이 이름으로 저장돼요)
+// 백업 파일 이름 접두사 — 실제 파일은 일자별로 my-tasklog-backup-YYYY-MM-DD.json 형태로 저장돼요
+const BACKUP_FILE_PREFIX = 'my-tasklog-backup';
+// (구버전 호환) 예전에 쓰던 단일 파일명
 const BACKUP_FILENAME = 'my-tasklog-backup.json';
 
 // 백업 파일의 ID를 기억해둘 변수 (덮어쓰기용)
 let backupFileId = null;
 
+// 오늘 날짜 기준 백업 파일명 (로컬 날짜) → my-tasklog-backup-YYYY-MM-DD.json
+function backupFilenameForToday() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${BACKUP_FILE_PREFIX}-${y}-${m}-${day}.json`;
+}
+
 
 // ============================================
-//  🔍 기존 백업 파일 찾기
+//  🔍 백업 파일 찾기
 // ============================================
 
-async function findBackupFile() {
+// ▸ 쓰기용: 오늘 날짜 백업 파일을 찾음.
+//    - 있으면 그 파일을 덮어쓰기(PATCH), 없으면 backupFileId=null 로 두어 새로 생성(POST)
+//    - 날짜가 바뀌면 오늘 파일이 없으므로 이전 백업은 그대로 두고 새 파일이 만들어짐
+async function findTodayBackupFile() {
+  const fname = backupFilenameForToday();
   try {
     const response = await gapi.client.drive.files.list({
-      q: `name='${BACKUP_FILENAME}' and trashed=false`,
+      q: `name='${fname}' and trashed=false`,
       spaces: 'drive',
       fields: 'files(id, name, modifiedTime)',
     });
-    
     const files = response.result.files;
     if (files && files.length > 0) {
       backupFileId = files[0].id;
-      console.log('🔍 기존 백업 파일 발견:', backupFileId);
+      console.log('🔍 오늘 백업 파일 발견:', fname, backupFileId);
       return files[0];
     }
-    
-    console.log('🔍 기존 백업 파일 없음 (새로 만들 예정)');
+    backupFileId = null;   // 오늘 파일 없음 → 새 파일 생성
+    console.log('🔍 오늘 백업 파일 없음 → 새로 만들 예정:', fname);
     return null;
-    
+  } catch (error) {
+    console.error('오늘 백업 파일 검색 실패:', error);
+    backupFileId = null;
+    return null;
+  }
+}
+
+// ▸ 읽기용(복원·동기화): 일자별/구버전 파일 중 가장 최근 것을 찾음.
+async function findLatestBackupFile() {
+  try {
+    const response = await gapi.client.drive.files.list({
+      q: `name contains '${BACKUP_FILE_PREFIX}' and trashed=false`,
+      spaces: 'drive',
+      fields: 'files(id, name, modifiedTime)',
+      orderBy: 'modifiedTime desc',
+    });
+    const files = (response.result.files || []).filter(function (f) {
+      return f.name && f.name.indexOf(BACKUP_FILE_PREFIX) === 0 && f.name.endsWith('.json');
+    });
+    if (files.length === 0) {
+      console.log('🔍 백업 파일 없음');
+      return null;
+    }
+    // 파일명 우선(YYYY-MM-DD가 문자열 정렬=날짜 정렬), 동일하면 modifiedTime 최신
+    files.sort(function (a, b) {
+      if (a.name !== b.name) return a.name < b.name ? 1 : -1;
+      return new Date(b.modifiedTime) - new Date(a.modifiedTime);
+    });
+    backupFileId = files[0].id;
+    console.log('🔍 최근 백업 파일:', files[0].name, backupFileId);
+    return files[0];
   } catch (error) {
     console.error('백업 파일 검색 실패:', error);
     return null;
   }
 }
+
+// (구버전 호환) 예전 이름으로 호출되는 곳이 있어도 동작하도록 — 최근 파일 검색으로 위임
+async function findBackupFile() { return findLatestBackupFile(); }
 
 
 // ============================================
@@ -61,12 +108,12 @@ async function backupToDrive() {
     const backupData = collectBackupData();
     const fileContent = JSON.stringify(backupData, null, 2);
 
-    // 3. 기존 백업 파일이 있는지 확인
-    await findBackupFile();
-    
-    // 4. 파일 메타데이터
+    // 3. 오늘 날짜 백업 파일이 있는지 확인 (없으면 새로 생성 → 일자별 파일)
+    await findTodayBackupFile();
+
+    // 4. 파일 메타데이터 (오늘 날짜 파일명)
     const metadata = {
-      name: BACKUP_FILENAME,
+      name: backupFilenameForToday(),
       mimeType: 'application/json',
     };
     
@@ -159,9 +206,9 @@ async function restoreFromDrive() {
   }
   
   try {
-    // 2. 백업 파일 찾기
-    const backupFile = await findBackupFile();
-    
+    // 2. 가장 최근 백업 파일 찾기 (일자별 파일 중 최신)
+    const backupFile = await findLatestBackupFile();
+
     if (!backupFile) {
       alert('드라이브에 백업 파일이 없어요. 먼저 백업을 해주세요! ☁️');
       return;
@@ -271,10 +318,10 @@ async function silentBackupToDrive() {
     const backupData = collectBackupData();   // 모든 페이지 데이터 + 환경설정
     const fileContent = JSON.stringify(backupData, null, 2);
 
-    await findBackupFile();
+    await findTodayBackupFile();
 
     const metadata = {
-      name: BACKUP_FILENAME,
+      name: backupFilenameForToday(),
       mimeType: 'application/json',
     };
 
@@ -365,7 +412,7 @@ function driveDiffersFromLocal(backupData) {
 async function silentSyncFromDrive() {
   if (!isSignedIn()) return false;
   try {
-    var backupFile = await findBackupFile();
+    var backupFile = await findLatestBackupFile();
     if (!backupFile) {
       console.log('🔁 클라우드에 데이터 없음 → 불러올 것 없음(첫 로그인)');
       return false;

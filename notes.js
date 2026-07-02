@@ -175,8 +175,8 @@ function renderNotesView() {
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
     + buildNbColumn('memo', '🗄️ Archiving', '작성한 메모가 여기 쌓여요')
-    + buildNbColumn('task', '✅ TASK', '미완료 Task가 모두 표시돼요')
     + buildNbColumn('step', '📋 TO DO', '미완료 To Do가 모두 표시돼요')
+    + buildNbColumn('task', '✅ TASK', '미완료 Task가 모두 표시돼요')
     + '</div>'
     + '</div>';
   renderNoteBoard();
@@ -251,8 +251,10 @@ function buildTaskCard(task) {
     badges += '<span class="nb-card-due">📝 '+done+'/'+task.steps.length+'</span>';
   }
   var proj = '';
-  if (task.mdtAction && task.mdtAction.text) proj = '🔮 ' + task.mdtAction.text;
-  else if (task.lwSectionName) proj = (task.lwSectionEmoji || '') + task.lwSectionName;
+  // SECTION 아이콘은 LIFEWHEEL 섹션 이모지를 원천으로 사용 (BOARD와 동일 규칙) — 저장된 lwSectionEmoji 대신 실시간 해석
+  var _secEm = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
+  if (task.mdtAction && task.mdtAction.text) proj = (_secEm || '🔮') + ' ' + task.mdtAction.text;
+  else if (task.lwSectionName) proj = (_secEm ? _secEm + ' ' : '') + task.lwSectionName;
   var projHtml = proj ? '<div class="nb-card-taskref">'+escNb(proj)+'</div>' : '';
   return '<div class="nb-card" draggable="true" data-kind="task" data-task-id="' + task.id + '"'
     + ' style="cursor:pointer;" title="클릭하면 상세 보기"'
