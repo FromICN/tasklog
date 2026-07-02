@@ -222,7 +222,7 @@ function wbsHeaderRow() {
 
 function getTaskStatus(task) {
   if (task.completed) return 'done';                                              // 완료
-  if (Array.isArray(task.steps) && task.steps.some(function(s){ return s.done; })) return 'inprogress';  // TO-DO 일부 완료 = 진행중
+  if (Array.isArray(task.steps) && task.steps.some(function(s){ return s.completed || s.done; })) return 'inprogress';  // TO-DO 일부 완료 = 진행중
   return 'todo';                                                                  // 미시작
 }
 
@@ -330,7 +330,8 @@ function wbsToggleStep(taskId, stepId) {
   if (!task) return;
   var step = task.steps.find(function(s){ return s.id === stepId; });
   if (!step) return;
-  step.done = !step.done;
+  step.completed = !(step.completed || step.done);
+  if ('done' in step) delete step.done;   // 앱 공통 필드(completed)로 통일
   if (typeof saveTasks === 'function') saveTasks();
   renderWbsView();
 }
@@ -461,11 +462,12 @@ function renderWbsTask(task) {
     stepsHtml = '<div class="wbs-children wbs-steps" id="' + nodeId + '" style="display:' + (open ? 'block' : 'none') + ';">'
       + task.steps.map(function(step) {
           var cbKey = task.id + ':' + step.id;
+          var stepDone = !!(step.completed || step.done);
           return '<div class="wbs-row wbs-step-row" draggable="true" data-wbs-drag-step="' + cbKey + '">'
-            + '<span class="wbs-step-cb" data-wbs-step-cb="' + cbKey + '">' + (step.done ? '☑' : '☐') + '</span>'
-            + '<span class="wbs-step-text' + (step.done ? ' done' : '') + '" data-wbs-step-edit="' + cbKey + '" title="클릭해서 편집">' + wbsEsc(step.text) + '</span>'
+            + '<span class="wbs-step-cb" data-wbs-step-cb="' + cbKey + '">' + (stepDone ? '☑' : '☐') + '</span>'
+            + '<span class="wbs-step-text' + (stepDone ? ' done' : '') + '" data-wbs-step-edit="' + cbKey + '" title="클릭해서 편집">' + wbsEsc(step.text) + '</span>'
             + wbsEmptyCol('start') + wbsEmptyCol('due')
-            + wbsStatusBadge(step.done ? '완료' : '대기')
+            + wbsStatusBadge(stepDone ? '완료' : '대기')
             + '<span class="wbs-count-spacer"></span>'
             + '</div>';
         }).join('')
@@ -502,8 +504,13 @@ function wbsAssignTaskSection(task, lk) {
   task.lwSection = lk;
   task.lwSectionName  = sec ? sec.name  : '';
   task.lwSectionEmoji = sec ? sec.emoji : '';
-  var year = (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear();
-  var mdt  = (typeof getMdt === 'function') ? getMdt(year) : null;
+  // WBS 뷰가 그룹·라벨에 사용하는 연도와 동일하게 맞춘다.
+  // (예전엔 lwCurrentYear 를 써서 뷰 연도와 다르면 만다라트가 없거나 다른 해로 매핑되어
+  //  섹션/프로젝트가 어긋나 표시되는 문제가 있었음)
+  var year = (typeof wbsYearVal === 'function') ? wbsYearVal()
+           : ((typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear());
+  var mdt  = (typeof ensureMdtData === 'function') ? ensureMdtData(year)
+           : ((typeof getMdt === 'function') ? getMdt(year) : null);
   if (mdt && mdt.subGoals[lk]) {
     var sg = mdt.subGoals[lk];
     task.mdtGoal = { year: year, sgId: sg.id, text: sg.text };
@@ -516,8 +523,11 @@ function wbsAssignTaskSection(task, lk) {
 function wbsAssignTaskAction(task, lk, actionId, actionText) {
   wbsAssignTaskSection(task, lk);
   if (actionId === null) { delete task.mdtAction; return; }
-  var year = (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear();
-  var sgId = task.mdtGoal ? task.mdtGoal.sgId : null;
+  var year = (typeof wbsYearVal === 'function') ? wbsYearVal()
+           : ((typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear());
+  // mdtGoal.sgId 가 정상 세팅됐으면 그 값을, 아니면 드롭 위치(lk)로부터 유도해 섹션이 어긋나지 않게 한다.
+  var sgId = (task.mdtGoal && task.mdtGoal.sgId != null) ? task.mdtGoal.sgId
+           : ((lk === null || lk === undefined) ? null : lk + 1);
   task.mdtAction = { year: year, sgId: sgId, actionId: actionId, text: actionText || '' };
 }
 
@@ -572,6 +582,88 @@ function wbsHandleStepDrop(taskId, stepId, destTaskId, isCopy) {
   renderWbsView();
 }
 
+// TASK → TO-DO : TASK 를 다른 TASK 의 하위 단계(To Do)로 편입
+function wbsHandleTaskToStep(taskId, destTaskId, isCopy) {
+  if (typeof tasks === 'undefined' || taskId === destTaskId) return;
+  var srcTask  = tasks.find(function(t){ return t.id === taskId; });
+  var destTask = tasks.find(function(t){ return t.id === destTaskId; });
+  if (!srcTask || !destTask) return;
+  if (!Array.isArray(destTask.steps)) destTask.steps = [];
+  var base = Date.now();
+  var seq = 0;
+  function newId(){ return base + (seq++) * 7 + Math.floor(Math.random() * 100000); }
+  // 본체를 하나의 To Do 로 추가
+  destTask.steps.push({ id: newId(), text: srcTask.text, completed: !!srcTask.completed, dueDateTime: null, hasTime: false });
+  // 원래 가지고 있던 하위 단계들도 함께 편입
+  if (Array.isArray(srcTask.steps)) {
+    srcTask.steps.forEach(function(s){
+      destTask.steps.push({ id: newId(), text: s.text, completed: !!(s.completed || s.done), dueDateTime: null, hasTime: false });
+    });
+  }
+  if (!isCopy) {
+    var idx = tasks.findIndex(function(t){ return t.id === taskId; });
+    if (idx >= 0) tasks.splice(idx, 1);   // 배열 참조 유지(splice)
+  }
+  if (typeof saveTasks === 'function') saveTasks();
+  renderWbsView();
+}
+
+// TO-DO → TASK : 하위 단계(To Do)를 독립 TASK 로 승격하고 드롭한 섹션/프로젝트에 배치
+function wbsHandleStepToTask(srcTaskId, stepId, dropEl, isCopy) {
+  if (typeof tasks === 'undefined') return;
+  var srcTask = tasks.find(function(t){ return t.id === srcTaskId; });
+  if (!srcTask || !Array.isArray(srcTask.steps)) return;
+  var step = srcTask.steps.find(function(s){ return s.id === stepId; });
+  if (!step) return;
+  var newTask = {
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    text: step.text,
+    completed: !!(step.completed || step.done),
+    createdAt: new Date().toISOString(),
+    dueDateTime: null, hasTime: false,
+    steps: [], reminder: null, assignee: '', assignees: [],
+    repeat: null, startDate: null, prevTaskIds: [], nextTaskIds: []
+  };
+  var lkRaw = dropEl.dataset.wbsDropLk;
+  var lk = (lkRaw === '_' || lkRaw === '' || lkRaw === undefined) ? null : parseInt(lkRaw);
+  if (dropEl.dataset.wbsDropAk !== undefined) {
+    var akRaw = dropEl.dataset.wbsDropAk;
+    var ak = (akRaw === '_' || akRaw === '') ? null : parseInt(akRaw);
+    var akText = dropEl.dataset.wbsDropAkText ? decodeURIComponent(dropEl.dataset.wbsDropAkText) : '';
+    wbsAssignTaskAction(newTask, lk, ak, akText);
+  } else {
+    wbsAssignTaskSection(newTask, lk);
+  }
+  tasks.push(newTask);
+  if (!isCopy) {
+    srcTask.steps = srcTask.steps.filter(function(s){ return s.id !== stepId; });
+  }
+  if (typeof saveTasks === 'function') saveTasks();
+  renderWbsView();
+}
+
+// 현재 드래그 종류에 맞는 드롭 대상과 동작 모드를 결정한다.
+//  - TASK 드래그  : 다른 TASK 위 → To Do 로 변환 / 섹션·프로젝트 위 → 이동·복사
+//  - TO-DO 드래그 : 다른 TASK 위 → To Do 이동·복사 / 섹션·프로젝트 위 → TASK 로 승격
+function wbsResolveDropTarget(targetEl) {
+  if (!_wbsDrag || !targetEl || !targetEl.closest) return null;
+  var taskEl  = targetEl.closest('[data-wbs-drop-task]');
+  var groupEl = targetEl.closest('[data-wbs-drop-lk]');
+  if (_wbsDrag.type === 'task') {
+    if (taskEl && parseInt(taskEl.dataset.wbsDropTask) !== _wbsDrag.taskId)
+      return { el: taskEl, mode: 'task-to-step' };
+    if (groupEl) return { el: groupEl, mode: 'task-section' };
+    return null;
+  }
+  if (_wbsDrag.type === 'step') {
+    if (taskEl && parseInt(taskEl.dataset.wbsDropTask) !== _wbsDrag.taskId)
+      return { el: taskEl, mode: 'step-move' };
+    if (groupEl) return { el: groupEl, mode: 'step-to-task' };
+    return null;
+  }
+  return null;
+}
+
 document.addEventListener('dragstart', function(e) {
   var stepHandle = e.target.closest('[data-wbs-drag-step]');
   var taskHandle = e.target.closest('[data-wbs-drag-task]');
@@ -592,13 +684,13 @@ document.addEventListener('dragstart', function(e) {
 
 document.addEventListener('dragover', function(e) {
   if (!_wbsDrag) return;
-  var dropEl = (_wbsDrag.type === 'task')
-    ? e.target.closest('[data-wbs-drop-lk]')
-    : e.target.closest('[data-wbs-drop-task]');
-  if (dropEl) {
+  var t = wbsResolveDropTarget(e.target);
+  if (t) {
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
-    dropEl.classList.add('wbs-drop-target');
+    // 이전 하이라이트 정리 후 현재 대상만 표시
+    document.querySelectorAll('.wbs-drop-target').forEach(function(el){ el.classList.remove('wbs-drop-target'); });
+    t.el.classList.add('wbs-drop-target');
   }
 });
 
@@ -609,23 +701,22 @@ document.addEventListener('dragleave', function(e) {
 
 document.addEventListener('drop', function(e) {
   if (!_wbsDrag) return;
+  var t = wbsResolveDropTarget(e.target);
+  document.querySelectorAll('.wbs-drop-target').forEach(function(el){ el.classList.remove('wbs-drop-target'); });
+  if (!t) { _wbsDrag = null; return; }
+  e.preventDefault();
   var isCopy = !!(e.ctrlKey || e.metaKey);
-  if (_wbsDrag.type === 'task') {
-    var dropEl = e.target.closest('[data-wbs-drop-lk]');
-    if (dropEl) {
-      e.preventDefault();
-      dropEl.classList.remove('wbs-drop-target');
-      wbsHandleTaskDrop(_wbsDrag.taskId, dropEl, isCopy);
-    }
-  } else if (_wbsDrag.type === 'step') {
-    var dropEl2 = e.target.closest('[data-wbs-drop-task]');
-    if (dropEl2) {
-      e.preventDefault();
-      dropEl2.classList.remove('wbs-drop-target');
-      wbsHandleStepDrop(_wbsDrag.taskId, _wbsDrag.stepId, parseInt(dropEl2.dataset.wbsDropTask), isCopy);
-    }
-  }
+  var drag = _wbsDrag;
   _wbsDrag = null;
+  if (t.mode === 'task-section') {
+    wbsHandleTaskDrop(drag.taskId, t.el, isCopy);
+  } else if (t.mode === 'task-to-step') {
+    wbsHandleTaskToStep(drag.taskId, parseInt(t.el.dataset.wbsDropTask), isCopy);
+  } else if (t.mode === 'step-move') {
+    wbsHandleStepDrop(drag.taskId, drag.stepId, parseInt(t.el.dataset.wbsDropTask), isCopy);
+  } else if (t.mode === 'step-to-task') {
+    wbsHandleStepToTask(drag.taskId, drag.stepId, t.el, isCopy);
+  }
 });
 
 document.addEventListener('dragend', function() {
