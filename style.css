@@ -7601,9 +7601,9 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-perf-section-title { font-size: 14px; font-weight: 700; flex: 1; }
 .mdt-perf-section-prog { font-size: 12px; color: var(--text-3); }
 .mdt-annual-block { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-.mdt-annual-target-inp { width: 70px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); border-radius: 5px; color: inherit; padding: 3px 6px; }
-.mdt-annual-unit-inp { width: 60px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); border-radius: 5px; color: inherit; padding: 3px 6px; }
-.mdt-annual-sum { font-size: 11px; color: var(--text-3); margin-left: auto; }
+.mdt-annual-target-inp { width: 64px; min-width: 0; flex: 0 1 64px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); border-radius: 5px; color: inherit; padding: 3px 6px; box-sizing: border-box; }
+.mdt-annual-unit-inp { width: 52px; min-width: 0; flex: 0 1 52px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15); border-radius: 5px; color: inherit; padding: 3px 6px; box-sizing: border-box; }
+.mdt-annual-sum { font-size: 11px; color: var(--text-3); margin-left: auto; white-space: nowrap; }
 .mdt-q-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
 .mdt-q-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 7px; padding: 6px 4px; }
 .mdt-q-cell.mdt-q-done { background: rgba(139,92,246,0.18); border-color: rgba(139,92,246,0.5); }
@@ -7628,9 +7628,9 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-m-cell.mdt-m-off { background: rgba(231,76,60,0.16); border-color: rgba(231,76,60,0.45); }
 .mdt-m-cell.mdt-m-off .mdt-m-mark { color: #e74c3c; }
 .mdt-m-hint { font-size: 10px; color: var(--text-3); margin-top: 6px; }
-.mdt-annual-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.mdt-annual-lbl { font-size: 11px; color: var(--text-3); }
-.mdt-sub-toggle { margin-bottom: 10px; }
+.mdt-annual-row { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.mdt-annual-lbl { font-size: 11px; color: var(--text-3); white-space: nowrap; flex-shrink: 0; }
+.mdt-sub-toggle { display: flex; align-items: center; margin-bottom: 10px; }
 
 /* 달성형 2단 레이아웃 (실적 왼쪽 2줄 / 메모 오른쪽) */
 .mdt-task-main { display: flex; gap: 8px; align-items: stretch; flex-wrap: nowrap; margin-top: 4px; }

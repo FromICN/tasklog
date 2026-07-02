@@ -934,13 +934,12 @@ function calcWeeklyStats(a, year, weeklyTarget) {
            rate: Math.round(achievedWeeks / elapsedWeeks * 100), weeklyTarget: tgt };
 }
 
-// 실적형: 가장 최근에 점검(set)한 달의 상태로 달성 여부 판정
+// 실적형: 12월(연말) 실적만으로 판정 — 12월이 '달성'이면 100%, 아니면 0%.
+//         (12월 이전 달의 점검 결과는 달성률에 반영하지 않는다)
 function mdtTargetAchieved(a) {
   if (!a || !Array.isArray(a.months)) return false;
-  for (var i = a.months.length - 1; i >= 0; i--) {
-    if (a.months[i] && a.months[i].set) return !!a.months[i].done;
-  }
-  return false;
+  var dec = a.months[11];   // 12월
+  return !!(dec && dec.set && dec.done);
 }
 
 // PROJECT별 달성률(%) — 모드별 계산 통합
@@ -1191,18 +1190,17 @@ function buildCumulativeBlock(m, sg, a) {
 
   return '<div class="mdt-annual-block">'
     + '<div class="mdt-annual-row">'
-    +   '<span class="mdt-annual-lbl">성공기준</span>'
+    +   '<span class="mdt-annual-lbl">목표</span>'
     +   '<input type="number" value="' + target + '" class="mdt-annual-target-inp"'
     +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value)">'
     +   '<input type="text" value="' + escMdt(unit) + '" placeholder="단위" class="mdt-annual-unit-inp"'
     +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value)">'
-    +   '<span class="mdt-annual-sum">누적 ' + sum + (unit ? (' ' + escMdt(unit)) : '') + ' (' + pct + '%)</span>'
     + '</div>'
     + '<div class="mdt-m-grid">' + mHtml + '</div>'
     + '</div>';
 }
 
-// 실적형: 목표값 + 월별 달성 점검(미점검→달성→미달성), 최근 점검 달로 100%/0% 판정
+// 실적형: 목표값 + 월별 달성 점검(미점검→달성→미달성), 12월 실적으로 100%/0% 판정
 function buildTargetBlock(m, sg, a) {
   var yr = m.year, sgId = sg.id;
   if (!Array.isArray(a.months)) a.months = defaultMdtMonths();
@@ -1223,15 +1221,28 @@ function buildTargetBlock(m, sg, a) {
 
   return '<div class="mdt-annual-block">'
     + '<div class="mdt-annual-row">'
-    +   '<span class="mdt-annual-lbl">목표값</span>'
+    +   '<span class="mdt-annual-lbl">목표</span>'
     +   '<input type="number" value="' + target + '" class="mdt-annual-target-inp"'
     +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value)">'
     +   '<input type="text" value="' + escMdt(unit) + '" placeholder="단위" class="mdt-annual-unit-inp"'
     +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value)">'
-    +   '<span class="mdt-annual-sum">' + (achieved ? '달성' : '미달성') + ' (' + pct + '%)</span>'
     + '</div>'
     + '<div class="mdt-m-grid">' + mHtml + '</div>'
     + '</div>';
+}
+
+// 달성률 요약 텍스트(누적/실적) — 모드 선택 버튼 줄 오른쪽 끝에 표시
+function mdtActSummaryHtml(a) {
+  if (!a || !Array.isArray(a.months)) return '';
+  if (a.taskMode === 'target') {
+    var achieved = mdtTargetAchieved(a);
+    return '<span class="mdt-annual-sum">' + (achieved ? '달성' : '미달성') + ' (' + (achieved ? 100 : 0) + '%)</span>';
+  }
+  var target = +a.annualTarget || 0;
+  var unit = a.annualUnit || '';
+  var sum = a.months.reduce(function(s, mo){ return s + (+mo.value || 0); }, 0);
+  var pct = target > 0 ? Math.min(100, Math.round(sum / target * 100)) : 0;
+  return '<span class="mdt-annual-sum">누적 ' + sum + (unit ? (' ' + escMdt(unit)) : '') + ' (' + pct + '%)</span>';
 }
 
 function buildTaskCardBody(m, sg, a) {
@@ -1244,6 +1255,7 @@ function buildTaskCardBody(m, sg, a) {
     + ' onclick="setActTaskMode(' + yr + ',' + sgId + ',' + a.id + ',\'cumulative\')">📈 누적형</button>'
     + '<button class="mdt-type-btn' + (isTarget ? ' active' : '') + '"'
     + ' onclick="setActTaskMode(' + yr + ',' + sgId + ',' + a.id + ',\'target\')">🎯 실적형</button>'
+    + mdtActSummaryHtml(a)
     + '</div>';
 
   var perfBlock = isTarget ? buildTargetBlock(m, sg, a) : buildCumulativeBlock(m, sg, a);
