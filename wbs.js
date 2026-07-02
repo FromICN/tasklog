@@ -511,12 +511,13 @@ function wbsAssignTaskSection(task, lk) {
            : ((typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear());
   var mdt  = (typeof ensureMdtData === 'function') ? ensureMdtData(year)
            : ((typeof getMdt === 'function') ? getMdt(year) : null);
-  if (mdt && mdt.subGoals[lk]) {
-    var sg = mdt.subGoals[lk];
-    task.mdtGoal = { year: year, sgId: sg.id, text: sg.text };
-  } else {
-    delete task.mdtGoal;
-  }
+  // lk 는 렌더 시 (실제 sgId - 1) 로 인코딩되므로 실제 대상 sgId = lk + 1.
+  // subGoals 배열이 id 순서가 아닐 수 있어 인덱스(subGoals[lk])로 찾으면 엉뚱한 섹션 id 가
+  // 저장돼 이동 후 다른 섹션/프로젝트로 표시된다 → 반드시 id 로 조회한다.
+  var targetSgId = lk + 1;
+  var sg = mdt ? (mdt.subGoals || []).find(function(s){ return s.id === targetSgId; }) : null;
+  // 만다라트/텍스트가 없어도 드롭한 위치(sgId)는 유지해야 섹션이 어긋나지 않는다.
+  task.mdtGoal = { year: year, sgId: targetSgId, text: sg ? sg.text : '' };
   delete task.mdtAction;
 }
 
