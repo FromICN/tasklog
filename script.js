@@ -1923,9 +1923,9 @@ function buildRpForm(task) {
   var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
     + '<div style="display:flex;gap:10px;">'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Pred</label>'
-    + '<select class="field-input" id="rp-prev-sel" onchange="rpSetDep(\'prev\',this.value)">'+rpDepSingleOptions('prev')+'</select></div>'
+    + rpDepDropdown('prev') + '</div>'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Succ</label>'
-    + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
+    + rpDepDropdown('next') + '</div>'
     + '</div></div>';
 
   // 생성일 / 삭제 (수정 모드)
@@ -2207,6 +2207,127 @@ function rpDepSingleOptions(dir) {
     }).join('');
   return opts;
 }
+
+// ── Linked Tasks 검색형 드롭다운 ──────────────────────────────
+//  · 기본 목록: "그해"의 아직 완료되지 않은 TASK
+//  · 상단 검색창 타이핑: "그해"의 모든 TASK(완료 포함)를 대상으로 검색
+//  · "그해" = 편집 중인 TASK의 연도(없으면 전역/보드 연도)
+function rpDepYear() {
+  var y = null;
+  if (typeof todoTaskYear === 'function') {
+    var self = tasks.find(function(t){ return t.id === rpState.taskId; });
+    if (self) y = todoTaskYear(self);
+  }
+  if (!y && typeof appGetYear === 'function') y = appGetYear();
+  if (!y) y = new Date().getFullYear();
+  return parseInt(y, 10);
+}
+
+// "그해"에 속하는 TASK 풀(자기 자신 제외). 연도 미상 TASK도 포함.
+function rpDepYearTasks() {
+  var y = rpDepYear();
+  return tasks.filter(function(t){
+    if (t.id === rpState.taskId) return false;
+    if (typeof todoTaskYear !== 'function') return true;
+    var ty = todoTaskYear(t);
+    return ty == null || ty === y;
+  });
+}
+
+function rpDepCleanText(t) {
+  return (t && t.text ? t.text : '').replace(/^\[\d{6}\] /, '');
+}
+
+function rpDepLabel(dir) {
+  var cur = rpDepIds(dir)[0];
+  if (!cur) return '— 선택 안 함 —';
+  var t = tasks.find(function(x){ return x.id === cur; });
+  if (!t) return '— 선택 안 함 —';
+  return rpDepCleanText(t).substring(0, 40);
+}
+
+function rpDepDropdown(dir) {
+  var isSet = !!rpDepIds(dir)[0];
+  return '<div class="dep-dd" id="rp-dep-' + dir + '">'
+    + '<button type="button" class="dep-dd-trigger' + (isSet ? ' is-set' : '') + '" onclick="rpToggleDepDD(\'' + dir + '\')">'
+    + '<span class="dep-dd-cur">' + escapeHtml(rpDepLabel(dir)) + '</span><span class="proj-dd-arrow">▾</span></button>'
+    + '<div class="dep-dd-panel" style="display:none;">'
+    + '<div class="dep-dd-search-wrap">'
+    + '<input type="text" class="dep-dd-search" placeholder="🔎 TASK 검색 (그해 전체)" '
+    + 'oninput="rpDepDDSearch(\'' + dir + '\',this.value)" onclick="event.stopPropagation();">'
+    + '</div>'
+    + '<div class="dep-dd-list"></div>'
+    + '</div></div>';
+}
+
+function rpToggleDepDD(dir) {
+  var dd = document.getElementById('rp-dep-' + dir); if (!dd) return;
+  var panel = dd.querySelector('.dep-dd-panel'); if (!panel) return;
+  var open = panel.style.display !== 'none';
+  document.querySelectorAll('.dep-dd-panel').forEach(function(p){ p.style.display = 'none'; });
+  if (open) { panel.style.display = 'none'; return; }
+  var srch = panel.querySelector('.dep-dd-search');
+  var listEl = panel.querySelector('.dep-dd-list');
+  if (srch) srch.value = '';
+  if (listEl) listEl.innerHTML = rpDepDDList(dir, '');
+  panel.style.display = 'block';
+  if (srch) setTimeout(function(){ srch.focus(); }, 30);
+}
+
+function rpDepDDSearch(dir, q) {
+  var dd = document.getElementById('rp-dep-' + dir); if (!dd) return;
+  var listEl = dd.querySelector('.dep-dd-list'); if (!listEl) return;
+  listEl.innerHTML = rpDepDDList(dir, q);
+}
+
+function rpDepDDList(dir, q) {
+  q = (q || '').trim().toLowerCase();
+  var cur = rpDepIds(dir)[0] || '';
+  var pool = rpDepYearTasks();
+  var list;
+  if (q) {
+    // 검색 대상: 그해의 모든 TASK(완료 포함)
+    list = pool.filter(function(t){
+      return rpDepCleanText(t).toLowerCase().indexOf(q) !== -1;
+    });
+  } else {
+    // 기본 목록: 아직 완료되지 않은 TASK
+    list = pool.filter(function(t){ return !t.completed; });
+  }
+  var html = '<div class="dep-dd-opt dep-dd-none" onclick="rpDepDDSelect(\'' + dir + '\',\'\')">— 선택 안 함 —</div>';
+  if (!list.length) {
+    html += '<div class="dep-dd-empty">' + (q ? '검색 결과가 없어요' : '완료되지 않은 TASK가 없어요') + '</div>';
+    return html;
+  }
+  list.forEach(function(t){
+    var selCls = (String(t.id) === String(cur)) ? ' is-cur' : '';
+    var doneCls = t.completed ? ' is-done' : '';
+    html += '<div class="dep-dd-opt' + selCls + doneCls + '" onclick="rpDepDDSelect(\'' + dir + '\',' + t.id + ')">'
+      + (t.completed ? '<span class="dep-dd-done-tag">완료</span>' : '')
+      + '<span class="dep-dd-opt-txt">' + escapeHtml(rpDepCleanText(t).substring(0, 40)) + '</span></div>';
+  });
+  return html;
+}
+
+function rpDepDDSelect(dir, id) {
+  var val = id ? String(id) : '';
+  rpSetDep(dir, val);
+  var dd = document.getElementById('rp-dep-' + dir);
+  if (dd) {
+    var cur = dd.querySelector('.dep-dd-cur');
+    if (cur) cur.textContent = rpDepLabel(dir);
+    var trig = dd.querySelector('.dep-dd-trigger');
+    if (trig) trig.classList.toggle('is-set', !!val);
+    var panel = dd.querySelector('.dep-dd-panel'); if (panel) panel.style.display = 'none';
+  }
+}
+
+// 패널 바깥 클릭 시 닫기
+document.addEventListener('click', function(e) {
+  if (!e.target.closest || !e.target.closest('.dep-dd')) {
+    document.querySelectorAll('.dep-dd-panel').forEach(function(p){ p.style.display = 'none'; });
+  }
+});
 
 function rpSetDep(dir, val) {
   var id = val ? parseInt(val) : null;
