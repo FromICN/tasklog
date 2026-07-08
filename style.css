@@ -8995,6 +8995,58 @@ body.light-mode .tlf-pop { background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,0
 .tlf-search-input::placeholder { color: var(--text-3, #9aa); }
 .tlf-search-input:focus { border-color: rgba(99,179,237,0.6); }
 body.light-mode .tlf-search-input { background: #fff; }
+.tlf-empty { font-size: 12px; color: var(--text-3, #9aa); padding: 6px; }
+
+/* ── Board(headerControls): 타이틀 드롭다운 필터(연도)·인라인 검색 ───────── */
+.tlf-tbf-btn { gap: 3px; }
+.tlf-tbf-caret { font-size: 10px; opacity: 0.7; }
+.tlf-search-inline {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; padding: 3px 9px;
+}
+.tlf-search-inline .tlf-search-ico { color: var(--text-3, #9aa); flex-shrink: 0; }
+.tlf-search-inline .tlf-search-input {
+  width: 150px; border: none; background: transparent; padding: 2px 0; border-radius: 0;
+}
+.tlf-search-inline .tlf-search-input:focus { border: none; }
+.tlf-search-inline:focus-within { border-color: rgba(99,179,237,0.6); }
+body.light-mode .tlf-search-inline { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.12); }
+
+/* ── Board: 표 헤더 내 필터/정렬 UI ───────────────────────── */
+.todo-view { position: relative; }
+.todo-th-inner { display: flex; align-items: center; justify-content: space-between; gap: 4px; width: 100%; }
+.todo-th-name { display: inline-flex; align-items: center; gap: 3px; min-width: 0; }
+.todo-th-name.is-filterable { cursor: pointer; border-radius: 4px; padding: 1px 3px; margin: -1px -3px; }
+.todo-th-name.is-filterable:hover { background: var(--surface-hover, rgba(255,255,255,0.08)); }
+.todo-th-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-th-fcaret { font-size: 9px; opacity: 0.55; flex-shrink: 0; }
+.todo-th-name.has-filter { color: #63b3ed; }
+.todo-th-name.has-filter .todo-th-fcaret { opacity: 0.9; }
+.todo-th-fbadge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 14px; height: 14px; padding: 0 3px;
+  background: #4F6EF7; color: #fff; border-radius: 7px;
+  font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+.todo-th-sort { display: inline-flex; flex-direction: column; line-height: 0.7; flex-shrink: 0; }
+.todo-sort-btn {
+  background: none; border: none; padding: 0; margin: 0; cursor: pointer;
+  font-size: 8px; color: var(--text-3, #9aa); line-height: 0.9;
+  opacity: 0.55; transition: opacity 0.12s, color 0.12s;
+}
+.todo-sort-btn:hover { opacity: 1; }
+.todo-sort-btn.on { color: #63b3ed; opacity: 1; }
+
+/* 헤더 필터 팝오버(구분명 클릭) — .todo-view 기준 절대 위치 */
+.todo-hdr-pop { position: absolute; right: auto; top: 0; left: 0; z-index: 240; }
+
+/* Memo 셀 — 길면 말줄임 */
+.todo-table-memo {
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text-2);
+}
 
 /* ── 통합 필터: 항목별 드롭다운(아코디언) ───────────────── */
 .tlf-acc + .tlf-acc { border-top: 1px solid var(--border, rgba(255,255,255,0.08)); }

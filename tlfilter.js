@@ -156,6 +156,53 @@ var TLFilter = (function () {
     renderPopover(menu);
   }
 
+  // ── 헤더(컬럼) 기반 필터/정렬 지원 API ─────────────────────────
+  //  Board(headerControls) 처럼 필터/정렬 UI를 표 헤더에 직접 그리는 페이지가 사용.
+  function findFilterField(menu, key) {
+    var cfg = CONFIGS[menu] || {};
+    return (cfg.filters || []).filter(function (f) { return f.key === key; })[0] || null;
+  }
+  function findSortField(menu, key) {
+    var cfg = CONFIGS[menu] || {};
+    return (cfg.sorts || []).filter(function (s) { return s.key === key; })[0] || null;
+  }
+  function hasFilterField(menu, key) { return !!findFilterField(menu, key); }
+  function hasSortField(menu, key) { return !!findSortField(menu, key); }
+  function filterCount(menu, key) {
+    var st = getState(menu);
+    return (st.filters[key] && st.filters[key].length) || 0;
+  }
+  function getSort(menu) {
+    var st = getState(menu);
+    return (st.sort && st.sort.key) ? { key: st.sort.key, dir: st.sort.dir || 'asc' } : null;
+  }
+  function clearFilterField(menu, key) {
+    var st = getState(menu);
+    if (st.filters[key]) { delete st.filters[key]; saveState(); fireChange(menu); }
+    renderPopover(menu);
+  }
+  // 한 필드의 체크박스 목록 HTML (헤더 팝오버/타이틀 드롭다운 공용)
+  //  onchange: 각 체크박스 onchange 에 넣을 JS 표현식(문자열). 생략 시 기본 토글.
+  function fieldFilterBodyHtml(menu, key, onchange) {
+    var field = findFilterField(menu, key);
+    if (!field) return '';
+    var opts = fieldOptions(menu, field);
+    if (!opts.length) return '<div class="tlf-empty">값 없음</div>';
+    var st = getState(menu);
+    var sel = st.filters[key] || [];
+    var selSet = {}; sel.forEach(function (v) { selSet[String(v)] = 1; });
+    var oc = onchange || ('TLFilter.toggleFilterValue(\'' + menu + '\',\'' + esc(key) + '\',this.dataset.v)');
+    var body = '';
+    opts.forEach(function (opt) {
+      var checked = selSet[String(opt)] ? ' checked' : '';
+      var lbl = (field.format ? field.format(opt) : opt);
+      body += '<label class="tlf-opt">'
+        + '<input type="checkbox"' + checked + ' onchange="' + oc + '" data-v="' + esc(opt) + '">'
+        + '<span>' + esc(lbl) + '</span></label>';
+    });
+    return body;
+  }
+
   // 1차 영역(아코디언) 펼치기/접기 — 항목별 드롭다운
   function toggleGroup(menu, key, e) {
     if (e) e.stopPropagation();
@@ -275,6 +322,52 @@ var TLFilter = (function () {
     var html = '';
     if (cfg.year) html += yearSelectHtml(menu, cfg.year);
 
+    // ── Board 등 headerControls 모드: 정렬 버튼 없음, 필터=표시 항목 전용,
+    //    검색은 드롭다운 없이 바로 입력창, 연도 등은 타이틀 드롭다운으로 노출 ──
+    if (cfg.headerControls) {
+      // 타이틀 드롭다운 필터(예: 연도) — 컬럼이 없는 필터 항목을 위한 별도 버튼
+      (cfg.titlebarFilters || []).forEach(function (key) {
+        var field = findFilterField(menu, key);
+        if (!field) return;
+        var fc = filterCount(menu, key);
+        html += '<div class="tlf-ctrl tlf-tbf" id="tlf-tbf-' + esc(key) + '-ctrl">'
+          + '<button class="tlf-btn tlf-tbf-btn' + (fc ? ' tlf-active' : '') + '" onclick="TLFilter.togglePop(\'' + menu + '\',\'tbf:' + esc(key) + '\',event)" title="' + esc(field.label || key) + '">'
+          + '<span class="tlf-tbf-label">' + esc(field.label || key) + '</span>'
+          + '<span class="tlf-tbf-caret">▾</span>'
+          + (fc ? '<span class="tlf-badge">' + fc + '</span>' : '')
+          + '</button>'
+          + '<div class="tlf-pop" id="tlf-tbf-' + esc(key) + '-pop" style="display:none;"></div>'
+          + '</div>';
+      });
+
+      // 표시 항목(보기 + 컬럼 표시/숨김) 버튼 — 필터 항목은 헤더로 이동했으므로 제외
+      if (cfg.display || cfg.view) {
+        html += '<div class="tlf-ctrl" id="tlf-filter-ctrl">'
+          + '<button class="tlf-btn" onclick="TLFilter.togglePop(\'' + menu + '\',\'filter\',event)" title="표시 항목">'
+          + '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>'
+          + '</button>'
+          + '<div class="tlf-pop" id="tlf-filter-pop" style="display:none;"></div>'
+          + '</div>';
+      }
+
+      // 검색 — 드롭다운 없이 항상 보이는 입력창
+      if (cfg.search) {
+        var sqi = getState(menu).search || '';
+        var ph = (cfg.search.placeholder) || '검색어 입력';
+        html += '<div class="tlf-ctrl tlf-search-inline">'
+          + '<svg class="tlf-search-ico" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
+          + '<input type="text" id="tlf-search-input" class="tlf-search-input" placeholder="' + esc(ph) + '"'
+          + ' value="' + esc(sqi).replace(/"/g, '&quot;') + '" autocomplete="off"'
+          + ' oninput="TLFilter.setSearch(\'' + menu + '\',this.value)">'
+          + '</div>';
+      }
+
+      s.innerHTML = html;
+      if (_openPop) renderPopover(menu);
+      else refreshButtons(menu);
+      return;
+    }
+
     if ((cfg.filters && cfg.filters.length) || cfg.display || cfg.view) {
       var cnt = activeFilterCount(menu);
       html += '<div class="tlf-ctrl" id="tlf-filter-ctrl">'
@@ -342,7 +435,26 @@ var TLFilter = (function () {
     if (fp) fp.style.display = 'none';
     if (sp) sp.style.display = 'none';
     if (hp) hp.style.display = 'none';
+    // 타이틀 드롭다운 필터(연도 등) 팝오버 모두 숨김
+    (cfg.titlebarFilters || []).forEach(function (key) {
+      var tp = document.getElementById('tlf-tbf-' + key + '-pop');
+      if (tp) tp.style.display = 'none';
+    });
     refreshButtons(menu);
+    // 타이틀 드롭다운 필터 열림 처리
+    if (typeof _openPop === 'string' && _openPop.indexOf('tbf:') === 0) {
+      var tkey = _openPop.slice(4);
+      var tp2 = document.getElementById('tlf-tbf-' + tkey + '-pop');
+      var tfield = findFilterField(menu, tkey);
+      if (tp2 && tfield) {
+        var fc = filterCount(menu, tkey);
+        tp2.innerHTML = '<div class="tlf-pop-head">' + esc(tfield.label || tkey)
+          + (fc ? ' <button class="tlf-clear" onclick="TLFilter.clearFilterField(\'' + menu + '\',\'' + esc(tkey) + '\')">전체 해제</button>' : '')
+          + '</div>' + fieldFilterBodyHtml(menu, tkey);
+        tp2.style.display = 'block';
+      }
+      return;
+    }
     if (_openPop === 'filter' && fp) {
       fp.innerHTML = buildFilterPanel(menu, cfg);
       fp.style.display = 'block';
@@ -373,6 +485,22 @@ var TLFilter = (function () {
   }
 
   function refreshButtons(menu) {
+    var cfgH = CONFIGS[menu] || {};
+    if (cfgH.headerControls) {
+      // 표시 항목 버튼엔 필터 배지를 달지 않고, 타이틀 드롭다운 필터(연도 등) 버튼만 갱신
+      (cfgH.titlebarFilters || []).forEach(function (key) {
+        var ctrl = document.getElementById('tlf-tbf-' + key + '-ctrl');
+        if (!ctrl) return;
+        var btn = ctrl.querySelector('.tlf-btn');
+        if (!btn) return;
+        var c = filterCount(menu, key);
+        btn.classList.toggle('tlf-active', c > 0);
+        var b = btn.querySelector('.tlf-badge');
+        if (c > 0) { if (!b) { b = document.createElement('span'); b.className = 'tlf-badge'; btn.appendChild(b); } b.textContent = c; }
+        else if (b) { b.remove(); }
+      });
+      return;
+    }
     var cnt = activeFilterCount(menu);
     var fctrl = document.getElementById('tlf-filter-ctrl');
     if (fctrl) {
@@ -473,6 +601,9 @@ var TLFilter = (function () {
       html += accordionHtml(menu, '__view__', (cfg.view.label || '보기'), vobadge, vonly.body);
     }
 
+    // headerControls 모드에서는 필터 항목이 표 헤더로 이동하므로 여기서는 생략
+    if (cfg.headerControls) return html;
+
     // 1차 영역: 각 필터 항목(드롭다운). 펼치면 2차로 값 표시/숨김 선택
     (cfg.filters || []).forEach(function (field) {
       var opts = fieldOptions(menu, field);
@@ -515,11 +646,7 @@ var TLFilter = (function () {
     var s = slot();
     if (s && !s.contains(e.target)) {
       _openPop = null;
-      var fp = document.getElementById('tlf-filter-pop');
-      var sp = document.getElementById('tlf-sort-pop');
-      if (fp) fp.style.display = 'none';
-      if (sp) sp.style.display = 'none';
-      refreshButtons(_activeMenu);
+      renderPopover(_activeMenu);
     }
   });
 
@@ -540,6 +667,13 @@ var TLFilter = (function () {
     setView: setView,
     setSearch: setSearch,
     clearSearch: clearSearch,
-    getState: getState
+    getState: getState,
+    // 헤더(컬럼) 기반 필터/정렬용 공개 API
+    hasFilterField: hasFilterField,
+    hasSortField: hasSortField,
+    filterCount: filterCount,
+    getSort: getSort,
+    clearFilterField: clearFilterField,
+    fieldFilterBodyHtml: fieldFilterBodyHtml
   };
 })();

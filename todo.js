@@ -53,6 +53,10 @@ var TODO_COLS = [
   { key:'linkedNext', label:'Succ', cell:function(t){
       return '<td class="todo-table-linked">'+todoLinkedCell(t.nextTaskIds)+'</td>';
   } },
+  { key:'memo', label:'Memo', cell:function(t){
+      var m = (t && t.notes) ? String(t.notes).replace(/\s+/g,' ').trim() : '';
+      return '<td class="todo-table-memo" title="'+escapeHtml(m)+'">'+(m?escapeHtml(m):todoEmptyCell())+'</td>';
+  } },
 ];
 
 // ── Priority(아이젠하워) / 연계 Task 셀 도우미 ──
@@ -78,13 +82,14 @@ function todoLinkedCell(ids) {
   return titles.map(function(x){ return '<span class="todo-link-badge">'+escapeHtml(x)+'</span>'; }).join(' ');
 }
 
-var _todoCols = ['start','due','progress','status','coworker','project'];
+// 기본값: 모든 표시 항목(컬럼)을 다 표시. (저장 키를 todoCols2 로 올려 기존 사용자도 전체 표시로 시작)
+var _todoColsAll = TODO_COLS.map(function(c){ return c.key; });
+var _todoCols = _todoColsAll.slice();
 try {
-  var _c = localStorage.getItem('todoCols');
+  var _c = localStorage.getItem('todoCols2');
   if (_c) {
     var arr = JSON.parse(_c);
     if (Array.isArray(arr)) {
-      // 구버전 키 마이그레이션: workinglist→project, star 제거, 유효 키만
       var valid = TODO_COLS.map(function(c){ return c.key; });
       var mapped = [];
       arr.forEach(function(k){
@@ -97,7 +102,7 @@ try {
   }
 } catch(e) {}
 
-function saveTodoCols() { try { localStorage.setItem('todoCols', JSON.stringify(_todoCols)); } catch(e) {} }
+function saveTodoCols() { try { localStorage.setItem('todoCols2', JSON.stringify(_todoCols)); } catch(e) {} }
 // _todoCols 의 순서를 그대로 반영(드래그로 바꾼 컬럼 순서 유지)
 function selectedTodoCols() {
   return _todoCols.map(function(k){
@@ -136,9 +141,9 @@ function toggleTodoProjPick(e) {
   if (_todoProjPickOpen) closeTodoProjPick(); else openTodoProjPick();
 }
 
-// Project 탭 헤더 — 필터/정렬은 상단 통합 컴포넌트로 이동, 일반 라벨만 표시
+// Project 탭 헤더 — 다른 컬럼과 동일하게 헤더 내 필터/정렬 UI 제공
 function todoProjFilterTh() {
-  return '<th class="todo-th-proj" data-cr-key="project">Project</th>';
+  return '<th class="todo-col-th todo-th-proj" data-cr-key="project">'+todoThInner('project', 'Project')+'</th>';
 }
 
 // ── 정렬/필터: 상단 통합 컴포넌트(TLFilter)로 위임 ──
@@ -179,8 +184,13 @@ function todoRegisterFilter() {
   if (typeof TLFilter === 'undefined') return;
   TLFilter.register('todo', {
     items: function(){ return (typeof tasks!=='undefined') ? tasks : []; },
-    onChange: function(){ renderTodoView(); },
-    // 보기(To Do / Task / Project) — 단일 선택. 기존 상단 탭을 필터로 통합
+    // 필터/정렬 UI를 표 헤더에 직접 그린다(정렬 버튼 제거·필터는 표시 항목 전용·검색은 즉시 입력창)
+    headerControls: true,
+    // 대응 컬럼이 없는 필터(연도)는 타이틀 영역 드롭다운으로 노출
+    titlebarFilters: ['year'],
+    // 필터/정렬 변경 시 표 본문(+헤더)만 갱신 → 헤더 필터 팝오버 유지
+    onChange: function(){ refreshTodoBody(); },
+    // 보기(To Do / Task / Project) — 단일 선택. 표시 항목 목록의 첫 항목으로 통합
     view: {
       label: '보기',
       options: function(){ return [
@@ -233,14 +243,106 @@ function todoRegisterFilter() {
   });
 }
 
+// 구분 항목 라벨 (헤더 필터 팝오버 제목용)
+function todoFieldLabel(key) {
+  var c = TODO_COLS.find(function(x){ return x.key === key; });
+  return c ? c.label : key;
+}
+
+// 헤더 셀 내부: [구분명(클릭→필터)] + [정렬 화살표(▲▼)]
+//  · 구분명 클릭 → 해당 구분 기준 필터 드롭다운 (필터 항목이 있는 구분만)
+//  · 오른쪽 끝 ▲▼ → 오름/내림차순 정렬 (정렬 항목이 있는 구분만)
+function todoThInner(key, label) {
+  var hasF = (typeof TLFilter !== 'undefined') && TLFilter.hasFilterField('todo', key);
+  var hasS = (typeof TLFilter !== 'undefined') && TLFilter.hasSortField('todo', key);
+  var fc   = hasF ? TLFilter.filterCount('todo', key) : 0;
+  var cur  = (typeof TLFilter !== 'undefined') ? TLFilter.getSort('todo') : null;
+  var asc  = hasS && cur && cur.key === key && cur.dir !== 'desc';
+  var desc = hasS && cur && cur.key === key && cur.dir === 'desc';
+
+  var nameCls = 'todo-th-name' + (hasF ? ' is-filterable' : '') + (fc ? ' has-filter' : '');
+  var nameClick = hasF ? ' onclick="todoOpenColFilter(event,\''+key+'\')"' : '';
+  var name = '<span class="'+nameCls+'"'+nameClick+'>'
+    + '<span class="todo-th-text">'+escapeHtml(label)+'</span>'
+    + (fc ? '<span class="todo-th-fbadge">'+fc+'</span>' : '')
+    + (hasF ? '<span class="todo-th-fcaret">▾</span>' : '')
+    + '</span>';
+
+  var sort = '';
+  if (hasS) {
+    sort = '<span class="todo-th-sort">'
+      + '<button type="button" class="todo-sort-btn'+(asc?' on':'')+'" onclick="todoColSort(event,\''+key+'\',\'asc\')" title="오름차순">▲</button>'
+      + '<button type="button" class="todo-sort-btn'+(desc?' on':'')+'" onclick="todoColSort(event,\''+key+'\',\'desc\')" title="내림차순">▼</button>'
+      + '</span>';
+  }
+  return '<span class="todo-th-inner">'+name+sort+'</span>';
+}
+
 function todoSortableTh(key, label, cls) {
-  // 클릭&드래그로 컬럼(구분 항목) 순서 변경 가능
+  // 클릭&드래그로 컬럼(구분 항목) 순서 변경 가능 + 헤더 내 필터/정렬 UI
   return '<th class="todo-col-th '+(cls||'')+'" data-cr-key="'+key+'" draggable="true"'
     + ' ondragstart="todoColDragStart(event,\''+key+'\')"'
     + ' ondragover="todoColDragOver(event,\''+key+'\')"'
     + ' ondragleave="todoColDragLeave(event)"'
     + ' ondrop="todoColDrop(event,\''+key+'\')"'
-    + ' ondragend="todoColDragEnd(event)">'+label+'</th>';
+    + ' ondragend="todoColDragEnd(event)">'+todoThInner(key, label)+'</th>';
+}
+
+// ── 헤더 필터 팝오버(구분명 클릭 시) ───────────────────
+var _todoHdrField = null;
+function todoRenderHdrPop() {
+  var host = document.getElementById('todo-hdr-pop');
+  if (!host || !_todoHdrField) return;
+  var key = _todoHdrField;
+  var fc = TLFilter.filterCount('todo', key);
+  host.innerHTML = '<div class="tlf-pop-head">'+escapeHtml(todoFieldLabel(key))
+    + (fc ? ' <button class="tlf-clear" onclick="todoColFilterClear(\''+key+'\')">전체 해제</button>' : '')
+    + '</div>'
+    + TLFilter.fieldFilterBodyHtml('todo', key, "todoColFilterChange('"+key+"',this.dataset.v)");
+}
+function todoOpenColFilter(e, key) {
+  if (e) e.stopPropagation();
+  var host = document.getElementById('todo-hdr-pop');
+  if (!host) return;
+  if (_todoHdrField === key && host.style.display === 'block') { todoCloseHdrPop(); return; }
+  _todoHdrField = key;
+  todoRenderHdrPop();
+  host.style.display = 'block';
+  // 클릭한 헤더 셀 아래에 위치
+  try {
+    var th = (e && e.currentTarget && e.currentTarget.closest) ? e.currentTarget.closest('th') : null;
+    var op = host.offsetParent || host.parentElement;
+    if (th && op) {
+      var r = th.getBoundingClientRect(), pr = op.getBoundingClientRect();
+      var left = r.left - pr.left;
+      var maxLeft = op.clientWidth - host.offsetWidth - 4;
+      if (left > maxLeft) left = Math.max(0, maxLeft);
+      host.style.left = left + 'px';
+      host.style.top  = (r.bottom - pr.top) + 'px';
+    }
+  } catch (_) {}
+}
+function todoCloseHdrPop() {
+  _todoHdrField = null;
+  var host = document.getElementById('todo-hdr-pop');
+  if (host) host.style.display = 'none';
+}
+function todoColFilterChange(key, val) {
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.toggleFilterValue('todo', key, val); // onChange=refreshTodoBody(헤더 갱신) + 상태 저장
+  if (_todoHdrField === key) todoRenderHdrPop();  // 체크 상태/배지 반영(팝오버는 열린 채)
+}
+function todoColFilterClear(key) {
+  if (typeof TLFilter === 'undefined') return;
+  TLFilter.clearFilterField('todo', key);
+  if (_todoHdrField === key) todoRenderHdrPop();
+}
+function todoColSort(e, key, dir) {
+  if (e) e.stopPropagation();
+  if (typeof TLFilter === 'undefined') return;
+  var cur = TLFilter.getSort('todo');
+  if (cur && cur.key === key && cur.dir === dir) TLFilter.setSort('todo', ''); // 같은 방향 재클릭 → 해제
+  else TLFilter.setSort('todo', key, dir);
 }
 
 // ── 컬럼(구분 항목) 드래그 순서 변경 ──
@@ -290,6 +392,7 @@ function renderTodoView() {
   if (typeof TLFilter !== 'undefined') TLFilter.render('todo');
   content.innerHTML = '<div class="todo-view">'
     + '<div id="todo-body">' + buildTodoBody() + '</div>'
+    + '<div id="todo-hdr-pop" class="tlf-pop todo-hdr-pop" style="display:none;"></div>'
     + '</div>';
   applyTodoColResize();
 }
@@ -346,6 +449,12 @@ document.addEventListener('click', function(e){
     _todoProjPickOpen = false;
     var pp2 = document.getElementById('todo-projpick-panel');
     if (pp2) pp2.style.display = 'none';
+  }
+  // 헤더 필터 팝오버: 팝오버·필터 가능한 구분명 바깥 클릭 시 닫기
+  var hp = document.getElementById('todo-hdr-pop');
+  if (hp && hp.style.display === 'block' && !hp.contains(e.target)
+      && !(e.target.closest && e.target.closest('.todo-th-name.is-filterable'))) {
+    todoCloseHdrPop();
   }
 });
 

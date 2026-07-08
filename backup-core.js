@@ -19,7 +19,7 @@ const BACKUP_REGISTRY = [
   { key: 'my-tasklog-corevalues', label: '핵심가치',             type: 'json'   },
   { key: 'my-tasklog-mandalart',  label: '만다라트',             type: 'json'   },
   { key: 'tasklog-mvv-data',      label: 'MVV(미션·비전·가치)',  type: 'json'   },
-  { key: 'todoCols',              label: 'Board 컬럼 설정',      type: 'json'   },
+  { key: 'todoCols2',             label: 'Board 컬럼 설정',      type: 'json'   },
   { key: 'todoProjHidden',        label: 'Board 숨김 프로젝트',  type: 'json'   },
   { key: 'mdtFavActions',         label: '만다라트 즐겨찾기',    type: 'json'   },
   { key: 'my-tasklog-nickname',   label: '닉네임',               type: 'string' },
