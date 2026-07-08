@@ -128,7 +128,7 @@ function renderHomeNotif() {
 function renderHomeCalendar() {
   var el = document.getElementById('cal-body');
   if (!el) return;
-  var grid = (homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid();
+  var grid = buildMonthlyCalGrid();   // 월간 고정(주간 보기 제거)
   el.innerHTML = grid + '<div class="cal-detail" id="cal-detail"></div>';
   renderCalDetail();
 }
@@ -179,10 +179,6 @@ function buildCalHeader(label) {
     + '<button class="cal-arrow" onclick="homeCalPrev()">‹</button>'
     + '<span class="cal-month-label">' + label + '</span>'
     + '<button class="cal-arrow" onclick="homeCalNext()">›</button>'
-    + '</div>'
-    + '<div class="cal-nav-group">'
-    + '<button class="cal-nav' + (homeCalView==='monthly'?' active-view':'') + '" onclick="homeCalSetView(\'monthly\')">월간</button>'
-    + '<button class="cal-nav' + (homeCalView==='weekly'?' active-view':'') + '" onclick="homeCalSetView(\'weekly\')">주간</button>'
     + '</div>'
     + '</div>';
 }
@@ -273,16 +269,14 @@ function buildWeeklyCalGrid() {
 }
 
 function homeCalPrev() {
-  if (homeCalView === 'weekly') { homeCalWeekStart.setDate(homeCalWeekStart.getDate()-7); }
-  else { homeCalMonth--; if(homeCalMonth<0){homeCalMonth=11;homeCalYear--;} }
+  homeCalMonth--; if(homeCalMonth<0){homeCalMonth=11;homeCalYear--;}
   renderHomeCalendar();
 }
 function homeCalNext() {
-  if (homeCalView === 'weekly') { homeCalWeekStart.setDate(homeCalWeekStart.getDate()+7); }
-  else { homeCalMonth++; if(homeCalMonth>11){homeCalMonth=0;homeCalYear++;} }
+  homeCalMonth++; if(homeCalMonth>11){homeCalMonth=0;homeCalYear++;}
   renderHomeCalendar();
 }
-function homeCalSetView(v) { homeCalView=v; renderHomeCalendar(); }
+function homeCalSetView(v) { homeCalView=v; renderHomeCalendar(); }  // (미사용) 하위호환
 
 // 날짜 클릭 → 선택 표시 + 하단 상세 패널 갱신
 function selectCalDate(year, month, day) {
@@ -327,29 +321,77 @@ function collectDayItems(key) {
   return googleItems.concat(taskLogItems);
 }
 
-// 하단 상세 패널 렌더 (선택된 날짜의 일정 목록)
+// 선택한 날짜가 속한 주(일~토)의 모든 일정 모으기
+//  - 마감일이 있는 to do(step)는 상위 Task 1개로만 표시(중복 제거)
+//  - 구글 캘린더 일정은 각각 표시
+function collectWeekItems(ws, we) {
+  var items = [];
+  var seenTask = {};
+  var taskEventIds = {};
+  if (typeof tasks !== 'undefined') {
+    tasks.forEach(function(t){ if (t.calendarEventId) taskEventIds[t.calendarEventId] = true; });
+    tasks.forEach(function(t) {
+      var color = EI_COLORS[t.eisenhower] || '#9CA3AF';
+      // 이 주에 해당하는 대표 마감일: Task 본체 우선, 없으면 이 주 안의 가장 이른 step 마감일
+      var due = null, hasTime = false;
+      if (t.dueDateTime) {
+        var td = new Date(t.dueDateTime);
+        if (td >= ws && td <= we) { due = td; hasTime = !!t.hasTime; }
+      }
+      if (!due && Array.isArray(t.steps)) {
+        t.steps.forEach(function(s) {
+          if (!s.dueDateTime) return;
+          var sd = new Date(s.dueDateTime);
+          if (sd >= ws && sd <= we && (!due || sd < due)) { due = sd; hasTime = !!s.hasTime; }
+        });
+      }
+      if (due && !seenTask[t.id]) {
+        seenTask[t.id] = true;
+        items.push({ text: t.text, color: color, id: t.id, isCal: false, date: due, time: hasTime ? due : null });
+      }
+    });
+  }
+  if (typeof calendarEvents !== 'undefined') {
+    calendarEvents.forEach(function(ev) {
+      if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
+      if (!ev.dueDateTime) return;
+      var ed = new Date(ev.dueDateTime);
+      if (ed >= ws && ed <= we) {
+        items.push({ text: ev.text, color: ev.calColor || GCAL_COLOR, id: null, isCal: true, date: ed, time: ev.hasTime ? ed : null });
+      }
+    });
+  }
+  items.sort(function(a, b){ return a.date - b.date; });
+  return items;
+}
+
+// 하단 상세 패널 렌더 (선택된 날짜가 속한 "주"의 예정된 항목)
 function renderCalDetail() {
   var el = document.getElementById('cal-detail');
   if (!el) return;
+  var DAY_KO = ['일','월','화','수','목','금','토'];
   var p = homeCalSelectedKey.split('-');
-  var dt = new Date(+p[0], +p[1]-1, +p[2]);
-  var dayStr = (dt.getMonth()+1)+'월 '+dt.getDate()+'일 ('+['일','월','화','수','목','금','토'][dt.getDay()]+')';
+  var sel = new Date(+p[0], +p[1]-1, +p[2]); sel.setHours(0,0,0,0);
+  var ws = new Date(sel); ws.setDate(sel.getDate() - sel.getDay());          // 그 주 일요일
+  var we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999); // 토요일
 
-  var items = collectDayItems(homeCalSelectedKey);
-  var html = '<div class="cal-detail-header">' + dayStr + '</div>';
+  var rangeStr = (ws.getMonth()+1)+'/'+ws.getDate()+' – '+(we.getMonth()+1)+'/'+we.getDate();
+  var items = collectWeekItems(ws, we);
+  var html = '<div class="cal-detail-header">' + rangeStr + ' 예정된 항목</div>';
   var listBody;
   if (!items.length) {
     listBody = '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
   } else {
     listBody = items.map(function(item) {
-      var timeStr = item.time
-        ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2,'0') + ':' + String(item.time.getMinutes()).padStart(2,'0') + '</span>'
-        : '';
+      var dt = item.date;
+      var dateLbl = (dt.getMonth()+1)+'/'+dt.getDate()+'('+DAY_KO[dt.getDay()]+')'
+        + (item.time ? ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0') : '');
+      var dateHtml = '<span class="cal-detail-date">' + dateLbl + '</span>';
       var badge = item.isCal ? '<span class="cal-detail-gbadge">G</span>' : '';
       var oc = item.isCal ? '' : ' onclick="openDetailPanel(' + item.id + ')"';
       var cls = 'cal-detail-item' + (item.isCal ? ' is-cal' : '');
       return '<div class="' + cls + '" style="border-left-color:' + item.color + ';"' + oc + '>'
-        + timeStr + badge + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
+        + dateHtml + badge + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
     }).join('');
   }
   // 항목이 많아도 카드를 넘기지 않도록 목록에 내부 스크롤 적용
@@ -426,8 +468,10 @@ function renderHomeHabitWidget() {
       dots += '<div class="'+cls+'"'+oc+'><span style="font-size:8px;">'+DOW[day.getDay()]+'</span></div>';
     }
     return '<div class="habit-row">'
-      + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div>'
-      + '<div class="habit-meta">🔥 '+streak+'일 연속</div></div>'
+      + '<div class="habit-info">'
+      + '<span class="habit-name">'+hwEsc(a.text)+'</span>'
+      + '<span class="habit-meta">🔥 '+streak+'일 연속</span>'
+      + '</div>'
       + '<div class="habit-week">'+dots+'</div>'
       + '</div>';
   }).join('');
@@ -563,10 +607,12 @@ function renderHomeGanttMini() {
           ? '<div class="gm-bar" style="left:'+barLeftPct.toFixed(3)+'%;width:'+barWPct.toFixed(3)+'%;border-color:'+color+';background:'+color+'25;">'
             + '<div class="gm-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
           : '')
+      + buildGanttTodoDots(task, mS, mE, daysInMonth, color)
       + '</div>'
       + '</div>';
 
-    return mainRow + buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml);
+    // TO DO는 별도 행 없이 해당 일자 위에 점으로 표시(위 gm-grid에 포함)
+    return mainRow;
   }).join('');
 
   var todayLine = todayIdx !== null
@@ -582,7 +628,26 @@ function renderHomeGanttMini() {
     + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
 }
 
-// 하위 to-do(task.steps)를 GANTT 미니 그리드에 서브로우로 표시
+// 하위 to-do(task.steps)를 해당 Task 행의 일자 위에 점으로 표시
+//  - 점에 마우스를 올리면 to do 텍스트가 툴팁으로 표시됨(title 속성)
+//  - 완료된 to do는 초록색, 진행 중은 Task 색
+function buildGanttTodoDots(task, mS, mE, daysInMonth, color) {
+  var steps = task.steps || [];
+  if (!steps.length) return '';
+  var html = '';
+  steps.forEach(function(step) {
+    if (!step.dueDateTime) return;
+    var sd = new Date(step.dueDateTime);
+    if (sd < mS || sd > mE) return;
+    var leftPct = (sd.getDate()-1+0.5) / daysInMonth * 100;
+    var dotColor = step.completed ? '#2ecc71' : color;
+    var tip = (step.text || '(제목 없음)') + ' · ' + (sd.getMonth()+1)+'/'+sd.getDate() + (step.completed ? ' ✓' : '');
+    html += '<div class="gm-todo-dot'+(step.completed?' done':'')+'" style="left:'+leftPct.toFixed(3)+'%;background:'+dotColor+';" title="'+hwEsc(tip)+'"></div>';
+  });
+  return html;
+}
+
+// 하위 to-do(task.steps)를 서브로우로 표시 — 전체 GANTT 페이지(gantt.js)에서 재사용
 function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
   var steps = task.steps || [];
   if (!steps.length) return '';

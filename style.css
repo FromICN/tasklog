@@ -4814,6 +4814,13 @@ body.light-mode .lw-cv-tag {
   color: var(--text-2);
   min-width: 34px;
 }
+.cal-detail-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 .cal-detail-gbadge {
   font-size: 9px;
   font-weight: 700;
@@ -4868,6 +4875,8 @@ body.light-mode .lw-cv-tag {
 .habit-list {
   max-height: 200px;
   overflow-y: auto;
+  /* 마지막 요일 점이 세로 스크롤바와 겹치지 않도록 우측 여백 확보 */
+  padding-right: 10px;
 }
 .habit-row {
   display: flex;
@@ -4877,16 +4886,18 @@ body.light-mode .lw-cv-tag {
   border-bottom: 1px solid var(--border);
 }
 .habit-row:last-child { border-bottom: none; }
-.habit-info { flex: 1; min-width: 0; }
+/* 이름 + "N일 연속"을 한 줄에 (연속 표시를 이름 오른쪽으로) */
+.habit-info { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .habit-name {
   font-size: 12px;
   color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
-.habit-meta { font-size: 10px; color: var(--text-3); margin-top: 1px; }
-.habit-week { display: flex; gap: 3px; }
+.habit-meta { font-size: 10px; color: var(--text-3); flex-shrink: 0; white-space: nowrap; }
+.habit-week { display: flex; gap: 3px; flex-shrink: 0; }
 .habit-dot {
   width: 18px;
   height: 18px;
@@ -5059,6 +5070,21 @@ body.light-mode .lw-cv-tag {
   pointer-events: none;
 }
 .gm-bar-fill { height: 100%; border-radius: 7px 0 0 7px; }
+
+/* TO DO 점 — Task 행의 해당 일자 위에 표시(호버 시 title 툴팁) */
+.gm-todo-dot {
+  position: absolute;
+  top: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translateX(-50%);
+  border: 1px solid var(--surface);
+  cursor: pointer;
+  z-index: 3;
+}
+.gm-todo-dot.done { opacity: 0.6; }
+.gm-todo-dot:hover { transform: translateX(-50%) scale(1.4); }
 
 .gm-today-line {
   position: absolute;
