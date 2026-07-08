@@ -419,32 +419,43 @@ var TLFilter = (function () {
       + (activeFilterCount(menu) ? ' <button class="tlf-clear" onclick="TLFilter.clearFilters(\'' + menu + '\')">전체 해제</button>' : '')
       + '</div>';
 
-    // 1차 영역: 보기(단일 선택) — 페이지가 view 설정을 등록한 경우
-    if (cfg.view) {
+    // 보기(단일 선택) — "표시 항목" 목록의 한 항목으로 통합.
+    //   · display 가 있으면 "표시 항목" 아코디언 본문 맨 위에 중첩 항목으로 넣는다.
+    //   · display 가 없으면(예외) 기존처럼 단독 1차 영역으로 노출한다.
+    function viewBodyHtml() {
       var vc = cfg.view;
       var vopts = [];
       try { vopts = vc.options() || []; } catch (e) { vopts = []; }
       var curView = '';
       try { curView = vc.current(); } catch (e) {}
-      var vbody = '', curLabel = '';
+      var body = '', curLabel = '';
       vopts.forEach(function (o) {
         var on = String(o.value) === String(curView);
         if (on) curLabel = o.label;
-        vbody += '<label class="tlf-opt">'
+        body += '<label class="tlf-opt">'
           + '<input type="radio" name="tlf-view-' + menu + '"' + (on ? ' checked' : '')
           + ' onchange="TLFilter.setView(\'' + menu + '\',this.dataset.k)" data-k="' + esc(o.value) + '">'
           + '<span>' + esc(o.label) + '</span></label>';
       });
-      var vbadge = '<span class="tlf-acc-badge on">' + esc(curLabel) + '</span>';
-      html += accordionHtml(menu, '__view__', (vc.label || '보기'), vbadge, vbody);
+      return { body: body, label: curLabel };
     }
 
-    // 1차 영역: 표시 항목(컬럼 표시/숨김) — 페이지가 display 설정을 등록한 경우
+    // 1차 영역: 표시 항목(보기 + 컬럼 표시/숨김) — 페이지가 display 설정을 등록한 경우
     if (cfg.display) {
       var dc = cfg.display;
+      var dbody = '';
+
+      // (1) "보기" — 표시 항목 목록의 첫 항목(중첩 아코디언, 펼치면 To Do/Task/Project 선택)
+      if (cfg.view) {
+        var vv = viewBodyHtml();
+        var vbadge = '<span class="tlf-acc-badge on">' + esc(vv.label) + '</span>';
+        dbody += accordionHtml(menu, '__view__', (cfg.view.label || '보기'), vbadge, vv.body);
+      }
+
+      // (2) 컬럼 표시/숨김
       var dopts = [];
       try { dopts = dc.options() || []; } catch (e) { dopts = []; }
-      var onCount = 0, dbody = '';
+      var onCount = 0;
       dopts.forEach(function (o) {
         var on = false;
         try { on = !!dc.isOn(o.value); } catch (e) {}
@@ -455,6 +466,11 @@ var TLFilter = (function () {
       });
       var dbadge = '<span class="tlf-acc-badge">' + onCount + '/' + dopts.length + '</span>';
       html += accordionHtml(menu, '__display__', (dc.label || '표시 항목'), dbadge, dbody);
+    } else if (cfg.view) {
+      // 예외: display 없이 view 만 있는 경우 — 단독 1차 영역으로 노출(하위호환)
+      var vonly = viewBodyHtml();
+      var vobadge = '<span class="tlf-acc-badge on">' + esc(vonly.label) + '</span>';
+      html += accordionHtml(menu, '__view__', (cfg.view.label || '보기'), vobadge, vonly.body);
     }
 
     // 1차 영역: 각 필터 항목(드롭다운). 펼치면 2차로 값 표시/숨김 선택

@@ -9020,6 +9020,9 @@ body.light-mode .tlf-search-input { background: #fff; }
 }
 .tlf-acc-badge.on { color: #fff; background: #4F6EF7; }
 .tlf-acc-body { padding: 2px 0 6px 14px; }
+/* "표시 항목" 본문에 중첩된 "보기" 항목 — 아래 컬럼 목록과 구분선으로 분리 */
+.tlf-acc-body > .tlf-acc { border-bottom: 1px solid var(--border, rgba(255,255,255,0.08)); margin-bottom: 4px; }
+.tlf-acc-body > .tlf-acc + .tlf-acc { border-top: none; }
 body.light-mode .tlf-acc-badge { background: rgba(0,0,0,0.06); }
 
 .tlf-sort-row {
