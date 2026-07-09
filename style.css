@@ -4958,7 +4958,30 @@ body.light-mode .lw-cv-tag {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  position: relative;
 }
+/* 좌측 TASK 라벨 폭 조정 핸들 (드래그) */
+.gm-col-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--gm-left, 136px);
+  width: 9px;
+  margin-left: -4px;
+  cursor: col-resize;
+  z-index: 6;
+}
+.gm-col-resize::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  transition: background 0.12s, width 0.12s;
+}
+.gm-col-resize:hover::after { background: var(--brand-primary); width: 2px; left: 3.5px; }
 .gm-header {
   display: flex;
   position: sticky;

@@ -361,7 +361,14 @@ function collectWeekItems(ws, we) {
       }
     });
   }
-  items.sort(function(a, b){ return a.date - b.date; });
+  // 기본은 날짜순이되, 오늘 기준 "다가올 일정"을 먼저(가까운 순), "지나간 일정"은 그 뒤(최근 순)
+  var todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  items.sort(function(a, b){
+    var ap = a.date < todayStart, bp = b.date < todayStart;
+    if (ap !== bp) return ap ? 1 : -1;   // 지나간 일정은 뒤로
+    if (ap) return b.date - a.date;       // 지나간 것끼리: 최근(오늘에 가까운) 순
+    return a.date - b.date;               // 다가올 것끼리: 가까운 순
+  });
   return items;
 }
 
@@ -375,9 +382,8 @@ function renderCalDetail() {
   var ws = new Date(sel); ws.setDate(sel.getDate() - sel.getDay());          // 그 주 일요일
   var we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999); // 토요일
 
-  var rangeStr = (ws.getMonth()+1)+'/'+ws.getDate()+' – '+(we.getMonth()+1)+'/'+we.getDate();
   var items = collectWeekItems(ws, we);
-  var html = '<div class="cal-detail-header">' + rangeStr + ' 예정된 항목</div>';
+  var html = '<div class="cal-detail-header">이번주 할 일</div>';
   var listBody;
   if (!items.length) {
     listBody = '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
@@ -499,6 +505,55 @@ var GM_LEFT = 136;
 var GM_LEFT_MAX = 204;   // 최대 1.5배
 var GM_MAX_ROWS = 14;
 var GM_MAX_SUBROWS = 4;
+var GM_LEFT_MIN_DRAG = 90;   // 사용자 조정 최소 폭
+var GM_LEFT_MAX_DRAG = 420;  // 사용자 조정 최대 폭
+
+// 좌측 TASK 라벨 폭 — 사용자가 드래그로 조정한 값(있으면 우선)
+var homeGanttLeftW = null;
+try { var _hgw = localStorage.getItem('homeGanttLeftW'); if (_hgw) { var _n = parseInt(_hgw, 10); if (!isNaN(_n)) homeGanttLeftW = _n; } } catch(e) {}
+
+// 완료되지 않은 To Do(step) 중 가장 가까운 마감일(ms). 없으면 Task 마감일, 그것도 없으면 Infinity
+function gmNearestTodoDue(task) {
+  var best = Infinity;
+  (task.steps || []).forEach(function(s) {
+    if (s.completed || !s.dueDateTime) return;
+    var t = new Date(s.dueDateTime).getTime();
+    if (t < best) best = t;
+  });
+  if (best === Infinity && task.dueDateTime) best = new Date(task.dueDateTime).getTime();
+  return best;
+}
+
+// 좌측 라벨 폭 드래그 조정
+var _hgResize = null;
+function homeGanttResizeStart(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  var wrap = document.querySelector('#gantt-body .gm-wrap');
+  if (!wrap) return;
+  var cur = parseInt(getComputedStyle(wrap).getPropertyValue('--gm-left'), 10) || GM_LEFT;
+  _hgResize = { startX: e.clientX, startW: cur, wrap: wrap, w: cur };
+  document.addEventListener('mousemove', homeGanttResizeMove);
+  document.addEventListener('mouseup', homeGanttResizeEnd);
+  document.body.style.userSelect = 'none';
+}
+function homeGanttResizeMove(e) {
+  if (!_hgResize) return;
+  var w = _hgResize.startW + (e.clientX - _hgResize.startX);
+  w = Math.max(GM_LEFT_MIN_DRAG, Math.min(GM_LEFT_MAX_DRAG, Math.round(w)));
+  _hgResize.w = w;
+  _hgResize.wrap.style.setProperty('--gm-left', w + 'px');
+}
+function homeGanttResizeEnd() {
+  document.removeEventListener('mousemove', homeGanttResizeMove);
+  document.removeEventListener('mouseup', homeGanttResizeEnd);
+  document.body.style.userSelect = '';
+  if (_hgResize) {
+    homeGanttLeftW = _hgResize.w;
+    try { localStorage.setItem('homeGanttLeftW', String(homeGanttLeftW)); } catch(e) {}
+    _hgResize = null;
+    renderHomeGanttMini();  // today-line 등 폭 반영해 재렌더
+  }
+}
 
 // task 이름 길이에 따라 좌측 라벨 영역 폭을 동적으로 계산 (136 ~ 204px)
 // 헤더/본문 정렬을 위해 모든 행에 동일 폭(--gm-left)을 적용한다.
@@ -539,6 +594,9 @@ function renderHomeGanttMini() {
     return false;
   });
 
+  // 완료되지 않은 To Do의 마감일이 가장 가까운 순으로 Task 정렬
+  vis.sort(function(a, b){ return gmNearestTodoDue(a) - gmNearestTodoDue(b); });
+
   var navHtml = '<div class="gm-nav">'
     + '<button class="gm-arrow" onclick="homeGanttPrev()">‹</button>'
     + '<span class="gm-month-label">'+year+'년 '+MN[month]+'</span>'
@@ -551,7 +609,10 @@ function renderHomeGanttMini() {
     return;
   }
 
-  var leftW = gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
+  // 좌측 라벨 폭: 사용자가 조정한 값이 있으면 우선, 없으면 이름 길이에 맞춰 자동
+  var leftW = homeGanttLeftW
+    ? Math.max(GM_LEFT_MIN_DRAG, Math.min(GM_LEFT_MAX_DRAG, homeGanttLeftW))
+    : gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
 
   // 배경 셀(요일/오늘 음영) — 모든 행이 공유하는 퍼센트 기반 칸, 우측 여백 없이 꽉 채움
   var bgCellsHtml = '';
@@ -572,7 +633,10 @@ function renderHomeGanttMini() {
 
   var rows = vis.slice(0, GM_MAX_ROWS).map(function(task) {
     var pct = getTaskProgress(task);
-    var color = getGanttColor(task);
+    // 색상: STATUS 컬러와 동일(예: 진행=초록). 상태값 없으면 섹션 색으로 폴백
+    var color = (typeof RP_STATUS_COLORS !== 'undefined' && RP_STATUS_COLORS[task.status])
+      ? RP_STATUS_COLORS[task.status]
+      : getGanttColor(task);
     var label = task.text.replace(/^\[\d{6}\] /, '');
     var shortLabel = label;
 
@@ -623,7 +687,9 @@ function renderHomeGanttMini() {
     + '<div class="gm-wrap" style="--gm-left:'+leftW+'px;">'
     + '<div class="gm-header"><div class="gm-left-spacer"></div>'
     + '<div class="gm-hcells">'+hdrCells+'</div></div>'
-    + '<div class="gm-body">' + todayLine + rows + '</div>'
+    + '<div class="gm-body">'
+    + '<div class="gm-col-resize" title="드래그해서 TASK 폭 조정" onmousedown="homeGanttResizeStart(event)"></div>'
+    + todayLine + rows + '</div>'
     + '</div>'
     + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
 }
