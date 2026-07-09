@@ -366,11 +366,10 @@ function renderCoreCard(m) {
 
 // ── 실적 관리 패널 (우측) ──
 
+// 개별 SECTION 클릭 → 세부내역 전체 화면(그리드)으로 이동
+//  (뒤로 가기: closeSgDetail → 초기 만다라트 화면으로 복귀)
 function selectMdtSection(year, sgId) {
-  mdtSelectedSgId = sgId;
-  mdtSelectedActId = null;
-  highlightSelectedSection(year, sgId);
-  renderMdtPerfPanel(year);
+  openMdtSectionGrid(year, sgId);
 }
 
 function selectMdtAction(year, sgId, actId) {
@@ -673,6 +672,84 @@ function openSgDetail(year, sgId) {
 }
 
 function closeSgDetail() { renderMdtView(); }
+
+// ── SECTION 세부내역 전체 화면 (그리드) ──────────────────────
+//  구분 항목: SECTION / PROJECT / 세부목표 / 평가지표 / 달성현황 / 메모
+//  (PROJECT 실적 관리 화면 기반 · 뒤로 가기로 초기 화면 복귀)
+function openMdtSectionGrid(year, sgId) {
+  var m  = getMdt(year);
+  var sg = m ? m.subGoals.find(function(s){ return s.id === sgId; }) : null;
+  if (!sg) return;
+  // 필드 기본값 보정
+  sg.actions.forEach(function(a) {
+    if (!a.trackingType)   a.trackingType = 'task';
+    if (!a.mainTasks)      a.mainTasks = '';
+    if (!a.evalIndicators) a.evalIndicators = '';
+    if (!a.midtermNote)    a.midtermNote = '';
+  });
+  var content = document.getElementById('page-content');
+  if (content) content.innerHTML = buildSgGridHtml(m, sg);
+}
+
+// 편집 셀(세부목표/평가지표/메모) — 저장 후 즉시 영구 저장
+function mdtGridSaveCE(el) {
+  if (typeof saveActCE === 'function') saveActCE(el);
+  if (typeof saveMandalarts === 'function') saveMandalarts();
+}
+
+function mdtGridCeCell(yr, sgId, actId, field, val) {
+  return '<div class="mdt-ce-cell mdt-g-ce" contenteditable="true" spellcheck="false"'
+    + ' data-year="'+yr+'" data-sg="'+sgId+'" data-act="'+actId+'" data-field="'+field+'"'
+    + ' onblur="mdtGridSaveCE(this)">'+escMdt(val||'').replace(/\n/g,'<br>')+'</div>';
+}
+
+function buildSgGridRows(m, sg) {
+  var acts = sg.actions || [];
+  var secLabel = '<span class="mdt-g-sec-emoji">'+(sg.emoji||'')+'</span>'
+    + '<span class="mdt-g-sec-name" style="color:'+sg.color+';">'+escMdt(sg.text)+'</span>';
+  if (!acts.length) {
+    return '<tr><td class="mdt-g-section">'+secLabel+'</td>'
+      + '<td colspan="5" class="mdt-g-empty">등록된 PROJECT가 없습니다</td></tr>';
+  }
+  return acts.map(function(a, i) {
+    var yr = m.year, sgId = sg.id;
+    var pct = (typeof mdtActPct === 'function') ? mdtActPct(a) : 0;
+    var secCell = (i === 0)
+      ? '<td class="mdt-g-section" rowspan="'+acts.length+'">'+secLabel+'</td>'
+      : '';
+    return '<tr>'
+      + secCell
+      + '<td class="mdt-g-project"'+(a.completed?' data-done="1"':'')+'>'+escMdt(a.text||'(제목 없음)')+'</td>'
+      + '<td>'+mdtGridCeCell(yr, sgId, a.id, 'mainTasks', a.mainTasks)+'</td>'
+      + '<td>'+mdtGridCeCell(yr, sgId, a.id, 'evalIndicators', a.evalIndicators)+'</td>'
+      + '<td class="mdt-g-achieve"><div class="mdt-g-bar"><div class="mdt-g-fill" style="width:'+pct+'%;background:'+sg.color+';"></div></div>'
+      +   '<span class="mdt-g-pct">'+pct+'%</span></td>'
+      + '<td>'+mdtGridCeCell(yr, sgId, a.id, 'midtermNote', a.midtermNote)+'</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function buildSgGridHtml(m, sg) {
+  return '<div class="mdt-grid-wrap">'
+    + '<div class="mdt-detail-top">'
+    +   '<button class="mdt-back-btn" onclick="closeSgDetail()">&#8592; Mandalart</button>'
+    +   '<span class="mdt-grid-title">'+(sg.emoji||'')+' '+escMdt(sg.text)+' · 세부내역 ('+m.year+')</span>'
+    + '</div>'
+    + '<div class="mdt-grid-scroll">'
+    + '<table class="mdt-grid-table">'
+    + '<thead><tr>'
+    +   '<th class="mdt-gh-section">SECTION</th>'
+    +   '<th class="mdt-gh-project">PROJECT</th>'
+    +   '<th>세부목표</th>'
+    +   '<th>평가지표</th>'
+    +   '<th class="mdt-gh-achieve">달성현황</th>'
+    +   '<th>메모</th>'
+    + '</tr></thead>'
+    + '<tbody>'+buildSgGridRows(m, sg)+'</tbody>'
+    + '</table>'
+    + '</div>'
+    + '</div>';
+}
 
 function openMdtSmart(year, sgId) {
   var m  = getMdt(year);

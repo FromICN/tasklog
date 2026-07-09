@@ -2683,6 +2683,77 @@ mark.search-hl {
   color: var(--text-1);
 }
 
+/* ── SECTION 세부내역 전체 화면 (그리드) ── */
+.mdt-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
+}
+.mdt-grid-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.mdt-grid-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.mdt-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+.mdt-grid-table th,
+.mdt-grid-table td {
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  vertical-align: top;
+  text-align: left;
+  word-break: break-word;
+}
+.mdt-grid-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+  color: var(--text-2);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+.mdt-gh-section { width: 130px; }
+.mdt-gh-project { width: 150px; }
+.mdt-gh-achieve { width: 120px; }
+.mdt-grid-table tbody tr:hover td { background: var(--surface-hover); }
+.mdt-g-section {
+  background: rgba(127,127,127,0.05);
+  vertical-align: middle !important;
+  text-align: center;
+}
+.mdt-g-sec-emoji { font-size: 18px; display: block; margin-bottom: 4px; }
+.mdt-g-sec-name { font-weight: 700; font-size: 13px; }
+.mdt-g-project { font-weight: 600; color: var(--text-1); }
+.mdt-g-project[data-done="1"] { color: var(--text-3); text-decoration: line-through; }
+.mdt-g-empty { color: var(--text-3); text-align: center; }
+.mdt-g-achieve { text-align: center; vertical-align: middle !important; white-space: nowrap; }
+.mdt-g-bar {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.mdt-g-fill { height: 100%; border-radius: 4px; }
+.mdt-g-pct { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.mdt-g-ce { min-height: 34px; }
+
 .mdt-add-rec-btn {
   background: rgba(139,92,246,0.18);
   color: #c4b5fd;

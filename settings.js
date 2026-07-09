@@ -258,27 +258,13 @@ function buildFontSizeBtn(val, label) {
 function buildTabCalendar() {
   var calSync = settingsState.calSync;
   var provider = settingsState.calProvider;
-  var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 동기화 중...'
-    : settingsState.syncStatus === 'done' ? '✓ 동기화 완료' : '🔄 지금 동기화';
+  var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 불러오는 중...'
+    : settingsState.syncStatus === 'done' ? '✓ 불러오기 완료' : '📥 지금 불러오기';
 
-  var twoWay = settingsState.calDirection === 'two';
-  var dirDesc = twoWay ? 'TaskLog ↔ 캘린더 (양방향)' : 'TaskLog → 캘린더 (단방향)';
-  var allItems = settingsState.calItems === 'all';
-
+  // 불러오기 전용: 앱 일정을 구글로 보내지 않으므로 방향/보낼 항목 선택은 제공하지 않음
   var subHtml = !calSync ? '' :
     '<div class="settings-row">'
-    + '<div><div class="settings-row-label">동기화 방향</div><div class="settings-row-desc">' + dirDesc + '</div></div>'
-    + '<select class="settings-select" onchange="settingsSetCalDirection(this.value)">'
-    + '<option value="one"' + (twoWay ? '' : ' selected') + '>단방향 (앱 → 캘린더)</option>'
-    + '<option value="two"' + (twoWay ? ' selected' : '') + '>양방향</option>'
-    + '</select>'
-    + '</div>'
-    + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">동기화 항목</div><div class="settings-row-desc">캘린더에 표시할 항목</div></div>'
-    + '<select class="settings-select" onchange="settingsSetCalItems(this.value)">'
-    + '<option value="deadline"' + (allItems ? '' : ' selected') + '>Task 마감일만</option>'
-    + '<option value="all"' + (allItems ? ' selected' : '') + '>Task + To-Do 전체</option>'
-    + '</select>'
+    + '<div><div class="settings-row-label">불러오기 범위</div><div class="settings-row-desc">지난 30일 ~ 앞으로 90일 일정을 불러옵니다</div></div>'
     + '</div>';
 
   return '<div class="settings-section-head" style="margin-top:8px;">연동 서비스</div>'
@@ -288,14 +274,14 @@ function buildTabCalendar() {
     + buildCalProvider('outlook', '📧', 'Outlook', provider)
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">캘린더 동기화 사용</div><div class="settings-row-desc">Task 마감일을 선택한 캘린더와 동기화합니다</div></div>'
+    + '<div><div class="settings-row-label">구글 캘린더 불러오기</div><div class="settings-row-desc">구글 캘린더 일정을 앱으로 불러와 표시합니다 (앱 일정은 구글로 보내지 않음)</div></div>'
     + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
     + '</div>'
     + subHtml
     + '<div style="margin-top:20px;">'
     + '<button onclick="settingsDoSync()" ' + (calSync ? '' : 'disabled') + ' style="width:100%;height:40px;border-radius:8px;border:none;cursor:' + (calSync ? 'pointer' : 'not-allowed') + ';background:' + (calSync ? 'var(--brand-primary)' : 'var(--border)') + ';color:' + (calSync ? '#fff' : 'var(--text-3)') + ';font-size:13px;font-weight:700;font-family:inherit;">'
     + syncBtnText + '</button>'
-    + (!calSync ? '<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;">동기화를 사용하려면 위 토글을 켜주세요</div>' : '')
+    + (!calSync ? '<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;">불러오려면 위 토글을 켜주세요</div>' : '')
     + '</div>';
 }
 
