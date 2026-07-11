@@ -16,7 +16,7 @@
 // 구글 캘린더 연동 전용 설정 (Drive 백업은 Firestore로 대체되어 제거됨)
 const GOOGLE_CONFIG = {
   // OAuth 클라이언트 ID (캘린더 토큰 조용한 갱신용 — 웹)
-  CLIENT_ID: '420758769250-jejahpe499ofc9q1nurh68ln45ph3p3m.apps.googleusercontent.com',
+  CLIENT_ID: '1005717689565-0vlidkn3hv1v78eus52q3v0b8b25nle2.apps.googleusercontent.com',
 
   API_KEY: 'AIzaSyBZDPLYXqAJzbqr9DmO9oyhV3V7X6Wzs3M',
 
