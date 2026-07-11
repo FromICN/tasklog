@@ -21,7 +21,8 @@ function isNativeApp() {
     console.error('🔥 Firebase SDK가 로드되지 않았습니다. index.html 스크립트를 확인하세요.');
     return;
   }
-  if (!window.FIREBASE_CONFIG || String(FIREBASE_CONFIG.apiKey).indexOf('여기에') === 0) {
+  // ⚠️ const 선언은 window 에 붙지 않으므로 typeof 로 검사해야 함
+  if (typeof FIREBASE_CONFIG === 'undefined' || !FIREBASE_CONFIG || String(FIREBASE_CONFIG.apiKey).indexOf('여기에') === 0) {
     console.error('🔥 config.js 의 FIREBASE_CONFIG 를 채워주세요. (FIREBASE-SETUP.md 1단계)');
     alert('Firebase 설정이 비어 있습니다.\nconfig.js 의 FIREBASE_CONFIG 를 채운 뒤 새로고침하세요.\n(FIREBASE-SETUP.md 참고)');
     return;
