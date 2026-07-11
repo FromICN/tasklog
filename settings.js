@@ -167,14 +167,14 @@ function buildTabGeneral() {
       + '</div>'
       + '<div><div class="user-name">' + sEsc(user.name || '') + '</div><div class="user-email">' + sEsc(user.email || '') + '</div></div>'
       + '</div>'
-      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof signOut===\'function\')signOut()">로그아웃</button>'
+      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof handleSignOut===\'function\')handleSignOut()">로그아웃</button>'
       + '</div>'
     : '<div class="settings-row">'
       + '<div><div class="settings-row-label">사용자 이름</div></div>'
       + '<input class="settings-input" id="settings-username" value="Mia">'
       + '</div>'
       + '<div class="settings-row" style="border-bottom:none;">'
-      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">Drive 백업, 캘린더 동기화에 필요합니다</div></div>'
+      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">클라우드 실시간 동기화, 캘린더 연동에 필요합니다</div></div>'
       + '<button class="signin-btn" id="settings-signin-btn" style="width:auto;padding:7px 14px;" onclick="if(typeof handleSignIn===\'function\')handleSignIn()"><span class="g-icon">G</span> 로그인</button>'
       + '</div>';
 
@@ -296,8 +296,7 @@ function buildCalProvider(id, icon, label, selected) {
 function buildTabBackup() {
   var signedIn   = typeof isSignedIn === 'function' && isSignedIn();
   var lastBackup = localStorage.getItem('last-backup-time');
-  var lastText   = lastBackup ? '마지막 백업: ' + new Date(lastBackup).toLocaleString('ko-KR') : '백업 기록 없음';
-  var autoOn     = typeof autoBackupEnabled !== 'undefined' ? autoBackupEnabled : false;
+  var lastText   = lastBackup ? '마지막 동기화: ' + new Date(lastBackup).toLocaleString('ko-KR') : '동기화 기록 없음';
 
   // 실제 데이터 개수 세기 (localStorage 기준)
   function cnt(key) {
@@ -346,16 +345,13 @@ function buildTabBackup() {
     + '<div><div class="settings-row-label">Mandalart</div><div class="settings-row-desc">섹션 · 프로젝트 · 유형(달성/습관) · 달성현황 · 목표</div></div>'
     + '<button class="btn-secondary" style="font-size:12px;" onclick="exportMandalartXlsx()">⬇ 엑셀</button>'
     + '</div>'
-    + '<div class="settings-section-head">Google Drive 백업</div>'
+    + '<div class="settings-section-head">클라우드 실시간 동기화 (Firestore)</div>'
     + '<div class="drive-section">'
-    + (!signedIn ? '<div class="drive-note">⚠️ Google 로그인 후 Drive 백업을 이용할 수 있습니다.</div>' : '')
+    + (!signedIn
+        ? '<div class="drive-note">⚠️ Google 로그인 후 모든 기기에서 실시간 동기화됩니다.</div>'
+        : '<div class="drive-note">✅ 로그인 중 — 변경사항이 자동으로 모든 기기에 실시간 반영됩니다.</div>')
     + '<div class="drive-actions">'
-    + '<button class="drive-btn primary-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="backupToDrive&&backupToDrive();refreshSettingsBackupStatus()">☁️ 지금 백업</button>'
-    + '<button class="drive-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="restoreFromDrive&&restoreFromDrive()">📥 복원</button>'
-    + '</div>'
-    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 0;">'
-    + '<div><div class="settings-row-label" style="font-size:12px;">자동 백업</div><div class="settings-row-desc">변경 시 자동으로 Drive에 저장</div></div>'
-    + buildToggle('settings-auto-backup', autoOn, 'settingsToggleAutoBackup()')
+    + '<button class="drive-btn primary-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="forceSyncNow&&forceSyncNow()">☁️ 지금 동기화</button>'
     + '</div>'
     + '<div class="drive-status" id="settings-backup-status">' + lastText + '</div>'
     + '</div>'
@@ -420,14 +416,6 @@ function settingsDoSync() {
   setSettingsTab('calendar');
   setTimeout(function() { settingsState.syncStatus = 'done'; setSettingsTab('calendar'); }, 2000);
 }
-function settingsToggleAutoBackup() {
-  if (!(typeof isSignedIn === 'function' && isSignedIn())) {
-    alert('자동 백업을 사용하려면 먼저 Google 로그인을 해주세요! 🔑');
-    return;
-  }
-  if (typeof toggleAutoBackup === 'function') toggleAutoBackup();
-  setSettingsTab('backup');
-}
 function saveSettingsAndClose() {
   localStorage.setItem('app-theme',            settingsState.darkMode ? 'dark' : 'light');
   localStorage.setItem('app-lang',             settingsState.lang);
@@ -443,7 +431,7 @@ function refreshSettingsBackupStatus() {
     var el = document.getElementById('settings-backup-status');
     if (!el) return;
     var lb = localStorage.getItem('last-backup-time');
-    el.textContent = lb ? '마지막 백업: ' + new Date(lb).toLocaleString('ko-KR') : '백업 없음';
+    el.textContent = lb ? '마지막 동기화: ' + new Date(lb).toLocaleString('ko-KR') : '동기화 기록 없음';
   }, 200);
 }
 
@@ -483,9 +471,9 @@ function handleRestoreFile(input) {
       if (!confirm('백업 파일의 내용으로 현재 데이터를 덮어씁니다.\n(Task ' + taskN + '개 등 모든 페이지 데이터)\n계속할까요?')) {
         input.value = ''; return;
       }
-      var n = applyBackupData(data);   // 통합 복원 엔진 (신규/구버전 형식 모두 지원)
+      var n = applyBackupData(data);   // 통합 복원 엔진 (신규/구버전 형식 모두 지원) + Firestore 자동 푸시
       alert('복원 완료! (' + n + '개 항목) 페이지를 새로고침합니다. ✅');
-      location.reload();
+      setTimeout(function () { location.reload(); }, 800);   // Firestore 푸시가 로컬 큐에 기록될 시간 확보
     } catch (err) {
       alert('복원 실패: ' + err.message);
     }

@@ -9,18 +9,20 @@
   <link rel="stylesheet" href="profile-modal.css?v=20260625a">
   <link rel="stylesheet" href="login.css?v=20260625a">
   <script>
-    // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
-    // 페인트 전에 미리 숨긴다. (자동 로그인이 실패하면 auth.js가 다시 보여줌)
+    // 직전에 로그인돼 있었다면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
+    // 페인트 전에 미리 숨긴다. (Firebase 세션 확인이 실패하면 auth.js가 다시 보여줌)
     (function () {
       try {
-        var hasToken = false;
-        var raw = sessionStorage.getItem('tasklog-token');
-        if (raw) { var t = JSON.parse(raw); hasToken = !!(t && t.access_token && Date.now() < t.expires_at); }
-        var autoOn = localStorage.getItem('tasklog-auto-login') === 'true';
-        if (hasToken || autoOn) document.documentElement.classList.add('preauth-hide-gate');
+        if (localStorage.getItem('tasklog-was-signed-in') === '1')
+          document.documentElement.classList.add('preauth-hide-gate');
       } catch (e) {}
     })();
   </script>
+  <!-- Firebase (compat) — 인증 + Firestore -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <!-- 구글 캘린더 연동용 (gapi REST + 웹 토큰 갱신용 GIS) -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -62,7 +64,7 @@
 
     <!-- 하단: 백업 + 설정 -->
     <div class="sidebar-bottom">
-      <button class="nav-item" id="backup-nav-btn" title="지금 백업" onclick="backupToDrive()">
+      <button class="nav-item" id="backup-nav-btn" title="지금 동기화" onclick="forceSyncNow()">
         <span class="nav-item-icon">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 16l-4-4-4 4"/>
@@ -70,7 +72,7 @@
             <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
           </svg>
         </span>
-        <span class="nav-item-label">백업</span>
+        <span class="nav-item-label">동기화</span>
       </button>
       <button class="nav-item" id="settings-nav-btn" title="설정" onclick="openSettings()">
         <span class="nav-item-icon">
@@ -139,14 +141,15 @@
 <div class="cal-popup" id="cal-popup" style="display:none;"></div>
 
 <!-- 스크립트 로드 순서 -->
-<script src="config.js?v=20260625a"></script>
+<script src="config.js?v=20260711a"></script>
+<script src="firebase-init.js?v=20260711a"></script>
 <script src="backup-core.js?v=20260708b"></script>
 <script src="backup-xlsx.js?v=20260625c"></script>
 <script src="backup-pg-board.js?v=20260626a"></script>
 <script src="backup-pg-wdlw.js?v=20260625b"></script>
 <script src="backup-pg-mdt.js?v=20260625b"></script>
-<script src="auth.js?v=20260625a"></script>
-<script src="calendar.js?v=20260708e"></script>
+<script src="auth.js?v=20260711a"></script>
+<script src="calendar.js?v=20260711a"></script>
 <script src="mandalart.js?v=20260708e"></script>
 <script src="lifewheel.js?v=20260626b"></script>
 <script src="home.js?v=20260708d"></script>
@@ -155,8 +158,8 @@
 <script src="journal.js?v=20260625a"></script>
 <script src="wbs.js?v=20260627c"></script>
 <script src="mvv.js?v=20260625a"></script>
-<script src="settings.js?v=20260708e"></script>
-<script src="drive.js?v=20260625a"></script>
+<script src="settings.js?v=20260711a"></script>
+<script src="firestore-sync.js?v=20260711a"></script>
 <script src="todo.js?v=20260708b"></script>
 <script src="yearsync.js?v=20260625a"></script>
 <script src="tlfilter.js?v=20260708b"></script>

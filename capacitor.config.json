@@ -1,0 +1,11 @@
+{
+  "appId": "com.fromicn.tasklog",
+  "appName": "TaskLog",
+  "webDir": "www",
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": false,
+      "providers": ["google.com"]
+    }
+  }
+}
