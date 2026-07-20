@@ -96,7 +96,7 @@ function addTask(text, dueDate, dueTime) {
   let dueDateTime = null;
   if (dueDate) dueDateTime = dueTime ? dueDate+'T'+dueTime+':00' : dueDate+'T09:00:00';
   const task = {
-    id: Date.now(), text: text.trim(), completed: false,
+    id: Date.now(), text: text.trim(), completed: false, starred: false,
     createdAt: new Date().toISOString(), dueDateTime, hasTime: !!dueTime,
     steps: [], reminder: null, assignee: '', assignees: [], repeat: null, startDate: null, prevTaskIds: [], nextTaskIds: []
   };
@@ -155,6 +155,17 @@ function toggleComplete(id) {
     // 디테일 패널 타이틀도 업데이트
     const ta = document.getElementById('dp-title-area');
     if (ta) { ta.value = task.text; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  }
+}
+
+function toggleStar(id) {
+  const task = tasks.find(t => t.id === id);
+  if (!task) return;
+  task.starred = !task.starred;
+  saveTasks(); renderTasks(); updateCategoryCounts();
+  if (detailTaskId === id) {
+    const btn = document.querySelector('.dp-star');
+    if (btn) { btn.textContent = task.starred ? '★' : '☆'; btn.classList.toggle('starred', task.starred); }
   }
 }
 
@@ -218,6 +229,7 @@ function getFilteredTasks() {
       return false;
     });
   }
+  if (currentCategory === 'important') return tasks.filter(t => t.starred);
   if (currentCategory === 'today') {
     const today = new Date().toDateString();
     return tasks.filter(t => {
@@ -276,7 +288,8 @@ function renderTaskItem(task) {
     + '<span class="task-title">'+highlightText(task.text, searchQuery)+'</span>'
     + (badges ? '<div class="task-meta">'+badges+'</div>' : '')
     + '</div>'
-    + '</div>';
+    + '<button class="task-star '+(task.starred?'starred':'')+'" onclick="event.stopPropagation();toggleStar('+task.id+')">'
+    + (task.starred?'★':'☆')+'</button></div>';
 }
 
 // ============================================
@@ -402,6 +415,7 @@ function updateCategoryCounts() {
   const set = (id, n) => { const el = document.getElementById(id); if(el) el.textContent = n>0?n:''; };
   // count-today는 홈 메뉴 뱃지로 재사용 (오늘 마감 건수)
   set('count-today', todayCount);
+  set('count-important', active.filter(t=>t.starred).length);
   set('count-planned', active.filter(t=>t.dueDateTime).length);
   set('count-all', active.length);
 }
@@ -627,9 +641,9 @@ function buildPickerHtml(id, dateStr, timeStr) {
     + ' placeholder="YYYYMMDD"'
     + ' value="' + dateDisp + '"'
     + ' oninput="onPickerText(\'' + id + '\')"'
-    + ' onfocus="openPickerCal(\'' + id + '\');this.select();"'
+    + ' onfocus="openPickerCal(\'' + id + '\')"'
     + ' onkeydown="onPickerKey(event,\'' + id + '\')"'
-    + ' inputmode="numeric" autocomplete="off">'
+    + ' autocomplete="off" readonly>'
     + '</div>'
     + (s.dateStr ? '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕</button>' : '')
     + '</div>'
@@ -909,7 +923,8 @@ function buildDetailPanelHTML(task) {
     + '<div class="task-check dp-check '+(task.completed?'is-done':'')+'" onclick="toggleCompleteFromPanel()"></div>'
     + '<textarea class="dp-title-area" id="dp-title-area" oninput="scheduleDpTitleSave()" rows="1">'+escapeHtml(task.text)+'</textarea>'
     + '</div>'
-    + '</div>';
+    + '<button class="dp-star task-star '+(task.starred?'starred':'')+'" onclick="toggleStarFromPanel()">'
+    + (task.starred?'★':'☆')+'</button></div>';
 
   // 단계 섹션
   html += '<div class="dp-steps-section"><div class="dp-section-label">📋 TO DO</div>'
@@ -971,22 +986,22 @@ function buildDetailPanelHTML(task) {
   html += '<div class="field-group"><label class="field-label">🔗 연계 TASK</label>'
     + '<div class="dp-dep-wrap" style="display:flex;flex-direction:column;gap:8px;">'
     + '<div class="dep-section">'
-    + '<div class="dep-label">⬅️ Pred <small>(이 작업 전에 완료되어야 할 것)</small></div>'
+    + '<div class="dep-label">⬅️ 이전 TASK <small>(이 작업 전에 완료되어야 할 것)</small></div>'
     + '<div class="dep-tags" id="dp-prev-tags">' + prevTags + '</div>'
     + '<div style="display:flex;gap:6px;">'
     + '<select class="dep-pick-sel" id="dp-prev-sel">'
-    + '<option value="">— Pred 선택 —</option>'
+    + '<option value="">— 이전 TASK 선택 —</option>'
     + tasks.filter(t => t.id !== task.id && !prevTaskIds.includes(t.id))
         .map(t => '<option value="'+t.id+'">'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>').join('')
     + '</select>'
     + '<button class="sub-form-save" onclick="addDepTask('+task.id+',\'prev\')">추가</button>'
     + '</div></div>'
     + '<div class="dep-section">'
-    + '<div class="dep-label">➡️ Succ <small>(이 작업 후에 시작될 것)</small></div>'
+    + '<div class="dep-label">➡️ 다음 TASK <small>(이 작업 후에 시작될 것)</small></div>'
     + '<div class="dep-tags" id="dp-next-tags">' + nextTags + '</div>'
     + '<div style="display:flex;gap:6px;">'
     + '<select class="dep-pick-sel" id="dp-next-sel">'
-    + '<option value="">— Succ 선택 —</option>'
+    + '<option value="">— 다음 TASK 선택 —</option>'
     + tasks.filter(t => t.id !== task.id && !nextTaskIds.includes(t.id))
         .map(t => '<option value="'+t.id+'">'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>').join('')
     + '</select>'
@@ -1066,37 +1081,16 @@ function toggleMdtFavKey(key) {
 }
 
 // 가장 최근(또는 현재) 만다라트의 비어있지 않은 실행과제 목록 — 즐겨찾기 우선 정렬
-// 프로젝트 드롭다운에 쓸 "연도" 결정: TASK START(시작일) 연도 → 없으면 전역 연도
-function projDDYear(domId) {
-  var y = null;
-  if (domId === 'rp-proj') {
-    var el = document.getElementById('rp-start-date');
-    if (el && el.value) y = parseInt(String(el.value).slice(0, 4), 10);
-  } else if (domId === 'dp-proj') {
-    var t = (typeof detailTaskId !== 'undefined' && detailTaskId)
-      ? (tasks || []).find(function(x){ return x.id === detailTaskId; }) : null;
-    if (t && t.startDate) y = parseInt(String(t.startDate).slice(0, 4), 10);
-  }
-  if (!y || isNaN(y)) y = (typeof appGetYear === 'function') ? appGetYear() : new Date().getFullYear();
-  return y;
-}
-
-// 지정 연도(year) 만다라트의 비어있지 않은 실행과제(PROJECT) 목록 — 즐겨찾기 우선 정렬
-//  year 미지정 시에만 전역/최신 연도로 폴백
-function getMdtProjects(year) {
+function getMdtProjects() {
   if (typeof loadMandalarts === 'function') loadMandalarts();
-  var mdt = null;
+  var mdt = null, year = null;
   if (typeof mandalarts !== 'undefined' && mandalarts.length) {
-    if (year && typeof getMdt === 'function') {
-      mdt = getMdt(parseInt(year, 10));   // TASK START 연도의 만다라트
-    } else if (!year) {
-      var yr = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear
-             : (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : null;
-      mdt = (yr && typeof getMdt === 'function') ? getMdt(yr) : null;
-      if (!mdt) mdt = mandalarts.slice().sort(function(a, b){ return b.year - a.year; })[0];
-    }
+    var yr = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear
+           : (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : null;
+    mdt = (yr && typeof getMdt === 'function') ? getMdt(yr) : null;
+    if (!mdt) mdt = mandalarts.slice().sort(function(a, b){ return b.year - a.year; })[0];
+    if (mdt) year = mdt.year;
   }
-  year = mdt ? mdt.year : (year || null);
   var list = [];
   if (mdt) {
     (mdt.subGoals || []).forEach(function(sg) {
@@ -1138,13 +1132,10 @@ function toggleProjDD(domId) {
 }
 
 function buildProjDDList(domId) {
-  var year = projDDYear(domId);
-  var list = getMdtProjects(year);
-  var yhdr = '<div class="proj-dd-yearhdr">📅 ' + year + '년 만다라트 PROJECT</div>';
-  var html = yhdr
-    + '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 프로젝트 없음 —</div>';
+  var list = getMdtProjects();
+  var html = '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 프로젝트 없음 —</div>';
   if (!list.length) {
-    return html + '<div class="proj-dd-empty">' + year + '년 만다라트에 등록된 실행과제가 없어요</div>';
+    return html + '<div class="proj-dd-empty">만다라트에 등록된 실행과제가 없어요</div>';
   }
   list.forEach(function(p) {
     html += '<div class="proj-dd-opt">'
@@ -1167,7 +1158,7 @@ function projDDToggleFav(domId, key) {
 function projDDSelect(domId, key) {
   var sel = null;
   if (key) {
-    var p = getMdtProjects(projDDYear(domId)).find(function(x){ return x.key === key; });
+    var p = getMdtProjects().find(function(x){ return x.key === key; });
     if (p) sel = { year: p.year, sgId: p.sgId, actionId: p.actionId, text: p.text };
   }
   var dd = document.getElementById(domId);
@@ -1324,6 +1315,7 @@ function saveDpTitle() {
 }
 
 function toggleCompleteFromPanel() { if (detailTaskId) toggleComplete(detailTaskId); }
+function toggleStarFromPanel()     { if (detailTaskId) toggleStar(detailTaskId); }
 
 function deleteFromPanel() {
   if (!detailTaskId) return;
@@ -1815,11 +1807,13 @@ var rpState = {
   prevTaskIds: [],
   nextTaskIds: [],
   completed: false,
+  starred: false,
   createdAt: null,
 };
 
 var RP_EI_COLORS = { DO:'#EF4444', SCHEDULE:'#4F6EF7', DELEGATE:'#F5A623', DROP:'#9CA3AF' };
-var RP_EI_NAME   = { DO:'ASAP', SCHEDULE:'Next', DELEGATE:'Schedule', DROP:'Someday' };
+var RP_EI_NAME   = { DO:'Do', SCHEDULE:'Plan', DELEGATE:'Delegate', DROP:'Delete' };
+var RP_EI_DESC   = { DO:'긴급·중요', SCHEDULE:'중요·비긴급', DELEGATE:'긴급·비중요', DROP:'비긴급·비중요' };
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
 var RP_STATUS_COLORS = { '대기':'#9CA3AF', '진행':'#2ecc71', '중단':'#ef4444', '완료':'#4F6EF7', '취소':'#6b7280' };
 
@@ -1838,6 +1832,7 @@ function openNewTaskPanel(taskId) {
   rpState.prevTaskIds = task ? (Array.isArray(task.prevTaskIds) ? task.prevTaskIds.slice() : []) : [];
   rpState.nextTaskIds = task ? (Array.isArray(task.nextTaskIds) ? task.nextTaskIds.slice() : []) : [];
   rpState.completed   = task ? !!task.completed : false;
+  rpState.starred     = task ? !!task.starred : false;
   rpState.createdAt   = task ? (task.createdAt || null) : null;
   detailTaskId        = taskId || null;
 
@@ -1862,20 +1857,20 @@ function openNewTaskPanel(taskId) {
 }
 
 function buildRpForm(task) {
-  // 완료 시 부여되는 [YYMMDD] 접두사를 제거하지 않고 그대로 노출 → 사용자가 날짜를 직접 수정 가능
-  var name       = task ? (task.text || '') : '';
+  var name       = task ? task.text.replace(/^\[\d{6}\] /, '') : '';
   var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
   var dueStr     = (task && task.dueDateTime) ? toDateInputVal(task.dueDateTime) : '';
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
   var notesVal   = task ? (task.notes || '') : '';
 
-  // Priority (ASAP / Next / Schedule / Someday)
+  // Priority (Do / Plan / Delegate / Delete)
   var eiHtml = '<div class="rp-sect"><div class="rp-section-head">Priority</div><div class="rp-ei-grid">';
   ['DO','SCHEDULE','DELEGATE','DROP'].forEach(function(k) {
     var sel = rpState.eisenhower === k;
     var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:'+RP_EI_COLORS[k]+'18;' : '';
     eiHtml += '<button class="rp-ei-btn'+(sel?' rp-ei-sel':'')+'" data-ei="'+k+'" style="'+selStyle+'" onclick="rpSetEi(\''+k+'\')">'
       + '<span class="rp-ei-name" style="color:'+RP_EI_COLORS[k]+';">'+RP_EI_NAME[k]+'</span>'
+      + '<span class="rp-ei-desc">'+RP_EI_DESC[k]+'</span>'
       + '</button>';
   });
   eiHtml += '</div></div>';
@@ -1922,10 +1917,10 @@ function buildRpForm(task) {
   // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
   var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
     + '<div style="display:flex;gap:10px;">'
-    + '<div class="field-group" style="flex:1;"><label class="field-label">Pred</label>'
-    + rpDepDropdown('prev') + '</div>'
-    + '<div class="field-group" style="flex:1;"><label class="field-label">Succ</label>'
-    + rpDepDropdown('next') + '</div>'
+    + '<div class="field-group" style="flex:1;"><label class="field-label">이전 (선행)</label>'
+    + '<select class="field-input" id="rp-prev-sel" onchange="rpSetDep(\'prev\',this.value)">'+rpDepSingleOptions('prev')+'</select></div>'
+    + '<div class="field-group" style="flex:1;"><label class="field-label">다음 (후행)</label>'
+    + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
     + '</div></div>';
 
   // 생성일 / 삭제 (수정 모드)
@@ -1945,7 +1940,7 @@ function buildRpForm(task) {
     + '</div></div>'
     + '<div style="display:flex;gap:10px;">'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Start</label>'
-    + '<input type="date" class="field-input" id="rp-start-date" value="'+startStr+'" onchange="rpOnStartChange()"></div>'
+    + '<input type="date" class="field-input" id="rp-start-date" value="'+startStr+'" onchange="rpState.dirty=true"></div>'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Due</label>'
     + '<input type="date" class="field-input" id="rp-due-date" value="'+dueStr+'" onchange="rpState.dirty=true"></div>'
     + '</div>'
@@ -1974,13 +1969,10 @@ function rpBuildStepsHtml() {
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
       + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, null)
       + '</div>';
-    return '<div class="dp-step rp-step-row" id="rp-step-'+s.id+'" data-rp-step="'+s.id+'"'
-      + ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
-      + '<span class="rp-step-drag" draggable="true" title="드래그하여 순서 변경"'
-      + ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">⠿</span>'
+    return '<div class="dp-step" id="rp-step-'+s.id+'">'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false" onblur="rpSaveStepText('+s.id+',this)" onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}">'+escapeHtml(s.text)+'</span>'
+      + '<span class="step-text '+(s.completed?'is-done':'')+'">'+escapeHtml(s.text)+'</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
@@ -2046,16 +2038,6 @@ function rpToggleStep(stepId) {
   rpRefreshSteps();
 }
 
-// TO DO 항목 텍스트(및 [YYMMDD] 날짜) 직접 수정
-function rpSaveStepText(stepId, el) {
-  var s = rpState.steps.find(function(x){ return x.id === stepId; });
-  if (!s) return;
-  var v = (el.textContent || '').trim();
-  if (v) s.text = v;
-  else el.textContent = s.text; // 빈 값이면 기존 텍스트 복원
-  rpState.dirty = true;
-}
-
 function rpDeleteStep(stepId) {
   rpState.steps = rpState.steps.filter(function(x){ return x.id !== stepId; });
   rpState.dirty = true;
@@ -2067,59 +2049,6 @@ function rpHandleStepInput(event) { if (event.key === 'Enter') rpAddStep(); }
 function rpRefreshSteps() {
   var list = document.getElementById('rp-steps-list');
   if (list) list.innerHTML = rpBuildStepsHtml();
-}
-
-// ── To Do 드래그 순서 변경 ──
-var _rpDragStepId = null;
-function rpStepDragStart(ev, id) {
-  _rpDragStepId = id;
-  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(id)); } catch (e) {} }
-  var row = document.getElementById('rp-step-' + id);
-  if (row) row.classList.add('rp-step-dragging');
-}
-function rpStepDragEnd(ev) {
-  _rpDragStepId = null;
-  document.querySelectorAll('.rp-step-row').forEach(function(r){ r.classList.remove('rp-step-dragging','rp-drop-target'); });
-}
-function rpStepDragOver(ev, id) {
-  if (_rpDragStepId == null || _rpDragStepId === id) return;
-  ev.preventDefault();
-  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
-  var row = document.getElementById('rp-step-' + id);
-  if (row) row.classList.add('rp-drop-target');
-}
-function rpStepDragLeave(ev) {
-  var row = ev.currentTarget;
-  if (row && row.classList) row.classList.remove('rp-drop-target');
-}
-function rpStepDrop(ev, id) {
-  ev.preventDefault();
-  var row = document.getElementById('rp-step-' + id);
-  if (row) row.classList.remove('rp-drop-target');
-  rpReorderStep(_rpDragStepId, id);
-}
-function rpReorderStep(fromId, toId) {
-  if (fromId == null || fromId === toId) return;
-  var arr = rpState.steps || [];
-  var fi = arr.findIndex(function(s){ return s.id === fromId; });
-  var ti = arr.findIndex(function(s){ return s.id === toId; });
-  if (fi < 0 || ti < 0) return;
-  var moved = arr.splice(fi, 1)[0];
-  arr.splice(ti, 0, moved);
-  rpState.dirty = true;
-  rpRefreshSteps();
-}
-
-// ── 시작일(START) 변경 시: 프로젝트 드롭다운을 해당 연도로 갱신 ──
-function rpOnStartChange() {
-  rpState.dirty = true;
-  var y = projDDYear('rp-proj');
-  // 선택된 프로젝트가 다른 연도 만다라트 것이면 무효화
-  if (rpState.mdtAction && rpState.mdtAction.year && parseInt(rpState.mdtAction.year, 10) !== y) {
-    rpState.mdtAction = null;
-  }
-  var dd = document.getElementById('rp-proj');
-  if (dd) dd.outerHTML = buildProjectDropdown('rp-proj', rpState.mdtAction || null);
 }
 
 // ── COWORKER (rp-form draft) ──
@@ -2208,127 +2137,6 @@ function rpDepSingleOptions(dir) {
   return opts;
 }
 
-// ── Linked Tasks 검색형 드롭다운 ──────────────────────────────
-//  · 기본 목록: "그해"의 아직 완료되지 않은 TASK
-//  · 상단 검색창 타이핑: "그해"의 모든 TASK(완료 포함)를 대상으로 검색
-//  · "그해" = 편집 중인 TASK의 연도(없으면 전역/보드 연도)
-function rpDepYear() {
-  var y = null;
-  if (typeof todoTaskYear === 'function') {
-    var self = tasks.find(function(t){ return t.id === rpState.taskId; });
-    if (self) y = todoTaskYear(self);
-  }
-  if (!y && typeof appGetYear === 'function') y = appGetYear();
-  if (!y) y = new Date().getFullYear();
-  return parseInt(y, 10);
-}
-
-// "그해"에 속하는 TASK 풀(자기 자신 제외). 연도 미상 TASK도 포함.
-function rpDepYearTasks() {
-  var y = rpDepYear();
-  return tasks.filter(function(t){
-    if (t.id === rpState.taskId) return false;
-    if (typeof todoTaskYear !== 'function') return true;
-    var ty = todoTaskYear(t);
-    return ty == null || ty === y;
-  });
-}
-
-function rpDepCleanText(t) {
-  return (t && t.text ? t.text : '').replace(/^\[\d{6}\] /, '');
-}
-
-function rpDepLabel(dir) {
-  var cur = rpDepIds(dir)[0];
-  if (!cur) return '— 선택 안 함 —';
-  var t = tasks.find(function(x){ return x.id === cur; });
-  if (!t) return '— 선택 안 함 —';
-  return rpDepCleanText(t).substring(0, 40);
-}
-
-function rpDepDropdown(dir) {
-  var isSet = !!rpDepIds(dir)[0];
-  return '<div class="dep-dd" id="rp-dep-' + dir + '">'
-    + '<button type="button" class="dep-dd-trigger' + (isSet ? ' is-set' : '') + '" onclick="rpToggleDepDD(\'' + dir + '\')">'
-    + '<span class="dep-dd-cur">' + escapeHtml(rpDepLabel(dir)) + '</span><span class="proj-dd-arrow">▾</span></button>'
-    + '<div class="dep-dd-panel" style="display:none;">'
-    + '<div class="dep-dd-search-wrap">'
-    + '<input type="text" class="dep-dd-search" placeholder="🔎 TASK 검색 (그해 전체)" '
-    + 'oninput="rpDepDDSearch(\'' + dir + '\',this.value)" onclick="event.stopPropagation();">'
-    + '</div>'
-    + '<div class="dep-dd-list"></div>'
-    + '</div></div>';
-}
-
-function rpToggleDepDD(dir) {
-  var dd = document.getElementById('rp-dep-' + dir); if (!dd) return;
-  var panel = dd.querySelector('.dep-dd-panel'); if (!panel) return;
-  var open = panel.style.display !== 'none';
-  document.querySelectorAll('.dep-dd-panel').forEach(function(p){ p.style.display = 'none'; });
-  if (open) { panel.style.display = 'none'; return; }
-  var srch = panel.querySelector('.dep-dd-search');
-  var listEl = panel.querySelector('.dep-dd-list');
-  if (srch) srch.value = '';
-  if (listEl) listEl.innerHTML = rpDepDDList(dir, '');
-  panel.style.display = 'block';
-  if (srch) setTimeout(function(){ srch.focus(); }, 30);
-}
-
-function rpDepDDSearch(dir, q) {
-  var dd = document.getElementById('rp-dep-' + dir); if (!dd) return;
-  var listEl = dd.querySelector('.dep-dd-list'); if (!listEl) return;
-  listEl.innerHTML = rpDepDDList(dir, q);
-}
-
-function rpDepDDList(dir, q) {
-  q = (q || '').trim().toLowerCase();
-  var cur = rpDepIds(dir)[0] || '';
-  var pool = rpDepYearTasks();
-  var list;
-  if (q) {
-    // 검색 대상: 그해의 모든 TASK(완료 포함)
-    list = pool.filter(function(t){
-      return rpDepCleanText(t).toLowerCase().indexOf(q) !== -1;
-    });
-  } else {
-    // 기본 목록: 아직 완료되지 않은 TASK
-    list = pool.filter(function(t){ return !t.completed; });
-  }
-  var html = '<div class="dep-dd-opt dep-dd-none" onclick="rpDepDDSelect(\'' + dir + '\',\'\')">— 선택 안 함 —</div>';
-  if (!list.length) {
-    html += '<div class="dep-dd-empty">' + (q ? '검색 결과가 없어요' : '완료되지 않은 TASK가 없어요') + '</div>';
-    return html;
-  }
-  list.forEach(function(t){
-    var selCls = (String(t.id) === String(cur)) ? ' is-cur' : '';
-    var doneCls = t.completed ? ' is-done' : '';
-    html += '<div class="dep-dd-opt' + selCls + doneCls + '" onclick="rpDepDDSelect(\'' + dir + '\',' + t.id + ')">'
-      + (t.completed ? '<span class="dep-dd-done-tag">완료</span>' : '')
-      + '<span class="dep-dd-opt-txt">' + escapeHtml(rpDepCleanText(t).substring(0, 40)) + '</span></div>';
-  });
-  return html;
-}
-
-function rpDepDDSelect(dir, id) {
-  var val = id ? String(id) : '';
-  rpSetDep(dir, val);
-  var dd = document.getElementById('rp-dep-' + dir);
-  if (dd) {
-    var cur = dd.querySelector('.dep-dd-cur');
-    if (cur) cur.textContent = rpDepLabel(dir);
-    var trig = dd.querySelector('.dep-dd-trigger');
-    if (trig) trig.classList.toggle('is-set', !!val);
-    var panel = dd.querySelector('.dep-dd-panel'); if (panel) panel.style.display = 'none';
-  }
-}
-
-// 패널 바깥 클릭 시 닫기
-document.addEventListener('click', function(e) {
-  if (!e.target.closest || !e.target.closest('.dep-dd')) {
-    document.querySelectorAll('.dep-dd-panel').forEach(function(p){ p.style.display = 'none'; });
-  }
-});
-
 function rpSetDep(dir, val) {
   var id = val ? parseInt(val) : null;
   if (dir === 'prev') rpState.prevTaskIds = id ? [id] : [];
@@ -2416,11 +2224,9 @@ function saveRightPanel() {
   var reminderVal = reminderDate ? reminderDate+'T09:00:00' : null;
 
   function applyCompletePrefix(baseName, completed, existingText) {
-    // 미완료: 날짜 접두사 제거
-    if (!completed) return baseName.replace(/^\[\d{6}\] /, '');
-    // 완료인데 사용자가 직접 입력/수정한 날짜가 있으면 그대로 유지 (수정 허용)
-    if (/^\[\d{6}\] /.test(baseName)) return baseName;
-    // 완료이고 날짜가 없으면 오늘 날짜 자동 부여
+    if (!completed) return baseName;
+    var m = existingText && existingText.match(/^(\[\d{6}\] )/);
+    if (m) return m[1] + baseName;
     var now = new Date();
     var yy = String(now.getFullYear()).slice(2);
     var mm = String(now.getMonth()+1).padStart(2,'0');
@@ -2434,6 +2240,7 @@ function saveRightPanel() {
     if (task) {
       task.text        = applyCompletePrefix(name, rpState.completed, task.text);
       task.completed   = rpState.completed;
+      task.starred     = rpState.starred;
       task.eisenhower  = rpState.eisenhower;
       task.status      = rpState.status;
       task.startDate   = startDate ? startDate+'T09:00:00' : null;
@@ -2454,7 +2261,7 @@ function saveRightPanel() {
   } else {
     var newTask = {
       id: Date.now(), text: applyCompletePrefix(name, rpState.completed, ''),
-      completed: rpState.completed,
+      completed: rpState.completed, starred: rpState.starred,
       createdAt: new Date().toISOString(),
       dueDateTime: dueDateTime, hasTime: hasTime,
       startDate: startDate ? startDate+'T09:00:00' : null,
@@ -2567,26 +2374,10 @@ var MENU_RENDERERS = {
   journal:   'renderJournalView',
 };
 
-// ============================================
-//  📱 모바일 드로어 사이드바
-// ============================================
-function toggleMobileSidebar() {
-  var app = document.querySelector('.app');
-  if (!app) return;
-  app.classList.toggle('sidebar-open');
-}
-function closeMobileSidebar() {
-  var app = document.querySelector('.app');
-  if (app) app.classList.remove('sidebar-open');
-}
-
 // 🧭 화면 전환 엔진
 function navToMenu(id) {
   if (!id) return;
   currentMenu = id;
-
-  // 모바일: 메뉴 선택 시 드로어 닫기
-  closeMobileSidebar();
 
   // 1) 사이드바 활성 표시
   var navButtons = document.querySelectorAll('#sidebar-nav .nav-item');
@@ -2614,15 +2405,16 @@ function navToMenu(id) {
     }
   }
 
+  // 3) '새 Task' 버튼은 TO-DO(계획된 일정)에서만
+  var newBtn = document.getElementById('new-task-btn');
+  if (newBtn) newBtn.style.display = (id === 'todo') ? '' : 'none';
+
   // 4) 우측 패널 닫기
   if (typeof closeRightPanel === 'function') closeRightPanel();
 
   // 4.5) 만다라트 연도 슬롯 초기화 (다른 메뉴로 이동 시 비움)
   var mdtYearSlot = document.getElementById('topbar-mdt-year-slot');
   if (mdtYearSlot) mdtYearSlot.innerHTML = '';
-
-  // 4.6) 통합 필터/정렬 슬롯 초기화 — 대상 페이지 render에서 다시 채워짐
-  if (typeof TLFilter !== 'undefined' && TLFilter.clear) TLFilter.clear();
 
   // 5) 본문 렌더
   var fnName = MENU_RENDERERS[id];
@@ -2653,7 +2445,6 @@ function bootApp() {
 
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
-    if (typeof closeMobileSidebar === 'function') closeMobileSidebar();
     if (typeof closeRightPanel === 'function') closeRightPanel();
   }
 });

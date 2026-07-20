@@ -1,24 +1,16 @@
 // ============================================
-//  🔐 Firebase Auth 구글 로그인/로그아웃 관리
-// --------------------------------------------
-//  ▸ 웹: signInWithPopup / APK(Capacitor): @capacitor-firebase/authentication
-//  ▸ 세션은 Firebase가 스스로 유지 → 예전 GIS '조용한 재로그인' 불필요
-//  ▸ 구글 캘린더 API 호출용 액세스 토큰은 별도 관리 (ensureCalendarToken)
+//  🔐 구글 로그인/로그아웃 관리 (자동 로그인 포함)
 // ============================================
 
-const AUTH_STORAGE_KEY = 'my-tasklog-user';       // 프로필 캐시(표시용)
-const SIGNED_IN_FLAG   = 'tasklog-was-signed-in'; // 게이트 깜빡임 방지용
-const CAL_TOKEN_KEY    = 'tasklog-cal-token';     // 캘린더 액세스 토큰(세션)
+const AUTH_STORAGE_KEY  = 'my-tasklog-user';
+const AUTO_LOGIN_KEY    = 'tasklog-auto-login';   // '자동 로그인' ON 여부(로그아웃 전까지 유지)
+const TOKEN_SESSION_KEY = 'tasklog-token';        // 이번 탭 세션 동안 토큰 보관(새로고침 후 재사용)
 
-// 캘린더 스코프 (배열형 — 네이티브 플러그인용)
-const CAL_SCOPES_ARR = [
-  'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/calendar.readonly'
-];
-
-let tokenClient  = null;   // GIS 토큰 클라이언트 (웹 캘린더 토큰 갱신용)
-let gapiInited   = false;
-let currentUser  = null;
+let tokenClient;
+let gapiInited  = false;
+let gisInited   = false;
+let currentUser = null;
+let _silentRetry = 0;       // 조용한 자동 로그인 재시도 횟수
 
 // auth.js 내부 전용 escapeHtml (script.js보다 먼저 로드되므로 독립 선언)
 function _escHtml(str) {
@@ -28,114 +20,32 @@ function _escHtml(str) {
 }
 
 // ============================================
-//  🚀 gapi(캘린더 REST) / GIS(웹 토큰 갱신) 초기화
+//  🚀 라이브러리 초기화
 // ============================================
 
 function gapiLoaded() {
-  if (!window.gapi) return;
-  gapi.load('client', async function () {
-    try {
-      await gapi.client.init({
-        apiKey:        GOOGLE_CONFIG.API_KEY,
-        discoveryDocs: GOOGLE_CONFIG.DISCOVERY_DOCS,
-      });
-      gapiInited = true;
-      console.log('✅ gapi(캘린더) 초기화 완료');
-      // 이미 로그인돼 있고 유효한 캘린더 토큰이 있으면 자동 동기화 재시도
-      var t = _getValidCalToken();
-      if (t) {
-        gapi.client.setToken({ access_token: t });
-        if (firebaseReady && firebase.auth().currentUser && typeof autoSyncCalendar === 'function') autoSyncCalendar();
-      }
-    } catch (e) { console.warn('gapi 초기화 실패(캘린더 기능 제한):', e); }
+  gapi.load('client', initializeGapiClient);
+}
+
+async function initializeGapiClient() {
+  await gapi.client.init({
+    apiKey:         GOOGLE_CONFIG.API_KEY,
+    discoveryDocs:  GOOGLE_CONFIG.DISCOVERY_DOCS,
   });
+  gapiInited = true;
+  console.log('✅ gapi 클라이언트 초기화 완료');
+  maybeAutoSignIn();
 }
 
 function gisLoaded() {
-  // 웹 전용 — APK에서는 네이티브 플러그인으로 토큰을 받으므로 불필요
-  if (!window.google || !google.accounts || !google.accounts.oauth2) return;
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CONFIG.CLIENT_ID,
     scope:     GOOGLE_CONFIG.SCOPES,
     callback:  '',
   });
-  console.log('✅ GIS(캘린더 토큰 갱신) 초기화 완료');
-}
-
-// ============================================
-//  🎟️ 캘린더 액세스 토큰 관리
-// --------------------------------------------
-//  Firebase Auth 는 캘린더 API용 토큰을 주지 않으므로,
-//  로그인 시 받은 accessToken 을 보관하고 만료(1시간) 시 갱신한다.
-//   ▸ 웹   : GIS prompt:'none' 으로 조용히 재발급
-//   ▸ APK  : 플러그인 signInWithGoogle 재호출(이미 인증된 계정 → 조용히 발급)
-// ============================================
-
-function _saveCalToken(accessToken, expiresInSec) {
-  try {
-    if (!accessToken) return;
-    var ttl = (parseInt(expiresInSec, 10) || 3500) * 1000;
-    sessionStorage.setItem(CAL_TOKEN_KEY, JSON.stringify({
-      access_token: accessToken,
-      expires_at: Date.now() + ttl - 60000   // 만료 1분 전까지만 유효 취급
-    }));
-    if (window.gapi && gapi.client) gapi.client.setToken({ access_token: accessToken });
-  } catch (e) { console.warn('캘린더 토큰 저장 실패:', e); }
-}
-
-function _getValidCalToken() {
-  try {
-    var raw = sessionStorage.getItem(CAL_TOKEN_KEY);
-    if (!raw) return null;
-    var t = JSON.parse(raw);
-    if (!t || !t.access_token || Date.now() >= t.expires_at) return null;
-    return t.access_token;
-  } catch (e) { return null; }
-}
-
-// 캘린더 API 호출 전 반드시 호출 — 유효 토큰 보장 (true/false 반환)
-//  interactive=true 면 사용자 클릭으로 시작된 흐름(팝업 허용)
-async function ensureCalendarToken(interactive) {
-  if (!gapiInited || !firebaseReady || !firebase.auth().currentUser) return false;
-
-  var t = _getValidCalToken();
-  if (t) { gapi.client.setToken({ access_token: t }); return true; }
-
-  // ── APK(Capacitor): 플러그인으로 토큰 재발급 ──
-  if (isNativeApp()) {
-    try {
-      var FA = Capacitor.Plugins.FirebaseAuthentication;
-      var r = await FA.signInWithGoogle({ scopes: CAL_SCOPES_ARR });
-      if (r && r.credential && r.credential.accessToken) {
-        _saveCalToken(r.credential.accessToken, 3500);
-        return true;
-      }
-    } catch (e) { console.warn('📅 네이티브 캘린더 토큰 발급 실패:', e); }
-    return false;
-  }
-
-  // ── 웹: GIS로 조용히(또는 팝업으로) 재발급 ──
-  if (!tokenClient) return false;
-  return new Promise(function (resolve) {
-    var user = firebase.auth().currentUser;
-    var tried = false;
-    tokenClient.callback = function (resp) {
-      if (resp.error !== undefined) {
-        // 조용한 발급 실패 → 사용자 클릭 흐름이면 한 번만 팝업으로 재시도
-        if (interactive && !tried) {
-          tried = true;
-          tokenClient.requestAccessToken({ prompt: '', login_hint: (user && user.email) || '' });
-          return;
-        }
-        console.warn('📅 캘린더 토큰 발급 실패:', resp.error);
-        resolve(false);
-        return;
-      }
-      _saveCalToken(resp.access_token, resp.expires_in);
-      resolve(true);
-    };
-    tokenClient.requestAccessToken({ prompt: 'none', login_hint: (user && user.email) || '' });
-  });
+  gisInited = true;
+  console.log('✅ GIS 라이브러리 초기화 완료');
+  maybeAutoSignIn();
 }
 
 // ============================================
@@ -146,7 +56,7 @@ function _hideLoginGate() {
   if (g) g.classList.add('is-hidden');
 }
 function _showLoginGate() {
-  document.documentElement.classList.remove('preauth-hide-gate');
+  document.documentElement.classList.remove('preauth-hide-gate');  // 미리숨김 해제
   var g = document.getElementById('login-gate');
   if (g) g.classList.remove('is-hidden');
   _resetGateButton();
@@ -159,111 +69,215 @@ function _resetGateButton() {
   var b = document.getElementById('gate-google-btn');
   if (b) { b.disabled = false; b.innerHTML = '<span class="g-icon">G</span> 구글로 로그인'; }
 }
+// '로그인 상태 유지(자동 로그인)' 설정 반영
+//  ▸ 체크됨  → 자동 로그인 ON (로그아웃 전까지 계속 자동 로그인)
+//  ▸ 해제됨  → 자동 로그인 OFF + 기억 정보 삭제(다음 방문 때 다시 로그인)
+function _applyKeepLoginPref() {
+  var keep = document.getElementById('keep-login');
+  if (keep && keep.checked) {
+    localStorage.setItem(AUTO_LOGIN_KEY, 'true');
+  } else {
+    localStorage.removeItem(AUTO_LOGIN_KEY);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+  }
+}
 
 // ============================================
-//  🔑 로그인 / 로그아웃
+//  🎟️ 세션 토큰 보관/재사용 (새로고침 후 재로그인 팝업 방지)
+// --------------------------------------------
+//  로그인 시 받은 액세스 토큰을 이번 탭 세션 동안만 보관했다가,
+//  드라이브 동기화로 새로고침된 직후 그대로 재사용한다.
+//  → 새로고침 때마다 '조용한 재로그인'을 하지 않으므로 팝업 반복이 사라짐.
+//  (sessionStorage는 같은 출처 전용 + 탭을 닫으면 삭제됨)
+// ============================================
+function _saveSessionToken(resp) {
+  try {
+    if (!resp || !resp.access_token) return;
+    var ttlMs = (parseInt(resp.expires_in, 10) || 3600) * 1000;
+    sessionStorage.setItem(TOKEN_SESSION_KEY, JSON.stringify({
+      access_token: resp.access_token,
+      expires_at: Date.now() + ttlMs - 60000   // 만료 1분 전까지만 유효 취급
+    }));
+    // gapi(드라이브·캘린더)도 이 토큰으로 인증되도록 설정
+    if (window.gapi && gapi.client) gapi.client.setToken({ access_token: resp.access_token });
+  } catch (e) { console.warn('세션 토큰 저장 실패:', e); }
+}
+function _getValidSessionToken() {
+  try {
+    var raw = sessionStorage.getItem(TOKEN_SESSION_KEY);
+    if (!raw) return null;
+    var t = JSON.parse(raw);
+    if (!t || !t.access_token || Date.now() >= t.expires_at) return null;
+    return t.access_token;
+  } catch (e) { return null; }
+}
+
+// ============================================
+//  🔄 자동 로그인 시도
 // ============================================
 
-async function handleSignIn() {
-  console.log('🖱️ 로그인 버튼 클릭됨!');
-  if (!firebaseReady) {
-    alert('Firebase 설정이 완료되지 않았어요. config.js 를 확인해주세요.');
+function maybeAutoSignIn() {
+  // 둘 다 준비됐을 때만 진행
+  if (!gapiInited || !gisInited) return;
+
+  // 0) 이번 탭 세션에 유효한 토큰이 남아 있으면 → 재로그인(팝업/조용한 요청) 없이 바로 사용.
+  //    (드라이브 동기화로 새로고침된 직후가 여기에 해당 → 팝업 반복 차단)
+  var sessToken = _getValidSessionToken();
+  if (sessToken) {
+    var saved0 = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (saved0) { try { currentUser = JSON.parse(saved0); } catch (e) {} }
+    try { if (gapi.client) gapi.client.setToken({ access_token: sessToken }); } catch (e) {}
+    updateAuthUI();
+    _hideLoginGate();
+    console.log('🎟️ 세션 토큰 재사용 → 자동 로그인 (팝업 없음)');
+    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
+    if (typeof onSignInSync === 'function') onSignInSync();
     return;
   }
-  _setGateLoading();
 
-  try {
-    // '로그인 상태 유지' 체크 반영 (해제 시 탭 닫으면 로그아웃)
-    var keep = document.getElementById('keep-login');
-    var mode = (keep && !keep.checked)
-      ? firebase.auth.Auth.Persistence.SESSION
-      : firebase.auth.Auth.Persistence.LOCAL;
-    await firebase.auth().setPersistence(mode);
-
-    if (isNativeApp()) {
-      // ── APK(Capacitor): 네이티브 구글 로그인 → 웹 레이어(Firebase JS)에 연결 ──
-      var FA = Capacitor.Plugins.FirebaseAuthentication;
-      var result = await FA.signInWithGoogle({ scopes: CAL_SCOPES_ARR });
-      var cred = firebase.auth.GoogleAuthProvider.credential(
-        result.credential.idToken,
-        result.credential.accessToken || undefined
-      );
-      await firebase.auth().signInWithCredential(cred);
-      if (result.credential.accessToken) _saveCalToken(result.credential.accessToken, 3500);
-    } else {
-      // ── 웹: 팝업 로그인 (캘린더 스코프 동시 요청) ──
-      var provider = new firebase.auth.GoogleAuthProvider();
-      CAL_SCOPES_ARR.forEach(function (s) { provider.addScope(s); });
-      var res = await firebase.auth().signInWithPopup(provider);
-      if (res.credential && res.credential.accessToken) {
-        _saveCalToken(res.credential.accessToken, 3500);
-      }
+  // 자동 로그인 ON이면 → 로그아웃 전까지 계속 조용히 자동 로그인 시도
+  const autoOn = localStorage.getItem(AUTO_LOGIN_KEY) === 'true';
+  if (autoOn) {
+    const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (saved) {
+      try { currentUser = JSON.parse(saved); updateAuthUI(); } catch (e) {}
     }
-    console.log('✅ 로그인 성공!');
-    // 이후 처리는 onAuthStateChanged 에서 일괄 수행
-  } catch (e) {
-    console.error('로그인 실패:', e);
-    if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-      alert('로그인에 실패했어요. 다시 시도해주세요.\n(' + ((e && e.code) || e) + ')');
-    }
-    _resetGateButton();
+    _setGateLoading();             // 게이트는 '확인 중'으로 표시(팝업 없음)
+    _silentSignIn();               // 백그라운드에서 토큰 조용히 갱신
+    console.log('🔄 자동 로그인 시도 중...');
+  } else {
+    _showLoginGate();              // 자동 로그인 OFF → 로그인 화면 표시
   }
 }
 
-async function handleSignOut() {
-  try {
-    if (typeof stopFirestoreSync === 'function') stopFirestoreSync();
-    if (firebaseReady) await firebase.auth().signOut();
-    if (isNativeApp()) {
-      try { await Capacitor.Plugins.FirebaseAuthentication.signOut(); } catch (e) {}
+function _silentSignIn() {
+  tokenClient.callback = async (response) => {
+    if (response.error !== undefined) {
+      // 조용한 갱신 실패 — ⚠️ 자동 로그인 설정/식별정보는 지우지 않는다.
+      //  (지우면 다음부터 자동 로그인이 안 되므로. 로그아웃할 때만 해제됨)
+      console.warn('🔒 자동 로그인(조용히) 실패:', response.error);
+      if (_silentRetry < 1) {
+        _silentRetry++;
+        setTimeout(_silentSignIn, 1200);   // 잠깐 후 한 번 더 조용히 시도
+        return;
+      }
+      // 그래도 실패(구글 세션 자체 만료 등) → 로그인 화면만 표시(설정은 보존).
+      // 사용자가 '구글로 로그인'을 한 번 누르면 다시 자동 로그인 상태가 됨.
+      _showLoginGate();
+      return;
     }
-  } catch (e) { console.warn('로그아웃 처리 중 경고:', e); }
+    // 토큰 갱신 성공 → 프로필도 최신화
+    _silentRetry = 0;
+    _saveSessionToken(response);   // 토큰 보관(새로고침 후 재사용)
+    await fetchUserInfo(response.access_token);
+    updateAuthUI();
+    _hideLoginGate();              // 로그인 확인됨 → 앱으로 진입
+    console.log('✅ 자동 로그인 성공!');
+    // 로그인 직후 구글 캘린더 자동 동기화 (1회)
+    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
+    // 로그인 직후 드라이브에서 먼저 불러오기 → 그 다음 자동 백업 ON
+    if (typeof onSignInSync === 'function') onSignInSync();
+  };
 
-  currentUser = null;
-  localStorage.removeItem(AUTH_STORAGE_KEY);
-  localStorage.removeItem(SIGNED_IN_FLAG);
-  sessionStorage.removeItem(CAL_TOKEN_KEY);
-  if (window.gapi && gapi.client) try { gapi.client.setToken(''); } catch (e) {}
-  updateAuthUI();
-  _showLoginGate();
-  console.log('👋 로그아웃 완료');
+  // prompt: 'none' + login_hint → 계정 선택 팝업 없이 완전히 조용히 토큰 요청
+  tokenClient.requestAccessToken({
+    prompt: 'none',
+    login_hint: (currentUser && currentUser.email) ? currentUser.email : ''
+  });
+}
+
+function _showSignInButton() {
+  const authArea = document.getElementById('auth-area');
+  if (!authArea) return;
+  authArea.innerHTML =
+    '<button id="signin-btn" class="signin-btn" onclick="handleSignIn()">'
+    + '<span class="g-icon">G</span> 구글로 로그인'
+    + '</button>';
 }
 
 // ============================================
-//  👀 로그인 상태 감시 (앱의 단일 진입점)
+//  🔑 수동 로그인 / 로그아웃
 // ============================================
 
-function _watchAuthState() {
-  if (!firebaseReady) { _showLoginGate(); return; }
+function handleSignIn() {
+  console.log('🖱️ 로그인 버튼 클릭됨!');
 
-  firebase.auth().onAuthStateChanged(function (user) {
-    if (user) {
-      currentUser = {
-        name:    user.displayName || '사용자',
-        email:   user.email       || '',
-        picture: user.photoURL    || ''
-      };
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
-      localStorage.setItem(SIGNED_IN_FLAG, '1');
-      updateAuthUI();
-      _hideLoginGate();
-      console.log('🔑 로그인 상태:', currentUser.email);
+  // 로그인 모듈(GIS)이 아직 준비 안 됐으면 잠시 후 재시도 안내
+  if (!tokenClient) {
+    alert('로그인 모듈을 불러오는 중이에요. 잠시 후 다시 시도해주세요.');
+    return;
+  }
 
-      // 1) Firestore 실시간 동기화 시작 (마이그레이션 포함)
-      if (typeof startFirestoreSync === 'function') startFirestoreSync(user.uid);
-
-      // 2) 캘린더 토큰 확보 후 자동 동기화 (조용히 — 실패해도 앱 사용에 지장 없음)
-      ensureCalendarToken(false).then(function (ok) {
-        if (ok && typeof autoSyncCalendar === 'function') autoSyncCalendar();
-      });
-    } else {
-      currentUser = null;
-      localStorage.removeItem(SIGNED_IN_FLAG);
-      if (typeof stopFirestoreSync === 'function') stopFirestoreSync();
-      updateAuthUI();
-      _showLoginGate();
+  tokenClient.callback = async (response) => {
+    if (response.error !== undefined) {
+      console.error('로그인 실패:', response);
+      alert('로그인에 실패했어요. 다시 시도해주세요.');
+      _resetGateButton();
+      return;
     }
-  });
+    console.log('✅ 로그인 성공!');
+    _saveSessionToken(response);   // 토큰 보관(새로고침 후 재사용 → 팝업 반복 방지)
+    await fetchUserInfo(response.access_token);
+    updateAuthUI();
+    _applyKeepLoginPref();         // '로그인 상태 유지' 설정 반영
+    _hideLoginGate();              // 로그인 완료 → 앱(home)으로 진입
+    // 로그인 직후 구글 캘린더 자동 동기화 (1회)
+    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
+    // 로그인 직후 드라이브에서 먼저 불러오기 → 그 다음 자동 백업 ON
+    if (typeof onSignInSync === 'function') onSignInSync();
+  };
+
+  if (gapi.client.getToken() === null) {
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  } else {
+    tokenClient.requestAccessToken({ prompt: '' });
+  }
+}
+
+function handleSignOut() {
+  const token = gapi.client.getToken();
+  if (token !== null) {
+    google.accounts.oauth2.revoke(token.access_token);
+    gapi.client.setToken('');
+  }
+  currentUser = null;
+  localStorage.removeItem(AUTH_STORAGE_KEY);   // 저장 정보 삭제
+  localStorage.removeItem(AUTO_LOGIN_KEY);     // 자동 로그인 해제(명시적 로그아웃 시에만)
+  sessionStorage.removeItem(TOKEN_SESSION_KEY);// 보관한 토큰 삭제
+  sessionStorage.removeItem('tasklog-synced'); // 다음 로그인 때 드라이브 재동기화
+  _silentRetry = 0;
+  updateAuthUI();
+  _showLoginGate();                            // 로그아웃 → 로그인 화면으로
+  console.log('👋 로그아웃 완료 — 자동 로그인 정보 삭제됨');
+}
+
+async function fetchUserInfo(accessToken) {
+  try {
+    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { 'Authorization': 'Bearer ' + accessToken }
+    });
+
+    if (!response.ok) {
+      console.warn('프로필 정보를 가져올 수 없어요.');
+      currentUser = { name: '사용자', signedIn: true };
+      return;
+    }
+
+    const data = await response.json();
+    currentUser = {
+      name:    data.name    || '사용자',
+      email:   data.email   || '',
+      picture: data.picture || ''
+    };
+
+    // ✅ localStorage에 사용자 정보 저장 (자동 로그인 핵심)
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(currentUser));
+    console.log('💾 사용자 정보 저장됨:', currentUser.name);
+
+  } catch (error) {
+    console.error('사용자 정보 가져오기 실패:', error);
+    currentUser = { name: '사용자', signedIn: true };
+  }
 }
 
 // ============================================
@@ -272,36 +286,24 @@ function _watchAuthState() {
 
 function updateAuthUI() {
   const authArea = document.getElementById('auth-area');
-  if (authArea) {
-    if (currentUser) {
-      const avatar = currentUser.picture
-        ? '<img src="' + currentUser.picture + '" alt="' + _escHtml(currentUser.name) + '" referrerpolicy="no-referrer">'
-        : '<span class="avatar-fallback">👤</span>';
+  if (!authArea) return;
 
-      authArea.innerHTML =
-        '<div class="user-info">'
-        + avatar
-        + '<span class="user-name">' + _escHtml(currentUser.name) + '</span>'
-        + '<button class="signout-btn" onclick="handleSignOut()">로그아웃</button>'
-        + '</div>';
-    } else {
-      authArea.innerHTML =
-        '<button id="signin-btn" class="signin-btn" onclick="handleSignIn()">'
-        + '<span class="g-icon">G</span> 구글로 로그인'
-        + '</button>';
-    }
-  }
+  if (currentUser) {
+    const avatar = currentUser.picture
+      ? '<img src="' + currentUser.picture + '" alt="' + _escHtml(currentUser.name) + '" referrerpolicy="no-referrer">'
+      : '<span class="avatar-fallback">👤</span>';
 
-  // 사이드바 아바타 이미지/이니셜 갱신
-  var av = document.getElementById('sidebar-avatar');
-  if (av) {
-    if (currentUser && currentUser.picture) {
-      av.innerHTML = '<img src="' + currentUser.picture + '" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
-    } else if (currentUser) {
-      av.textContent = getDisplayName().charAt(0).toUpperCase();
-    } else {
-      av.textContent = '?';
-    }
+    authArea.innerHTML =
+      '<div class="user-info">'
+      + avatar
+      + '<span class="user-name">' + _escHtml(currentUser.name) + '</span>'
+      + '<button class="signout-btn" onclick="handleSignOut()">로그아웃</button>'
+      + '</div>';
+  } else {
+    authArea.innerHTML =
+      '<button id="signin-btn" class="signin-btn" onclick="handleSignIn()">'
+      + '<span class="g-icon">G</span> 구글로 로그인'
+      + '</button>';
   }
 
   // 홈 위젯 사용자 영역 갱신 (홈 화면이 열려있을 때)
@@ -391,7 +393,7 @@ function openProfilePanel() {
       + '</div>'
       + '<div class="pm-guest-section">'
       + '<div class="pm-guest-icon">👤</div>'
-      + '<div class="pm-guest-msg">로그인하면 모든 기기에서<br>데이터가 실시간 동기화돼요.</div>'
+      + '<div class="pm-guest-msg">로그인하면 Google 캘린더와<br>Drive를 연동할 수 있어요.</div>'
       + '<button class="pm-btn-signin" onclick="handleSignIn();closeProfilePanel()">'
       + '<span class="g-icon">G</span> 구글로 로그인'
       + '</button>'
@@ -413,6 +415,9 @@ function openProfilePanel() {
 function closeProfilePanel() {
   var overlay = document.getElementById('profile-modal-overlay');
   if (overlay) overlay.remove();
+  // 하위 호환: 구형 dropdown도 제거
+  var dd = document.getElementById('profile-dropdown');
+  if (dd) dd.remove();
 }
 
 function saveNickname() {
@@ -427,8 +432,11 @@ function saveNickname() {
   var nameEl = document.querySelector('.pm-display-name');
   if (nameEl) nameEl.textContent = val;
 
-  // 사이드바 아바타·홈 위젯 갱신
-  updateAuthUI();
+  // 사이드바 아바타 이니셜 갱신
+  _syncAvatarInitial();
+
+  // 홈 위젯 갱신
+  if (typeof refreshHpUserArea === 'function') refreshHpUserArea();
 
   // 저장 완료 피드백
   var btn = document.querySelector('.pm-btn-save');
@@ -442,18 +450,34 @@ function saveNickname() {
   }
 }
 
+function _syncAvatarInitial() {
+  var av = document.getElementById('sidebar-avatar');
+  if (!av) return;
+  if (currentUser && currentUser.picture) return; // 사진 있으면 변경 불필요
+  av.textContent = getDisplayName().charAt(0).toUpperCase();
+}
+
+// updateAuthUI에서 사이드바 아바타도 동기화
+var _origUpdateAuthUI = updateAuthUI;
+updateAuthUI = function() {
+  _origUpdateAuthUI();
+  // 사이드바 아바타 이미지/이니셜 갱신
+  var av = document.getElementById('sidebar-avatar');
+  if (!av) return;
+  if (currentUser && currentUser.picture) {
+    av.innerHTML = '<img src="' + currentUser.picture + '" alt="" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+  } else if (currentUser) {
+    av.textContent = getDisplayName().charAt(0).toUpperCase();
+  } else {
+    av.textContent = '?';
+  }
+};
+
 // ============================================
 //  🎬 시작!
 // ============================================
 
-window.addEventListener('load', function () {
-  // 로그인 확인 동안 게이트는 '확인 중' 상태 (직전 로그인 기록이 있을 때)
-  if (localStorage.getItem(SIGNED_IN_FLAG) === '1') {
-    var saved = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (saved) { try { currentUser = JSON.parse(saved); updateAuthUI(); } catch (e) {} }
-    _setGateLoading();
-  }
+window.addEventListener('load', () => {
   gapiLoaded();
   gisLoaded();
-  _watchAuthState();
 });

@@ -2,9 +2,10 @@
 //  📅 구글 캘린더 연동
 // ============================================
 
-// 로그인 상태인지 확인하는 도우미 함수 (Firebase Auth 기준)
+// 로그인 상태인지 확인하는 도우미 함수
 function isSignedIn() {
-  return !!(window.firebaseReady && firebase.auth().currentUser);
+  const token = gapi.client.getToken();
+  return token !== null;
 }
 
 // Task → 구글 캘린더 이벤트 형식 변환 (수동/자동 등록 공용)
@@ -117,11 +118,7 @@ async function addTaskToCalendar(taskId) {
     alert('먼저 구글 로그인을 해주세요! 🔑');
     return;
   }
-  if (!(await ensureCalendarToken(true))) {
-    alert('구글 캘린더 권한을 확인할 수 없어요. 다시 로그인해 주세요.');
-    return;
-  }
-
+  
   // 2. 해당 할 일 찾기
   const task = tasks.find(t => t.id === taskId);
   if (!task) {
@@ -185,11 +182,7 @@ async function removeTaskFromCalendar(taskId) {
     alert('먼저 구글 로그인을 해주세요! 🔑');
     return;
   }
-  if (!(await ensureCalendarToken(true))) {
-    alert('구글 캘린더 권한을 확인할 수 없어요. 다시 로그인해 주세요.');
-    return;
-  }
-
+  
   const task = tasks.find(t => t.id === taskId);
   if (!task || !task.calendarEventId) {
     console.error('캘린더에 등록되지 않은 할 일이에요.');
@@ -231,10 +224,6 @@ let calendarEvents = [];  // 캘린더에서 가져온 일정 보관
 async function fetchCalendarEvents(silent) {
   if (!isSignedIn()) {
     if (!silent) alert('먼저 구글 로그인을 해주세요! 🔑');
-    return;
-  }
-  if (!(await ensureCalendarToken(!silent))) {
-    if (!silent) alert('구글 캘린더 권한을 확인할 수 없어요. 다시 로그인해 주세요.');
     return;
   }
 
@@ -322,6 +311,7 @@ async function fetchCalendarEvents(silent) {
         calColor: calColor,            // 구글 캘린더 테마 색상
         calendarEventId: event.id,
         completed: false,
+        starred: false,
       };
     }).filter(function (e) { return e.dueDateTime; });
 
@@ -348,7 +338,6 @@ async function fetchCalendarEvents(silent) {
 // 마감일이 있지만 아직 'Tasks' 캘린더에 없는 Task를 자동 등록
 async function autoPushTasksToCalendar() {
   if (!isSignedIn() || typeof tasks === 'undefined') return 0;
-  if (!(await ensureCalendarToken(false))) return 0;
 
   const calId = await resolveTaskCalendarId();
   // 중복 방지: 'Tasks' 캘린더의 기존 이벤트를 한 번만 조회해 (내용+시각) 맵 구성
@@ -396,11 +385,15 @@ let _calAutoSyncDone = false;
 async function autoSyncCalendar() {
   if (_calAutoSyncDone) return;
   if (!isSignedIn()) return;
-  if (!(await ensureCalendarToken(false))) return;   // 토큰 없으면 조용히 건너뜀
   _calAutoSyncDone = true;
 
-  // 불러오기 전용: 구글 캘린더 → TaskLog 만 수행(앱 일정을 구글에 보내지 않음)
-  console.log('📥 구글 캘린더 불러오기 시작...');
-  await fetchCalendarEvents(true);      // 구글 캘린더 → TaskLog (가져오기, 조용히)
-  console.log('✅ 구글 캘린더 불러오기 완료');
+  // 설정의 '동기화 방향' 반영: 양방향일 때만 가져오기(2)를 수행
+  var twoWay = (localStorage.getItem('app-cal-direction') === 'two');
+
+  console.log('🔁 구글 캘린더 자동 동기화 시작...', twoWay ? '(양방향)' : '(단방향)');
+  await autoPushTasksToCalendar();      // 1) TaskLog → 구글 캘린더 (보내기)
+  if (twoWay) {
+    await fetchCalendarEvents(true);    // 2) 구글 캘린더 → TaskLog (가져오기, 조용히)
+  }
+  console.log('✅ 자동 동기화 완료');
 }

@@ -5,24 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskLog</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234F6EF7'>TL</text></svg>">
-  <link rel="stylesheet" href="style.css?v=20260708e">
-  <link rel="stylesheet" href="profile-modal.css?v=20260625a">
-  <link rel="stylesheet" href="login.css?v=20260625a">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="profile-modal.css">
+  <link rel="stylesheet" href="login.css">
   <script>
-    // 직전에 로그인돼 있었다면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
-    // 페인트 전에 미리 숨긴다. (Firebase 세션 확인이 실패하면 auth.js가 다시 보여줌)
+    // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
+    // 페인트 전에 미리 숨긴다. (자동 로그인이 실패하면 auth.js가 다시 보여줌)
     (function () {
       try {
-        if (localStorage.getItem('tasklog-was-signed-in') === '1')
-          document.documentElement.classList.add('preauth-hide-gate');
+        var hasToken = false;
+        var raw = sessionStorage.getItem('tasklog-token');
+        if (raw) { var t = JSON.parse(raw); hasToken = !!(t && t.access_token && Date.now() < t.expires_at); }
+        var autoOn = localStorage.getItem('tasklog-auto-login') === 'true';
+        if (hasToken || autoOn) document.documentElement.classList.add('preauth-hide-gate');
       } catch (e) {}
     })();
   </script>
-  <!-- Firebase (compat) — 인증 + Firestore -->
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-  <!-- 구글 캘린더 연동용 (gapi REST + 웹 토큰 갱신용 GIS) -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -46,9 +44,6 @@
 
 <div class="app">
 
-  <!-- 모바일 드로어 배경 (사이드바 열렸을 때 본문을 덮음) -->
-  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
-
   <!-- ===== 66px 사이드바 ===== -->
   <aside class="sidebar" id="sidebar">
 
@@ -62,18 +57,8 @@
       <!-- JS로 채워짐 -->
     </nav>
 
-    <!-- 하단: 백업 + 설정 -->
+    <!-- 하단: 설정 -->
     <div class="sidebar-bottom">
-      <button class="nav-item" id="backup-nav-btn" title="지금 동기화" onclick="forceSyncNow()">
-        <span class="nav-item-icon">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 16l-4-4-4 4"/>
-            <path d="M12 12v9"/>
-            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
-          </svg>
-        </span>
-        <span class="nav-item-label">동기화</span>
-      </button>
       <button class="nav-item" id="settings-nav-btn" title="설정" onclick="openSettings()">
         <span class="nav-item-icon">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -95,19 +80,18 @@
       <!-- 탑바 -->
       <div class="topbar" id="topbar">
         <div class="topbar-left">
-          <button class="sidebar-toggle" id="sidebar-toggle" aria-label="메뉴 열기" onclick="toggleMobileSidebar()">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18M3 12h18M3 18h18"/>
-            </svg>
-          </button>
           <div class="topbar-title" id="topbar-title">홈</div>
         </div>
         <div class="topbar-right" id="topbar-right">
           <div class="topbar-date" id="topbar-date"></div>
           <!-- 만다라트 연도 선택 슬롯 -->
           <div class="topbar-mdt-year-slot" id="topbar-mdt-year-slot"></div>
-          <!-- 통합 필터/정렬 슬롯 (타이틀 오른쪽) -->
-          <div class="topbar-filter-slot" id="topbar-filter-slot"></div>
+          <!-- 다크모드 토글 -->
+          <button class="btn-icon" id="dark-toggle-btn" title="다크 모드 전환" onclick="toggleDarkMode()">🌙</button>
+          <!-- TO-DO(계획된 일정)에서만: 새 Task 버튼 -->
+          <button class="btn-primary" id="new-task-btn" onclick="openNewTaskPanel()" style="display:none;">
+            <span style="font-size:16px;line-height:1">+</span> Task
+          </button>
         </div>
       </div>
 
@@ -141,30 +125,24 @@
 <div class="cal-popup" id="cal-popup" style="display:none;"></div>
 
 <!-- 스크립트 로드 순서 -->
-<script src="config.js?v=20260712a"></script>
-<script src="firebase-init.js?v=20260712a"></script>
-<script src="backup-core.js?v=20260708b"></script>
-<script src="backup-xlsx.js?v=20260625c"></script>
-<script src="backup-pg-board.js?v=20260626a"></script>
-<script src="backup-pg-wdlw.js?v=20260625b"></script>
-<script src="backup-pg-mdt.js?v=20260625b"></script>
-<script src="auth.js?v=20260711a"></script>
-<script src="calendar.js?v=20260711a"></script>
-<script src="mandalart.js?v=20260708e"></script>
-<script src="lifewheel.js?v=20260626b"></script>
-<script src="home.js?v=20260708d"></script>
-<script src="gantt.js?v=20260625a"></script>
-<script src="notes.js?v=20260627d"></script>
-<script src="journal.js?v=20260625a"></script>
-<script src="wbs.js?v=20260627c"></script>
-<script src="mvv.js?v=20260625a"></script>
-<script src="settings.js?v=20260711a"></script>
-<script src="firestore-sync.js?v=20260711a"></script>
-<script src="todo.js?v=20260708b"></script>
-<script src="yearsync.js?v=20260625a"></script>
-<script src="tlfilter.js?v=20260708b"></script>
-<script src="colresize.js?v=20260626a"></script>
-<script src="script.js?v=20260627d"></script>
+<script src="config.js"></script>
+<script src="backup-core.js"></script>
+<script src="backup-xlsx.js"></script>
+<script src="auth.js"></script>
+<script src="calendar.js"></script>
+<script src="mandalart.js"></script>
+<script src="lifewheel.js"></script>
+<script src="home.js"></script>
+<script src="gantt.js"></script>
+<script src="notes.js"></script>
+<script src="journal.js"></script>
+<script src="wbs.js"></script>
+<script src="mvv.js"></script>
+<script src="settings.js"></script>
+<script src="drive.js"></script>
+<script src="todo.js"></script>
+<script src="yearsync.js"></script>
+<script src="script.js"></script>
 
 </body>
 </html>

@@ -107,9 +107,6 @@ function renderJournalView() {
   var content = document.getElementById('page-content');
   if (!content) return;
 
-  journalRegisterFilter();
-  if (typeof TLFilter !== 'undefined') TLFilter.render('journal');
-
   var thisWeek = getWeekKey();
   var isCurrentWeek = (_journalWeek === thisWeek);
 
@@ -443,39 +440,6 @@ function jnlBuildWeekNav() {
 function jnlGoToWeek(key) {
   _journalWeek = key;
   jnlFillEntry(key); // 내부에서 _jnlNavYear 동기화 + 네비 재생성
-}
-
-// ── 통합 필터 컴포넌트: 연도 이동(주간 다이어리 연도 점프) ──
-function journalYearList() {
-  var set = {};
-  try {
-    if (typeof journalData !== 'undefined' && journalData) {
-      Object.keys(journalData).forEach(function(k){ var y=parseInt(k.split('-W')[0],10); if(!isNaN(y)) set[y]=1; });
-    }
-  } catch(e) {}
-  var cur = new Date().getFullYear();
-  for (var i=cur-2;i<=cur+1;i++) set[i]=1;
-  if (_journalWeek) { var jy=parseInt(_journalWeek.split('-W')[0],10); if(!isNaN(jy)) set[jy]=1; }
-  return Object.keys(set).map(function(y){ return parseInt(y,10); }).sort(function(a,b){ return b-a; });
-}
-function journalRegisterFilter() {
-  if (typeof TLFilter === 'undefined') return;
-  TLFilter.register('journal', {
-    onChange: function(){ renderJournalView(); },
-    year: {
-      allowNew: false, allowDelete: false,
-      get: function(){ return _journalWeek ? parseInt(_journalWeek.split('-W')[0],10) : new Date().getFullYear(); },
-      set: function(y){
-        var wk = _journalWeek ? (parseInt(_journalWeek.split('-W')[1],10)||1) : 1;
-        var weeks = (typeof jnlYearWeeks==='function') ? jnlYearWeeks(y) : [];
-        if (weeks.length) { var idx = Math.min(wk-1, weeks.length-1); _journalWeek = weeks[idx].key; }
-        else { _journalWeek = y + '-W' + String(wk).padStart(2,'0'); }
-        _jnlNavYear = y;
-        renderJournalView();
-      },
-      years: function(){ return journalYearList(); }
-    }
-  });
 }
 
 function jnlNavYear(delta) {

@@ -77,9 +77,13 @@ function renderHomeNotif() {
   var items = [];
   var today = new Date(); today.setHours(0,0,0,0);
 
-  // 이름 정리 / 기한 일자 포맷 (기한 라벨 텍스트는 제거하고 우측에 날짜만 표시)
-  function _cleanName(name) { return String(name || '').replace(/^\[\d{6}\]\s*/, ''); }
-  function _fmtDue(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
+  // 마감 라벨 (하루 전 D-1 → 당일 → 지남)
+  function _dueLabel(name, diff) {
+    var clean = String(name || '').replace(/^\[\d{6}\]\s*/, '');
+    if (diff > 0)  return clean + ' 마감 D-' + diff + '일';
+    if (diff === 0) return clean + ' 오늘 마감';
+    return clean + ' 마감 ' + Math.abs(diff) + '일 지남';
+  }
 
   // 마감일 하루 전(D-1)부터 알림: 모든 Task + 모든 To Do(하위 단계)
   if (typeof tasks !== 'undefined') {
@@ -89,7 +93,7 @@ function renderHomeNotif() {
         var dueT = new Date(t.dueDateTime); dueT.setHours(0,0,0,0);
         var diffT = Math.round((dueT - today) / 86400000);
         if (diffT <= 1) {
-          items.push({ type:'danger', text: _cleanName(t.text), due: dueT, taskId: t.id, _d: diffT });
+          items.push({ type:'danger', text: _dueLabel(t.text, diffT), taskId: t.id, _d: diffT });
         }
       }
       // 2) 하위 To Do (steps)
@@ -98,7 +102,7 @@ function renderHomeNotif() {
         var dueS = new Date(s.dueDateTime); dueS.setHours(0,0,0,0);
         var diffS = Math.round((dueS - today) / 86400000);
         if (diffS <= 1) {
-          items.push({ type:'danger', text: '☑ ' + _cleanName(s.text), due: dueS, taskId: t.id, _d: diffS });
+          items.push({ type:'danger', text: '☑ ' + _dueLabel(s.text, diffS), taskId: t.id, _d: diffS });
         }
       });
     });
@@ -118,9 +122,7 @@ function renderHomeNotif() {
     var onclick = item.taskId
       ? 'onclick="openDetailPanel(' + item.taskId + ')"'
       : (item.action ? 'onclick="' + item.action + '"' : '');
-    var dueHtml = item.due ? '<span class="notif-due">' + _fmtDue(item.due) + '</span>' : '';
-    return '<div class="notif-card ' + cls + '" ' + onclick + '>'
-      + '<span class="notif-text">' + hwEsc(item.text) + '</span>' + dueHtml + '</div>';
+    return '<div class="notif-card ' + cls + '" ' + onclick + '>' + hwEsc(item.text) + '</div>';
   }).join('');
 }
 
@@ -128,7 +130,7 @@ function renderHomeNotif() {
 function renderHomeCalendar() {
   var el = document.getElementById('cal-body');
   if (!el) return;
-  var grid = buildMonthlyCalGrid();   // 월간 고정(주간 보기 제거)
+  var grid = (homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid();
   el.innerHTML = grid + '<div class="cal-detail" id="cal-detail"></div>';
   renderCalDetail();
 }
@@ -179,6 +181,10 @@ function buildCalHeader(label) {
     + '<button class="cal-arrow" onclick="homeCalPrev()">‹</button>'
     + '<span class="cal-month-label">' + label + '</span>'
     + '<button class="cal-arrow" onclick="homeCalNext()">›</button>'
+    + '</div>'
+    + '<div class="cal-nav-group">'
+    + '<button class="cal-nav' + (homeCalView==='monthly'?' active-view':'') + '" onclick="homeCalSetView(\'monthly\')">월간</button>'
+    + '<button class="cal-nav' + (homeCalView==='weekly'?' active-view':'') + '" onclick="homeCalSetView(\'weekly\')">주간</button>'
     + '</div>'
     + '</div>';
 }
@@ -269,14 +275,16 @@ function buildWeeklyCalGrid() {
 }
 
 function homeCalPrev() {
-  homeCalMonth--; if(homeCalMonth<0){homeCalMonth=11;homeCalYear--;}
+  if (homeCalView === 'weekly') { homeCalWeekStart.setDate(homeCalWeekStart.getDate()-7); }
+  else { homeCalMonth--; if(homeCalMonth<0){homeCalMonth=11;homeCalYear--;} }
   renderHomeCalendar();
 }
 function homeCalNext() {
-  homeCalMonth++; if(homeCalMonth>11){homeCalMonth=0;homeCalYear++;}
+  if (homeCalView === 'weekly') { homeCalWeekStart.setDate(homeCalWeekStart.getDate()+7); }
+  else { homeCalMonth++; if(homeCalMonth>11){homeCalMonth=0;homeCalYear++;} }
   renderHomeCalendar();
 }
-function homeCalSetView(v) { homeCalView=v; renderHomeCalendar(); }  // (미사용) 하위호환
+function homeCalSetView(v) { homeCalView=v; renderHomeCalendar(); }
 
 // 날짜 클릭 → 선택 표시 + 하단 상세 패널 갱신
 function selectCalDate(year, month, day) {
@@ -321,87 +329,30 @@ function collectDayItems(key) {
   return googleItems.concat(taskLogItems);
 }
 
-// 선택한 날짜가 속한 주(일~토)의 모든 일정 모으기
-//  - 마감일이 있는 to do(step)는 상위 Task 1개로만 표시(중복 제거)
-//  - 구글 캘린더 일정은 각각 표시
-function collectWeekItems(ws, we) {
-  var items = [];
-  var seenTask = {};
-  var taskEventIds = {};
-  if (typeof tasks !== 'undefined') {
-    tasks.forEach(function(t){ if (t.calendarEventId) taskEventIds[t.calendarEventId] = true; });
-    tasks.forEach(function(t) {
-      var color = EI_COLORS[t.eisenhower] || '#9CA3AF';
-      // 이 주에 해당하는 대표 마감일: Task 본체 우선, 없으면 이 주 안의 가장 이른 step 마감일
-      var due = null, hasTime = false;
-      if (t.dueDateTime) {
-        var td = new Date(t.dueDateTime);
-        if (td >= ws && td <= we) { due = td; hasTime = !!t.hasTime; }
-      }
-      if (!due && Array.isArray(t.steps)) {
-        t.steps.forEach(function(s) {
-          if (!s.dueDateTime) return;
-          var sd = new Date(s.dueDateTime);
-          if (sd >= ws && sd <= we && (!due || sd < due)) { due = sd; hasTime = !!s.hasTime; }
-        });
-      }
-      if (due && !seenTask[t.id]) {
-        seenTask[t.id] = true;
-        items.push({ text: t.text, color: color, id: t.id, isCal: false, date: due, time: hasTime ? due : null });
-      }
-    });
-  }
-  if (typeof calendarEvents !== 'undefined') {
-    calendarEvents.forEach(function(ev) {
-      if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
-      if (!ev.dueDateTime) return;
-      var ed = new Date(ev.dueDateTime);
-      if (ed >= ws && ed <= we) {
-        items.push({ text: ev.text, color: ev.calColor || GCAL_COLOR, id: null, isCal: true, date: ed, time: ev.hasTime ? ed : null });
-      }
-    });
-  }
-  // 기본은 날짜순이되, 오늘 기준 "다가올 일정"을 먼저(가까운 순), "지나간 일정"은 그 뒤(최근 순)
-  var todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  items.sort(function(a, b){
-    var ap = a.date < todayStart, bp = b.date < todayStart;
-    if (ap !== bp) return ap ? 1 : -1;   // 지나간 일정은 뒤로
-    if (ap) return b.date - a.date;       // 지나간 것끼리: 최근(오늘에 가까운) 순
-    return a.date - b.date;               // 다가올 것끼리: 가까운 순
-  });
-  return items;
-}
-
-// 하단 상세 패널 렌더 (선택된 날짜가 속한 "주"의 예정된 항목)
+// 하단 상세 패널 렌더 (선택된 날짜의 일정 목록)
 function renderCalDetail() {
   var el = document.getElementById('cal-detail');
   if (!el) return;
-  var DAY_KO = ['일','월','화','수','목','금','토'];
   var p = homeCalSelectedKey.split('-');
-  var sel = new Date(+p[0], +p[1]-1, +p[2]); sel.setHours(0,0,0,0);
-  var ws = new Date(sel); ws.setDate(sel.getDate() - sel.getDay());          // 그 주 일요일
-  var we = new Date(ws); we.setDate(ws.getDate() + 6); we.setHours(23,59,59,999); // 토요일
+  var dt = new Date(+p[0], +p[1]-1, +p[2]);
+  var dayStr = (dt.getMonth()+1)+'월 '+dt.getDate()+'일 ('+['일','월','화','수','목','금','토'][dt.getDay()]+')';
 
-  var items = collectWeekItems(ws, we);
-  var html = '<div class="cal-detail-header">이번주 할 일</div>';
-  var listBody;
+  var items = collectDayItems(homeCalSelectedKey);
+  var html = '<div class="cal-detail-header">' + dayStr + '</div>';
   if (!items.length) {
-    listBody = '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
+    html += '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
   } else {
-    listBody = items.map(function(item) {
-      var dt = item.date;
-      var dateLbl = (dt.getMonth()+1)+'/'+dt.getDate()+'('+DAY_KO[dt.getDay()]+')'
-        + (item.time ? ' ' + String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0') : '');
-      var dateHtml = '<span class="cal-detail-date">' + dateLbl + '</span>';
+    html += items.map(function(item) {
+      var timeStr = item.time
+        ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2,'0') + ':' + String(item.time.getMinutes()).padStart(2,'0') + '</span>'
+        : '';
       var badge = item.isCal ? '<span class="cal-detail-gbadge">G</span>' : '';
       var oc = item.isCal ? '' : ' onclick="openDetailPanel(' + item.id + ')"';
       var cls = 'cal-detail-item' + (item.isCal ? ' is-cal' : '');
       return '<div class="' + cls + '" style="border-left-color:' + item.color + ';"' + oc + '>'
-        + dateHtml + badge + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
+        + timeStr + badge + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
     }).join('');
   }
-  // 항목이 많아도 카드를 넘기지 않도록 목록에 내부 스크롤 적용
-  html += '<div class="cal-detail-list">' + listBody + '</div>';
   el.innerHTML = html;
 }
 
@@ -474,15 +425,12 @@ function renderHomeHabitWidget() {
       dots += '<div class="'+cls+'"'+oc+'><span style="font-size:8px;">'+DOW[day.getDay()]+'</span></div>';
     }
     return '<div class="habit-row">'
-      + '<div class="habit-info">'
-      + '<span class="habit-name">'+hwEsc(a.text)+'</span>'
-      + '<span class="habit-meta">🔥 '+streak+'일 연속</span>'
-      + '</div>'
+      + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div>'
+      + '<div class="habit-meta">🔥 '+streak+'일 연속</div></div>'
       + '<div class="habit-week">'+dots+'</div>'
       + '</div>';
   }).join('');
-  // 표시 개수를 넘어가면 목록 안에서 스크롤 (카드 높이 고정)
-  el.innerHTML = '<div class="habit-list">' + html + '</div>';
+  el.innerHTML = html;
 }
 
 function hpToggleHabitDay(year, sgId, actId, dateKey) {
@@ -505,55 +453,6 @@ var GM_LEFT = 136;
 var GM_LEFT_MAX = 204;   // 최대 1.5배
 var GM_MAX_ROWS = 14;
 var GM_MAX_SUBROWS = 4;
-var GM_LEFT_MIN_DRAG = 90;   // 사용자 조정 최소 폭
-var GM_LEFT_MAX_DRAG = 420;  // 사용자 조정 최대 폭
-
-// 좌측 TASK 라벨 폭 — 사용자가 드래그로 조정한 값(있으면 우선)
-var homeGanttLeftW = null;
-try { var _hgw = localStorage.getItem('homeGanttLeftW'); if (_hgw) { var _n = parseInt(_hgw, 10); if (!isNaN(_n)) homeGanttLeftW = _n; } } catch(e) {}
-
-// 완료되지 않은 To Do(step) 중 가장 가까운 마감일(ms). 없으면 Task 마감일, 그것도 없으면 Infinity
-function gmNearestTodoDue(task) {
-  var best = Infinity;
-  (task.steps || []).forEach(function(s) {
-    if (s.completed || !s.dueDateTime) return;
-    var t = new Date(s.dueDateTime).getTime();
-    if (t < best) best = t;
-  });
-  if (best === Infinity && task.dueDateTime) best = new Date(task.dueDateTime).getTime();
-  return best;
-}
-
-// 좌측 라벨 폭 드래그 조정
-var _hgResize = null;
-function homeGanttResizeStart(e) {
-  if (e) { e.preventDefault(); e.stopPropagation(); }
-  var wrap = document.querySelector('#gantt-body .gm-wrap');
-  if (!wrap) return;
-  var cur = parseInt(getComputedStyle(wrap).getPropertyValue('--gm-left'), 10) || GM_LEFT;
-  _hgResize = { startX: e.clientX, startW: cur, wrap: wrap, w: cur };
-  document.addEventListener('mousemove', homeGanttResizeMove);
-  document.addEventListener('mouseup', homeGanttResizeEnd);
-  document.body.style.userSelect = 'none';
-}
-function homeGanttResizeMove(e) {
-  if (!_hgResize) return;
-  var w = _hgResize.startW + (e.clientX - _hgResize.startX);
-  w = Math.max(GM_LEFT_MIN_DRAG, Math.min(GM_LEFT_MAX_DRAG, Math.round(w)));
-  _hgResize.w = w;
-  _hgResize.wrap.style.setProperty('--gm-left', w + 'px');
-}
-function homeGanttResizeEnd() {
-  document.removeEventListener('mousemove', homeGanttResizeMove);
-  document.removeEventListener('mouseup', homeGanttResizeEnd);
-  document.body.style.userSelect = '';
-  if (_hgResize) {
-    homeGanttLeftW = _hgResize.w;
-    try { localStorage.setItem('homeGanttLeftW', String(homeGanttLeftW)); } catch(e) {}
-    _hgResize = null;
-    renderHomeGanttMini();  // today-line 등 폭 반영해 재렌더
-  }
-}
 
 // task 이름 길이에 따라 좌측 라벨 영역 폭을 동적으로 계산 (136 ~ 204px)
 // 헤더/본문 정렬을 위해 모든 행에 동일 폭(--gm-left)을 적용한다.
@@ -594,9 +493,6 @@ function renderHomeGanttMini() {
     return false;
   });
 
-  // 완료되지 않은 To Do의 마감일이 가장 가까운 순으로 Task 정렬
-  vis.sort(function(a, b){ return gmNearestTodoDue(a) - gmNearestTodoDue(b); });
-
   var navHtml = '<div class="gm-nav">'
     + '<button class="gm-arrow" onclick="homeGanttPrev()">‹</button>'
     + '<span class="gm-month-label">'+year+'년 '+MN[month]+'</span>'
@@ -609,10 +505,7 @@ function renderHomeGanttMini() {
     return;
   }
 
-  // 좌측 라벨 폭: 사용자가 조정한 값이 있으면 우선, 없으면 이름 길이에 맞춰 자동
-  var leftW = homeGanttLeftW
-    ? Math.max(GM_LEFT_MIN_DRAG, Math.min(GM_LEFT_MAX_DRAG, homeGanttLeftW))
-    : gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
+  var leftW = gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
 
   // 배경 셀(요일/오늘 음영) — 모든 행이 공유하는 퍼센트 기반 칸, 우측 여백 없이 꽉 채움
   var bgCellsHtml = '';
@@ -633,10 +526,7 @@ function renderHomeGanttMini() {
 
   var rows = vis.slice(0, GM_MAX_ROWS).map(function(task) {
     var pct = getTaskProgress(task);
-    // 색상: STATUS 컬러와 동일(예: 진행=초록). 상태값 없으면 섹션 색으로 폴백
-    var color = (typeof RP_STATUS_COLORS !== 'undefined' && RP_STATUS_COLORS[task.status])
-      ? RP_STATUS_COLORS[task.status]
-      : getGanttColor(task);
+    var color = getGanttColor(task);
     var label = task.text.replace(/^\[\d{6}\] /, '');
     var shortLabel = label;
 
@@ -671,12 +561,10 @@ function renderHomeGanttMini() {
           ? '<div class="gm-bar" style="left:'+barLeftPct.toFixed(3)+'%;width:'+barWPct.toFixed(3)+'%;border-color:'+color+';background:'+color+'25;">'
             + '<div class="gm-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
           : '')
-      + buildGanttTodoDots(task, mS, mE, daysInMonth, color)
       + '</div>'
       + '</div>';
 
-    // TO DO는 별도 행 없이 해당 일자 위에 점으로 표시(위 gm-grid에 포함)
-    return mainRow;
+    return mainRow + buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml);
   }).join('');
 
   var todayLine = todayIdx !== null
@@ -687,33 +575,12 @@ function renderHomeGanttMini() {
     + '<div class="gm-wrap" style="--gm-left:'+leftW+'px;">'
     + '<div class="gm-header"><div class="gm-left-spacer"></div>'
     + '<div class="gm-hcells">'+hdrCells+'</div></div>'
-    + '<div class="gm-body">'
-    + '<div class="gm-col-resize" title="드래그해서 TASK 폭 조정" onmousedown="homeGanttResizeStart(event)"></div>'
-    + todayLine + rows + '</div>'
+    + '<div class="gm-body">' + todayLine + rows + '</div>'
     + '</div>'
     + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
 }
 
-// 하위 to-do(task.steps)를 해당 Task 행의 일자 위에 점으로 표시
-//  - 점에 마우스를 올리면 to do 텍스트가 툴팁으로 표시됨(title 속성)
-//  - 완료된 to do는 초록색, 진행 중은 Task 색
-function buildGanttTodoDots(task, mS, mE, daysInMonth, color) {
-  var steps = task.steps || [];
-  if (!steps.length) return '';
-  var html = '';
-  steps.forEach(function(step) {
-    if (!step.dueDateTime) return;
-    var sd = new Date(step.dueDateTime);
-    if (sd < mS || sd > mE) return;
-    var leftPct = (sd.getDate()-1+0.5) / daysInMonth * 100;
-    var dotColor = step.completed ? '#2ecc71' : color;
-    var tip = (step.text || '(제목 없음)') + ' · ' + (sd.getMonth()+1)+'/'+sd.getDate() + (step.completed ? ' ✓' : '');
-    html += '<div class="gm-todo-dot'+(step.completed?' done':'')+'" style="left:'+leftPct.toFixed(3)+'%;background:'+dotColor+';" title="'+hwEsc(tip)+'"></div>';
-  });
-  return html;
-}
-
-// 하위 to-do(task.steps)를 서브로우로 표시 — 전체 GANTT 페이지(gantt.js)에서 재사용
+// 하위 to-do(task.steps)를 GANTT 미니 그리드에 서브로우로 표시
 function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
   var steps = task.steps || [];
   if (!steps.length) return '';

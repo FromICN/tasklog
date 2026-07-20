@@ -19,11 +19,10 @@ const BACKUP_REGISTRY = [
   { key: 'my-tasklog-corevalues', label: '핵심가치',             type: 'json'   },
   { key: 'my-tasklog-mandalart',  label: '만다라트',             type: 'json'   },
   { key: 'tasklog-mvv-data',      label: 'MVV(미션·비전·가치)',  type: 'json'   },
-  { key: 'todoCols2',             label: 'Board 컬럼 설정',      type: 'json'   },
+  { key: 'todoCols',              label: 'Board 컬럼 설정',      type: 'json'   },
   { key: 'todoProjHidden',        label: 'Board 숨김 프로젝트',  type: 'json'   },
   { key: 'mdtFavActions',         label: '만다라트 즐겨찾기',    type: 'json'   },
   { key: 'my-tasklog-nickname',   label: '닉네임',               type: 'string' },
-  { key: 'my-tasklog-user',       label: '사용자 프로필',        type: 'json'   },
   // ── 환경설정(사용자 선택값) ─────────────
   { key: 'app-theme',             label: '테마',                 type: 'string' },
   { key: 'app-lang',              label: '언어',                 type: 'string' },
@@ -31,11 +30,6 @@ const BACKUP_REGISTRY = [
   { key: 'app-font-size',         label: '글자 크기',            type: 'string' },
   { key: 'app-notif-deadline',    label: '마감 알림',            type: 'string' },
   { key: 'app-notif-journal',     label: '저널 알림',            type: 'string' },
-  // ── 캘린더 설정(이전엔 백업되지 않던 값) ─
-  { key: 'app-cal-sync',          label: '캘린더 동기화',        type: 'string' },
-  { key: 'app-cal-provider',      label: '캘린더 제공자',        type: 'string' },
-  { key: 'app-cal-direction',     label: '캘린더 동기화 방향',   type: 'string' },
-  { key: 'app-cal-items',         label: '캘린더 표시 항목',     type: 'string' },
 ];
 
 const BACKUP_FORMAT  = 'tasklog-backup';
@@ -141,6 +135,28 @@ function isValidBackup(backup) {
   if (backup.data && typeof backup.data === 'object') return true;     // 신규
   if (Array.isArray(backup.tasks)) return true;                        // 구버전
   return false;
+}
+
+// ─────────────────────────────────────────────
+//  복원용 빈 양식 — 백업 파일과 "완전히 같은 구조", 값만 비어 있음
+// ─────────────────────────────────────────────
+function buildRestoreTemplate() {
+  var data = {};
+  var fields = {};
+  BACKUP_REGISTRY.forEach(function (item) {
+    data[item.key]   = (item.type === 'json') ? [] : '';
+    fields[item.key] = item.label;
+  });
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    backupDate: '',
+    _guide: '이 파일은 복원용 빈 양식입니다. 백업 파일과 동일한 형식이에요. '
+          + 'data 안의 각 항목에 값을 채운 뒤 [설정 > 백업 & 복원 > 파일 업로드]로 복원하세요. '
+          + '비워 둔 항목은 복원할 때 무시되어 기존 데이터를 건드리지 않습니다.',
+    _fields: fields,   // 각 키가 무슨 데이터인지 안내
+    data: data,
+  };
 }
 
 // ─────────────────────────────────────────────

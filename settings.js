@@ -167,14 +167,14 @@ function buildTabGeneral() {
       + '</div>'
       + '<div><div class="user-name">' + sEsc(user.name || '') + '</div><div class="user-email">' + sEsc(user.email || '') + '</div></div>'
       + '</div>'
-      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof handleSignOut===\'function\')handleSignOut()">로그아웃</button>'
+      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof signOut===\'function\')signOut()">로그아웃</button>'
       + '</div>'
     : '<div class="settings-row">'
       + '<div><div class="settings-row-label">사용자 이름</div></div>'
       + '<input class="settings-input" id="settings-username" value="Mia">'
       + '</div>'
       + '<div class="settings-row" style="border-bottom:none;">'
-      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">클라우드 실시간 동기화, 캘린더 연동에 필요합니다</div></div>'
+      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">Drive 백업, 캘린더 동기화에 필요합니다</div></div>'
       + '<button class="signin-btn" id="settings-signin-btn" style="width:auto;padding:7px 14px;" onclick="if(typeof handleSignIn===\'function\')handleSignIn()"><span class="g-icon">G</span> 로그인</button>'
       + '</div>';
 
@@ -258,13 +258,27 @@ function buildFontSizeBtn(val, label) {
 function buildTabCalendar() {
   var calSync = settingsState.calSync;
   var provider = settingsState.calProvider;
-  var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 불러오는 중...'
-    : settingsState.syncStatus === 'done' ? '✓ 불러오기 완료' : '📥 지금 불러오기';
+  var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 동기화 중...'
+    : settingsState.syncStatus === 'done' ? '✓ 동기화 완료' : '🔄 지금 동기화';
 
-  // 불러오기 전용: 앱 일정을 구글로 보내지 않으므로 방향/보낼 항목 선택은 제공하지 않음
+  var twoWay = settingsState.calDirection === 'two';
+  var dirDesc = twoWay ? 'TaskLog ↔ 캘린더 (양방향)' : 'TaskLog → 캘린더 (단방향)';
+  var allItems = settingsState.calItems === 'all';
+
   var subHtml = !calSync ? '' :
     '<div class="settings-row">'
-    + '<div><div class="settings-row-label">불러오기 범위</div><div class="settings-row-desc">지난 30일 ~ 앞으로 90일 일정을 불러옵니다</div></div>'
+    + '<div><div class="settings-row-label">동기화 방향</div><div class="settings-row-desc">' + dirDesc + '</div></div>'
+    + '<select class="settings-select" onchange="settingsSetCalDirection(this.value)">'
+    + '<option value="one"' + (twoWay ? '' : ' selected') + '>단방향 (앱 → 캘린더)</option>'
+    + '<option value="two"' + (twoWay ? ' selected' : '') + '>양방향</option>'
+    + '</select>'
+    + '</div>'
+    + '<div class="settings-row">'
+    + '<div><div class="settings-row-label">동기화 항목</div><div class="settings-row-desc">캘린더에 표시할 항목</div></div>'
+    + '<select class="settings-select" onchange="settingsSetCalItems(this.value)">'
+    + '<option value="deadline"' + (allItems ? '' : ' selected') + '>Task 마감일만</option>'
+    + '<option value="all"' + (allItems ? ' selected' : '') + '>Task + To-Do 전체</option>'
+    + '</select>'
     + '</div>';
 
   return '<div class="settings-section-head" style="margin-top:8px;">연동 서비스</div>'
@@ -274,14 +288,14 @@ function buildTabCalendar() {
     + buildCalProvider('outlook', '📧', 'Outlook', provider)
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">구글 캘린더 불러오기</div><div class="settings-row-desc">구글 캘린더 일정을 앱으로 불러와 표시합니다 (앱 일정은 구글로 보내지 않음)</div></div>'
+    + '<div><div class="settings-row-label">캘린더 동기화 사용</div><div class="settings-row-desc">Task 마감일을 선택한 캘린더와 동기화합니다</div></div>'
     + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
     + '</div>'
     + subHtml
     + '<div style="margin-top:20px;">'
     + '<button onclick="settingsDoSync()" ' + (calSync ? '' : 'disabled') + ' style="width:100%;height:40px;border-radius:8px;border:none;cursor:' + (calSync ? 'pointer' : 'not-allowed') + ';background:' + (calSync ? 'var(--brand-primary)' : 'var(--border)') + ';color:' + (calSync ? '#fff' : 'var(--text-3)') + ';font-size:13px;font-weight:700;font-family:inherit;">'
     + syncBtnText + '</button>'
-    + (!calSync ? '<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;">불러오려면 위 토글을 켜주세요</div>' : '')
+    + (!calSync ? '<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;">동기화를 사용하려면 위 토글을 켜주세요</div>' : '')
     + '</div>';
 }
 
@@ -296,7 +310,8 @@ function buildCalProvider(id, icon, label, selected) {
 function buildTabBackup() {
   var signedIn   = typeof isSignedIn === 'function' && isSignedIn();
   var lastBackup = localStorage.getItem('last-backup-time');
-  var lastText   = lastBackup ? '마지막 동기화: ' + new Date(lastBackup).toLocaleString('ko-KR') : '동기화 기록 없음';
+  var lastText   = lastBackup ? '마지막 백업: ' + new Date(lastBackup).toLocaleString('ko-KR') : '백업 기록 없음';
+  var autoOn     = typeof autoBackupEnabled !== 'undefined' ? autoBackupEnabled : false;
 
   // 실제 데이터 개수 세기 (localStorage 기준)
   function cnt(key) {
@@ -318,40 +333,33 @@ function buildTabBackup() {
     + '</div>'
     + '<div style="font-size:11px;color:var(--text-3);margin-top:8px;">백업 시 모든 페이지의 입력 데이터와 환경설정이 함께 저장됩니다.</div>'
     + '</div>'
-    + '<div class="settings-section-head">전체 백업</div>'
+    + '<div class="settings-section-head">내보내기 / 양식</div>'
     + '<div class="settings-row">'
     + '<div><div class="settings-row-label">전체 백업 내보내기 (JSON)</div><div class="settings-row-desc">모든 페이지 데이터 + 환경설정을 .json 파일로 다운로드</div></div>'
     + '<button class="btn-secondary" style="font-size:12px;" onclick="exportJSON()">⬇ 내보내기</button>'
     + '</div>'
-    + '<div class="settings-section-head">페이지별 엑셀 내보내기 (복원 가능)</div>'
-    + '<div style="font-size:11px;color:var(--text-3);margin:-4px 0 6px;">엑셀(.xlsx)로 내보내 편집한 뒤, 같은 파일을 아래 [파일로 복원]에 올리면 그대로 복원됩니다. (Gantt·WBS는 Board 데이터를 불러오므로 별도 백업이 없습니다.)</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">WEB (Archiving)</div><div class="settings-row-desc">아카이빙 메모 내용</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportWebXlsx()">⬇ 엑셀</button>'
+    + '<div><div class="settings-row-label">복원용 빈 양식 다운로드</div><div class="settings-row-desc">백업 파일과 동일한 형식의 빈 양식 (값을 채워 복원 가능)</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="downloadRestoreTemplate()">⬇ 양식</button>'
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">Board</div><div class="settings-row-desc">Task · 일정 · 상태 · 협업자 · 연계 등 전체</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportBoardXlsx()">⬇ 엑셀</button>'
+    + '<div><div class="settings-row-label">엑셀 양식 다운로드 (Task)</div><div class="settings-row-desc">현재 할 일을 엑셀(.xlsx) 표로 받아 편집 후 그대로 복원 가능</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="downloadTaskExcel()">⬇ 엑셀</button>'
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">WD (주간기록)</div><div class="settings-row-desc">연도 · 주차 · 주요성과 · 다음주계획 · 회고</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportWdXlsx()">⬇ 엑셀</button>'
+    + '<div><div class="settings-row-label">CSV로 내보내기</div><div class="settings-row-desc">Task를 스프레드시트 형식으로 내보내기</div></div>'
+    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportCSV()">⬇ 내보내기</button>'
     + '</div>'
-    + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">Life Wheel</div><div class="settings-row-desc">섹션별 점수 · 상태 · 이상 · 가치 · 목표(SMART)</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportLifeWheelXlsx()">⬇ 엑셀</button>'
-    + '</div>'
-    + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">Mandalart</div><div class="settings-row-desc">섹션 · 프로젝트 · 유형(달성/습관) · 달성현황 · 목표</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportMandalartXlsx()">⬇ 엑셀</button>'
-    + '</div>'
-    + '<div class="settings-section-head">클라우드 실시간 동기화 (Firestore)</div>'
+    + '<div class="settings-section-head">Google Drive 백업</div>'
     + '<div class="drive-section">'
-    + (!signedIn
-        ? '<div class="drive-note">⚠️ Google 로그인 후 모든 기기에서 실시간 동기화됩니다.</div>'
-        : '<div class="drive-note">✅ 로그인 중 — 변경사항이 자동으로 모든 기기에 실시간 반영됩니다.</div>')
+    + (!signedIn ? '<div class="drive-note">⚠️ Google 로그인 후 Drive 백업을 이용할 수 있습니다.</div>' : '')
     + '<div class="drive-actions">'
-    + '<button class="drive-btn primary-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="forceSyncNow&&forceSyncNow()">☁️ 지금 동기화</button>'
+    + '<button class="drive-btn primary-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="backupToDrive&&backupToDrive();refreshSettingsBackupStatus()">☁️ 지금 백업</button>'
+    + '<button class="drive-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="restoreFromDrive&&restoreFromDrive()">📥 복원</button>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 0;">'
+    + '<div><div class="settings-row-label" style="font-size:12px;">자동 백업</div><div class="settings-row-desc">변경 시 자동으로 Drive에 저장</div></div>'
+    + buildToggle('settings-auto-backup', autoOn, 'settingsToggleAutoBackup()')
     + '</div>'
     + '<div class="drive-status" id="settings-backup-status">' + lastText + '</div>'
     + '</div>'
@@ -416,6 +424,14 @@ function settingsDoSync() {
   setSettingsTab('calendar');
   setTimeout(function() { settingsState.syncStatus = 'done'; setSettingsTab('calendar'); }, 2000);
 }
+function settingsToggleAutoBackup() {
+  if (!(typeof isSignedIn === 'function' && isSignedIn())) {
+    alert('자동 백업을 사용하려면 먼저 Google 로그인을 해주세요! 🔑');
+    return;
+  }
+  if (typeof toggleAutoBackup === 'function') toggleAutoBackup();
+  setSettingsTab('backup');
+}
 function saveSettingsAndClose() {
   localStorage.setItem('app-theme',            settingsState.darkMode ? 'dark' : 'light');
   localStorage.setItem('app-lang',             settingsState.lang);
@@ -431,7 +447,7 @@ function refreshSettingsBackupStatus() {
     var el = document.getElementById('settings-backup-status');
     if (!el) return;
     var lb = localStorage.getItem('last-backup-time');
-    el.textContent = lb ? '마지막 동기화: ' + new Date(lb).toLocaleString('ko-KR') : '동기화 기록 없음';
+    el.textContent = lb ? '마지막 백업: ' + new Date(lb).toLocaleString('ko-KR') : '백업 없음';
   }, 200);
 }
 
@@ -443,6 +459,31 @@ function exportJSON() {
   downloadBackupJSON(data, 'tasklog-backup-' + fmtDateForFile(new Date()) + '.json');
 }
 
+// 복원용 빈 양식 다운로드 — 백업 파일과 완전히 동일한 형식
+function downloadRestoreTemplate() {
+  if (typeof buildRestoreTemplate !== 'function') { alert('백업 모듈을 불러오지 못했습니다.'); return; }
+  downloadBackupJSON(buildRestoreTemplate(), 'tasklog-복원양식.json');
+}
+
+function exportCSV() {
+  if (typeof tasks === 'undefined' || !tasks.length) { alert('내보낼 Task가 없습니다.'); return; }
+  var header = ['ID', '이름', '완료', '시작일', '마감일', '아이젠하워'];
+  var rows = tasks.map(function(t) {
+    return [t.id, '"' + t.text.replace(/"/g, '""') + '"',
+      t.completed ? '완료' : '미완료',
+      t.startDate || '', t.dueDateTime ? t.dueDateTime.slice(0, 10) : '',
+      t.eisenhower || ''].join(',');
+  });
+  var csv = '﻿' + header.join(',') + '\n' + rows.join('\n');
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'tasklog-tasks-' + fmtDateForFile(new Date()) + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // 파일명용 날짜 포맷 (YYYY-MM-DD-HHmm)
 function fmtDateForFile(d) {
   d = d || new Date();
@@ -451,13 +492,13 @@ function fmtDateForFile(d) {
     + '-' + p(d.getHours()) + p(d.getMinutes());
 }
 
-// JSON 백업 파일에서 복원 (exportJSON 과 같은 형식). 엑셀(.xlsx)은 페이지별 통합 변환기로 위임.
+// JSON 백업/양식 파일에서 복원 (exportJSON · downloadRestoreTemplate 와 같은 형식)
 function handleRestoreFile(input) {
   var file = input && input.files && input.files[0];
   if (!file) return;
-  // 엑셀 파일이면 페이지별 통합 변환기로 처리 (WEB·Board·WD·LifeWheel·Mandalart 자동 인식)
+  // 엑셀 파일이면 전용 변환기로 처리
   if (/\.xlsx?$/i.test(file.name)) {
-    if (typeof handleRestorePageXlsx === 'function') { handleRestorePageXlsx(file, input); }
+    if (typeof handleRestoreXlsx === 'function') { handleRestoreXlsx(file, input); }
     else { alert('엑셀 모듈을 불러오지 못했습니다.'); input.value = ''; }
     return;
   }
@@ -471,9 +512,9 @@ function handleRestoreFile(input) {
       if (!confirm('백업 파일의 내용으로 현재 데이터를 덮어씁니다.\n(Task ' + taskN + '개 등 모든 페이지 데이터)\n계속할까요?')) {
         input.value = ''; return;
       }
-      var n = applyBackupData(data);   // 통합 복원 엔진 (신규/구버전 형식 모두 지원) + Firestore 자동 푸시
+      var n = applyBackupData(data);   // 통합 복원 엔진 (신규/구버전 형식 모두 지원)
       alert('복원 완료! (' + n + '개 항목) 페이지를 새로고침합니다. ✅');
-      setTimeout(function () { location.reload(); }, 800);   // Firestore 푸시가 로컬 큐에 기록될 시간 확보
+      location.reload();
     } catch (err) {
       alert('복원 실패: ' + err.message);
     }

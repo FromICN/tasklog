@@ -136,22 +136,18 @@ function _renderMVV() {
 
 // ── 연도 선택 드롭다운 (타이틀 영역 슬롯) ─────────
 function renderMVVYearSlot() {
-  if (typeof TLFilter === 'undefined') return;
-  TLFilter.register('mvv', {
-    onChange: function(){ renderMVVPage(); },
-    year: {
-      get: function(){ return mvvState.year; },
-      set: function(y){ if (typeof appSetYear==='function') appSetYear(y); else mvvChangeYear(y); },
-      years: function(){ return (typeof appAllSavedYears==='function') ? appAllSavedYears() : mvvSavedYears(); },
-      onNew: function(){
-        var y = prompt('연도를 입력하세요:', new Date().getFullYear());
-        if (!y) return;
-        if (typeof appCreateYear==='function') appCreateYear(parseInt(y,10)); else mvvChangeYear(parseInt(y,10));
-      },
-      onDelete: function(){ if (typeof appDeleteCurrentYear==='function') appDeleteCurrentYear(); }
-    }
-  });
-  TLFilter.render('mvv');
+  var slot = document.getElementById('topbar-mdt-year-slot');
+  if (!slot) return;
+  var y = mvvState.year;
+  var years = (typeof appAllSavedYears === 'function') ? appAllSavedYears() : mvvSavedYears();
+  if (years.indexOf(y) === -1) years.push(y);
+  years.sort(function(a, b){ return b - a; });
+  var opts = years.map(function(yr){
+    return '<option value="' + yr + '"' + (yr === y ? ' selected' : '') + '>' + yr + '년</option>';
+  }).join('');
+  opts += '<option value="__new__">+ 새 연도 추가</option>';
+  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
+  slot.innerHTML = '<select class="year-select" onchange="handleMvvYearSelect(this.value)">' + opts + '</select>';
 }
 
 // 연도 드롭박스 handler
