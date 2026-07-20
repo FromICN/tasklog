@@ -8986,3 +8986,28 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 }
 .tswitch.on { background: var(--brand-primary); }
 .tswitch.on span { left: 21px; }
+
+/* ── 완료된 To Do: 내용·완료일 수정 버튼/폼 ── */
+.step-edit-btn {
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  padding: 3px var(--space-15);
+  border-radius: var(--radius-xs);
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity var(--dur-fast), color var(--dur-fast);
+}
+.dp-step:hover .step-edit-btn { opacity: 1; }
+.step-edit-btn:hover { color: var(--brand-primary); }
+
+.step-edit-form {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 4px 0 8px 28px;
+}
+.step-edit-form .rp-step-edit-text { flex: 1 1 140px; min-width: 120px; }

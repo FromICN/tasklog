@@ -130,6 +130,30 @@ function applyDonePrefix(text, done) {
   return text.replace(/^\[\d{6}\] /, '');
 }
 
+// ── 완료된 To Do: 완료일(접두사) 파싱/생성 유틸 ──
+function stripDonePrefix(text) {
+  return (text || '').replace(/^\[\d{6}\] /, '');
+}
+function escapeAttr(text) {
+  return String(text == null ? '' : text)
+    .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function prefixFromDateInput(dateStr) {
+  // 'YYYY-MM-DD' → '[YYMMDD] '
+  if (!dateStr) return '';
+  var p = dateStr.split('-');
+  if (p.length !== 3) return '';
+  return '[' + p[0].slice(2) + p[1] + p[2] + '] ';
+}
+function stepDoneDateInput(step) {
+  // 편집 폼 프리필용 'YYYY-MM-DD'
+  if (step && step.completedAt) return toDateInputVal(step.completedAt);
+  var m = ((step && step.text) || '').match(/^\[(\d{2})(\d{2})(\d{2})\] /);
+  if (m) return '20' + m[1] + '-' + m[2] + '-' + m[3];
+  return toDateInputVal(new Date().toISOString());
+}
+
 function toggleComplete(id) {
   const task = tasks.find(t => t.id === id);
   if (!task) return;
@@ -1345,6 +1369,8 @@ function toggleStep(taskId, stepId) {
   if (!step) return;
   step.completed = !step.completed;
   step.text = applyDonePrefix(step.text, step.completed);
+  if (step.completed) { if (!step.completedAt) step.completedAt = new Date().toISOString(); }
+  else { delete step.completedAt; }
   saveTasks(); refreshDpSteps(task); renderTasks();
 }
 
@@ -1969,6 +1995,16 @@ function rpBuildStepsHtml() {
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
       + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, null)
       + '</div>';
+    var editForm = s.completed
+      ? '<div class="dp-sub-form step-edit-form rp-step-edit-form" id="rp-step-edit-form-'+s.id+'" style="display:none;">'
+        + '<input type="text" class="rp-step-edit-text" id="rp-step-edit-text-'+s.id+'" value="'+escapeAttr(stripDonePrefix(s.text))+'" placeholder="To Do \ub0b4\uc6a9" onkeydown="if(event.key===\'Enter\')rpSaveStepEdit('+s.id+')">'
+        + '<input type="date" class="rp-step-edit-date" id="rp-step-edit-date-'+s.id+'" value="'+stepDoneDateInput(s)+'">'
+        + '<button class="sub-form-save" onclick="rpSaveStepEdit('+s.id+')">\uc800\uc7a5</button>'
+        + '</div>'
+      : '';
+    var editBtn = s.completed
+      ? '<button class="step-edit-btn" onclick="event.stopPropagation();rpToggleStepEditForm('+s.id+')" title="\uc644\ub8cc \ub0b4\uc6a9\u00b7\uc644\ub8cc\uc77c \uc218\uc815">\u270f\ufe0f</button>'
+      : '';
     return '<div class="dp-step" id="rp-step-'+s.id+'">'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
@@ -1978,8 +2014,9 @@ function rpBuildStepsHtml() {
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
       + (hasDate ? '📅 '+formatDueDate(s.dueDateTime, false) : '📅')
       + '</button>'
+      + editBtn
       + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button></div>'
-      + dateForm;
+      + dateForm + editForm;
   }).join('');
 }
 
@@ -1993,6 +2030,32 @@ function rpToggleStepDateForm(stepId) {
   var isOpen = form.style.display !== 'none';
   form.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) setTimeout(function(){ openPickerCal('rp-step-'+stepId); }, 30);
+}
+
+// ── 완료된 To Do: 내용·완료일 수정 ──
+function rpToggleStepEditForm(stepId) {
+  document.querySelectorAll('.step-edit-form').forEach(function(f){
+    if (f.id !== 'rp-step-edit-form-'+stepId) f.style.display = 'none';
+  });
+  var form = document.getElementById('rp-step-edit-form-'+stepId);
+  if (!form) return;
+  var isOpen = form.style.display !== 'none';
+  form.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) setTimeout(function(){ var i = document.getElementById('rp-step-edit-text-'+stepId); if (i) { i.focus(); i.select(); } }, 30);
+}
+
+function rpSaveStepEdit(stepId) {
+  var s = rpState.steps.find(function(x){ return x.id === stepId; });
+  if (!s) return;
+  var t = document.getElementById('rp-step-edit-text-'+stepId);
+  var d = document.getElementById('rp-step-edit-date-'+stepId);
+  var name = t ? t.value.trim() : '';
+  var dateStr = d ? d.value : '';
+  if (!name) { if (t) t.focus(); return; }
+  s.text = (dateStr ? prefixFromDateInput(dateStr) : '') + name;
+  if (dateStr) s.completedAt = dateStr + 'T00:00:00'; else delete s.completedAt;
+  rpState.dirty = true;
+  rpRefreshSteps();
 }
 
 function rpSaveStepFromPicker(id) {
@@ -2034,6 +2097,8 @@ function rpToggleStep(stepId) {
   if (!s) return;
   s.completed = !s.completed;
   s.text = applyDonePrefix(s.text, s.completed);
+  if (s.completed) { if (!s.completedAt) s.completedAt = new Date().toISOString(); }
+  else { delete s.completedAt; }
   rpState.dirty = true;
   rpRefreshSteps();
 }
