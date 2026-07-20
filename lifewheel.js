@@ -16,9 +16,9 @@ const LW_SECTION_DEFAULTS = [
 ];
 
 const LW_STATUS = {
-  strength: { label:'✅ 강점',     color:'#2ecc71' },
-  maintain: { label:'🔥 유지/고민', color:'#f39c12' },
-  concern:  { label:'⚠️ 개선 필요', color:'#e74c3c' }
+  strength: { label:'✅ 강점',     color:'var(--success)' },
+  maintain: { label:'🔥 유지/고민', color:'var(--warning)' },
+  concern:  { label:'⚠️ 개선 필요', color:'var(--danger)' }
 };
 
 // ────────────────────────────────────────────

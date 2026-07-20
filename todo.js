@@ -391,9 +391,9 @@ function buildProgressCellHtml(task) {
 // 진행현황(status) 배지
 function buildTodoStatusCell(task) {
   if (!task.status) return todoEmptyCell();
-  var colors = { '대기':'#9CA3AF', '진행':'#2ecc71', '중단':'#ef4444', '완료':'#4F6EF7', '취소':'#6b7280' };
-  var c = colors[task.status] || '#9CA3AF';
-  return '<span class="todo-status-badge" style="color:'+c+';background:'+c+'1f;border:1px solid '+c+'55;">'+escapeHtml(task.status)+'</span>';
+  var colors = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--brand-primary)', '취소':'var(--text-3)' };
+  var c = colors[task.status] || 'var(--text-2)';
+  return '<span class="todo-status-badge" style="color:'+c+';background:color-mix(in srgb, '+c+' 12%, transparent);border:1px solid color-mix(in srgb, '+c+' 33%, transparent);">'+escapeHtml(task.status)+'</span>';
 }
 
 // 담당자 셀

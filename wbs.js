@@ -161,11 +161,11 @@ function wbsBadge(status) {
 }
 
 // ── STATUS 뱃지 (앱 공통 상태값: 대기/진행/중단/완료/취소) ──
-var WBS_STATUS_COLORS = { '대기':'#9CA3AF', '진행':'#2ecc71', '중단':'#ef4444', '완료':'#4F6EF7', '취소':'#6b7280' };
+var WBS_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--brand-primary)', '취소':'var(--text-3)' };
 
 function wbsStatusBadge(label) {
-  var c = WBS_STATUS_COLORS[label] || '#9CA3AF';
-  return '<span class="wbs-badge" style="color:' + c + ';border:1px solid ' + c + '66;background:' + c + '22;">' + label + '</span>';
+  var c = WBS_STATUS_COLORS[label] || 'var(--text-2)';
+  return '<span class="wbs-badge" style="color:' + c + ';border:1px solid color-mix(in srgb, ' + c + ' 40%, transparent);background:color-mix(in srgb, ' + c + ' 13%, transparent);">' + label + '</span>';
 }
 
 // TASK 자체 상태값 기준 (완료 체크 우선, 없으면 task.status, 기본 대기)

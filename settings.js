@@ -62,9 +62,21 @@ function _collectFontRules(rules, out) {
 
 // 글자 크기만 배율 적용 (레이아웃·여백은 그대로). CSS 가 px 단위라 스타일시트 규칙의
 // font-size 값에 직접 배율을 곱한다. 인라인 style 의 font-size 몇 곳은 대상이 아님.
+// 디자인 토큰 기준값 (style.css :root의 --fs-* 와 반드시 일치해야 함)
+var FS_TOKEN_BASE = {
+  '--fs-3xs': 9,  '--fs-2xs': 10, '--fs-xs': 11, '--fs-sm': 12,
+  '--fs-base': 13, '--fs-md': 14, '--fs-lg': 15, '--fs-xl': 16,
+  '--fs-2xl': 18, '--fs-3xl': 20, '--fs-4xl': 22
+};
+
 function applyFontSize(val) {
   if (document.body) document.body.style.zoom = '';   // 이전 zoom 방식 잔재 제거
   var scale = val === 'small' ? 0.9 : val === 'large' ? 1.15 : 1;
+  // 1) 디자인 토큰 배율 — font-size 대부분이 var(--fs-*)를 사용하므로 여기서 일괄 조정
+  Object.keys(FS_TOKEN_BASE).forEach(function (k) {
+    document.documentElement.style.setProperty(k, (Math.round(FS_TOKEN_BASE[k] * scale * 10) / 10) + 'px');
+  });
+  // 2) 토큰 미사용 px 규칙(디스플레이 크기 등 소수) — 기존 CSSOM 방식 유지
   if (!_fontSizeRules) {
     _fontSizeRules = [];
     for (var s = 0; s < document.styleSheets.length; s++) {

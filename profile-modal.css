@@ -15,10 +15,10 @@
 .profile-modal {
   background: var(--bg-1);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   width: 360px;
   max-width: calc(100vw - 32px);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-lg);
   animation: pm-in 0.18s ease;
   overflow: hidden;
 }
@@ -49,8 +49,8 @@
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 6px;
-  transition: background 0.15s;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast);
 }
 .pm-close:hover { background: var(--surface-hover); color: var(--text-1); }
 
@@ -134,12 +134,12 @@
   flex: 1;
   padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--bg-2);
   color: var(--text-1);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 .pm-input:focus { border-color: var(--brand-primary); }
 
@@ -147,13 +147,13 @@
   padding: 7px 14px;
   background: var(--bg-3);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-1);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--dur-fast), color var(--dur-fast);
 }
 .pm-btn-save:hover { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
 
@@ -172,12 +172,12 @@
 
 .pm-badge-connected {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
-  color: #22c55e;
-  background: rgba(34,197,94,0.12);
+  color: var(--success);
+  background: var(--success-bg);
   padding: 2px 8px;
-  border-radius: 20px;
+  border-radius: var(--radius-full);
 }
 
 /* 푸터 */
@@ -192,16 +192,16 @@
   text-align: center;
   background: none;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
 }
 .pm-btn-signout:hover {
-  background: rgba(239,68,68,0.08);
-  color: #ef4444;
-  border-color: rgba(239,68,68,0.3);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
 }
 
 /* 비로그인 게스트 */
@@ -234,19 +234,17 @@
   padding: 9px 20px;
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--text-1);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--dur-fast);
 }
 .pm-btn-signin:hover { background: var(--bg-3); }
 
-/* 라이트 모드 */
+/* 라이트 모드 — 토큰이 라이트 값으로 재정의되므로 배경 오버라이드만 유지 */
 body.light-mode .profile-modal {
-  background: #ffffff;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.18);
+  background: var(--bg);
+  box-shadow: var(--shadow-lg);
 }
-body.light-mode .pm-input { background: #f8f9fa; }
-body.light-mode .pm-btn-save { background: #f0f0f0; }

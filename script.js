@@ -1811,11 +1811,11 @@ var rpState = {
   createdAt: null,
 };
 
-var RP_EI_COLORS = { DO:'#EF4444', SCHEDULE:'#4F6EF7', DELEGATE:'#F5A623', DROP:'#9CA3AF' };
+var RP_EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--brand-primary)', DELEGATE:'var(--warning)', DROP:'var(--text-2)' };
 var RP_EI_NAME   = { DO:'Do', SCHEDULE:'Plan', DELEGATE:'Delegate', DROP:'Delete' };
 var RP_EI_DESC   = { DO:'긴급·중요', SCHEDULE:'중요·비긴급', DELEGATE:'긴급·비중요', DROP:'비긴급·비중요' };
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
-var RP_STATUS_COLORS = { '대기':'#9CA3AF', '진행':'#2ecc71', '중단':'#ef4444', '완료':'#4F6EF7', '취소':'#6b7280' };
+var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--brand-primary)', '취소':'var(--text-3)' };
 
 function openNewTaskPanel(taskId) {
   rpState.taskId = taskId || null;
@@ -1867,7 +1867,7 @@ function buildRpForm(task) {
   var eiHtml = '<div class="rp-sect"><div class="rp-section-head">Priority</div><div class="rp-ei-grid">';
   ['DO','SCHEDULE','DELEGATE','DROP'].forEach(function(k) {
     var sel = rpState.eisenhower === k;
-    var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:'+RP_EI_COLORS[k]+'18;' : '';
+    var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:color-mix(in srgb, '+RP_EI_COLORS[k]+' 10%, transparent);' : '';
     eiHtml += '<button class="rp-ei-btn'+(sel?' rp-ei-sel':'')+'" data-ei="'+k+'" style="'+selStyle+'" onclick="rpSetEi(\''+k+'\')">'
       + '<span class="rp-ei-name" style="color:'+RP_EI_COLORS[k]+';">'+RP_EI_NAME[k]+'</span>'
       + '<span class="rp-ei-desc">'+RP_EI_DESC[k]+'</span>'
@@ -1879,8 +1879,8 @@ function buildRpForm(task) {
   var statusHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Status</div><div class="rp-status-row">';
   RP_STATUS_OPTS.forEach(function(s) {
     var sel = rpState.status === s;
-    var col = RP_STATUS_COLORS[s] || '#9CA3AF';
-    var st = sel ? 'border-color:'+col+';background:'+col+'26;color:'+col+';' : '';
+    var col = RP_STATUS_COLORS[s] || 'var(--text-2)';
+    var st = sel ? 'border-color:'+col+';background:color-mix(in srgb, '+col+' 15%, transparent);color:'+col+';' : '';
     statusHtml += '<button class="rp-status-btn'+(sel?' active':'')+'" id="rp-sbtn-'+s+'" style="'+st+'" onclick="rpSetStatus(\''+s+'\')">'+s+'</button>';
   });
   statusHtml += '</div></div>';
@@ -2173,7 +2173,7 @@ function rpSetEi(key) {
     var sel = rpState.eisenhower === k;
     btn.classList.toggle('rp-ei-sel', sel);
     btn.style.borderColor = sel ? RP_EI_COLORS[k] : '';
-    btn.style.background  = sel ? RP_EI_COLORS[k]+'18' : '';
+    btn.style.background  = sel ? 'color-mix(in srgb, '+RP_EI_COLORS[k]+' 10%, transparent)' : '';
   });
 }
 
@@ -2184,10 +2184,10 @@ function rpSetStatus(s) {
     var btn = document.getElementById('rp-sbtn-'+opt);
     if (!btn) return;
     var sel = opt === s;
-    var col = RP_STATUS_COLORS[opt] || '#9CA3AF';
+    var col = RP_STATUS_COLORS[opt] || 'var(--text-2)';
     btn.classList.toggle('active', sel);
     btn.style.borderColor = sel ? col : '';
-    btn.style.background  = sel ? col+'26' : '';
+    btn.style.background  = sel ? 'color-mix(in srgb, '+col+' 15%, transparent)' : '';
     btn.style.color       = sel ? col : '';
     btn.textContent = opt;
   });
@@ -2207,7 +2207,7 @@ function saveRightPanel() {
   var nameEl = document.getElementById('rp-task-name');
   var name   = nameEl ? nameEl.value.trim() : '';
   if (!name) {
-    if (nameEl) { nameEl.style.outline = '2px solid #EF4444'; nameEl.focus(); }
+    if (nameEl) { nameEl.style.outline = '2px solid var(--danger)'; nameEl.focus(); }
     return;
   }
 
@@ -2422,7 +2422,7 @@ function navToMenu(id) {
   if (fnName && typeof window[fnName] === 'function') {
     window[fnName]();
   } else if (content) {
-    content.innerHTML = '<div style="padding:40px;color:#888;text-align:center;">준비 중인 페이지입니다.</div>';
+    content.innerHTML = '<div style="padding:40px;color:var(--text-2);text-align:center;">준비 중인 페이지입니다.</div>';
   }
 }
 

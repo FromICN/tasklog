@@ -469,7 +469,7 @@ function buildMdtPerfSectionHtml(m, sg) {
   if (!sg.smart) sg.smart = { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'', finalGoal:'' };
   var smartFilled = MDT_SMART_FIELDS.filter(function(f){ return sg.smart[f.key]; }).length;
   var hasFinal = !!sg.smart.finalGoal;
-  var smartColor = (smartFilled===5&&hasFinal) ? '#2ecc71' : smartFilled>0 ? '#f39c12' : 'var(--text-2)';
+  var smartColor = (smartFilled===5&&hasFinal) ? 'var(--success)' : smartFilled>0 ? 'var(--warning)' : 'var(--text-2)';
   var smartLabel = '&#127919; SMART ' + smartFilled + '/5' + (hasFinal ? ' &#10003;' : '');
   var done  = sg.actions.filter(function(a){ return a.completed; }).length;
   var total = sg.actions.length;
@@ -480,7 +480,7 @@ function buildMdtPerfSectionHtml(m, sg) {
     +   '<span class="mdt-perf-section-title" style="color:' + sg.color + ';">' + sg.emoji + ' ' + escMdt(sg.text) + '</span>'
     +   '<span class="mdt-perf-section-prog">' + done + '/' + total + '</span>'
     +   '<button class="mdt-smart-open-btn" id="mdt-smart-btn-' + sg.id + '"'
-    +     ' onclick="openMdtIdeal(' + m.year + ',' + sg.id + ')" style="color:#4F6EF7;">&#127919; 목표</button>'
+    +     ' onclick="openMdtIdeal(' + m.year + ',' + sg.id + ')" style="color:var(--brand-primary);">&#127919; 목표</button>'
     + '</div>';
 
   html += '<div class="mdt-act-cards" id="mdt-act-cards-' + sg.id + '">';
@@ -705,7 +705,7 @@ function openMdtSmart(year, sgId) {
     + '<div class="smart-field smart-final-field">'
     + '<div class="smart-field-header">'
     + '<span class="smart-icon">&#127942;</span>'
-    + '<span class="smart-label" style="color:#f6ad55;">최종 목표</span>'
+    + '<span class="smart-label" style="color:var(--warning);">최종 목표</span>'
     + '<span class="smart-desc">위 5가지를 종합해 구체적인 최종 목표 한 문장을 작성하세요</span>'
     + '</div>'
     + '<textarea class="smart-textarea smart-final-ta" id="mdt-smart-finalGoal" placeholder="예) 2026년 12월까지...">'+escMdt(sg.smart.finalGoal||'')+'</textarea>'
@@ -739,7 +739,7 @@ function saveMdtSmart(year, sgId) {
     var filled = MDT_SMART_FIELDS.filter(function(f){ return sg.smart[f.key]; }).length;
     var hasFinal = !!sg.smart.finalGoal;
     smartBtn.textContent = '🎯 SMART ' + filled + '/5' + (hasFinal ? ' ✓' : '');
-    smartBtn.style.color = (filled===5&&hasFinal) ? '#2ecc71' : filled>0 ? '#f39c12' : 'var(--text-2)';
+    smartBtn.style.color = (filled===5&&hasFinal) ? 'var(--success)' : filled>0 ? 'var(--warning)' : 'var(--text-2)';
   }
 }
 
@@ -789,14 +789,14 @@ function buildSgDetailHtml(m, sg) {
   if (!sg.smart) sg.smart = { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'', finalGoal:'' };
   var smartFilled = MDT_SMART_FIELDS.filter(function(f){ return sg.smart[f.key]; }).length;
   var hasFinal = !!sg.smart.finalGoal;
-  var smartColor = (smartFilled===5&&hasFinal) ? '#2ecc71' : smartFilled>0 ? '#f39c12' : 'var(--text-2)';
+  var smartColor = (smartFilled===5&&hasFinal) ? 'var(--success)' : smartFilled>0 ? 'var(--warning)' : 'var(--text-2)';
   var smartLabel = '&#127919; SMART ' + smartFilled + '/5' + (hasFinal ? ' &#10003;' : '');
 
   var html = '<div class="mdt-detail-wrap">'
     + '<div class="mdt-detail-top">'
     + '<button class="mdt-back-btn" onclick="closeSgDetail()">&#8592; Mandalart</button>'
     + '<button class="mdt-smart-open-btn" id="mdt-smart-btn-'+sg.id+'"'
-    + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:#4F6EF7;">&#127919; 목표</button>'
+    + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:var(--brand-primary);">&#127919; 목표</button>'
     + '</div>'
     + '<div class="mdt-act-cards" id="mdt-act-cards-'+sg.id+'">';
 

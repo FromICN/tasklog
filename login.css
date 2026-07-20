@@ -2,18 +2,20 @@
    🔐 전체화면 로그인 게이트 (최초 진입 시 표시)
    - 앱 위를 덮는 풀스크린 오버레이.
    - 로그인 완료되면 display:none 으로 사라짐.
+   - style.css 뒤에 로드되므로 디자인 토큰(var) 사용 가능.
+     다크/라이트 모드를 자동으로 따라감.
    ============================================ */
 
 #login-gate {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: 99999; /* 앱 전체 위 — 토큰 스케일(--z-*) 밖의 최상위 예외 */
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #232833;          /* 어두운 슬레이트 배경 */
+  background: var(--bg-1);
   font-family: inherit;
-  padding: 20px;
+  padding: var(--space-5);
 }
 
 /* 로그인이 끝나면 이 클래스로 숨김 */
@@ -26,43 +28,45 @@ html.preauth-hide-gate #login-gate { display: none !important; }
 #login-gate .login-card {
   width: 380px;
   max-width: 100%;
-  background: #14161c;
-  border: 1px solid #2a2f3a;
-  border-radius: 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
   padding: 44px 40px 40px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-lg);
   text-align: center;
 }
 
 #login-gate .login-title {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
   font-size: 28px;
   font-weight: 700;
-  color: #f2f4f8;
+  color: var(--text-1);
   letter-spacing: -0.5px;
 }
 
 #login-gate .login-subtitle {
-  margin: 0 0 32px;
-  font-size: 14px;
-  color: #8a90a0;
+  margin: 0 0 var(--space-8);
+  font-size: var(--fs-base);
+  color: var(--text-2);
 }
 
+/* 구글 로그인 버튼 — 구글 브랜드 가이드(흰 배경 버튼)라 흰색 유지.
+   라이트 모드에서 배경과 구분되도록 토큰 테두리 추가 */
 #login-gate .login-google-btn {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 14px 16px;
-  font-size: 15px;
+  padding: 14px var(--space-4);
+  font-size: var(--fs-md);
   font-weight: 600;
   color: #20242c;
   background: #ffffff;
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 10px;
   cursor: pointer;
-  transition: background .15s, transform .05s;
+  transition: background var(--dur-fast), transform .05s;
 }
 #login-gate .login-google-btn:hover  { background: #eef1f6; }
 #login-gate .login-google-btn:active { transform: translateY(1px); }
@@ -74,35 +78,35 @@ html.preauth-hide-gate #login-gate { display: none !important; }
   justify-content: center;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
-  background: #4285f4;
+  border-radius: var(--radius-full);
+  background: #4285f4; /* 구글 브랜드 블루 — 유지 */
   color: #fff;
   font-weight: 800;
   font-size: 13px;
-  font-family: Arial, sans-serif;
+  /* Arial 제거 → 본문과 동일한 시스템 폰트 상속 */
 }
 
 #login-gate .login-keep {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin-top: 18px;
   font-size: 13px;
-  color: #aab0be;
+  color: var(--text-2);
   cursor: pointer;
   user-select: none;
 }
 #login-gate .login-keep input {
   width: 16px;
   height: 16px;
-  accent-color: #4f6ef7;
+  accent-color: var(--brand-primary);
   cursor: pointer;
 }
 
 #login-gate .login-hint {
   margin-top: 22px;
-  font-size: 12px;
-  color: #666c7a;
+  font-size: var(--fs-sm);
+  color: var(--text-3);
   line-height: 1.5;
 }

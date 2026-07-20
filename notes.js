@@ -169,7 +169,7 @@ function buildTaskCard(task) {
     + ' style="cursor:pointer;" title="클릭하면 상세 보기"'
     + ' onclick="openDetailPanel(' + task.id + ')"'
     + ' ondragstart="nbDragStart(event)">'
-    + '<div class="nb-card-strip" style="background:#2ecc71;"></div>'
+    + '<div class="nb-card-strip" style="background:var(--success);"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-text">'+escNb(task.text)+'</div>'
     + projHtml
@@ -184,7 +184,7 @@ function buildStepCard(task, step) {
     + ' style="cursor:pointer;" title="클릭하면 상위 Task 상세 보기"'
     + ' onclick="openDetailPanel(' + task.id + ')"'
     + ' ondragstart="nbDragStart(event)">'
-    + '<div class="nb-card-strip" style="background:#3498db;"></div>'
+    + '<div class="nb-card-strip" style="background:var(--info);"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-text">'+escNb(step.text)+'</div>'
     + '<div class="nb-card-taskref">↳ '+escNb(task.text)+'</div>'
