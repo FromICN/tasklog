@@ -68,15 +68,23 @@ html.preauth-hide-gate #login-gate { display: none !important; }
 #login-gate .login-google-btn:active { transform: translateY(1px); }
 #login-gate .login-google-btn:disabled { opacity: .6; cursor: default; }
 
+/* 버튼 안 구글 로고 컨테이너 (style.css 의 .g-icon 그라디언트/폰트 규칙을 무력화) */
 #login-gate .login-google-btn .g-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: initial !important;
+  color: initial !important;
+  font-size: 0 !important;
 }
-#login-gate .login-google-btn .g-icon svg { display: block; }
+#login-gate .login-google-btn .g-icon svg { display: block; width: 18px; height: 18px; }
 
+/* ── 로그인 상태 유지 체크박스 ── */
 #login-gate .login-keep {
   display: flex;
   align-items: center;
@@ -88,14 +96,33 @@ html.preauth-hide-gate #login-gate { display: none !important; }
   cursor: pointer;
   user-select: none;
 }
-#login-gate .login-keep input {
-  -webkit-appearance: none;
-  appearance: none;
+
+/* 빈 상자 → 선택 시 파란 배경 + 흰 체크 (SVG 배경으로 렌더, box-sizing 영향 없음) */
+#login-gate .login-keep input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  box-sizing: border-box;
   width: 18px;
   height: 18px;
+  min-width: 18px;
   margin: 0;
+  padding: 0;
   border: 1.5px solid #c4c8d0;
   border-radius: 5px;
-  background: #ffffff;
+  background-color: #ffffff;
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 12px 12px;
   cursor: pointer;
-  position: relati
+  flex-shrink: 0;
+  transition: background-color .15s, border-color .15s;
+}
+#login-gate .login-keep input[type="checkbox"]:hover {
+  border-color: #9aa0ac;
+}
+#login-gate .login-keep input[type="checkbox"]:checked {
+  background-color: #4f6ef7;
+  border-color: #4f6ef7;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+}
