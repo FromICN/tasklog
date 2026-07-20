@@ -8987,27 +8987,30 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .tswitch.on { background: var(--brand-primary); }
 .tswitch.on span { left: 21px; }
 
-/* ── 완료된 To Do: 내용·완료일 수정 버튼/폼 ── */
-.step-edit-btn {
-  background: none;
-  border: none;
-  color: var(--text-3);
-  font-size: var(--fs-sm);
-  cursor: pointer;
-  padding: 3px var(--space-15);
+/* ── To Do 내용 클릭 인라인 수정 ── */
+.step-text.editable {
+  cursor: text;
   border-radius: var(--radius-xs);
-  opacity: 0;
-  flex-shrink: 0;
-  transition: opacity var(--dur-fast), color var(--dur-fast);
+  padding: 1px 3px;
+  margin: -1px -3px;
+  transition: background var(--dur-fast);
 }
-.dp-step:hover .step-edit-btn { opacity: 1; }
-.step-edit-btn:hover { color: var(--brand-primary); }
-
-.step-edit-form {
-  display: flex;
-  gap: var(--space-1);
-  align-items: center;
-  flex-wrap: wrap;
-  margin: 4px 0 8px 28px;
+.step-text.editable:hover {
+  background: var(--brand-primary-bg);
 }
-.step-edit-form .rp-step-edit-text { flex: 1 1 140px; min-width: 120px; }
+.step-text-edit {
+  flex: 1;
+  font-size: var(--fs-base);
+  color: var(--text-1);
+  line-height: 1.4;
+  background: var(--bg-1, rgba(255,255,255,0.06));
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-xs);
+  padding: 1px 4px;
+  outline: none;
+  font-family: inherit;
+}
+.step-text-edit.is-done {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
