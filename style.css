@@ -8986,26 +8986,3 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 }
 .tswitch.on { background: var(--brand-primary); }
 .tswitch.on span { left: 21px; }
-
-/* ── To Do 내용 클릭 인라인 수정 ── */
-.step-text.editable {
-  cursor: text;
-  border-radius: var(--radius-xs);
-  padding: 1px 3px;
-  margin: -1px -3px;
-  transition: background var(--dur-fast);
-}
-.step-text.editable:hover { background: var(--brand-primary-bg); }
-.step-text-edit {
-  flex: 1;
-  font-size: var(--fs-base);
-  color: var(--text-1);
-  line-height: 1.4;
-  background: var(--bg-1, rgba(255,255,255,0.06));
-  border: 1px solid var(--brand-primary);
-  border-radius: var(--radius-xs);
-  padding: 1px 4px;
-  outline: none;
-  font-family: inherit;
-}
-.step-text-edit.is-done { text-decoration: line-through; color: var(--text-3); }

@@ -1972,7 +1972,7 @@ function rpBuildStepsHtml() {
     return '<div class="dp-step" id="rp-step-'+s.id+'">'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text editable '+(s.completed?'is-done':'')+'" title="\ud074\ub9ad\ud558\uc5ec \uc218\uc815" onclick="event.stopPropagation();rpEditStepText('+s.id+')">'+escapeHtml(s.text)+'</span>'
+      + '<span class="step-text '+(s.completed?'is-done':'')+'">'+escapeHtml(s.text)+'</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
@@ -1993,43 +1993,6 @@ function rpToggleStepDateForm(stepId) {
   var isOpen = form.style.display !== 'none';
   form.style.display = isOpen ? 'none' : 'block';
   if (!isOpen) setTimeout(function(){ openPickerCal('rp-step-'+stepId); }, 30);
-}
-
-// ── To Do 내용 인라인 수정 (완료 전/후 무관) ──
-function rpEditStepText(stepId) {
-  var s = rpState.steps.find(function(x){ return x.id === stepId; });
-  if (!s) return;
-  var row = document.getElementById('rp-step-'+stepId);
-  if (!row) return;
-  var span = row.querySelector('.step-text');
-  if (!span || row.querySelector('.step-text-edit')) return;
-  var input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'step-text-edit' + (s.completed ? ' is-done' : '');
-  input.value = s.text;
-  span.replaceWith(input);
-  input.focus();
-  input.select();
-  input.addEventListener('keydown', function(e){
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    else if (e.key === 'Escape') { input.dataset.cancel = '1'; input.blur(); }
-  });
-  input.addEventListener('blur', function(){ rpCommitStepText(stepId, input); });
-}
-
-function rpCommitStepText(stepId, input) {
-  var s = rpState.steps.find(function(x){ return x.id === stepId; });
-  if (!s) { rpRefreshSteps(); return; }
-  if (!input.dataset.cancel) {
-    var v = input.value.trim();
-    if (v && v !== s.text) {
-      s.text = v;
-      var m = v.match(/^\[(\d{2})(\d{2})(\d{2})\] /);
-      if (m) s.completedAt = '20'+m[1]+'-'+m[2]+'-'+m[3]+'T00:00:00';
-      rpState.dirty = true;
-    }
-  }
-  rpRefreshSteps();
 }
 
 function rpSaveStepFromPicker(id) {
