@@ -2347,14 +2347,31 @@ var MENU_EMOJI = {
   wbs:'🌳', journal:'📓',
 };
 
+// 📐 사이드바 접기/펼치기 (기본: 접힘, 상태 localStorage 기억)
+function initSidebarCollapse() {
+  var sb = document.getElementById('sidebar');
+  if (!sb) return;
+  var saved = localStorage.getItem('sidebar-collapsed');
+  var collapsed = saved === null ? true : saved === '1';
+  sb.classList.toggle('collapsed', collapsed);
+  if (typeof updateDarkModeBtn === 'function') updateDarkModeBtn(); // 테마 스위치 초기 동기화
+}
+function toggleSidebar() {
+  var sb = document.getElementById('sidebar');
+  if (!sb) return;
+  sb.classList.toggle('collapsed');
+  localStorage.setItem('sidebar-collapsed', sb.classList.contains('collapsed') ? '1' : '0');
+}
+
 function initSidebar() {
   var nav = document.getElementById('sidebar-nav');
   if (!nav) return;
   nav.innerHTML = MENUS.map(function(m) {
     if (m.divider) return '<div class="nav-divider"></div>';
-    return '<button class="nav-item" id="nav-'+m.id+'" title="'+m.label+'" onclick="navToMenu(\''+m.id+'\')">'
+    var full = MENU_TITLES[m.id] || m.label;
+    return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'
       + '<span class="nav-item-icon">'+m.icon+'</span>'
-      + '<span class="nav-item-label">'+(m.short||m.label)+'</span>'
+      + '<span class="nav-item-label">'+full+'</span>'
       + '</button>';
   }).join('');
   var act = document.getElementById('nav-'+currentMenu);
@@ -2435,6 +2452,7 @@ function bootApp() {
   loadTasks();
   if (typeof appBootYearSync === 'function') appBootYearSync();
   initSidebar();
+  initSidebarCollapse();
   navToMenu('home');
   if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
   if (typeof updateCategoryCounts === 'function') updateCategoryCounts();

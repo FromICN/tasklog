@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TaskLog</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90' fill='%234F6EF7'>TL</text></svg>">
+  <link rel="icon" type="image/svg+xml" href="tasklog-icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="profile-modal.css">
   <link rel="stylesheet" href="login.css">
@@ -47,9 +49,15 @@
   <!-- ===== 66px 사이드바 ===== -->
   <aside class="sidebar" id="sidebar">
 
-    <!-- 상단 아바타 (로그인 프로필) -->
+    <!-- 상단: 아바타 + 접기/펼치기 -->
     <div class="sidebar-top">
       <div class="avatar-circle" id="sidebar-avatar" title="프로필 / 로그인" onclick="openProfilePanel()">M</div>
+      <button type="button" class="collapse-btn" id="sidebar-collapse-btn" title="사이드바 접기/펼치기" onclick="toggleSidebar()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 3v18"/>
+        </svg>
+      </button>
     </div>
 
     <!-- 메뉴 -->
@@ -57,8 +65,18 @@
       <!-- JS로 채워짐 -->
     </nav>
 
-    <!-- 하단: 설정 -->
+    <!-- 하단: 테마 토글 + 설정 -->
     <div class="sidebar-bottom">
+      <div class="theme-toggle" id="theme-toggle">
+        <svg class="tt-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+        </svg>
+        <button type="button" class="tswitch" id="theme-switch" title="다크 모드 전환" onclick="toggleDarkMode()"><span></span></button>
+        <svg class="tt-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </div>
       <button class="nav-item" id="settings-nav-btn" title="설정" onclick="openSettings()">
         <span class="nav-item-icon">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -86,8 +104,6 @@
           <div class="topbar-date" id="topbar-date"></div>
           <!-- 만다라트 연도 선택 슬롯 -->
           <div class="topbar-mdt-year-slot" id="topbar-mdt-year-slot"></div>
-          <!-- 다크모드 토글 -->
-          <button class="btn-icon" id="dark-toggle-btn" title="다크 모드 전환" onclick="toggleDarkMode()">🌙</button>
           <!-- TO-DO(계획된 일정)에서만: 새 Task 버튼 -->
           <button class="btn-primary" id="new-task-btn" onclick="openNewTaskPanel()" style="display:none;">
             <span style="font-size:16px;line-height:1">+</span> Task

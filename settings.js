@@ -103,8 +103,10 @@ function toggleDarkMode() {
 }
 
 function updateDarkModeBtn() {
-  var btn = document.getElementById('dark-toggle-btn');
+  var btn = document.getElementById('dark-toggle-btn'); // (구 탑바 버튼 — 있으면 갱신)
   if (btn) btn.textContent = settingsState.darkMode ? '☀️' : '🌙';
+  var sw = document.getElementById('theme-switch');     // 사이드바 하단 스위치
+  if (sw) sw.classList.toggle('on', settingsState.darkMode);
 }
 
 // ── open / close ──────────────────────────
