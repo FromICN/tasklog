@@ -304,7 +304,7 @@ function renderSubGoalCard(m, sg) {
     if (actIdx === null) {
       // 중앙 셀: Section 이름 + section별 최종목표 표시 (#2)
       var fg = (sg.smart && sg.smart.finalGoal) ? sg.smart.finalGoal : '';
-      return '<div class="mdt-inner-center" style="background:'+color+'28;border-bottom:2px solid '+color+'55;cursor:pointer;" data-prog="'+m.year+'-'+sg.id+'" onclick="event.stopPropagation();selectMdtSection('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+' 실적 보기">'
+      return '<div class="mdt-inner-center" style="background:'+color+'28;border-bottom:2px solid '+color+'55;cursor:pointer;" data-prog="'+m.year+'-'+sg.id+'" onclick="event.stopPropagation();openSgDetail('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+' 관리 페이지 열기">'
         + '<div class="mdt-ic-name mdt-fit-text" data-fit-base="12" style="color:'+color+';font-weight:700;">'+escMdt(sg.text)+'</div>'
         + (fg ? '<div class="mdt-ic-final mdt-fit-text" data-fit-base="10">'+escMdt(fg)+'</div>' : '')
         + '</div>';
@@ -342,7 +342,7 @@ function renderCoreCard(m) {
     if (!sg) return '<div class="mdt-inner-cell"></div>';
     return '<div class="mdt-inner-cell mdt-core-sg-ref"'
       + ' style="background:'+sg.color+'18;border-bottom:2px solid '+sg.color+'55;"'
-      + ' onclick="event.stopPropagation();selectMdtSection('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+'">'
+      + ' onclick="event.stopPropagation();openSgDetail('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+' 관리 페이지 열기">'
       + '<div class="mdt-ic-emoji" style="font-size:20px;">'+sg.emoji+'</div>'
       + '<div class="mdt-ic-name mdt-fit-text" data-fit-base="11" style="color:'+sg.color+';">'+escMdt(sg.text)+'</div>'
       + '</div>';
@@ -792,11 +792,30 @@ function buildSgDetailHtml(m, sg) {
   var smartColor = (smartFilled===5&&hasFinal) ? 'var(--success)' : smartFilled>0 ? 'var(--warning)' : 'var(--text-2)';
   var smartLabel = '&#127919; SMART ' + smartFilled + '/5' + (hasFinal ? ' &#10003;' : '');
 
+  var perf = calcSgPerf(sg);
+  var qDots = perf.qStats.map(function(c, i) {
+    var on = perf.achCount > 0 && c >= perf.achCount;
+    return '<span class="mdt-perf-qdot' + (on ? ' on' : '') + '" style="' + (on ? ('background:' + sg.color + ';') : '') + '" title="' + (i + 1) + '분기"></span>';
+  }).join('');
+
   var html = '<div class="mdt-detail-wrap">'
     + '<div class="mdt-detail-top">'
     + '<button class="mdt-back-btn" onclick="closeSgDetail()">&#8592; Mandalart</button>'
     + '<button class="mdt-smart-open-btn" id="mdt-smart-btn-'+sg.id+'"'
     + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:var(--brand-primary);">&#127919; 목표</button>'
+    + '</div>'
+    // 섹션 헤더 + 연간목표 실적 요약
+    + '<div class="mdt-detail-hero" style="border-left:4px solid '+sg.color+';padding:12px 14px;margin-bottom:12px;background:var(--set-sec);border-radius:10px;">'
+    +   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+    +     '<span style="font-size:22px;">'+sg.emoji+'</span>'
+    +     '<span style="font-size:15px;font-weight:700;color:'+sg.color+';">'+escMdt(sg.text || ('Section '+sg.id))+'</span>'
+    +     '<span style="margin-left:auto;font-size:12px;color:var(--text-2);">완료 '+perf.done+'/'+perf.total+'</span>'
+    +   '</div>'
+    +   '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:'+perf.pct+'%;background:'+sg.color+';"></div></div>'
+    +   '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">'
+    +     '<span style="font-size:12px;color:var(--text-1);">📊 '+m.year+' 연간 실적 <b>'+perf.pct+'%</b>'+(perf.target>0?(' ('+perf.sum+'/'+perf.target+')'):'')+'</span>'
+    +     '<span class="mdt-perf-dash-qdots">'+qDots+'</span>'
+    +   '</div>'
     + '</div>'
     + '<div class="mdt-act-cards" id="mdt-act-cards-'+sg.id+'">';
 

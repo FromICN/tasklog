@@ -264,40 +264,48 @@ function wbsToggleStep(taskId, stepId) {
   renderWbsView();
 }
 
-// ── 트리 빌드 (5단계: Section → Project → TASK → TO-DO) ──
-
+// ── 트리 빌드 (만다라트 연도별 Section → Project → TASK → TO-DO) ──
+//  ▸ 상위 = 만다라트 subGoal(Section), 하위 = action(Project)
+//  ▸ 해당 연도 만다라트 순서대로, "항목(Task)이 있는 가지"만 표시
 function buildWbsTree() {
   if (typeof tasks === 'undefined' || !tasks.length)
-    return '<div class="wbs-empty">✨ 등록된 할 일이 없어요<br><small>TASK 추가 시 Section을 설정하면 여기서 트리로 볼 수 있어요.</small></div>';
+    return '<div class="wbs-empty">✨ 등록된 할 일이 없어요<br><small>TASK에 Section·Project를 설정하면 여기서 트리로 볼 수 있어요.</small></div>';
 
   var filtered = tasks.filter(wbsTaskPassesFilter);
   if (!filtered.length)
     return '<div class="wbs-empty">✨ 조건에 맞는 할 일이 없어요</div>';
 
-  var lwSecs = (typeof getLwSections === 'function') ? getLwSections() : null;
-
-  // groups[lk][sgKey][actionKey] = [task, ...]
-  // 섹션(lk)·목표(sk)는 mdtAction 만 지정된 작업도 sgId 로 역산해 올바른 가지에 연결
+  // groups[sgKey][actionKey] = [task, ...]  (sgKey = 만다라트 subGoal id, actionKey = action id)
   var groups = {};
   filtered.forEach(function(task) {
-    var secIdx = wbsTaskSection(task);
-    var sgId   = wbsTaskSgId(task);
-    var lk  = (secIdx != null) ? String(secIdx) : '_';
-    var sk  = (sgId != null)   ? String(sgId)   : '_';
-    var ak  = (task.mdtAction && task.mdtAction.actionId) ? String(task.mdtAction.actionId) : '_';
-    if (!groups[lk])      groups[lk]      = {};
-    if (!groups[lk][sk])  groups[lk][sk]  = {};
-    if (!groups[lk][sk][ak]) groups[lk][sk][ak] = [];
-    groups[lk][sk][ak].push(task);
+    var sgId = wbsTaskSgId(task);
+    var sk = (sgId != null) ? String(sgId) : '_';
+    var ak = (task.mdtAction && task.mdtAction.actionId) ? String(task.mdtAction.actionId) : '_';
+    if (!groups[sk])     groups[sk]     = {};
+    if (!groups[sk][ak]) groups[sk][ak] = [];
+    groups[sk][ak].push(task);
   });
 
-  var html = wbsHeaderRow();
-  Object.keys(groups).filter(function(k){ return k !== '_'; })
+  // 표시 순서: 해당 연도 만다라트 subGoal 순서 → (없는 sgId는 뒤에 숫자순) → 미분류
+  var mdt = wbsLiveMdt();
+  var order = [];
+  if (mdt && Array.isArray(mdt.subGoals)) {
+    mdt.subGoals.forEach(function(sg) { if (groups[String(sg.id)]) order.push(String(sg.id)); });
+  }
+  Object.keys(groups).filter(function(k){ return k !== '_' && order.indexOf(k) === -1; })
     .sort(function(a,b){ return +a - +b; })
-    .forEach(function(lk) {
-      html += renderWbsSection('lw-' + lk, wbsSectionLabel(lk, lwSecs), groups[lk], lk);
-    });
-  if (groups['_']) html += renderWbsSection('lw-none', '📂 미분류', groups['_'], '_');
+    .forEach(function(k){ order.push(k); });
+
+  var html = wbsHeaderRow();
+  order.forEach(function(sk) {
+    var sgId = parseInt(sk, 10);
+    var lk = sgId - 1;   // subGoal.id = 라이프휠/섹션 인덱스 + 1 (드롭 대상 유지)
+    var first = Object.values(groups[sk])[0];
+    var firstTask = first ? first[0] : null;
+    var stored = (firstTask && firstTask.mdtGoal) ? firstTask.mdtGoal.text : '';
+    html += renderWbsCoreGroup('sg-' + sk, wbsGoalText(sgId, stored), groups[sk], lk, sgId);
+  });
+  if (groups['_']) html += renderWbsCoreGroup('sg-none', '📂 미분류', groups['_'], '_', null);
   return html || '<div class="wbs-empty">✨ 등록된 할 일이 없어요</div>';
 }
 
