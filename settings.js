@@ -181,7 +181,7 @@ function buildTabGeneral() {
       + '</div>'
       + '<div><div class="user-name">' + sEsc(user.name || '') + '</div><div class="user-email">' + sEsc(user.email || '') + '</div></div>'
       + '</div>'
-      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof signOut===\'function\')signOut()">로그아웃</button>'
+      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof handleSignOut===\'function\')handleSignOut();closeSettings();">로그아웃</button>'
       + '</div>'
     : '<div class="settings-row">'
       + '<div><div class="settings-row-label">사용자 이름</div></div>'
@@ -192,17 +192,10 @@ function buildTabGeneral() {
       + '<button class="signin-btn" id="settings-signin-btn" style="width:auto;padding:7px 14px;" onclick="if(typeof handleSignIn===\'function\')handleSignIn()"><span class="g-icon">G</span> 로그인</button>'
       + '</div>';
 
-  return '<div class="settings-section-head" style="margin-top:8px;">언어 & 지역</div>'
-    + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">언어</div><div class="settings-row-desc">앱 표시 언어</div></div>'
-    + '<select class="settings-select" onchange="settingsState.lang=this.value">'
-    + '<option value="ko"' + (settingsState.lang === 'ko' ? ' selected' : '') + '>한국어</option>'
-    + '<option value="en"' + (settingsState.lang === 'en' ? ' selected' : '') + '>English</option>'
-    + '</select>'
-    + '</div>'
+  return '<div class="settings-section-head" style="margin-top:8px;">지역</div>'
     + '<div class="settings-row">'
     + '<div><div class="settings-row-label">주 시작 요일</div><div class="settings-row-desc">캘린더 첫 번째 열 기준</div></div>'
-    + '<select class="settings-select" onchange="settingsState.weekStart=this.value">'
+    + '<select class="settings-select" onchange="settingsSetWeekStart(this.value)">'
     + '<option value="mon"' + (settingsState.weekStart === 'mon' ? ' selected' : '') + '>월요일</option>'
     + '<option value="sun"' + (settingsState.weekStart === 'sun' ? ' selected' : '') + '>일요일</option>'
     + '</select>'
@@ -295,13 +288,7 @@ function buildTabCalendar() {
     + '</select>'
     + '</div>';
 
-  return '<div class="settings-section-head" style="margin-top:8px;">연동 서비스</div>'
-    + '<div class="cal-provider-cards">'
-    + buildCalProvider('google', '🗓', 'Google 캘린더', provider)
-    + buildCalProvider('apple', '🍎', 'Apple 캘린더', provider)
-    + buildCalProvider('outlook', '📧', 'Outlook', provider)
-    + '</div>'
-    + '<div class="settings-row">'
+  return '<div class="settings-row" style="margin-top:8px;">'
     + '<div><div class="settings-row-label">캘린더 동기화 사용</div><div class="settings-row-desc">Task 마감일을 선택한 캘린더와 동기화합니다</div></div>'
     + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
     + '</div>'
@@ -353,16 +340,8 @@ function buildTabBackup() {
     + '<button class="btn-secondary" style="font-size:12px;" onclick="exportJSON()">⬇ 내보내기</button>'
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">복원용 빈 양식 다운로드</div><div class="settings-row-desc">백업 파일과 동일한 형식의 빈 양식 (값을 채워 복원 가능)</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="downloadRestoreTemplate()">⬇ 양식</button>'
-    + '</div>'
-    + '<div class="settings-row">'
     + '<div><div class="settings-row-label">엑셀 양식 다운로드 (Task)</div><div class="settings-row-desc">현재 할 일을 엑셀(.xlsx) 표로 받아 편집 후 그대로 복원 가능</div></div>'
     + '<button class="btn-secondary" style="font-size:12px;" onclick="downloadTaskExcel()">⬇ 엑셀</button>'
-    + '</div>'
-    + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">CSV로 내보내기</div><div class="settings-row-desc">Task를 스프레드시트 형식으로 내보내기</div></div>'
-    + '<button class="btn-secondary" style="font-size:12px;" onclick="exportCSV()">⬇ 내보내기</button>'
     + '</div>'
     + '<div class="settings-section-head">Google Drive 백업</div>'
     + '<div class="drive-section">'
@@ -372,7 +351,7 @@ function buildTabBackup() {
     + '<button class="drive-btn" ' + (signedIn ? '' : 'disabled') + ' onclick="restoreFromDrive&&restoreFromDrive()">📥 복원</button>'
     + '</div>'
     + '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 0;">'
-    + '<div><div class="settings-row-label" style="font-size:12px;">자동 백업</div><div class="settings-row-desc">변경 시 자동으로 Drive에 저장</div></div>'
+    + '<div><div class="settings-row-label" style="font-size:12px;">자동 백업</div><div class="settings-row-desc">매시 정각 + 변경 시 Drive에 저장 (시간대별 24개 순환)</div></div>'
     + buildToggle('settings-auto-backup', autoOn, 'settingsToggleAutoBackup()')
     + '</div>'
     + '<div class="drive-status" id="settings-backup-status">' + lastText + '</div>'
@@ -396,6 +375,11 @@ function settingsToggleKey(key, btnId) {
   settingsState[key] = !settingsState[key];
   var el = document.getElementById(btnId);
   if (el) el.classList.toggle('on', settingsState[key]);
+  // 알림 토글은 즉시 저장하고, 켤 때 브라우저 알림 권한을 요청한다
+  if (key === 'notifDeadline') localStorage.setItem('app-notif-deadline', settingsState[key] ? '1' : '0');
+  if (key === 'notifJournal')  localStorage.setItem('app-notif-journal',  settingsState[key] ? '1' : '0');
+  if ((key === 'notifDeadline' || key === 'notifJournal') && settingsState[key]
+      && typeof ensureNotifPermission === 'function') ensureNotifPermission();
 }
 
 function settingsToggleDark() {
@@ -410,6 +394,12 @@ function settingsSetFontSize(val) {
   applyFontSize(val);
   localStorage.setItem('app-font-size', val);
   setSettingsTab('display');
+}
+function settingsSetWeekStart(v) {
+  settingsState.weekStart = (v === 'sun') ? 'sun' : 'mon';
+  localStorage.setItem('app-week-start', settingsState.weekStart);
+  // 보이는 캘린더에 즉시 반영
+  if (typeof navToMenu === 'function' && typeof currentMenu !== 'undefined') navToMenu(currentMenu);
 }
 function settingsToggleCalSync() {
   settingsState.calSync = !settingsState.calSync;
@@ -542,4 +532,27 @@ function sEsc(text) {
   var d = document.createElement('div');
   d.textContent = (text == null) ? '' : String(text);
   return d.innerHTML;
+}
+
+// ============================================
+//  📅 주 시작 요일 유틸 (설정: 'mon' | 'sun')
+//  월간 그리드 캘린더(사이드바·날짜피커·홈 위젯)에서 공통으로 사용
+// ============================================
+function appWeekStart() {
+  var v = (typeof settingsState !== 'undefined' && settingsState.weekStart)
+          || localStorage.getItem('app-week-start') || 'mon';
+  return v === 'sun' ? 'sun' : 'mon';
+}
+// 표시 순서의 요일 라벨 배열 (base 기본: 일~토)
+function weekDayOrder(base) {
+  base = base || ['일','월','화','수','목','금','토'];
+  return appWeekStart() === 'mon' ? base.slice(1).concat([base[0]]) : base.slice();
+}
+// firstDay.getDay()(0=일) → 그리드 앞쪽 빈칸 개수
+function weekLeadOffset(dowSun) {
+  return appWeekStart() === 'mon' ? (dowSun + 6) % 7 : dowSun;
+}
+// 표시 컬럼 인덱스(0~6) → 실제 요일(0=일). 주말 색상 판정용
+function weekColDow(colIdx) {
+  return appWeekStart() === 'mon' ? (colIdx + 1) % 7 : colIdx;
 }

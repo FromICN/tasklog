@@ -484,7 +484,8 @@ function renderSidebarCalendar() {
   });
 
   const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  const DAY_NAMES   = ['일','월','화','수','목','금','토'];
+  const DAY_NAMES   = (typeof weekDayOrder === 'function') ? weekDayOrder() : ['일','월','화','수','목','금','토'];
+  const lead        = (typeof weekLeadOffset === 'function') ? weekLeadOffset(startDow) : startDow;
 
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
 
@@ -501,19 +502,21 @@ function renderSidebarCalendar() {
   // 요일 헤더
   html += '<div class="scal-grid">';
   DAY_NAMES.forEach((d, i) => {
-    const cls = i === 0 ? ' s-sun' : i === 6 ? ' s-sat' : '';
+    const _dw = (typeof weekColDow === 'function') ? weekColDow(i) : i;
+    const cls = _dw === 0 ? ' s-sun' : _dw === 6 ? ' s-sat' : '';
     html += '<div class="scal-dh' + cls + '">' + d + '</div>';
   });
 
   // 이전 달 패딩
-  for (let i = 0; i < startDow; i++) {
-    const d = prevMonthLastDay - startDow + 1 + i;
+  for (let i = 0; i < lead; i++) {
+    const d = prevMonthLastDay - lead + 1 + i;
     html += '<div class="scal-cell s-dim"><span class="scal-num">' + d + '</span></div>';
   }
 
   // 현재 달 날짜
   for (let d = 1; d <= totalDays; d++) {
-    const dow = (startDow + d - 1) % 7;
+    const _col = (lead + d - 1) % 7;
+    const dow = (typeof weekColDow === 'function') ? weekColDow(_col) : _col;
     const dateKey = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isToday = dateKey === todayKey;
     const evts = evtMap[dateKey] || [];
@@ -664,7 +667,8 @@ function buildPickerCalHtml(id) {
   var startDow = firstDay.getDay();
   var total    = lastDay.getDate();
   var prevLast = new Date(year, month, 0).getDate();
-  var DN = ['일','월','화','수','목','금','토'];
+  var DN = (typeof weekDayOrder === 'function') ? weekDayOrder() : ['일','월','화','수','목','금','토'];
+  var lead = (typeof weekLeadOffset === 'function') ? weekLeadOffset(startDow) : startDow;
   var pad = function(n){ return String(n).padStart(2,'0'); };
 
   // 연도 선택 옵션
@@ -690,13 +694,15 @@ function buildPickerCalHtml(id) {
     + '<div class="sdp-cal-grid2">';
 
   for (var di = 0; di < 7; di++) {
-    html += '<div class="sdp-dh' + (di===0?' sdp-sun':di===6?' sdp-sat':'') + '">' + DN[di] + '</div>';
+    var _dw = (typeof weekColDow === 'function') ? weekColDow(di) : di;
+    html += '<div class="sdp-dh' + (_dw===0?' sdp-sun':_dw===6?' sdp-sat':'') + '">' + DN[di] + '</div>';
   }
-  for (var i = 0; i < startDow; i++) {
-    html += '<div class="sdp-dc sdp-dim">' + (prevLast - startDow + 1 + i) + '</div>';
+  for (var i = 0; i < lead; i++) {
+    html += '<div class="sdp-dc sdp-dim">' + (prevLast - lead + 1 + i) + '</div>';
   }
   for (var d = 1; d <= total; d++) {
-    var dow = (startDow + d - 1) % 7;
+    var _col = (lead + d - 1) % 7;
+    var dow = (typeof weekColDow === 'function') ? weekColDow(_col) : _col;
     var dk  = year + '-' + pad(month+1) + '-' + pad(d);
     var cls = 'sdp-dc';
     if (dow === 0) cls += ' sdp-sun';
@@ -705,7 +711,7 @@ function buildPickerCalHtml(id) {
     if (dk === s.dateStr) cls += ' sdp-sel';
     html += '<div class="' + cls + '" onclick="pickerPickDate(\'' + id + '\',' + year + ',' + (month+1) + ',' + d + ')">' + d + '</div>';
   }
-  var filled = startDow + total;
+  var filled = lead + total;
   var remain = (7 - (filled % 7)) % 7;
   for (var r = 1; r <= remain; r++) {
     html += '<div class="sdp-dc sdp-dim">' + r + '</div>';
@@ -1466,6 +1472,71 @@ function scheduleReminder(task) {
     setTimeout(fire, delay);
   } else if (Notification.permission !== 'denied') {
     Notification.requestPermission().then(p => { if (p === 'granted') setTimeout(fire, delay); });
+  }
+}
+
+// ============================================
+//  🔔 알림 (마감 D-3 · 주간일지) — 설정 토글로 on/off
+// ============================================
+function notifEnabled(kind) {
+  var k = (kind === 'deadline') ? 'app-notif-deadline' : 'app-notif-journal';
+  var v = localStorage.getItem(k);
+  return v === null ? true : v !== '0';   // 기본 켜짐
+}
+
+function ensureNotifPermission() {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'default') {
+    try { Notification.requestPermission().then(function(){ runAppNotifications(); }); } catch (e) {}
+  }
+}
+
+// Task 마감 D-3 ~ 당일: 하루 1번(항목별 1번)만 브라우저 알림
+function runDeadlineNotifications() {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (!notifEnabled('deadline') || typeof tasks === 'undefined') return;
+  var today = new Date(); today.setHours(0,0,0,0);
+  var todayKey = today.getFullYear() + '-' + (today.getMonth()+1) + '-' + today.getDate();
+  var shown = {};
+  try { shown = JSON.parse(localStorage.getItem('notif-deadline-shown') || '{}'); } catch (e) {}
+  if (shown._day !== todayKey) shown = { _day: todayKey };   // 날짜 바뀌면 초기화
+  tasks.forEach(function(t) {
+    if (t.completed || !t.dueDateTime) return;
+    var due = new Date(t.dueDateTime); due.setHours(0,0,0,0);
+    var days = Math.round((due - today) / 86400000);
+    if (days < 0 || days > 3) return;
+    if (shown[t.id]) return;
+    var label = days === 0 ? '오늘 마감' : ('D-' + days);
+    try { new Notification('📌 마감 임박 — ' + label, { body: (t.text||'').replace(/^\[\d{6}\] /,'') }); } catch (e) {}
+    shown[t.id] = 1;
+  });
+  localStorage.setItem('notif-deadline-shown', JSON.stringify(shown));
+}
+
+// 주간일지 작성 알림: 목~일요일, 하루 1번
+function runJournalNotification() {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  if (!notifEnabled('journal')) return;
+  var now = new Date();
+  var dow = now.getDay();                       // 0=일 ... 4=목 ... 6=토
+  if ([0,4,5,6].indexOf(dow) === -1) return;    // 목·금·토·일만
+  var todayKey = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
+  if (localStorage.getItem('notif-journal-shown') === todayKey) return;
+  localStorage.setItem('notif-journal-shown', todayKey);
+  try { new Notification('📓 주간일지 작성', { body: '이번 주 주간일지를 작성해 보세요.' }); } catch (e) {}
+}
+
+function runAppNotifications() {
+  runDeadlineNotifications();
+  runJournalNotification();
+}
+
+// 앱 시작 시: 권한 확인 후 즉시 1회 + 이후 1시간마다 재확인
+function initAppNotifications() {
+  ensureNotifPermission();
+  runAppNotifications();
+  if (!window.__notifTimer) {
+    window.__notifTimer = setInterval(runAppNotifications, 60 * 60 * 1000);
   }
 }
 
@@ -2449,6 +2520,7 @@ function bootApp() {
   if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
   if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
   if (typeof scheduleAllReminders === 'function') scheduleAllReminders();
+  if (typeof initAppNotifications === 'function') initAppNotifications();
   if (typeof updateBackupStatus === 'function') updateBackupStatus();
   if (typeof initAutoBackup === 'function') initAutoBackup();
 }

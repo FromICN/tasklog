@@ -211,13 +211,14 @@ function buildMonthlyCalGrid() {
   var year = homeCalYear, month = homeCalMonth;
   var today = new Date();
   var MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  var DAY_KO = ['일','월','화','수','목','금','토'];
+  var DAY_KO = (typeof weekDayOrder === 'function') ? weekDayOrder() : ['일','월','화','수','목','금','토'];
 
   var rangeStart = new Date(year, month, 1);
   var rangeEnd   = new Date(year, month+1, 0, 23, 59, 59);
   var dotMap = collectDueDotsMap(rangeStart, rangeEnd);
 
   var firstDay = new Date(year, month, 1).getDay();
+  var lead = (typeof weekLeadOffset === 'function') ? weekLeadOffset(firstDay) : firstDay;
   var daysInMonth = new Date(year, month+1, 0).getDate();
   var prevLast = new Date(year, month, 0).getDate();
 
@@ -226,8 +227,8 @@ function buildMonthlyCalGrid() {
 
   DAY_KO.forEach(function(d) { html += '<div class="cal-dh">' + d + '</div>'; });
 
-  for (var i = 0; i < firstDay; i++) {
-    html += '<div class="cal-cell dim"><span class="cal-num">' + (prevLast - firstDay + 1 + i) + '</span></div>';
+  for (var i = 0; i < lead; i++) {
+    html += '<div class="cal-cell dim"><span class="cal-num">' + (prevLast - lead + 1 + i) + '</span></div>';
   }
 
   var todayStr = fmtKey(today);
@@ -236,7 +237,7 @@ function buildMonthlyCalGrid() {
     html += buildCalDayCell(dt, todayStr, dotMap, year, month, d);
   }
 
-  var filled = firstDay + daysInMonth;
+  var filled = lead + daysInMonth;
   var remain = (7 - (filled % 7)) % 7;
   for (var j = 1; j <= remain; j++) {
     html += '<div class="cal-cell dim"><span class="cal-num">' + j + '</span></div>';
