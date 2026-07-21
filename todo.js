@@ -48,35 +48,59 @@ function fmtTodoTableDate(iso) {
 }
 
 // task가 속한 "섹션"의 이모지 가져오기
-//  1) task.lwSectionEmoji (직접 지정)
-//  2) 만다라트 subGoal 이모지 (프로젝트 연결의 sgId로 역산)
-//  3) 라이프휠 섹션 이모지
+//  우선순위: 연계된 만다라트 Section(subGoal.id 기준, 항상 최신값)
+//          → 라이프휠 섹션 → 저장된 lwSectionEmoji(과거 저장값, 최후 폴백)
+//  ※ 과거에는 저장 시점의 lwSectionEmoji를 우선 사용해서, Project가 다른
+//    Section으로 연결돼도 옛 이모지가 표시되는 문제가 있었음 (WORK인데 HEALTH 이모지)
 function todoSectionEmoji(task) {
   if (!task) return '';
-  if (task.lwSectionEmoji) return task.lwSectionEmoji;
   var sgId = (task.mdtAction && task.mdtAction.sgId) ||
              (task.mdtGoal   && task.mdtGoal.sgId)   || null;
+  var year = (task.mdtAction && task.mdtAction.year) ||
+             (task.mdtGoal   && task.mdtGoal.year)   ||
+             (typeof appGetYear === 'function' ? appGetYear() : new Date().getFullYear());
+
+  // 만다라트 데이터가 아직 로드되지 않았으면 로드
+  try {
+    if (typeof mandalarts !== 'undefined' && !mandalarts.length && typeof loadMandalarts === 'function') loadMandalarts();
+  } catch (e) {}
+
+  // 1) 만다라트 연계가 있으면 해당 Section(subGoal)을 id로 찾아 최신 이모지 사용
+  if (sgId !== null && sgId !== undefined) {
+    try {
+      if (typeof getMdt === 'function') {
+        var mdt = getMdt(parseInt(year, 10));
+        if (!mdt && typeof appGetYear === 'function') mdt = getMdt(appGetYear());
+        if (mdt && Array.isArray(mdt.subGoals)) {
+          var sg = mdt.subGoals.find(function(s){ return s.id === parseInt(sgId, 10); });
+          if (sg && sg.emoji) return sg.emoji;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2) 라이프휠 섹션 인덱스로 조회
   var idx = (task.lwSection !== null && task.lwSection !== undefined)
             ? task.lwSection
             : (sgId ? parseInt(sgId, 10) - 1 : null);
-  if (idx === null || idx === undefined || idx < 0) return '';
-  var year = (task.mdtAction && task.mdtAction.year) ||
-             (task.mdtGoal   && task.mdtGoal.year)   ||
-             (typeof appGetYear === 'function' ? appGetYear() : null);
-  try {
-    if (typeof getMdt === 'function') {
-      var mdt = getMdt(parseInt(year, 10));
-      if (mdt && mdt.subGoals && mdt.subGoals[idx] && mdt.subGoals[idx].emoji)
-        return mdt.subGoals[idx].emoji;
-    }
-  } catch (e) {}
-  try {
-    if (typeof getLwSections === 'function') {
-      var secs = getLwSections();
-      if (secs && secs[idx] && secs[idx].emoji) return secs[idx].emoji;
-    }
-  } catch (e) {}
-  return '';
+  if (idx !== null && idx !== undefined && idx >= 0) {
+    try {
+      if (typeof getLwSections === 'function') {
+        var secs = getLwSections();
+        if (secs && secs[idx] && secs[idx].emoji) return secs[idx].emoji;
+      }
+    } catch (e) {}
+    try {
+      if (typeof getMdt === 'function') {
+        var mdt2 = getMdt(parseInt(year, 10));
+        if (mdt2 && mdt2.subGoals && mdt2.subGoals[idx] && mdt2.subGoals[idx].emoji)
+          return mdt2.subGoals[idx].emoji;
+      }
+    } catch (e) {}
+  }
+
+  // 3) 최후 폴백: 저장 시점의 이모지
+  return task.lwSectionEmoji || '';
 }
 
 function todoProjectKey(task) {
