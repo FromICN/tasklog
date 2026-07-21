@@ -2347,20 +2347,12 @@ var MENU_EMOJI = {
   wbs:'🌳', journal:'📓',
 };
 
-// 📐 사이드바 접기/펼치기 (기본: 접힘, 상태 localStorage 기억)
+// 📐 사이드바 고정(접힘) — 열고 닫는 기능 제거
 function initSidebarCollapse() {
   var sb = document.getElementById('sidebar');
   if (!sb) return;
-  var saved = localStorage.getItem('sidebar-collapsed');
-  var collapsed = saved === null ? true : saved === '1';
-  sb.classList.toggle('collapsed', collapsed);
+  sb.classList.add('collapsed');
   if (typeof updateDarkModeBtn === 'function') updateDarkModeBtn(); // 테마 스위치 초기 동기화
-}
-function toggleSidebar() {
-  var sb = document.getElementById('sidebar');
-  if (!sb) return;
-  sb.classList.toggle('collapsed');
-  localStorage.setItem('sidebar-collapsed', sb.classList.contains('collapsed') ? '1' : '0');
 }
 
 function initSidebar() {
