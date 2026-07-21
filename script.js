@@ -1812,8 +1812,8 @@ var rpState = {
 };
 
 var RP_EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--brand-primary)', DELEGATE:'var(--warning)', DROP:'var(--text-2)' };
-var RP_EI_NAME   = { DO:'Do', SCHEDULE:'Plan', DELEGATE:'Delegate', DROP:'Delete' };
-var RP_EI_DESC   = { DO:'긴급·중요', SCHEDULE:'중요·비긴급', DELEGATE:'긴급·비중요', DROP:'비긴급·비중요' };
+var RP_EI_NAME   = { DO:'ASAP', SCHEDULE:'SCHEDULE', DELEGATE:'NEXT', DROP:'SOMEDAY' };
+var RP_EI_DESC   = { DO:'지금 바로', SCHEDULE:'일정 예약', DELEGATE:'다음 차례', DROP:'언젠가' };
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
 var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--brand-primary)', '취소':'var(--text-3)' };
 
@@ -1863,9 +1863,9 @@ function buildRpForm(task) {
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
   var notesVal   = task ? (task.notes || '') : '';
 
-  // Priority (Do / Plan / Delegate / Delete)
+  // Priority (ASAP / NEXT / SCHEDULE / SOMEDAY) — 내부값은 DO/DELEGATE/SCHEDULE/DROP 유지
   var eiHtml = '<div class="rp-sect"><div class="rp-section-head">Priority</div><div class="rp-ei-grid">';
-  ['DO','SCHEDULE','DELEGATE','DROP'].forEach(function(k) {
+  ['DO','DELEGATE','SCHEDULE','DROP'].forEach(function(k) {
     var sel = rpState.eisenhower === k;
     var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:color-mix(in srgb, '+RP_EI_COLORS[k]+' 10%, transparent);' : '';
     eiHtml += '<button class="rp-ei-btn'+(sel?' rp-ei-sel':'')+'" data-ei="'+k+'" style="'+selStyle+'" onclick="rpSetEi(\''+k+'\')">'

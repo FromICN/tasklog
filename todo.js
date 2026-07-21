@@ -414,7 +414,11 @@ function buildTodoTableView() {
 
   var activeSorted = _todoSort.key
     ? applyTodoSort(active)
-    : active.slice().sort(function(a,b){ return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); });
+    : active.slice().sort(function(a,b){
+        var va = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
+        var vb = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
+        return va - vb;   // 마감일 빠른순 (마감일 없음 = 맨 뒤)
+      });
 
   var head = '<thead><tr>'
     + '<th class="c-check"></th>'
@@ -487,7 +491,9 @@ function todoProjCompare(a, b) {
   if (kb === '프로젝트 없음' && ka !== '프로젝트 없음') return -1;
   var c = ka.localeCompare(kb, 'ko');
   if (c !== 0) return c;
-  return new Date(b.createdAt||0) - new Date(a.createdAt||0);
+  var va = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
+  var vb = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
+  return va - vb;   // 같은 프로젝트 내: 마감일 빠른순
 }
 
 // Project 탭 한 줄 — Project를 가장 왼쪽 데이터 컬럼으로

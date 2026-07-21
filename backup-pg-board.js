@@ -82,7 +82,7 @@ function exportBoardXlsx() {
     ['TASK', '할 일 제목(필수). 완료 접두사 [YYMMDD] 없이 깔끔한 제목만.'],
     ['START / DUE', 'YYYY-MM-DD. 마감시간은 HH:MM(선택).'],
     ['TO DO(기한 포함)', '하위 단계를 " | " 로 구분. 완료는 앞에 [v], 기한은 뒤에 @YYYY-MM-DD(HH:MM).'],
-    ['PRIORITY', '아이젠하워: DO / SCHEDULE / DELEGATE / DROP. 비워도 됨.'],
+    ['PRIORITY', 'ASAP / NEXT / SCHEDULE / SOMEDAY (내부값 DO/DELEGATE/SCHEDULE/DROP). 비워도 됨.'],
     ['완료일', 'YYYY-MM-DD. 이 값이 있으면 복원 시 완료 처리되고 제목 앞에 [YYMMDD] 가 붙습니다. (완료 여부는 이 칸으로 판단)'],
     ['', '※ TO DO 도 동일: [v] 로 완료 표시하면 복원 시 그 항목 앞에도 [YYMMDD] 부착.'],
     ['STATUS', '대기 / 진행 / 중단 / 완료 / 취소 (업무 상태 — 완료 체크와는 별개의 값).'],
