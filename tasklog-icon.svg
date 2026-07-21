@@ -5,10 +5,11 @@
       <stop offset="1" stop-color="#03695E"/>
     </linearGradient>
   </defs>
-  <rect width="100" height="100" rx="24" fill="#E7E9D8"/>
-  <g transform="translate(7.5,0) skewX(-8)" fill="none" stroke-linecap="round" stroke-width="19">
-    <g stroke="#D6DEC8" transform="translate(8,10)"><path d="M27 29 H73 M50 29 V72"/></g>
-    <g stroke="#A5C6DB" transform="translate(4,5)"><path d="M27 29 H73 M50 29 V72"/></g>
-    <g stroke="url(#g)"><path d="M27 29 H73 M50 29 V72"/></g>
+  <g transform="translate(-24.09,-22.46) scale(1.3056)">
+    <g transform="translate(7.5,0) skewX(-8)" fill="none" stroke-linecap="round" stroke-width="19">
+      <g stroke="#D6DEC8" transform="translate(8,10)"><path d="M27 29 H73 M50 29 V72"/></g>
+      <g stroke="#A5C6DB" transform="translate(4,5)"><path d="M27 29 H73 M50 29 V72"/></g>
+      <g stroke="url(#g)"><path d="M27 29 H73 M50 29 V72"/></g>
+    </g>
   </g>
 </svg>
