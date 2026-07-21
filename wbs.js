@@ -32,10 +32,6 @@ function renderWbsView() {
   var content = document.getElementById('page-content');
   if (!content) return;
   content.innerHTML = '<div class="wbs-page-wrap">'
-    + '<div class="wbs-toolbar">'
-    + '<input type="text" class="wbs-search-inp" id="wbs-search-inp" placeholder="🔍 Task · To Do 검색"'
-    + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)">'
-    + '</div>'
     + '<div class="wbs-wrap" id="wbs-root">' + buildWbsTree() + '</div>'
     + '</div>';
 }
@@ -74,7 +70,12 @@ function renderWbsTitleYear() {
   }).join('');
   opts += '<option value="__new__">+ 새 연도 추가</option>';
   opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  slot.innerHTML = '<select class="year-select" onchange="handleWbsYearSelect(this.value)">' + opts + '</select>';
+  // 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽)
+  slot.innerHTML = '<div class="wbs-title-tools">'
+    + '<select class="year-select" onchange="handleWbsYearSelect(this.value)">' + opts + '</select>'
+    + '<input type="text" class="wbs-search-inp" id="wbs-search-inp" placeholder="🔍 Task · To Do 검색"'
+    + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)">'
+    + '</div>';
 }
 
 // ── 연도 필터 (전역 연도 기준 · 연도 미지정 항목은 항상 표시) ──

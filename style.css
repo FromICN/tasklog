@@ -7129,14 +7129,14 @@ body.light-mode .nav-item:hover {
 .wbs-head-cell .bd-th-label { cursor: pointer; }
 .wbs-head-cell .bd-filter-panel { top: 100%; left: auto; right: 0; font-size: var(--fs-sm); font-weight: 400; letter-spacing: normal; }
 
-/* WBS 검색 툴바 (오른쪽 상단) — 좌우 여백: Web 페이지 기준 */
-.wbs-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-1) 0 var(--space-2);
+/* WBS 타이틀 영역: 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽) */
+.wbs-title-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 .wbs-search-inp {
-  width: 240px;
+  width: 200px;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-1);
