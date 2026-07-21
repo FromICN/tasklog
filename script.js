@@ -1043,7 +1043,10 @@ function buildStepsHtml(task) {
     return '<div class="dp-step" id="dp-step-' + s.id + '">'
       + '<div class="task-check step-check ' + (s.completed ? 'is-done' : '') + '" onclick="toggleStep(' + task.id + ',' + s.id + ')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text ' + (s.completed ? 'is-done' : '') + '">' + escapeHtml(s.text) + '</span>'
+      + '<span class="step-text ' + (s.completed ? 'is-done' : '') + '" contenteditable="true" spellcheck="false"'
+      +   ' title="클릭해 텍스트 수정" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+      +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+      +   ' onblur="saveStepTextEdit(' + task.id + ',' + s.id + ',this)">' + escapeHtml(s.text) + '</span>'
       + (dateBadge ? '<div class="step-meta">' + dateBadge + '</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn' + (hasDate ? ' has-date' : '') + '" onclick="event.stopPropagation();toggleStepDateForm(' + s.id + ')" title="기한 설정">'
@@ -1352,6 +1355,17 @@ function toggleStep(taskId, stepId) {
   step.completed = !step.completed;
   step.text = applyDonePrefix(step.text, step.completed);
   saveTasks(); refreshDpSteps(task); renderTasks();
+}
+
+function saveStepTextEdit(taskId, stepId, el) {
+  var task = tasks.find(function(t){ return t.id === taskId; });
+  var step = (task && task.steps) ? task.steps.find(function(s){ return s.id === stepId; }) : null;
+  if (!step) return;
+  var v = (el.textContent || '').trim();
+  if (v === '') { el.textContent = step.text; return; }   // 빈 값이면 원복
+  if (v === step.text) return;
+  step.text = v;
+  if (typeof saveTasks === 'function') saveTasks();
 }
 
 function deleteStep(taskId, stepId) {
@@ -2043,7 +2057,10 @@ function rpBuildStepsHtml() {
     return '<div class="dp-step" id="rp-step-'+s.id+'">'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text '+(s.completed?'is-done':'')+'">'+escapeHtml(s.text)+'</span>'
+      + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
+      +   ' title="클릭해 텍스트 수정" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+      +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+      +   ' onblur="rpSaveStepText('+s.id+',this)">'+escapeHtml(s.text)+'</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
@@ -2052,6 +2069,17 @@ function rpBuildStepsHtml() {
       + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button></div>'
       + dateForm;
   }).join('');
+}
+
+// 완료/미완료 무관하게 TO DO 텍스트 인라인 수정 (rp-form 초안에 반영, 저장 시 확정)
+function rpSaveStepText(stepId, el) {
+  var s = rpState.steps.find(function(x){ return x.id === stepId; });
+  if (!s) return;
+  var v = (el.textContent || '').trim();
+  if (v === '') { el.textContent = s.text; return; }   // 빈 값이면 원복
+  if (v === s.text) return;
+  s.text = v;
+  rpState.dirty = true;
 }
 
 // ── TO DO 마감일 (rp-form draft) ──
