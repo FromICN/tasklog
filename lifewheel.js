@@ -328,6 +328,9 @@ function lwRenderTabContent() {
   var el = document.getElementById('lw-tab-content');
   if (!el) return;
   el.innerHTML = buildLwWheelTab();
+  // 컬럼 너비 드래그 조정 (localStorage 저장 → 유지)
+  var tbl = el.querySelector('.lw-table');
+  if (tbl && typeof TLColResize !== 'undefined') TLColResize.table(tbl, 'lwColW');
 }
 
 // MVV 데이터의 영역 이름 매핑 (인덱스 → 고정 이름)
@@ -400,13 +403,27 @@ function lwBuildModalCvBlock(rowIdx) {
         var p = lwGetPreset(id);
         var label = p ? p.label : id;
         var sel = connected.indexOf(id) > -1;
-        return '<button class="lw-cv-chip' + (sel ? ' selected' : '') + '"'
-          + ' onclick="lwToggleSectionValue(' + rowIdx + ',\'' + id + '\')">'
+        var idEnc = encodeURIComponent(id);
+        return '<button class="lw-cv-chip' + (sel ? ' selected' : '') + '" data-cvid="' + idEnc + '"'
+          + ' onclick="lwToggleSectionValue(' + rowIdx + ', decodeURIComponent(this.dataset.cvid))">'
           + (sel ? '✓ ' : '') + hwEsc(label)
+          + '<span class="lw-cv-chip-del" title="가치 삭제" data-cvid="' + idEnc + '"'
+          + ' onclick="event.stopPropagation();lwDeleteValue(' + rowIdx + ', decodeURIComponent(this.dataset.cvid))">×</span>'
           + '</button>';
       }).join('')
     + '</div>';
   return html;
+}
+
+// 이미 추가된 가치 삭제 (풀에서 제거 + 모든 영역 연결 해제)
+function lwDeleteValue(rowIdx, id) {
+  loadCoreValues();
+  var i = lwCoreValues.indexOf(id);
+  if (i > -1) lwCoreValues.splice(i, 1);
+  saveCoreValues();
+  lwUnlinkValueFromAllSections(id);
+  var box = document.getElementById('lw-modal-cv-block');
+  if (box) box.innerHTML = lwBuildModalCvBlock(rowIdx);
 }
 
 // 가치 직접 입력 → 풀에 추가 + 해당 영역에 연결 (최대 3개)

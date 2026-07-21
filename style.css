@@ -5052,6 +5052,22 @@ body.light-mode .lw-cv-tag {
 }
 .gm-left-spacer { flex-shrink: 0; width: var(--gm-left, 136px); }
 
+/* Life Wheel 가치 칩 삭제 버튼 */
+.lw-cv-chip-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.lw-cv-chip-del:hover { color: var(--danger); background: var(--danger-bg); }
+
 /* ── 설정 > 캘린더 동기화: 캘린더 목록 ── */
 .settings-cal-row { gap: var(--space-2); }
 .settings-cal-dot {
@@ -7123,7 +7139,18 @@ body.light-mode .nav-item:hover {
   text-align: center;
   box-sizing: border-box;
 }
-.wbs-colhead.wbs-colhead-status { width: 92px; }
+/* 컬럼별 너비 (드래그로 조정 가능 — CSS 변수 기반, localStorage 유지) */
+.wbs-col-start { width: var(--wbs-w-start, 86px) !important; }
+.wbs-col-due   { width: var(--wbs-w-due, 86px) !important; }
+.wbs-col-status-cell {
+  width: var(--wbs-w-status, 92px);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
 .wbs-head-cell { display: inline-flex; align-items: center; justify-content: center; gap: 2px; user-select: none; }
 .wbs-head-cell.wbs-head-label { justify-content: flex-start; }
 .wbs-head-cell .bd-th-label { cursor: pointer; }

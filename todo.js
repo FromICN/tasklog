@@ -280,10 +280,10 @@ function boardTh(col) {
   }
   var upOn = (_boardSort.key === key && _boardSort.dir === 'asc');
   var dnOn = (_boardSort.key === key && _boardSort.dir === 'desc');
-  return '<th class="bd-th bd-th-' + key + '" id="bd-th-' + key + '" style="position:relative;">'
-    + '<span class="bd-th-label' + (filterOn ? ' bd-filter-on' : '') + '" title="클릭: 표시 항목 필터"'
-    + ' onclick="boardToggleFilterPanel(\'' + key + '\',event)">' + col.label
-    + ' <span class="todo-colpick-arrow">▾</span></span>'
+  // 항목 텍스트(헤더 셀) 자체 클릭 → 필터 드롭박스 (정렬 버튼/패널 클릭은 제외)
+  return '<th class="bd-th bd-th-' + key + '" id="bd-th-' + key + '" data-cr-key="' + key + '" style="position:relative;"'
+    + ' title="클릭: 표시 항목 필터" onclick="boardToggleFilterPanel(\'' + key + '\',event)">'
+    + '<span class="bd-th-label' + (filterOn ? ' bd-filter-on' : '') + '">' + col.label + '</span>'
     + '<span class="bd-sortbtns">'
     + '<button class="bd-sortbtn' + (upOn ? ' on' : '') + '" title="오름차순" onclick="boardSetSort(\'' + key + '\',\'asc\',event)">▲</button>'
     + '<button class="bd-sortbtn' + (dnOn ? ' on' : '') + '" title="내림차순" onclick="boardSetSort(\'' + key + '\',\'desc\',event)">▼</button>'
@@ -297,11 +297,19 @@ function renderTodoView() {
   var content = document.getElementById('page-content');
   if (!content) return;
   content.innerHTML = '<div class="todo-view"><div id="todo-body">' + buildBoardTable() + '</div></div>';
+  boardAttachColResize();
 }
 
 function refreshTodoBody() {
   var el = document.getElementById('todo-body');
   if (el) el.innerHTML = buildBoardTable();
+  boardAttachColResize();
+}
+
+// 컬럼 너비 드래그 조정 (localStorage 저장 → 새로고침 후에도 유지)
+function boardAttachColResize() {
+  var tbl = document.querySelector('#todo-body .bd-table');
+  if (tbl && typeof TLColResize !== 'undefined') TLColResize.table(tbl, 'boardColW');
 }
 
 function buildBoardRow(e) {
