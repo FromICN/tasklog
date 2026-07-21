@@ -382,12 +382,17 @@ function lwBuildModalCvBlock(rowIdx) {
   var html = '<div class="smart-field-header" style="justify-content:space-between;">'
     + '<span><span class="smart-icon">💎</span><span class="smart-label">Value</span></span>'
     + '<span style="display:flex;align-items:center;gap:8px;">'
-    + '<button type="button" class="lw-cv-add-btn" onclick="lwOpenCvPicker(' + rowIdx + ')">+ 가치 추가</button>'
     + '<span style="font-size:12px;font-weight:700;color:' + countColor + ';">' + connected.length + ' / 3</span>'
     + '</span>'
+    + '</div>'
+    // 직접 입력창: 텍스트 입력 후 Enter/추가로 가치 등록
+    + '<div class="lw-cv-input-row" style="display:flex;gap:6px;margin-top:6px;">'
+    + '<input type="text" id="lw-cv-direct-input" class="field-input" placeholder="가치를 직접 입력하세요" style="flex:1;"'
+    + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();lwAddCustomValue(' + rowIdx + ');}">'
+    + '<button type="button" class="sub-form-save" onclick="lwAddCustomValue(' + rowIdx + ')">추가</button>'
     + '</div>';
   if (!lwCoreValues || lwCoreValues.length === 0) {
-    html += '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">아직 선택한 핵심가치가 없습니다. <strong>+ 가치 추가</strong>를 눌러 시작하세요.</div>';
+    html += '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">아직 선택한 핵심가치가 없습니다. 입력창에 가치를 직접 입력해 시작하세요.</div>';
     return html;
   }
   html += '<div class="lw-cv-chips" style="margin-top:6px;">'
@@ -402,6 +407,37 @@ function lwBuildModalCvBlock(rowIdx) {
       }).join('')
     + '</div>';
   return html;
+}
+
+// 가치 직접 입력 → 풀에 추가 + 해당 영역에 연결 (최대 3개)
+function lwAddCustomValue(rowIdx) {
+  var inp = document.getElementById('lw-cv-direct-input');
+  if (!inp) return;
+  var text = (inp.value || '').trim();
+  if (!text) return;
+  loadCoreValues();
+  // 프리셋 라벨과 일치하면 해당 id 사용, 아니면 입력 텍스트 자체를 id로 사용
+  var preset = LW_CV_PRESETS.find(function(v){ return v.label === text || v.id === text; });
+  var id = preset ? preset.id : text;
+  if (lwCoreValues.indexOf(id) === -1) {
+    lwCoreValues.push(id);
+    saveCoreValues();
+  }
+  // 영역에 연결 (최대 3개)
+  var connected = lwGetSectionValueIds(rowIdx);
+  if (connected.indexOf(id) === -1) {
+    if (connected.length >= 3) {
+      inp.value = '';
+      var box0 = document.getElementById('lw-modal-cv-block');
+      if (box0) box0.innerHTML = lwBuildModalCvBlock(rowIdx);
+      return;
+    }
+    lwToggleSectionValue(rowIdx, id);
+  }
+  var box = document.getElementById('lw-modal-cv-block');
+  if (box) box.innerHTML = lwBuildModalCvBlock(rowIdx);
+  var again = document.getElementById('lw-cv-direct-input');
+  if (again) again.focus();
 }
 
 // ── 핵심가치 추가 팝업 (라이프 휠 → 핵심가치 연결) ──
@@ -526,7 +562,6 @@ function buildLwWheelTab() {
       + '<td class="lw-ideal"><div class="lw-ideal-text">' + hwEsc(idealText) + '</div></td>'
       + '<td class="lw-ideal"><div class="lw-ideal-text">' + hwEsc(goalText) + '</div></td>'
       + '<td class="lw-cv-cell">' + cvCell + '</td>'
-      + '<td><button class="lw-edit-btn" title="편집" onclick="event.stopPropagation();lwOpenSectionModal(' + i + ')">✏️</button></td>'
       + '</tr>';
   }).join('');
 
@@ -541,7 +576,6 @@ function buildLwWheelTab() {
     + '<th>Ideal</th>'
     + '<th>Goal</th>'
     + '<th>Value</th>'
-    + '<th></th>'
     + '</tr></thead>'
     + '<tbody>' + rows + '</tbody>'
     + '</table>'
@@ -718,11 +752,11 @@ function lwOpenSectionModal(idx) {
     { key:'relevant',   icon:'🔗', label:'Relevant',   desc:'삶의 방향과 연결되어 있는가?' },
     { key:'timeBound',  icon:'⏰', label:'Time-bound', desc:'언제까지 달성할 것인가?' },
   ];
-  var smartHtml = '<div class="smart-checks-row">' + smartFields.map(function(f) {
+  // 개별 이모지 제거 — 체크박스 + 텍스트 한 줄 표현
+  var smartHtml = '<div class="smart-checks-row smart-checks-oneline">' + smartFields.map(function(f) {
     var checked = sec.smart[f.key] ? ' checked' : '';
-    return '<label class="smart-check">'
+    return '<label class="smart-check smart-check-line">'
       + '<input type="checkbox" id="lw-smart-' + f.key + '"' + checked + '>'
-      + '<span class="smart-icon">' + f.icon + '</span>'
       + '<span class="smart-label">' + f.label + '</span>'
       + '</label>';
   }).join('') + '</div>';
@@ -761,17 +795,17 @@ function lwOpenSectionModal(idx) {
     + '<div style="display:flex;gap:16px;flex-wrap:wrap;">' + statusOpts + '</div>'
     + '</div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">📝</span><span class="smart-label">Info</span><span class="smart-desc">이 영역에 대한 간단한 설명</span></div>'
-    + '<textarea class="smart-textarea" id="lw-info" placeholder="이 영역이 무엇을 의미하는지 간단히 적어보세요...">' + hwEsc(sec.info || '') + '</textarea>'
+    + '<div class="smart-field-header"><span class="smart-icon">📝</span><span class="smart-label">Info</span></div>'
+    + '<textarea class="smart-textarea" id="lw-info">' + hwEsc(sec.info || '') + '</textarea>'
     + '</div>'
     + smartHtml
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">🏁</span><span class="smart-label">Goal</span><span class="smart-desc">이 영역에서 이루고 싶은 것</span></div>'
-    + '<textarea class="smart-textarea" id="lw-smart-finalGoal" placeholder="이 영역에서 궁극적으로 달성하고 싶은 모습을 적어보세요...">' + hwEsc(sec.smart.finalGoal || '') + '</textarea>'
+    + '<div class="smart-field-header"><span class="smart-icon">🏁</span><span class="smart-label">Goal</span></div>'
+    + '<textarea class="smart-textarea" id="lw-smart-finalGoal">' + hwEsc(sec.smart.finalGoal || '') + '</textarea>'
     + '</div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">✨</span><span class="smart-label">Ideal</span><span class="smart-desc">이 영역이 가장 이상적일 때의 모습</span></div>'
-    + '<textarea class="smart-textarea" id="lw-ideal" placeholder="이 영역이 가장 이상적일 때의 모습을 적어보세요...">' + hwEsc(sec.ideal || '') + '</textarea>'
+    + '<div class="smart-field-header"><span class="smart-icon">✨</span><span class="smart-label">Ideal</span></div>'
+    + '<textarea class="smart-textarea" id="lw-ideal">' + hwEsc(sec.ideal || '') + '</textarea>'
     + '</div>'
     + '<div class="smart-final-field" id="lw-modal-cv-block">' + lwBuildModalCvBlock(idx) + '</div>'
     + '</div>'
