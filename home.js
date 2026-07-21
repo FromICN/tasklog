@@ -15,8 +15,8 @@ var homeCalWeekStart = (function() {
 var HOME_SECTIONS = ['건강','커리어','재정','관계','성장','여가','환경','내면'];
 var HOME_SEC_COLORS = ['#22C08B','#4F6EF7','#F5A623','#E05C7A','#A78BFA','#34D399','#38BDF8','#FB923C'];
 
-// 아이젠하워 색상
-var EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--brand-primary)', DELEGATE:'var(--warning)', DROP:'var(--text-2)' };
+// 아이젠하워 색상 (SCHEDULE=그린 계열, SOMEDAY(DROP)=기존 SCHEDULE 컬러)
+var EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--success)', DELEGATE:'var(--warning)', DROP:'var(--brand-primary)' };
 
 // 구글 캘린더 일정 표시 색상
 var GCAL_COLOR = '#1A73E8';
@@ -34,15 +34,11 @@ function renderHomeView() {
   renderHomeHabitWidget();
   renderHomeGanttMini();
   renderHomeLifeWheel();
-  buildMemoWidget();
 }
 
 // ── 전체 레이아웃 ──────────────────────────
 function buildHomeLayout() {
   return '<div class="home-page">'
-    + '<div class="home-memo-row">'
-    + buildCardShell('memo-widget', null, '', 'memo-body')
-    + '</div>'
     + '<div class="home-grid-row1">'
     + buildCardShell('cal-widget', null, null, 'cal-body')
     + buildCardShell('gantt-widget', '📊 Gantt', 'project', 'gantt-body')
@@ -77,13 +73,9 @@ function renderHomeNotif() {
   var items = [];
   var today = new Date(); today.setHours(0,0,0,0);
 
-  // 마감 라벨 (하루 전 D-1 → 당일 → 지남)
-  function _dueLabel(name, diff) {
-    var clean = String(name || '').replace(/^\[\d{6}\]\s*/, '');
-    if (diff > 0)  return clean + ' 마감 D-' + diff + '일';
-    if (diff === 0) return clean + ' 오늘 마감';
-    return clean + ' 마감 ' + Math.abs(diff) + '일 지남';
-  }
+  // 이름 정리 + 마감일 M/D 표기
+  function _cleanName(name) { return String(name || '').replace(/^\[\d{6}\]\s*/, ''); }
+  function _dueMD(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
 
   // 마감일 하루 전(D-1)부터 알림: 모든 Task + 모든 To Do(하위 단계)
   if (typeof tasks !== 'undefined') {
@@ -93,7 +85,7 @@ function renderHomeNotif() {
         var dueT = new Date(t.dueDateTime); dueT.setHours(0,0,0,0);
         var diffT = Math.round((dueT - today) / 86400000);
         if (diffT <= 1) {
-          items.push({ type:'danger', text: _dueLabel(t.text, diffT), taskId: t.id, _d: diffT });
+          items.push({ type:'danger', text: _cleanName(t.text), due: _dueMD(dueT), overdue: diffT < 0, taskId: t.id, _d: diffT });
         }
       }
       // 2) 하위 To Do (steps)
@@ -102,7 +94,7 @@ function renderHomeNotif() {
         var dueS = new Date(s.dueDateTime); dueS.setHours(0,0,0,0);
         var diffS = Math.round((dueS - today) / 86400000);
         if (diffS <= 1) {
-          items.push({ type:'danger', text: '☑ ' + _dueLabel(s.text, diffS), taskId: t.id, _d: diffS });
+          items.push({ type:'danger', text: '☑ ' + _cleanName(s.text), due: _dueMD(dueS), overdue: diffS < 0, taskId: t.id, _d: diffS });
         }
       });
     });
@@ -122,7 +114,12 @@ function renderHomeNotif() {
     var onclick = item.taskId
       ? 'onclick="openDetailPanel(' + item.taskId + ')"'
       : (item.action ? 'onclick="' + item.action + '"' : '');
-    return '<div class="notif-card ' + cls + '" ' + onclick + '>' + hwEsc(item.text) + '</div>';
+    // 마감일: 오른쪽 정렬 · M/D 표기 · 기한 지남=빨강, 남음=초록
+    var dueHtml = item.due
+      ? '<span class="notif-due" style="color:' + (item.overdue ? 'var(--danger)' : 'var(--success)') + ';">' + hwEsc(item.due) + '</span>'
+      : '';
+    return '<div class="notif-card ' + cls + '" ' + onclick + '>'
+      + '<span class="notif-text">' + hwEsc(item.text) + '</span>' + dueHtml + '</div>';
   }).join('');
 }
 
@@ -181,10 +178,6 @@ function buildCalHeader(label) {
     + '<button class="cal-arrow" onclick="homeCalPrev()">‹</button>'
     + '<span class="cal-month-label">' + label + '</span>'
     + '<button class="cal-arrow" onclick="homeCalNext()">›</button>'
-    + '</div>'
-    + '<div class="cal-nav-group">'
-    + '<button class="cal-nav' + (homeCalView==='monthly'?' active-view':'') + '" onclick="homeCalSetView(\'monthly\')">월간</button>'
-    + '<button class="cal-nav' + (homeCalView==='weekly'?' active-view':'') + '" onclick="homeCalSetView(\'weekly\')">주간</button>'
     + '</div>'
     + '</div>';
 }
@@ -347,7 +340,7 @@ function renderCalDetail() {
       var timeStr = item.time
         ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2,'0') + ':' + String(item.time.getMinutes()).padStart(2,'0') + '</span>'
         : '';
-      var badge = item.isCal ? '<span class="cal-detail-gbadge">G</span>' : '';
+      var badge = item.isCal ? googleLogoSvg() : '';
       var oc = item.isCal ? '' : ' onclick="openDetailPanel(' + item.id + ')"';
       var cls = 'cal-detail-item' + (item.isCal ? ' is-cal' : '');
       return '<div class="' + cls + '" style="border-left-color:' + item.color + ';"' + oc + '>'
@@ -426,9 +419,9 @@ function renderHomeHabitWidget() {
       dots += '<div class="'+cls+'"'+oc+'><span style="font-size:8px;">'+DOW[day.getDay()]+'</span></div>';
     }
     return '<div class="habit-row">'
-      + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div>'
-      + '<div class="habit-meta">🔥 '+streak+'일 연속</div></div>'
+      + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div></div>'
       + '<div class="habit-week">'+dots+'</div>'
+      + '<div class="habit-meta habit-meta-right">🔥 '+streak+'일 연속</div>'
       + '</div>';
   }).join('');
   el.innerHTML = html;
@@ -451,20 +444,53 @@ function homeGanttNext() { homeGanttMonth++; if (homeGanttMonth>11) { homeGanttM
 function homeGanttToday() { homeGanttYear=new Date().getFullYear(); homeGanttMonth=new Date().getMonth(); renderHomeGanttMini(); }
 
 var GM_LEFT = 136;
-var GM_LEFT_MAX = 204;   // 최대 1.5배
+var GM_LEFT_MAX = 400;
 var GM_MAX_ROWS = 14;
 var GM_MAX_SUBROWS = 4;
 
-// task 이름 길이에 따라 좌측 라벨 영역 폭을 동적으로 계산 (136 ~ 204px)
-// 헤더/본문 정렬을 위해 모든 행에 동일 폭(--gm-left)을 적용한다.
+// 좌측 라벨 영역 폭: 사용자가 드래그로 조정한 값(저장) 우선, 없으면 이름 길이 기반 자동
 function gmLeftWidth(taskList) {
+  var saved = parseInt(localStorage.getItem('homeGanttLeftW') || '', 10);
+  if (saved && saved >= 80) return Math.min(GM_LEFT_MAX, saved);
   var maxLen = 0;
   (taskList || []).forEach(function(t) {
     var l = (t.text || '').replace(/^\[\d{6}\] /, '').length;
     if (l > maxLen) maxLen = l;
   });
   var w = GM_LEFT + Math.max(0, maxLen - 13) * 8;
-  return Math.round(Math.min(GM_LEFT_MAX, Math.max(GM_LEFT, w)));
+  return Math.round(Math.min(204, Math.max(GM_LEFT, w)));
+}
+
+// 좌측 라벨 영역 폭 드래그 조정 핸들 부착 (헤더 spacer 오른쪽 경계)
+function gmAttachLeftResize() {
+  var wrap = document.querySelector('#gantt-body .gm-wrap');
+  var spacer = document.querySelector('#gantt-body .gm-left-spacer');
+  if (!wrap || !spacer) return;
+  if (window.getComputedStyle(spacer).position === 'static') spacer.style.position = 'relative';
+  var h = document.createElement('div');
+  h.className = 'cr-handle';
+  spacer.appendChild(h);
+  h.addEventListener('click', function(e){ e.stopPropagation(); });
+  h.addEventListener('mousedown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    var startX = e.clientX;
+    var startW = Math.round(spacer.getBoundingClientRect().width);
+    var lastW = startW;
+    document.body.classList.add('cr-resizing');
+    function mm(ev) {
+      lastW = Math.max(80, Math.min(GM_LEFT_MAX, Math.round(startW + (ev.clientX - startX))));
+      wrap.style.setProperty('--gm-left', lastW + 'px');
+    }
+    function mu() {
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+      document.body.classList.remove('cr-resizing');
+      try { localStorage.setItem('homeGanttLeftW', String(lastW)); } catch (err) {}
+      renderHomeGanttMini();   // 오늘선 위치 등 재계산
+    }
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
 }
 
 function renderHomeGanttMini() {
@@ -492,6 +518,13 @@ function renderHomeGanttMini() {
     if (s)      return s >= mS && s <= mE;
     if (e)      return e >= mS && e <= mE;
     return false;
+  });
+
+  // 마감일 임박 순 정렬 (마감일 없음 = 맨 뒤)
+  vis = vis.slice().sort(function(a, b) {
+    var va = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
+    var vb = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
+    return va - vb;
   });
 
   var navHtml = '<div class="gm-nav">'
@@ -581,6 +614,8 @@ function renderHomeGanttMini() {
     + '<div class="gm-body">' + todayLine + rows + '</div>'
     + '</div>'
     + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
+
+  gmAttachLeftResize();   // 좌측 텍스트 영역 폭 드래그 조정
 }
 
 // 하위 to-do(task.steps)를 GANTT 미니 그리드에 서브로우로 표시
@@ -739,6 +774,17 @@ function saveQuickMemo() {
   // 홈 메모 위젯 새로고침
   if (typeof buildMemoWidget === 'function') buildMemoWidget();
   if (typeof renderHomeNotesWidget === 'function') renderHomeNotesWidget();
+}
+
+// 구글 로고 SVG (캘린더 상세에서 구글 일정 표시용)
+function googleLogoSvg() {
+  return '<span class="cal-detail-glogo" aria-hidden="true">'
+    + '<svg width="12" height="12" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">'
+    + '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>'
+    + '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>'
+    + '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>'
+    + '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>'
+    + '</svg></span>';
 }
 
 // HTML 이스케이프 (홈/위젯 공용 헬퍼)

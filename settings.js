@@ -130,7 +130,7 @@ function closeSettings() {
 function buildSettingsModal() {
   return '<div class="settings-modal" onclick="event.stopPropagation()">'
     + '<div class="settings-modal-header">'
-    + '<span class="settings-modal-title">⚙️ 설정</span>'
+    + '<span class="settings-modal-title">⚙️ Setting</span>'
     + '<button class="settings-close" onclick="closeSettings()">✕</button>'
     + '</div>'
     + '<div class="settings-body">'
@@ -264,32 +264,40 @@ function buildFontSizeBtn(val, label) {
 // ── Calendar tab ──────────────────────────
 function buildTabCalendar() {
   var calSync = settingsState.calSync;
-  var provider = settingsState.calProvider;
+  var signedIn = typeof isSignedIn === 'function' && isSignedIn();
   var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 동기화 중...'
     : settingsState.syncStatus === 'done' ? '✓ 동기화 완료' : '🔄 지금 동기화';
 
-  var twoWay = settingsState.calDirection === 'two';
-  var dirDesc = twoWay ? 'TaskLog ↔ 캘린더 (양방향)' : 'TaskLog → 캘린더 (단방향)';
   var allItems = settingsState.calItems === 'all';
 
   var subHtml = !calSync ? '' :
     '<div class="settings-row">'
-    + '<div><div class="settings-row-label">동기화 방향</div><div class="settings-row-desc">' + dirDesc + '</div></div>'
-    + '<select class="settings-select" onchange="settingsSetCalDirection(this.value)">'
-    + '<option value="one"' + (twoWay ? '' : ' selected') + '>단방향 (앱 → 캘린더)</option>'
-    + '<option value="two"' + (twoWay ? ' selected' : '') + '>양방향</option>'
-    + '</select>'
-    + '</div>'
-    + '<div class="settings-row">'
     + '<div><div class="settings-row-label">동기화 항목</div><div class="settings-row-desc">캘린더에 표시할 항목</div></div>'
     + '<select class="settings-select" onchange="settingsSetCalItems(this.value)">'
     + '<option value="deadline"' + (allItems ? '' : ' selected') + '>Task 마감일만</option>'
     + '<option value="all"' + (allItems ? ' selected' : '') + '>Task + To-Do 전체</option>'
     + '</select>'
+    + '</div>'
+    // 사용자 계정의 구글 캘린더 목록 + 캘린더별 동기화 방향
+    + '<div class="settings-section-head">구글 캘린더 목록 · 캘린더별 동기화 방향</div>'
+    + '<div id="settings-cal-list">'
+    + (signedIn
+        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오는 중...</div>'
+        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">⚠️ Google 로그인 후 캘린더 목록을 확인할 수 있습니다.</div>')
+    + '</div>'
+    // Task / To Do 연동 캘린더 지정
+    + '<div class="settings-section-head">Task · To Do 연동 캘린더</div>'
+    + '<div id="settings-cal-target">'
+    + (signedIn
+        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오는 중...</div>'
+        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">⚠️ Google 로그인 후 설정할 수 있습니다.</div>')
     + '</div>';
 
+  // 목록 비동기 로드
+  if (calSync && signedIn) setTimeout(settingsLoadCalendarList, 0);
+
   return '<div class="settings-row" style="margin-top:8px;">'
-    + '<div><div class="settings-row-label">캘린더 동기화 사용</div><div class="settings-row-desc">Task 마감일을 선택한 캘린더와 동기화합니다</div></div>'
+    + '<div><div class="settings-row-label">캘린더 동기화 사용</div><div class="settings-row-desc">TaskLog 일정을 구글 캘린더와 동기화합니다</div></div>'
     + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
     + '</div>'
     + subHtml
@@ -298,6 +306,74 @@ function buildTabCalendar() {
     + syncBtnText + '</button>'
     + (!calSync ? '<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;">동기화를 사용하려면 위 토글을 켜주세요</div>' : '')
     + '</div>';
+}
+
+// 사용자 계정의 구글 캘린더 목록 비동기 로드 → 목록/연동 대상 UI 렌더
+var _settingsCalCache = null;
+
+function settingsLoadCalendarList() {
+  if (typeof listUserCalendars !== 'function') return;
+  listUserCalendars().then(function(cals) {
+    _settingsCalCache = cals;
+    settingsRenderCalList(cals);
+    settingsRenderCalTargets(cals);
+  });
+}
+
+function settingsRenderCalList(cals) {
+  var box = document.getElementById('settings-cal-list');
+  if (!box) return;
+  if (!cals || !cals.length) {
+    box.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오지 못했습니다.</div>';
+    return;
+  }
+  var dirFor = (typeof calDirFor === 'function') ? calDirFor : function(){ return 'pull'; };
+  box.innerHTML = cals.map(function(c) {
+    var dir = dirFor(c.id);
+    var idEnc = encodeURIComponent(c.id);
+    return '<div class="settings-row settings-cal-row">'
+      + '<div style="display:flex;align-items:center;gap:8px;min-width:0;">'
+      + '<span class="settings-cal-dot" style="background:' + (c.color || 'var(--text-3)') + ';"></span>'
+      + '<span class="settings-cal-name">' + sEsc(c.name) + (c.primary ? ' <span style="font-size:10px;color:var(--text-3);">(기본)</span>' : '') + '</span>'
+      + '</div>'
+      + '<select class="settings-select" data-calid="' + idEnc + '" onchange="settingsSetPerCalDir(decodeURIComponent(this.dataset.calid), this.value)">'
+      + '<option value="off"'  + (dir === 'off'  ? ' selected' : '') + '>동기화 안 함</option>'
+      + '<option value="pull"' + (dir === 'pull' ? ' selected' : '') + '>가져오기 (구글 → TaskLog)</option>'
+      + '<option value="two"'  + (dir === 'two'  ? ' selected' : '') + '>양방향</option>'
+      + '</select>'
+      + '</div>';
+  }).join('');
+}
+
+function settingsRenderCalTargets(cals) {
+  var box = document.getElementById('settings-cal-target');
+  if (!box) return;
+  if (!cals || !cals.length) {
+    box.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오지 못했습니다.</div>';
+    return;
+  }
+  var getT = (typeof getCalTarget === 'function') ? getCalTarget : function(){ return ''; };
+  function targetRow(kind, label, desc) {
+    var cur = getT(kind);
+    var opts = '<option value=""' + (cur ? '' : ' selected') + '>기본 (TaskLog 캘린더)</option>'
+      + cals.map(function(c) {
+          return '<option value="' + encodeURIComponent(c.id) + '"' + (cur === c.id ? ' selected' : '') + '>' + sEsc(c.name) + '</option>';
+        }).join('');
+    return '<div class="settings-row">'
+      + '<div><div class="settings-row-label">' + label + '</div><div class="settings-row-desc">' + desc + '</div></div>'
+      + '<select class="settings-select" onchange="settingsSetCalTargetSel(\'' + kind + '\', this.value)">' + opts + '</select>'
+      + '</div>';
+  }
+  box.innerHTML = targetRow('task', 'Task 연동 캘린더', 'TaskLog의 Task를 등록할 캘린더')
+    + targetRow('todo', 'To Do 연동 캘린더', 'TaskLog의 To Do를 등록할 캘린더');
+}
+
+function settingsSetPerCalDir(calId, dir) {
+  if (typeof setCalDirection === 'function') setCalDirection(calId, dir);
+}
+
+function settingsSetCalTargetSel(kind, encVal) {
+  if (typeof setCalTarget === 'function') setCalTarget(kind, encVal ? decodeURIComponent(encVal) : '');
 }
 
 function buildCalProvider(id, icon, label, selected) {

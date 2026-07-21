@@ -484,8 +484,7 @@ function renderSidebarCalendar() {
   });
 
   const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  const DAY_NAMES   = (typeof weekDayOrder === 'function') ? weekDayOrder() : ['일','월','화','수','목','금','토'];
-  const lead        = (typeof weekLeadOffset === 'function') ? weekLeadOffset(startDow) : startDow;
+  const DAY_NAMES   = ['일','월','화','수','목','금','토'];
 
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
 
@@ -502,21 +501,19 @@ function renderSidebarCalendar() {
   // 요일 헤더
   html += '<div class="scal-grid">';
   DAY_NAMES.forEach((d, i) => {
-    const _dw = (typeof weekColDow === 'function') ? weekColDow(i) : i;
-    const cls = _dw === 0 ? ' s-sun' : _dw === 6 ? ' s-sat' : '';
+    const cls = i === 0 ? ' s-sun' : i === 6 ? ' s-sat' : '';
     html += '<div class="scal-dh' + cls + '">' + d + '</div>';
   });
 
   // 이전 달 패딩
-  for (let i = 0; i < lead; i++) {
-    const d = prevMonthLastDay - lead + 1 + i;
+  for (let i = 0; i < startDow; i++) {
+    const d = prevMonthLastDay - startDow + 1 + i;
     html += '<div class="scal-cell s-dim"><span class="scal-num">' + d + '</span></div>';
   }
 
   // 현재 달 날짜
   for (let d = 1; d <= totalDays; d++) {
-    const _col = (lead + d - 1) % 7;
-    const dow = (typeof weekColDow === 'function') ? weekColDow(_col) : _col;
+    const dow = (startDow + d - 1) % 7;
     const dateKey = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isToday = dateKey === todayKey;
     const evts = evtMap[dateKey] || [];
@@ -667,8 +664,7 @@ function buildPickerCalHtml(id) {
   var startDow = firstDay.getDay();
   var total    = lastDay.getDate();
   var prevLast = new Date(year, month, 0).getDate();
-  var DN = (typeof weekDayOrder === 'function') ? weekDayOrder() : ['일','월','화','수','목','금','토'];
-  var lead = (typeof weekLeadOffset === 'function') ? weekLeadOffset(startDow) : startDow;
+  var DN = ['일','월','화','수','목','금','토'];
   var pad = function(n){ return String(n).padStart(2,'0'); };
 
   // 연도 선택 옵션
@@ -694,15 +690,13 @@ function buildPickerCalHtml(id) {
     + '<div class="sdp-cal-grid2">';
 
   for (var di = 0; di < 7; di++) {
-    var _dw = (typeof weekColDow === 'function') ? weekColDow(di) : di;
-    html += '<div class="sdp-dh' + (_dw===0?' sdp-sun':_dw===6?' sdp-sat':'') + '">' + DN[di] + '</div>';
+    html += '<div class="sdp-dh' + (di===0?' sdp-sun':di===6?' sdp-sat':'') + '">' + DN[di] + '</div>';
   }
-  for (var i = 0; i < lead; i++) {
-    html += '<div class="sdp-dc sdp-dim">' + (prevLast - lead + 1 + i) + '</div>';
+  for (var i = 0; i < startDow; i++) {
+    html += '<div class="sdp-dc sdp-dim">' + (prevLast - startDow + 1 + i) + '</div>';
   }
   for (var d = 1; d <= total; d++) {
-    var _col = (lead + d - 1) % 7;
-    var dow = (typeof weekColDow === 'function') ? weekColDow(_col) : _col;
+    var dow = (startDow + d - 1) % 7;
     var dk  = year + '-' + pad(month+1) + '-' + pad(d);
     var cls = 'sdp-dc';
     if (dow === 0) cls += ' sdp-sun';
@@ -711,7 +705,7 @@ function buildPickerCalHtml(id) {
     if (dk === s.dateStr) cls += ' sdp-sel';
     html += '<div class="' + cls + '" onclick="pickerPickDate(\'' + id + '\',' + year + ',' + (month+1) + ',' + d + ')">' + d + '</div>';
   }
-  var filled = lead + total;
+  var filled = startDow + total;
   var remain = (7 - (filled % 7)) % 7;
   for (var r = 1; r <= remain; r++) {
     html += '<div class="sdp-dc sdp-dim">' + r + '</div>';
@@ -1043,10 +1037,7 @@ function buildStepsHtml(task) {
     return '<div class="dp-step" id="dp-step-' + s.id + '">'
       + '<div class="task-check step-check ' + (s.completed ? 'is-done' : '') + '" onclick="toggleStep(' + task.id + ',' + s.id + ')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text ' + (s.completed ? 'is-done' : '') + '" contenteditable="true" spellcheck="false"'
-      +   ' title="클릭해 텍스트 수정" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
-      +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
-      +   ' onblur="saveStepTextEdit(' + task.id + ',' + s.id + ',this)">' + escapeHtml(s.text) + '</span>'
+      + '<span class="step-text ' + (s.completed ? 'is-done' : '') + '">' + escapeHtml(s.text) + '</span>'
       + (dateBadge ? '<div class="step-meta">' + dateBadge + '</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn' + (hasDate ? ' has-date' : '') + '" onclick="event.stopPropagation();toggleStepDateForm(' + s.id + ')" title="기한 설정">'
@@ -1357,17 +1348,6 @@ function toggleStep(taskId, stepId) {
   saveTasks(); refreshDpSteps(task); renderTasks();
 }
 
-function saveStepTextEdit(taskId, stepId, el) {
-  var task = tasks.find(function(t){ return t.id === taskId; });
-  var step = (task && task.steps) ? task.steps.find(function(s){ return s.id === stepId; }) : null;
-  if (!step) return;
-  var v = (el.textContent || '').trim();
-  if (v === '') { el.textContent = step.text; return; }   // 빈 값이면 원복
-  if (v === step.text) return;
-  step.text = v;
-  if (typeof saveTasks === 'function') saveTasks();
-}
-
 function deleteStep(taskId, stepId) {
   const task = tasks.find(t => t.id === taskId);
   if (!task?.steps) return;
@@ -1486,71 +1466,6 @@ function scheduleReminder(task) {
     setTimeout(fire, delay);
   } else if (Notification.permission !== 'denied') {
     Notification.requestPermission().then(p => { if (p === 'granted') setTimeout(fire, delay); });
-  }
-}
-
-// ============================================
-//  🔔 알림 (마감 D-3 · 주간일지) — 설정 토글로 on/off
-// ============================================
-function notifEnabled(kind) {
-  var k = (kind === 'deadline') ? 'app-notif-deadline' : 'app-notif-journal';
-  var v = localStorage.getItem(k);
-  return v === null ? true : v !== '0';   // 기본 켜짐
-}
-
-function ensureNotifPermission() {
-  if (typeof Notification === 'undefined') return;
-  if (Notification.permission === 'default') {
-    try { Notification.requestPermission().then(function(){ runAppNotifications(); }); } catch (e) {}
-  }
-}
-
-// Task 마감 D-3 ~ 당일: 하루 1번(항목별 1번)만 브라우저 알림
-function runDeadlineNotifications() {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  if (!notifEnabled('deadline') || typeof tasks === 'undefined') return;
-  var today = new Date(); today.setHours(0,0,0,0);
-  var todayKey = today.getFullYear() + '-' + (today.getMonth()+1) + '-' + today.getDate();
-  var shown = {};
-  try { shown = JSON.parse(localStorage.getItem('notif-deadline-shown') || '{}'); } catch (e) {}
-  if (shown._day !== todayKey) shown = { _day: todayKey };   // 날짜 바뀌면 초기화
-  tasks.forEach(function(t) {
-    if (t.completed || !t.dueDateTime) return;
-    var due = new Date(t.dueDateTime); due.setHours(0,0,0,0);
-    var days = Math.round((due - today) / 86400000);
-    if (days < 0 || days > 3) return;
-    if (shown[t.id]) return;
-    var label = days === 0 ? '오늘 마감' : ('D-' + days);
-    try { new Notification('📌 마감 임박 — ' + label, { body: (t.text||'').replace(/^\[\d{6}\] /,'') }); } catch (e) {}
-    shown[t.id] = 1;
-  });
-  localStorage.setItem('notif-deadline-shown', JSON.stringify(shown));
-}
-
-// 주간일지 작성 알림: 목~일요일, 하루 1번
-function runJournalNotification() {
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
-  if (!notifEnabled('journal')) return;
-  var now = new Date();
-  var dow = now.getDay();                       // 0=일 ... 4=목 ... 6=토
-  if ([0,4,5,6].indexOf(dow) === -1) return;    // 목·금·토·일만
-  var todayKey = now.getFullYear() + '-' + (now.getMonth()+1) + '-' + now.getDate();
-  if (localStorage.getItem('notif-journal-shown') === todayKey) return;
-  localStorage.setItem('notif-journal-shown', todayKey);
-  try { new Notification('📓 주간일지 작성', { body: '이번 주 주간일지를 작성해 보세요.' }); } catch (e) {}
-}
-
-function runAppNotifications() {
-  runDeadlineNotifications();
-  runJournalNotification();
-}
-
-// 앱 시작 시: 권한 확인 후 즉시 1회 + 이후 1시간마다 재확인
-function initAppNotifications() {
-  ensureNotifPermission();
-  runAppNotifications();
-  if (!window.__notifTimer) {
-    window.__notifTimer = setInterval(runAppNotifications, 60 * 60 * 1000);
   }
 }
 
@@ -1896,11 +1811,11 @@ var rpState = {
   createdAt: null,
 };
 
-var RP_EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--success)', DELEGATE:'var(--warning)', DROP:'var(--brand-primary)' };
-var RP_EI_NAME   = { DO:'ASAP', SCHEDULE:'SCHEDULE', DELEGATE:'NEXT', DROP:'SOMEDAY' };
-var RP_EI_DESC   = { DO:'지금 바로', SCHEDULE:'일정 예약', DELEGATE:'다음 차례', DROP:'언젠가' };
+var RP_EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--brand-primary)', DELEGATE:'var(--warning)', DROP:'var(--text-2)' };
+var RP_EI_NAME   = { DO:'Do', SCHEDULE:'Plan', DELEGATE:'Delegate', DROP:'Delete' };
+var RP_EI_DESC   = { DO:'긴급·중요', SCHEDULE:'중요·비긴급', DELEGATE:'긴급·비중요', DROP:'비긴급·비중요' };
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
-var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--info)', '취소':'var(--text-3)' };
+var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--brand-primary)', '취소':'var(--text-3)' };
 
 function openNewTaskPanel(taskId) {
   rpState.taskId = taskId || null;
@@ -1948,9 +1863,9 @@ function buildRpForm(task) {
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
   var notesVal   = task ? (task.notes || '') : '';
 
-  // Priority (ASAP / NEXT / SCHEDULE / SOMEDAY) — 내부값은 DO/DELEGATE/SCHEDULE/DROP 유지
+  // Priority (Do / Plan / Delegate / Delete)
   var eiHtml = '<div class="rp-sect"><div class="rp-section-head">Priority</div><div class="rp-ei-grid">';
-  ['DO','DELEGATE','SCHEDULE','DROP'].forEach(function(k) {
+  ['DO','SCHEDULE','DELEGATE','DROP'].forEach(function(k) {
     var sel = rpState.eisenhower === k;
     var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:color-mix(in srgb, '+RP_EI_COLORS[k]+' 10%, transparent);' : '';
     eiHtml += '<button class="rp-ei-btn'+(sel?' rp-ei-sel':'')+'" data-ei="'+k+'" style="'+selStyle+'" onclick="rpSetEi(\''+k+'\')">'
@@ -2057,10 +1972,7 @@ function rpBuildStepsHtml() {
     return '<div class="dp-step" id="rp-step-'+s.id+'">'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
-      + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
-      +   ' title="클릭해 텍스트 수정" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
-      +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
-      +   ' onblur="rpSaveStepText('+s.id+',this)">'+escapeHtml(s.text)+'</span>'
+      + '<span class="step-text '+(s.completed?'is-done':'')+'">'+escapeHtml(s.text)+'</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
@@ -2069,17 +1981,6 @@ function rpBuildStepsHtml() {
       + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button></div>'
       + dateForm;
   }).join('');
-}
-
-// 완료/미완료 무관하게 TO DO 텍스트 인라인 수정 (rp-form 초안에 반영, 저장 시 확정)
-function rpSaveStepText(stepId, el) {
-  var s = rpState.steps.find(function(x){ return x.id === stepId; });
-  if (!s) return;
-  var v = (el.textContent || '').trim();
-  if (v === '') { el.textContent = s.text; return; }   // 빈 값이면 원복
-  if (v === s.text) return;
-  s.text = v;
-  rpState.dirty = true;
 }
 
 // ── TO DO 마감일 (rp-form draft) ──
@@ -2446,12 +2347,20 @@ var MENU_EMOJI = {
   wbs:'🌳', journal:'📓',
 };
 
-// 📐 사이드바 고정(접힘) — 열고 닫는 기능 제거
+// 📐 사이드바 접기/펼치기 (기본: 접힘, 상태 localStorage 기억)
 function initSidebarCollapse() {
   var sb = document.getElementById('sidebar');
   if (!sb) return;
-  sb.classList.add('collapsed');
+  var saved = localStorage.getItem('sidebar-collapsed');
+  var collapsed = saved === null ? true : saved === '1';
+  sb.classList.toggle('collapsed', collapsed);
   if (typeof updateDarkModeBtn === 'function') updateDarkModeBtn(); // 테마 스위치 초기 동기화
+}
+function toggleSidebar() {
+  var sb = document.getElementById('sidebar');
+  if (!sb) return;
+  sb.classList.toggle('collapsed');
+  localStorage.setItem('sidebar-collapsed', sb.classList.contains('collapsed') ? '1' : '0');
 }
 
 function initSidebar() {
@@ -2513,9 +2422,9 @@ function navToMenu(id) {
     }
   }
 
-  // 3) '+Task' 버튼 제거 (Board 우측 상단 버튼 미표시)
+  // 3) '새 Task' 버튼은 TO-DO(계획된 일정)에서만
   var newBtn = document.getElementById('new-task-btn');
-  if (newBtn) newBtn.style.display = 'none';
+  if (newBtn) newBtn.style.display = (id === 'todo') ? '' : 'none';
 
   // 4) 우측 패널 닫기
   if (typeof closeRightPanel === 'function') closeRightPanel();
@@ -2548,7 +2457,6 @@ function bootApp() {
   if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
   if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
   if (typeof scheduleAllReminders === 'function') scheduleAllReminders();
-  if (typeof initAppNotifications === 'function') initAppNotifications();
   if (typeof updateBackupStatus === 'function') updateBackupStatus();
   if (typeof initAutoBackup === 'function') initAutoBackup();
 }

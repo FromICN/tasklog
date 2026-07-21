@@ -8,6 +8,29 @@ function isSignedIn() {
   return token !== null;
 }
 
+// ── 구글 캘린더 색상 보정 ─────────────────────
+// Calendar API는 구형(classic) 팔레트 색을 반환하지만, 실제 구글 캘린더 화면은
+// 모던 팔레트를 사용한다. 표시 색이 실제 테마 색과 일치하도록 매핑한다.
+const GCAL_MODERN_COLOR_MAP = {
+  // 캘린더 색 (calendarList backgroundColor, classic → modern)
+  '#ac725e':'#795548', '#d06b64':'#e67c73', '#f83a22':'#d50000', '#fa573c':'#f4511e',
+  '#ff7537':'#ef6c00', '#ffad46':'#f09300', '#42d692':'#009688', '#16a765':'#0b8043',
+  '#7bd148':'#7cb342', '#b3dc6c':'#c0ca33', '#fbe983':'#e4c441', '#fad165':'#f6bf26',
+  '#92e1c0':'#33b679', '#9fe1e7':'#039be5', '#9fc6e7':'#4285f4', '#4986e7':'#3f51b5',
+  '#9a9cff':'#7986cb', '#b99aff':'#b39ddb', '#c2c2c2':'#616161', '#cabdbf':'#a79b8e',
+  '#cca6ac':'#ad1457', '#f691b2':'#d81b60', '#cd74e6':'#8e24aa', '#a47ae2':'#9e69af',
+  // 이벤트 색 (colors.get event palette, classic → modern)
+  '#a4bdfc':'#7986cb', '#7ae7bf':'#33b679', '#dbadff':'#8e24aa', '#ff887c':'#e67c73',
+  '#fbd75b':'#f6bf26', '#ffb878':'#f4511e', '#46d6db':'#039be5', '#e1e1e1':'#616161',
+  '#5484ed':'#3f51b5', '#51b749':'#0b8043', '#dc2127':'#d50000',
+};
+
+function gcalModernColor(hex) {
+  if (!hex) return hex;
+  var key = String(hex).toLowerCase();
+  return GCAL_MODERN_COLOR_MAP[key] || hex;
+}
+
 // Task → 구글 캘린더 이벤트 형식 변환 (수동/자동 등록 공용)
 function _buildCalEventFromTask(task) {
   const startDateTime = new Date(task.dueDateTime);
@@ -44,8 +67,42 @@ function _buildCalEventFromTask(task) {
 const TASK_CAL_NAME = 'TaskLog';
 let taskCalendarId = null;          // 한 번 찾으면 캐시
 
+// ── 캘린더별 동기화 방향 설정 ─────────────────
+//  localStorage 'app-cal-per-direction' = { calId: 'off' | 'pull' | 'two' }
+//   off  : 동기화 안 함
+//   pull : 가져오기만 (구글 → TaskLog)
+//   two  : 양방향 (가져오기 + TaskLog 일정 연동 대상 후보)
+function getCalDirections() {
+  try {
+    var v = JSON.parse(localStorage.getItem('app-cal-per-direction') || '{}');
+    return (v && typeof v === 'object') ? v : {};
+  } catch (e) { return {}; }
+}
+function calDirFor(calId) {
+  var v = getCalDirections()[calId];
+  return (v === 'off' || v === 'two') ? v : 'pull';   // 기본: 가져오기
+}
+function setCalDirection(calId, dir) {
+  var v = getCalDirections();
+  v[calId] = dir;
+  localStorage.setItem('app-cal-per-direction', JSON.stringify(v));
+}
+
+// ── Task / To Do 연동 대상 캘린더 설정 ─────────
+//  localStorage 'app-cal-task-target' / 'app-cal-todo-target' = 캘린더 id ('' = 기본 TaskLog)
+function getCalTarget(kind) {
+  return localStorage.getItem(kind === 'todo' ? 'app-cal-todo-target' : 'app-cal-task-target') || '';
+}
+function setCalTarget(kind, calId) {
+  localStorage.setItem(kind === 'todo' ? 'app-cal-todo-target' : 'app-cal-task-target', calId || '');
+  taskCalendarId = null;   // 캐시 초기화 → 다음 동기화 때 재해석
+}
+
 async function resolveTaskCalendarId() {
   if (taskCalendarId) return taskCalendarId;
+  // 설정에서 Task 연동 캘린더를 지정했으면 그 캘린더 사용
+  var configured = getCalTarget('task');
+  if (configured) { taskCalendarId = configured; return taskCalendarId; }
   try {
     const list = await gapi.client.calendar.calendarList.list({ maxResults: 250 });
     const items = (list.result && list.result.items) ? list.result.items : [];
@@ -248,6 +305,9 @@ async function fetchCalendarEvents(silent) {
     // 목록이 비어 있으면 최소한 primary는 조회
     if (!calItems.length) calItems = [{ id: 'primary' }];
 
+    // 설정의 캘린더별 동기화 방향 반영: '동기화 안 함(off)' 캘린더는 가져오지 않음
+    calItems = calItems.filter(function (cal) { return calDirFor(cal.id) !== 'off'; });
+
     // 양방향 연동 대상인 'TaskLog' 캘린더 id (이 캘린더의 일정은 'tasklog 일정'으로 분류)
     let taskCalId = null;
     try { taskCalId = await resolveTaskCalendarId(); } catch (e) { taskCalId = null; }
@@ -297,9 +357,11 @@ async function fetchCalendarEvents(silent) {
       const hasTime = !!(event.start && event.start.dateTime);
 
       // 구글 캘린더 테마 색상: 이벤트별 색(colorId)이 있으면 우선, 없으면 캘린더 배경색
+      // (API classic 팔레트 → 실제 구글 캘린더 모던 팔레트로 보정)
       const evPal = (event.colorId && eventPalette[event.colorId]) ? eventPalette[event.colorId] : null;
-      const calColor = (evPal && evPal.background) || calColorMap[event._calId] || GCAL_COLOR;
-      const fromTaskCal = !!(taskCalId && event._calId === taskCalId);
+      const calColor = gcalModernColor((evPal && evPal.background) || calColorMap[event._calId]) || GCAL_COLOR;
+      const todoCalId = getCalTarget('todo') || taskCalId;
+      const fromTaskCal = !!((taskCalId && event._calId === taskCalId) || (todoCalId && event._calId === todoCalId));
 
       return {
         id: 'gcal-' + (event._calId || '') + '-' + event.id,  // 구글 캘린더 일정(캘린더별 고유 id)
@@ -372,9 +434,37 @@ async function autoPushTasksToCalendar() {
   }
 
   if (pushed > 0 || linked > 0) {
-    console.log(`📤 'TaskLog' 캘린더에 신규 ${pushed}건 등록, 기존 ${linked}건 연결(중복 방지).`);
+    console.log(`📤 Task 연동 캘린더에 신규 ${pushed}건 등록, 기존 ${linked}건 연결(중복 방지).`);
     if (typeof saveTasks === 'function') saveTasks();
     if (typeof renderTasks === 'function') renderTasks();
+  }
+
+  // ── To Do(step) → To Do 연동 캘린더 ──
+  const todoTarget = getCalTarget('todo');
+  const pushSteps = todoTarget || localStorage.getItem('app-cal-items') === 'all';
+  if (pushSteps) {
+    const todoCalId = todoTarget || calId;
+    const existingTodo = (todoCalId === calId) ? existing : await _listTaskCalendarKeys(todoCalId);
+    let sPushed = 0;
+    for (const task of tasks) {
+      if (task.completed) continue;
+      for (const step of (task.steps || [])) {
+        if (step.completed || !step.dueDateTime || step.calendarEventId) continue;
+        const sk = _dedupKey(step.text, _taskStartKey(step));
+        if (existingTodo.has(sk)) { step.calendarEventId = existingTodo.get(sk); continue; }
+        try {
+          const ev = _buildCalEventFromTask(step);
+          const resp = await gapi.client.calendar.events.insert({ calendarId: todoCalId, resource: ev });
+          step.calendarEventId = resp.result.id;
+          existingTodo.set(sk, resp.result.id);
+          sPushed++;
+        } catch (e) { console.error('⚠️ To Do 자동 등록 실패:', step.text, e); }
+      }
+    }
+    if (sPushed > 0) {
+      console.log(`📤 To Do 연동 캘린더에 신규 ${sPushed}건 등록.`);
+      if (typeof saveTasks === 'function') saveTasks();
+    }
   }
   return pushed;
 }
@@ -387,13 +477,30 @@ async function autoSyncCalendar() {
   if (!isSignedIn()) return;
   _calAutoSyncDone = true;
 
-  // 설정의 '동기화 방향' 반영: 양방향일 때만 가져오기(2)를 수행
-  var twoWay = (localStorage.getItem('app-cal-direction') === 'two');
-
-  console.log('🔁 구글 캘린더 자동 동기화 시작...', twoWay ? '(양방향)' : '(단방향)');
+  console.log('🔁 구글 캘린더 자동 동기화 시작...');
   await autoPushTasksToCalendar();      // 1) TaskLog → 구글 캘린더 (보내기)
-  if (twoWay) {
-    await fetchCalendarEvents(true);    // 2) 구글 캘린더 → TaskLog (가져오기, 조용히)
-  }
+  // 2) 구글 캘린더 → TaskLog (가져오기, 조용히)
+  //    캘린더별 동기화 방향 설정(off/pull/two)은 fetchCalendarEvents 내부에서 반영됨
+  await fetchCalendarEvents(true);
   console.log('✅ 자동 동기화 완료');
+}
+
+// 설정 화면용: 사용자 계정의 구글 캘린더 목록 조회
+async function listUserCalendars() {
+  if (!isSignedIn()) return [];
+  try {
+    const resp = await gapi.client.calendar.calendarList.list({ maxResults: 250 });
+    const items = (resp.result && resp.result.items) ? resp.result.items : [];
+    return items.map(function (c) {
+      return {
+        id: c.id,
+        name: c.summaryOverride || c.summary || c.id,
+        color: (typeof gcalModernColor === 'function') ? gcalModernColor(c.backgroundColor) : c.backgroundColor,
+        primary: !!c.primary,
+      };
+    });
+  } catch (e) {
+    console.warn('캘린더 목록 조회 실패:', e);
+    return [];
+  }
 }

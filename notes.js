@@ -86,8 +86,8 @@ function renderNotesView() {
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
     + buildNbColumn('memo', '🗄️ Archiving', '작성한 메모가 여기 쌓여요')
-    + buildNbColumn('task', '✅ TASK', '미완료 Task가 모두 표시돼요')
-    + buildNbColumn('step', '📋 TO DO', '미완료 To Do가 모두 표시돼요')
+    + buildNbColumn('task', '✅ Task', '미완료 Task가 모두 표시돼요')
+    + buildNbColumn('step', '📋 To Do', '미완료 To Do가 모두 표시돼요')
     + '</div>'
     + '</div>';
   renderNoteBoard();
@@ -162,8 +162,10 @@ function buildTaskCard(task) {
     badges += '<span class="nb-card-due">📝 '+done+'/'+task.steps.length+'</span>';
   }
   var proj = '';
-  if (task.mdtAction && task.mdtAction.text) proj = '🔮 ' + task.mdtAction.text;
-  else if (task.lwSectionName) proj = (task.lwSectionEmoji || '') + task.lwSectionName;
+  // Project 이모지: 연계된 상위 Section 이모지와 통일 (todo.js 공용 해석기)
+  var _em = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
+  if (task.mdtAction && task.mdtAction.text) proj = (_em || '🔮') + ' ' + task.mdtAction.text;
+  else if (task.lwSectionName) proj = (_em ? _em + ' ' : '') + task.lwSectionName;
   var projHtml = proj ? '<div class="nb-card-taskref">'+escNb(proj)+'</div>' : '';
   return '<div class="nb-card" draggable="true" data-kind="task" data-task-id="' + task.id + '"'
     + ' style="cursor:pointer;" title="클릭하면 상세 보기"'

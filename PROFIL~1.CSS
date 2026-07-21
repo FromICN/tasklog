@@ -1,0 +1,250 @@
+/* ============================================
+   👤 프로필 모달
+   ============================================ */
+
+.profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-modal {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  box-shadow: var(--shadow-lg);
+  animation: pm-in 0.18s ease;
+  overflow: hidden;
+}
+
+@keyframes pm-in {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+.pm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pm-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.pm-close {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--dur-fast);
+}
+.pm-close:hover { background: var(--surface-hover); color: var(--text-1); }
+
+/* 프로필 영역 */
+.pm-profile-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pm-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.pm-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pm-profile-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+.pm-display-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-google-name {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.pm-email {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 섹션 공통 */
+.pm-section {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pm-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+
+/* 닉네임 입력 */
+.pm-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pm-input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+  color: var(--text-1);
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--dur-fast);
+}
+.pm-input:focus { border-color: var(--brand-primary); }
+
+.pm-btn-save {
+  padding: 7px 14px;
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.pm-btn-save:hover { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+
+.pm-input-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+/* 연결된 계정 */
+.pm-account-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.pm-badge-connected {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--success);
+  background: var(--success-bg);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+/* 푸터 */
+.pm-footer {
+  padding: 12px 20px 16px;
+}
+
+.pm-btn-signout {
+  display: block;
+  width: 100%;
+  padding: 9px 14px;
+  text-align: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.pm-btn-signout:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+/* 비로그인 게스트 */
+.pm-guest-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 24px 28px;
+  gap: 12px;
+  text-align: center;
+}
+
+.pm-guest-icon {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.pm-guest-msg {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+}
+
+.pm-btn-signin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 9px 20px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.pm-btn-signin:hover { background: var(--bg-3); }
+
+/* 라이트 모드 — 토큰이 라이트 값으로 재정의되므로 배경 오버라이드만 유지 */
+body.light-mode .profile-modal {
+  background: var(--bg);
+  box-shadow: var(--shadow-lg);
+}
