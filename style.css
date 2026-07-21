@@ -4633,7 +4633,8 @@ body.light-mode .lw-cv-tag {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3) var(--space-1);
+  /* 좌우 여백: Web 페이지 기준(.main-content 공통 여백만 사용) */
+  padding: var(--space-3) 0 var(--space-1);
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
@@ -5315,7 +5316,8 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  /* 좌우 여백: Web 페이지 기준 */
+  padding: var(--space-3) 0 var(--space-4);
 }
 .gantt-page .gm-nav { margin-bottom: var(--space-2); }
 .gantt-page .gm-month-label { font-size: var(--fs-md); }
@@ -5832,7 +5834,8 @@ body.light-mode .year-select option { color: #1a1a1a; }
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--space-4) var(--space-5);
+  /* 좌우 여백: Web 페이지 기준 */
+  padding: var(--space-4) 0;
   box-sizing: border-box;
   gap: var(--space-3);
   overflow-y: auto;
@@ -7126,11 +7129,11 @@ body.light-mode .nav-item:hover {
 .wbs-head-cell .bd-th-label { cursor: pointer; }
 .wbs-head-cell .bd-filter-panel { top: 100%; left: auto; right: 0; font-size: var(--fs-sm); font-weight: 400; letter-spacing: normal; }
 
-/* WBS 검색 툴바 (오른쪽 상단) */
+/* WBS 검색 툴바 (오른쪽 상단) — 좌우 여백: Web 페이지 기준 */
 .wbs-toolbar {
   display: flex;
   justify-content: flex-end;
-  padding: var(--space-1) var(--space-25) var(--space-2);
+  padding: var(--space-1) 0 var(--space-2);
 }
 .wbs-search-inp {
   width: 240px;
@@ -7149,7 +7152,8 @@ body.light-mode .nav-item:hover {
    🎯 MVV 페이지 (mvv.js)
    ============================================= */
 .mvv-page {
-  padding: var(--space-15) var(--space-25);
+  /* 좌우 여백: Web 페이지 기준 */
+  padding: var(--space-15) 0;
   max-width: none;
   margin: 0;
   display: flex;
@@ -7357,7 +7361,8 @@ body.light-mode .nav-item:hover {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--space-35) var(--space-5);
+  /* 좌우 여백: Web 페이지 기준 */
+  padding: var(--space-35) 0;
   box-sizing: border-box;
   gap: var(--space-25);
   overflow-y: auto;
@@ -7534,7 +7539,8 @@ body.light-mode .nav-item:hover {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: var(--space-2) var(--space-6);
+  /* 좌우 여백: Web 페이지 기준 */
+  padding: var(--space-2) 0;
   box-sizing: border-box;
   gap: var(--space-35);
   overflow-y: auto;
@@ -8228,7 +8234,8 @@ body.light-mode select option:hover {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: var(--space-35) var(--space-5) 0;
+  /* 좌우 여백: Web 페이지 기준 */
+  padding: var(--space-35) 0 0;
   box-sizing: border-box;
 }
 /* 탭 + 구분 영역: 상단 고정 */
