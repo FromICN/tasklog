@@ -316,7 +316,7 @@ document.addEventListener('click', function(e) {
 
 function getTaskStatus(task) {
   if (task.completed) return 'done';                                              // 완료
-  if (Array.isArray(task.steps) && task.steps.some(function(s){ return s.done; })) return 'inprogress';  // TO-DO 일부 완료 = 진행중
+  if (Array.isArray(task.steps) && task.steps.some(function(s){ return s.completed; })) return 'inprogress';  // TO-DO 일부 완료 = 진행중
   return 'todo';                                                                  // 미시작
 }
 
@@ -424,7 +424,9 @@ function wbsToggleStep(taskId, stepId) {
   if (!task) return;
   var step = task.steps.find(function(s){ return s.id === stepId; });
   if (!step) return;
-  step.done = !step.done;
+  // 앱 공통 필드는 step.completed (구버전 step.done도 함께 갱신)
+  step.completed = !step.completed;
+  step.done = step.completed;
   if (typeof saveTasks === 'function') saveTasks();
   renderWbsView();
 }
@@ -575,10 +577,10 @@ function renderWbsTask(task) {
       + visSteps.map(function(step) {
           var cbKey = task.id + ':' + step.id;
           return '<div class="wbs-row wbs-step-row" draggable="true" data-wbs-drag-step="' + cbKey + '">'
-            + '<span class="wbs-step-cb" data-wbs-step-cb="' + cbKey + '">' + (step.done ? '☑' : '☐') + '</span>'
-            + '<span class="wbs-step-text' + (step.done ? ' done' : '') + '" data-wbs-step-edit="' + cbKey + '" title="클릭해서 편집">' + wbsEsc(step.text) + '</span>'
+            + '<span class="wbs-step-cb" data-wbs-step-cb="' + cbKey + '">' + (step.completed ? '☑' : '☐') + '</span>'
+            + '<span class="wbs-step-text' + (step.completed ? ' done' : '') + '" data-wbs-step-edit="' + cbKey + '" title="클릭해서 편집">' + wbsEsc(step.text) + '</span>'
             + wbsEmptyCol() + wbsEmptyCol()
-            + wbsStatusBadge(step.done ? '완료' : '대기')
+            + wbsStatusBadge(step.completed ? '완료' : '대기')
             + '<span class="wbs-count-spacer"></span>'
             + '</div>';
         }).join('')
