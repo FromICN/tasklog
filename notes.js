@@ -46,9 +46,15 @@ function getArchivingNotes() {
   return notesData.filter(function(n){ return n.type === 'memo'; });
 }
 
-// 미완료 Task / To Do 수집
+// 마감일 오름차순 정렬 헬퍼 (마감일 없음 = 맨 뒤, Infinity-Infinity NaN 방지)
+function nbDueMs(iso) { return iso ? new Date(iso).getTime() : Infinity; }
+function nbCmpMs(x, y) { if (x < y) return -1; if (x > y) return 1; return 0; }
+
+// 미완료 Task / To Do 수집 (마감일 오름차순 정렬)
 function getActiveTasks() {
-  return (typeof tasks !== 'undefined') ? tasks.filter(function(t){ return !t.completed; }) : [];
+  if (typeof tasks === 'undefined') return [];
+  return tasks.filter(function(t){ return !t.completed; })
+              .sort(function(a, b){ return nbCmpMs(nbDueMs(a.dueDateTime), nbDueMs(b.dueDateTime)); });
 }
 function getActiveSteps() {
   var out = [];
@@ -57,6 +63,12 @@ function getActiveSteps() {
     (t.steps || []).forEach(function(s){
       if (!s.completed) out.push({ task: t, step: s });
     });
+  });
+  // To Do 마감일 우선(없으면 상위 Task 마감일)으로 오름차순 정렬
+  out.sort(function(a, b){
+    var da = (a.step && a.step.dueDateTime) ? a.step.dueDateTime : a.task.dueDateTime;
+    var db = (b.step && b.step.dueDateTime) ? b.step.dueDateTime : b.task.dueDateTime;
+    return nbCmpMs(nbDueMs(da), nbDueMs(db));
   });
   return out;
 }
