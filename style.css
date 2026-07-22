@@ -9213,3 +9213,51 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .rp-step-dragging { opacity: 0.45; }
 .rp-step-over { box-shadow: inset 0 2px 0 0 var(--accent, #4c8dff); }
 .rp-step-over-after { box-shadow: inset 0 -2px 0 0 var(--accent, #4c8dff); }
+
+/* ── WBS(및 공통) 스크롤 중 화면 블랙아웃 방지 ─────────────────
+   position:sticky 인 상단바가 스크롤 시 뷰포트 전체를 다시 칠하면서
+   일부 브라우저/웹뷰(GPU 합성)에서 순간 블랙아웃이 발생한다.
+   상단바를 독립 합성 레이어로 승격시켜 재도색 범위를 상단바로 한정한다. */
+.topbar {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/* WBS 스크롤 영역에 불투명 배경 보장(투명 영역이 순간 검게 보이는 것 방지).
+   ※ contain/transform 등 레이어 승격은 매우 긴 트리에서 오히려 블랙타일을
+     유발할 수 있어 일부러 사용하지 않는다. */
+.wbs-page-wrap {
+  background: var(--main-bg);
+}
+
+/* ── Section / Project 드래그 순서 변경 (라이프휠·만다라트 공용) ───── */
+.tl-dnd-row { position: relative; }
+.tl-drag-handle {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto; cursor: grab; color: var(--text-3);
+  font-size: 13px; line-height: 1; user-select: none;
+  opacity: 0.4; transition: opacity var(--dur-fast);
+}
+.tl-dnd-row:hover .tl-drag-handle { opacity: 0.75; }
+.tl-drag-handle:hover { opacity: 1; }
+.tl-drag-handle:active { cursor: grabbing; }
+.tl-dragging { opacity: 0.45; }
+.tl-drop-before { box-shadow: inset 0 2px 0 0 var(--brand-primary); }
+.tl-drop-after  { box-shadow: inset 0 -2px 0 0 var(--brand-primary); }
+
+/* 라이프휠 테이블 행: 핸들을 이름 왼쪽에 인라인 배치 */
+.lw-row .tl-drag-handle { margin-right: 4px; vertical-align: middle; }
+.lw-row.tl-drop-before td { box-shadow: inset 0 2px 0 0 var(--brand-primary); }
+.lw-row.tl-drop-after  td { box-shadow: inset 0 -2px 0 0 var(--brand-primary); }
+
+/* 만다라트 대시보드 섹션 카드: 핸들 좌측 고정 */
+.mdt-perf-dash-card { position: relative; padding-left: 18px; }
+.mdt-perf-dash-card > .tl-drag-handle {
+  position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+}
+
+/* 만다라트 프로젝트(액션) 카드 래퍼: 핸들 + 카드 가로 배치 */
+.mdt-act-dndwrap { display: flex; align-items: flex-start; gap: 4px; position: relative; }
+.mdt-act-dndwrap > .tl-drag-handle { margin-top: 10px; }
+.mdt-act-dndwrap > :not(.tl-drag-handle) { flex: 1; min-width: 0; }

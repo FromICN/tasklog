@@ -1,0 +1,283 @@
+diff --git a/lifewheel.js b/lifewheel.js
+index 1e2d569..9da0f91 100644
+--- a/lifewheel.js
++++ b/lifewheel.js
+@@ -549,7 +549,9 @@ function buildLwWheelTab() {
+   var sections = getLwSections();
+   if (!sections) return '<div style="padding:40px;text-align:center;color:var(--text-3);">데이터가 없습니다.</div>';
+ 
+-  var rows = sections.map(function(sec, i) {
++  var _order = (typeof tlGetSectionOrder === 'function') ? tlGetSectionOrder(lwCurrentYear) : sections.map(function(_, k){ return k; });
++  var rows = _order.map(function(i) {
++    var sec = sections[i]; if (!sec) return '';
+     var statusInfo = LW_STATUS[sec.status] || LW_STATUS.maintain;
+     var secColor = sec.color || '';
+     var scoreBar = '';
+@@ -571,8 +573,12 @@ function buildLwWheelTab() {
+         }).join('')
+       : '<span style="font-size:11px;color:var(--text-3);">—</span>';
+ 
+-    return '<tr class="lw-row" id="lw-card-' + i + '" onclick="lwOpenSectionModal(' + i + ')">'
+-      + '<td class="lw-section"' + (secColor ? ' style="border-left:3px solid ' + secColor + ';"' : '') + '><span style="font-size:16px;margin-right:6px;">' + (sec.emoji || '⭐') + '</span><span' + (secColor ? ' style="color:' + secColor + ';font-weight:600;"' : '') + '>' + hwEsc(sec.name || '') + '</span></td>'
++    return '<tr class="lw-row tl-dnd-row" id="lw-card-' + i + '" data-secidx="' + i + '"'
++      + ' ondragover="lwSecDragOver(event,' + i + ')" ondragleave="tlDragLeave(event)" ondrop="lwSecDrop(event,' + i + ')"'
++      + ' onclick="lwOpenSectionModal(' + i + ')">'
++      + '<td class="lw-section"' + (secColor ? ' style="border-left:3px solid ' + secColor + ';"' : '') + '>'
++      + '<span class="tl-drag-handle" draggable="true" title="드래그해 순서 변경" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="lwSecDragStart(event,' + i + ')" ondragend="tlDragEnd(event)">⠿</span>'
++      + '<span style="font-size:16px;margin-right:6px;">' + (sec.emoji || '⭐') + '</span><span' + (secColor ? ' style="color:' + secColor + ';font-weight:600;"' : '') + '>' + hwEsc(sec.name || '') + '</span></td>'
+       + '<td class="lw-score-cell"><div class="lw-score-wrap" onclick="event.stopPropagation();"><div class="lw-score-bar">' + scoreBar + '</div><span class="lw-score-num" style="font-size:11px;min-width:24px;">' + (sec.score || 5) + '/10</span></div></td>'
+       + '<td style="white-space:nowrap;"><span style="font-size:12px;font-weight:600;color:' + statusInfo.color + ';">' + statusInfo.label + '</span></td>'
+       + '<td class="lw-info" style="font-size:12px;color:var(--text-2);">' + hwEsc(infoText) + '</td>'
+@@ -897,3 +903,18 @@ function lwSaveSectionModal(idx) {
+   lwCloseSectionModal();
+   if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
+ }
++
++
++// ── 라이프휠 Section(테이블 행) 드래그 순서 변경 (만다라트와 순서 공유) ──
++function lwSecDragStart(ev, idx) { tlGenericStart(ev, 'sec', idx); }
++function lwSecDragOver(ev, idx)  { tlGenericOver(ev, 'sec', idx); }
++function lwSecDrop(ev, idx) {
++  ev.preventDefault();
++  if (!_tlDrag || _tlDrag.type !== 'sec') { tlDragEnd(); return; }
++  var from = _tlDrag.id, after = tlDropIsAfter(ev);
++  tlDragEnd();
++  if (from === idx) return;
++  var year = lwCurrentYear;
++  tlSetSectionOrder(year, tlMoveInOrder(tlGetSectionOrder(year), from, idx, after));
++  if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
++}
+diff --git a/mandalart.js b/mandalart.js
+index 3cf942a..8e89305 100644
+--- a/mandalart.js
++++ b/mandalart.js
+@@ -470,9 +470,14 @@ function calcSgPerf(sg, year) {
+ }
+ 
+ function buildMdtPerfDashboard(m) {
+-  var cardsHtml = m.subGoals.map(function(sg) {
++  var _order = tlGetSectionOrder(m.year);
++  var cardsHtml = _order.map(function(si) {
++    var sg = m.subGoals[si]; if (!sg) return '';
+     var perf = calcSgPerf(sg, m.year);
+-    return '<div class="mdt-perf-dash-card" style="border-left:3px solid ' + sg.color + ';" onclick="selectMdtSection(' + m.year + ',' + sg.id + ')">'
++    return '<div class="mdt-perf-dash-card tl-dnd-row" data-secidx="' + si + '"'
++      + ' ondragover="mdtSecDragOver(event,' + si + ')" ondragleave="tlDragLeave(event)" ondrop="mdtSecDrop(event,' + si + ')"'
++      + ' style="border-left:3px solid ' + sg.color + ';" onclick="selectMdtSection(' + m.year + ',' + sg.id + ')">'
++      + '<span class="tl-drag-handle" draggable="true" title="\ub4dc\ub798\uadf8\ud574 \uc21c\uc11c \ubcc0\uacbd" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="mdtSecDragStart(event,' + si + ')" ondragend="tlDragEnd(event)">\u283F</span>'
+       + '<div class="mdt-perf-dash-head">'
+       +   '<span class="mdt-perf-dash-emoji">' + sg.emoji + '</span>'
+       +   '<span class="mdt-perf-dash-name">' + escMdt(sg.text) + '</span>'
+@@ -532,7 +537,8 @@ function buildMdtPerfSectionHtml(m, sg) {
+ 
+   html += '<div class="mdt-act-cards" id="mdt-act-cards-' + sg.id + '">';
+ 
+-  sg.actions.forEach(function(a) {
++  tlGetActionOrder(sg).forEach(function(aid) {
++    var a = sg.actions.find(function(x){ return x.id === aid; }); if (!a) return;
+     if (!a.trackingType)     a.trackingType = 'task';
+     if (!a.successThreshold) a.successThreshold = 80;
+     if (!a.habitLog)         a.habitLog = {};
+@@ -540,7 +546,11 @@ function buildMdtPerfSectionHtml(m, sg) {
+     if (a.annualUnit === undefined)   a.annualUnit = '';
+     if (!Array.isArray(a.quarters))   a.quarters = defaultMdtQuarters();
+     if (mdtSelectedActId !== null && mdtSelectedActId !== undefined && a.id !== mdtSelectedActId) return;
+-    html += buildActionCard(m, sg, a);
++    html += '<div class="mdt-act-dndwrap tl-dnd-row" data-actid="' + a.id + '"'
++      + ' ondragover="mdtActDragOver(event,' + a.id + ')" ondragleave="tlDragLeave(event)" ondrop="mdtActDrop(event,' + m.year + ',' + sg.id + ',' + a.id + ')">'
++      + '<span class="tl-drag-handle" draggable="true" title="\ub4dc\ub798\uadf8\ud574 \uc21c\uc11c \ubcc0\uacbd" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="mdtActDragStart(event,' + a.id + ')" ondragend="tlDragEnd(event)">\u283F</span>'
++      + buildActionCard(m, sg, a)
++      + '</div>';
+   });
+ 
+   html += '</div></div>';
+@@ -1562,3 +1572,118 @@ function saveMdtProjectModal(year, sgId) {
+   var center = document.querySelector('[data-prog="' + year + '-' + sgId + '"] .mdt-ic-edit-hint');
+   if (center) center.textContent = hasContent ? '✅ 상세' : '✏️ 상세';
+ }
++
++// ============================================================
++//  🔀 Section / Project 드래그 순서 변경 (라이프휠·만다라트 공용)
++//  - 데이터 배열/ID는 건드리지 않고 "표시 순서(order)"만 저장 → Task 연결 안전
++//  - Section 순서는 라이프휠·만다라트가 공유(양쪽에 함께 저장)해 항상 동기화
++// ============================================================
++function tlSanitizeOrder(ord, n) {
++  var out = [], seen = {};
++  if (Array.isArray(ord)) ord.forEach(function(v){ v = +v; if (v >= 0 && v < n && !seen[v]) { seen[v] = 1; out.push(v); } });
++  for (var i = 0; i < n; i++) if (!seen[i]) out.push(i);
++  return out;
++}
++function tlMoveInOrder(order, fromId, toId, after) {
++  if (fromId === toId) return order.slice();
++  var a = order.slice();
++  var fi = a.indexOf(fromId); if (fi < 0) return a;
++  var mv = a.splice(fi, 1)[0];
++  var ti = a.indexOf(toId); if (ti < 0) ti = a.length; else if (after) ti += 1;
++  a.splice(ti, 0, mv);
++  return a;
++}
++// Section 표시순서(섹션 인덱스 0..7의 순열) — 만다라트·라이프휠 레코드에 함께 저장
++function tlGetSectionOrder(year) {
++  var ord = null;
++  var m = (typeof getMdt === 'function') ? getMdt(year) : null;
++  if (m && Array.isArray(m.sectionOrder)) ord = m.sectionOrder;
++  if (!ord) { var lw = (typeof getLwYear === 'function') ? getLwYear(year) : null; if (lw && Array.isArray(lw.sectionOrder)) ord = lw.sectionOrder; }
++  return tlSanitizeOrder(ord, 8);
++}
++function tlSetSectionOrder(year, ord) {
++  ord = tlSanitizeOrder(ord, 8);
++  var m = (typeof getMdt === 'function') ? getMdt(year) : null;
++  if (m) { m.sectionOrder = ord; if (typeof saveMandalarts === 'function') saveMandalarts(); }
++  var lw = (typeof getLwYear === 'function') ? getLwYear(year) : null;
++  if (lw) { lw.sectionOrder = ord; if (typeof saveLifeWheel === 'function') saveLifeWheel(); }
++}
++// Project(action) 표시순서(action id 목록) — 해당 subGoal 에 저장
++function tlGetActionOrder(sg) {
++  var ids = (sg.actions || []).map(function(a){ return a.id; });
++  var ord = Array.isArray(sg.actionOrder) ? sg.actionOrder.filter(function(id){ return ids.indexOf(id) >= 0; }) : [];
++  ids.forEach(function(id){ if (ord.indexOf(id) < 0) ord.push(id); });
++  return ord;
++}
++
++// ── 공용 드래그 상태/헬퍼 ──
++var _tlDrag = null;
++function tlClearDrops(except) {
++  document.querySelectorAll('.tl-drop-before, .tl-drop-after').forEach(function(el){
++    if (el !== except) { el.classList.remove('tl-drop-before'); el.classList.remove('tl-drop-after'); }
++  });
++}
++function tlDragEnd() {
++  _tlDrag = null;
++  document.querySelectorAll('.tl-dragging').forEach(function(el){ el.classList.remove('tl-dragging'); });
++  tlClearDrops(null);
++}
++function tlDragLeave(ev) {
++  var r = ev.currentTarget;
++  if (r) { r.classList.remove('tl-drop-before'); r.classList.remove('tl-drop-after'); }
++}
++function tlGenericStart(ev, type, id) {
++  _tlDrag = { type: type, id: id };
++  ev.dataTransfer.effectAllowed = 'move';
++  try { ev.dataTransfer.setData('text/plain', String(id)); } catch (e) {}
++  var row = ev.currentTarget.closest ? ev.currentTarget.closest('.tl-dnd-row') : null;
++  if (row) setTimeout(function(){ row.classList.add('tl-dragging'); }, 0);
++}
++function tlGenericOver(ev, type, id) {
++  if (!_tlDrag || _tlDrag.type !== type) return;
++  ev.preventDefault();
++  ev.dataTransfer.dropEffect = 'move';
++  var row = ev.currentTarget;
++  if (id === _tlDrag.id) { tlClearDrops(null); return; }
++  tlClearDrops(row);
++  var rect = row.getBoundingClientRect();
++  var after = ev.clientY > rect.top + rect.height / 2;
++  row.classList.toggle('tl-drop-after', after);
++  row.classList.toggle('tl-drop-before', !after);
++}
++function tlDropIsAfter(ev) {
++  var row = ev.currentTarget;
++  if (!row) return false;
++  var r = row.getBoundingClientRect();
++  return ev.clientY > r.top + r.height / 2;
++}
++
++// ── 만다라트 Section(대시보드 카드) 순서 변경 ──
++function mdtSecDragStart(ev, idx) { tlGenericStart(ev, 'sec', idx); }
++function mdtSecDragOver(ev, idx)  { tlGenericOver(ev, 'sec', idx); }
++function mdtSecDrop(ev, idx) {
++  ev.preventDefault();
++  if (!_tlDrag || _tlDrag.type !== 'sec') { tlDragEnd(); return; }
++  var from = _tlDrag.id, after = tlDropIsAfter(ev);
++  tlDragEnd();
++  if (from === idx) return;
++  var year = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear : (typeof appGetYear === 'function' ? appGetYear() : null);
++  tlSetSectionOrder(year, tlMoveInOrder(tlGetSectionOrder(year), from, idx, after));
++  if (typeof renderMdtPerfPanel === 'function') renderMdtPerfPanel(year);
++}
++
++// ── 만다라트 Project(action 카드) 순서 변경 ──
++function mdtActDragStart(ev, actId) { tlGenericStart(ev, 'act', actId); }
++function mdtActDragOver(ev, actId)  { tlGenericOver(ev, 'act', actId); }
++function mdtActDrop(ev, year, sgId, actId) {
++  ev.preventDefault();
++  if (!_tlDrag || _tlDrag.type !== 'act') { tlDragEnd(); return; }
++  var from = _tlDrag.id, after = tlDropIsAfter(ev);
++  tlDragEnd();
++  if (from === actId) return;
++  var m = getMdt(year); if (!m) return;
++  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
++  sg.actionOrder = tlMoveInOrder(tlGetActionOrder(sg), from, actId, after);
++  if (typeof saveMandalarts === 'function') saveMandalarts();
++  if (typeof renderMdtPerfPanel === 'function') renderMdtPerfPanel(year);
++}
+diff --git a/style.css b/style.css
+index 2412285..328f1a6 100644
+--- a/style.css
++++ b/style.css
+@@ -9198,3 +9198,66 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+ }
+ .tswitch.on { background: var(--brand-primary); }
+ .tswitch.on span { left: 21px; }
++
++/* ── To Do 드래그 순서 변경 (task 수정 패널) ───────────────── */
++.rp-dnd-step { position: relative; }
++.step-drag-handle {
++  display: inline-flex; align-items: center; justify-content: center;
++  flex: 0 0 auto; width: 16px; align-self: center;
++  cursor: grab; color: var(--text-3); font-size: 13px; line-height: 1;
++  user-select: none; opacity: 0.35; transition: opacity var(--dur-fast);
++}
++.dp-step:hover .step-drag-handle { opacity: 0.7; }
++.step-drag-handle:hover { opacity: 1; }
++.step-drag-handle:active { cursor: grabbing; }
++.rp-step-dragging { opacity: 0.45; }
++.rp-step-over { box-shadow: inset 0 2px 0 0 var(--accent, #4c8dff); }
++.rp-step-over-after { box-shadow: inset 0 -2px 0 0 var(--accent, #4c8dff); }
++
++/* ── WBS(및 공통) 스크롤 중 화면 블랙아웃 방지 ─────────────────
++   position:sticky 인 상단바가 스크롤 시 뷰포트 전체를 다시 칠하면서
++   일부 브라우저/웹뷰(GPU 합성)에서 순간 블랙아웃이 발생한다.
++   상단바를 독립 합성 레이어로 승격시켜 재도색 범위를 상단바로 한정한다. */
++.topbar {
++  transform: translateZ(0);
++  -webkit-transform: translateZ(0);
++  backface-visibility: hidden;
++  -webkit-backface-visibility: hidden;
++}
++/* WBS 스크롤 영역에 불투명 배경 보장(투명 영역이 순간 검게 보이는 것 방지).
++   ※ contain/transform 등 레이어 승격은 매우 긴 트리에서 오히려 블랙타일을
++     유발할 수 있어 일부러 사용하지 않는다. */
++.wbs-page-wrap {
++  background: var(--main-bg);
++}
++
++/* ── Section / Project 드래그 순서 변경 (라이프휠·만다라트 공용) ───── */
++.tl-dnd-row { position: relative; }
++.tl-drag-handle {
++  display: inline-flex; align-items: center; justify-content: center;
++  flex: 0 0 auto; cursor: grab; color: var(--text-3);
++  font-size: 13px; line-height: 1; user-select: none;
++  opacity: 0.4; transition: opacity var(--dur-fast);
++}
++.tl-dnd-row:hover .tl-drag-handle { opacity: 0.75; }
++.tl-drag-handle:hover { opacity: 1; }
++.tl-drag-handle:active { cursor: grabbing; }
++.tl-dragging { opacity: 0.45; }
++.tl-drop-before { box-shadow: inset 0 2px 0 0 var(--brand-primary); }
++.tl-drop-after  { box-shadow: inset 0 -2px 0 0 var(--brand-primary); }
++
++/* 라이프휠 테이블 행: 핸들을 이름 왼쪽에 인라인 배치 */
++.lw-row .tl-drag-handle { margin-right: 4px; vertical-align: middle; }
++.lw-row.tl-drop-before td { box-shadow: inset 0 2px 0 0 var(--brand-primary); }
++.lw-row.tl-drop-after  td { box-shadow: inset 0 -2px 0 0 var(--brand-primary); }
++
++/* 만다라트 대시보드 섹션 카드: 핸들 좌측 고정 */
++.mdt-perf-dash-card { position: relative; padding-left: 18px; }
++.mdt-perf-dash-card > .tl-drag-handle {
++  position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
++}
++
++/* 만다라트 프로젝트(액션) 카드 래퍼: 핸들 + 카드 가로 배치 */
++.mdt-act-dndwrap { display: flex; align-items: flex-start; gap: 4px; position: relative; }
++.mdt-act-dndwrap > .tl-drag-handle { margin-top: 10px; }
++.mdt-act-dndwrap > :not(.tl-drag-handle) { flex: 1; min-width: 0; }

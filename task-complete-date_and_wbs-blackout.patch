@@ -1,0 +1,170 @@
+diff --git a/script.js b/script.js
+index 232dae4..9a0c06d 100644
+--- a/script.js
++++ b/script.js
+@@ -1942,7 +1942,7 @@ function openNewTaskPanel(taskId) {
+ }
+ 
+ function buildRpForm(task) {
+-  var name       = task ? task.text.replace(/^\[\d{6}\] /, '') : '';
++  var name       = task ? (task.completed ? task.text : task.text.replace(/^\[\d{6}\] /, '')) : '';
+   var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
+   var dueStr     = (task && task.dueDateTime) ? toDateInputVal(task.dueDateTime) : '';
+   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
+@@ -2054,7 +2054,11 @@ function rpBuildStepsHtml() {
+     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
+       + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, null)
+       + '</div>';
+-    return '<div class="dp-step" id="rp-step-'+s.id+'">'
++    return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
++      +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
++      + '<span class="step-drag-handle" draggable="true" title="드래그해 순서 변경"'
++      +   ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
++      +   ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">\u283F</span>'
+       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
+       + '<div class="step-content">'
+       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
+@@ -2150,6 +2154,65 @@ function rpRefreshSteps() {
+   if (list) list.innerHTML = rpBuildStepsHtml();
+ }
+ 
++// ── TO DO 순서 변경 (드래그 & 드롭) ──
++var _rpDragStepId = null;
++
++function rpStepDragStart(ev, stepId) {
++  _rpDragStepId = stepId;
++  ev.dataTransfer.effectAllowed = 'move';
++  try { ev.dataTransfer.setData('text/plain', String(stepId)); } catch (e) {}
++  var row = document.getElementById('rp-step-' + stepId);
++  if (row) setTimeout(function(){ row.classList.add('rp-step-dragging'); }, 0);
++}
++
++function rpStepDragEnd() {
++  _rpDragStepId = null;
++  document.querySelectorAll('.rp-step-dragging').forEach(function(el){ el.classList.remove('rp-step-dragging'); });
++  document.querySelectorAll('.rp-step-over, .rp-step-over-after').forEach(function(el){
++    el.classList.remove('rp-step-over'); el.classList.remove('rp-step-over-after');
++  });
++}
++
++function rpStepDragOver(ev, stepId) {
++  if (_rpDragStepId == null) return;            // 우리 핸들에서 시작한 드래그만 처리
++  ev.preventDefault();
++  ev.dataTransfer.dropEffect = 'move';
++  var row = document.getElementById('rp-step-' + stepId);
++  if (!row || stepId === _rpDragStepId) return;
++  document.querySelectorAll('.rp-step-over, .rp-step-over-after').forEach(function(el){
++    if (el !== row) { el.classList.remove('rp-step-over'); el.classList.remove('rp-step-over-after'); }
++  });
++  var r = row.getBoundingClientRect();
++  var after = ev.clientY > r.top + r.height / 2;   // 행 중앙 기준 위/아래 삽입 방향
++  row.classList.toggle('rp-step-over-after', after);
++  row.classList.toggle('rp-step-over', !after);
++}
++
++function rpStepDragLeave(ev) {
++  var row = ev.currentTarget;
++  if (row) { row.classList.remove('rp-step-over'); row.classList.remove('rp-step-over-after'); }
++}
++
++function rpStepDrop(ev, targetStepId) {
++  ev.preventDefault();
++  var fromId = _rpDragStepId;
++  if (fromId == null || fromId === targetStepId) { rpStepDragEnd(); return; }
++  var arr = rpState.steps;
++  var fromIdx = arr.findIndex(function(s){ return s.id === fromId; });
++  if (fromIdx < 0) { rpStepDragEnd(); return; }
++  var row = document.getElementById('rp-step-' + targetStepId);
++  var after = false;
++  if (row) { var r = row.getBoundingClientRect(); after = ev.clientY > r.top + r.height / 2; }
++  var moved = arr.splice(fromIdx, 1)[0];         // 먼저 제거
++  var toIdx = arr.findIndex(function(s){ return s.id === targetStepId; });
++  if (toIdx < 0) toIdx = arr.length;
++  else if (after) toIdx += 1;
++  arr.splice(toIdx, 0, moved);                   // 대상 앞/뒤에 삽입
++  rpState.dirty = true;                          // 저장 시 순서 확정
++  rpStepDragEnd();
++  rpRefreshSteps();
++}
++
+ // ── COWORKER (rp-form draft) ──
+ function rpBuildCoworkerHtml() {
+   return rpState.assignees.map(function(a) {
+@@ -2220,6 +2283,15 @@ function rpToggleComplete() {
+   rpState.dirty = true;
+   var c = document.querySelector('.rp-task-check');
+   if (c) c.classList.toggle('is-done', rpState.completed);
++  // To Do처럼 완료일([YYMMDD])을 Task 이름 왼쪽에 즉시 표시/제거 → 그 자리에서 바로 수정 가능
++  var inp = document.getElementById('rp-task-name');
++  if (inp) {
++    inp.value = applyDonePrefix(inp.value, rpState.completed);
++    if (rpState.completed && /^\[\d{6}\] /.test(inp.value)) {
++      // 완료일 숫자 6자리를 선택해 두어 바로 수정할 수 있게
++      try { inp.focus(); inp.setSelectionRange(1, 7); } catch (e) {}
++    }
++  }
+ }
+ 
+ // ── Linked Tasks (선행 1 / 후행 1) ──
+@@ -2323,14 +2395,18 @@ function saveRightPanel() {
+   var reminderVal = reminderDate ? reminderDate+'T09:00:00' : null;
+ 
+   function applyCompletePrefix(baseName, completed, existingText) {
+-    if (!completed) return baseName;
++    // 이름칸에 이미 들어있는 [YYMMDD] 완료일(사용자가 직접 수정 가능)을 최우선 처리
++    var bm = baseName.match(/^(\[\d{6}\] )/);
++    var pure = bm ? baseName.slice(bm[1].length) : baseName;
++    if (!completed) return pure;                 // 미완료: 접두사 제거
++    if (bm) return bm[1] + pure;                 // 사용자가 입력/수정한 완료일 유지
+     var m = existingText && existingText.match(/^(\[\d{6}\] )/);
+-    if (m) return m[1] + baseName;
++    if (m) return m[1] + pure;                   // 기존 완료일 유지
+     var now = new Date();
+     var yy = String(now.getFullYear()).slice(2);
+     var mm = String(now.getMonth()+1).padStart(2,'0');
+     var dd = String(now.getDate()).padStart(2,'0');
+-    return '[' + yy + mm + dd + '] ' + baseName;
++    return '[' + yy + mm + dd + '] ' + pure;
+   }
+ 
+   var savedTask = null;
+diff --git a/style.css b/style.css
+index 2412285..a3bdfe2 100644
+--- a/style.css
++++ b/style.css
+@@ -9198,3 +9198,35 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+ }
+ .tswitch.on { background: var(--brand-primary); }
+ .tswitch.on span { left: 21px; }
++
++/* ── To Do 드래그 순서 변경 (task 수정 패널) ───────────────── */
++.rp-dnd-step { position: relative; }
++.step-drag-handle {
++  display: inline-flex; align-items: center; justify-content: center;
++  flex: 0 0 auto; width: 16px; align-self: center;
++  cursor: grab; color: var(--text-3); font-size: 13px; line-height: 1;
++  user-select: none; opacity: 0.35; transition: opacity var(--dur-fast);
++}
++.dp-step:hover .step-drag-handle { opacity: 0.7; }
++.step-drag-handle:hover { opacity: 1; }
++.step-drag-handle:active { cursor: grabbing; }
++.rp-step-dragging { opacity: 0.45; }
++.rp-step-over { box-shadow: inset 0 2px 0 0 var(--accent, #4c8dff); }
++.rp-step-over-after { box-shadow: inset 0 -2px 0 0 var(--accent, #4c8dff); }
++
++/* ── WBS(및 공통) 스크롤 중 화면 블랙아웃 방지 ─────────────────
++   position:sticky 인 상단바가 스크롤 시 뷰포트 전체를 다시 칠하면서
++   일부 브라우저/웹뷰(GPU 합성)에서 순간 블랙아웃이 발생한다.
++   상단바를 독립 합성 레이어로 승격시켜 재도색 범위를 상단바로 한정한다. */
++.topbar {
++  transform: translateZ(0);
++  -webkit-transform: translateZ(0);
++  backface-visibility: hidden;
++  -webkit-backface-visibility: hidden;
++}
++/* WBS 스크롤 영역에 불투명 배경 보장(투명 영역이 순간 검게 보이는 것 방지).
++   ※ contain/transform 등 레이어 승격은 매우 긴 트리에서 오히려 블랙타일을
++     유발할 수 있어 일부러 사용하지 않는다. */
++.wbs-page-wrap {
++  background: var(--main-bg);
++}

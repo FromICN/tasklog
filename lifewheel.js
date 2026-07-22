@@ -549,7 +549,9 @@ function buildLwWheelTab() {
   var sections = getLwSections();
   if (!sections) return '<div style="padding:40px;text-align:center;color:var(--text-3);">데이터가 없습니다.</div>';
 
-  var rows = sections.map(function(sec, i) {
+  var _order = (typeof tlGetSectionOrder === 'function') ? tlGetSectionOrder(lwCurrentYear) : sections.map(function(_, k){ return k; });
+  var rows = _order.map(function(i) {
+    var sec = sections[i]; if (!sec) return '';
     var statusInfo = LW_STATUS[sec.status] || LW_STATUS.maintain;
     var secColor = sec.color || '';
     var scoreBar = '';
@@ -571,8 +573,12 @@ function buildLwWheelTab() {
         }).join('')
       : '<span style="font-size:11px;color:var(--text-3);">—</span>';
 
-    return '<tr class="lw-row" id="lw-card-' + i + '" onclick="lwOpenSectionModal(' + i + ')">'
-      + '<td class="lw-section"' + (secColor ? ' style="border-left:3px solid ' + secColor + ';"' : '') + '><span style="font-size:16px;margin-right:6px;">' + (sec.emoji || '⭐') + '</span><span' + (secColor ? ' style="color:' + secColor + ';font-weight:600;"' : '') + '>' + hwEsc(sec.name || '') + '</span></td>'
+    return '<tr class="lw-row tl-dnd-row" id="lw-card-' + i + '" data-secidx="' + i + '"'
+      + ' ondragover="lwSecDragOver(event,' + i + ')" ondragleave="tlDragLeave(event)" ondrop="lwSecDrop(event,' + i + ')"'
+      + ' onclick="lwOpenSectionModal(' + i + ')">'
+      + '<td class="lw-section"' + (secColor ? ' style="border-left:3px solid ' + secColor + ';"' : '') + '>'
+      + '<span class="tl-drag-handle" draggable="true" title="드래그해 순서 변경" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="lwSecDragStart(event,' + i + ')" ondragend="tlDragEnd(event)">⠿</span>'
+      + '<span style="font-size:16px;margin-right:6px;">' + (sec.emoji || '⭐') + '</span><span' + (secColor ? ' style="color:' + secColor + ';font-weight:600;"' : '') + '>' + hwEsc(sec.name || '') + '</span></td>'
       + '<td class="lw-score-cell"><div class="lw-score-wrap" onclick="event.stopPropagation();"><div class="lw-score-bar">' + scoreBar + '</div><span class="lw-score-num" style="font-size:11px;min-width:24px;">' + (sec.score || 5) + '/10</span></div></td>'
       + '<td style="white-space:nowrap;"><span style="font-size:12px;font-weight:600;color:' + statusInfo.color + ';">' + statusInfo.label + '</span></td>'
       + '<td class="lw-info" style="font-size:12px;color:var(--text-2);">' + hwEsc(infoText) + '</td>'
@@ -895,5 +901,20 @@ function lwSaveSectionModal(idx) {
   saveLifeWheel();
   if (typeof lwSyncToMandalart === 'function') lwSyncToMandalart(idx);
   lwCloseSectionModal();
+  if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
+}
+
+
+// ── 라이프휠 Section(테이블 행) 드래그 순서 변경 (만다라트와 순서 공유) ──
+function lwSecDragStart(ev, idx) { tlGenericStart(ev, 'sec', idx); }
+function lwSecDragOver(ev, idx)  { tlGenericOver(ev, 'sec', idx); }
+function lwSecDrop(ev, idx) {
+  ev.preventDefault();
+  if (!_tlDrag || _tlDrag.type !== 'sec') { tlDragEnd(); return; }
+  var from = _tlDrag.id, after = tlDropIsAfter(ev);
+  tlDragEnd();
+  if (from === idx) return;
+  var year = lwCurrentYear;
+  tlSetSectionOrder(year, tlMoveInOrder(tlGetSectionOrder(year), from, idx, after));
   if (typeof lwRenderTabContent === 'function') lwRenderTabContent();
 }

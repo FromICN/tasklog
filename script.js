@@ -1942,7 +1942,7 @@ function openNewTaskPanel(taskId) {
 }
 
 function buildRpForm(task) {
-  var name       = task ? task.text.replace(/^\[\d{6}\] /, '') : '';
+  var name       = task ? (task.completed ? task.text : task.text.replace(/^\[\d{6}\] /, '')) : '';
   var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
   var dueStr     = (task && task.dueDateTime) ? toDateInputVal(task.dueDateTime) : '';
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
@@ -2283,6 +2283,15 @@ function rpToggleComplete() {
   rpState.dirty = true;
   var c = document.querySelector('.rp-task-check');
   if (c) c.classList.toggle('is-done', rpState.completed);
+  // To Do처럼 완료일([YYMMDD])을 Task 이름 왼쪽에 즉시 표시/제거 → 그 자리에서 바로 수정 가능
+  var inp = document.getElementById('rp-task-name');
+  if (inp) {
+    inp.value = applyDonePrefix(inp.value, rpState.completed);
+    if (rpState.completed && /^\[\d{6}\] /.test(inp.value)) {
+      // 완료일 숫자 6자리를 선택해 두어 바로 수정할 수 있게
+      try { inp.focus(); inp.setSelectionRange(1, 7); } catch (e) {}
+    }
+  }
 }
 
 // ── Linked Tasks (선행 1 / 후행 1) ──
@@ -2386,14 +2395,18 @@ function saveRightPanel() {
   var reminderVal = reminderDate ? reminderDate+'T09:00:00' : null;
 
   function applyCompletePrefix(baseName, completed, existingText) {
-    if (!completed) return baseName;
+    // 이름칸에 이미 들어있는 [YYMMDD] 완료일(사용자가 직접 수정 가능)을 최우선 처리
+    var bm = baseName.match(/^(\[\d{6}\] )/);
+    var pure = bm ? baseName.slice(bm[1].length) : baseName;
+    if (!completed) return pure;                 // 미완료: 접두사 제거
+    if (bm) return bm[1] + pure;                 // 사용자가 입력/수정한 완료일 유지
     var m = existingText && existingText.match(/^(\[\d{6}\] )/);
-    if (m) return m[1] + baseName;
+    if (m) return m[1] + pure;                   // 기존 완료일 유지
     var now = new Date();
     var yy = String(now.getFullYear()).slice(2);
     var mm = String(now.getMonth()+1).padStart(2,'0');
     var dd = String(now.getDate()).padStart(2,'0');
-    return '[' + yy + mm + dd + '] ' + baseName;
+    return '[' + yy + mm + dd + '] ' + pure;
   }
 
   var savedTask = null;

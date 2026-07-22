@@ -470,9 +470,14 @@ function calcSgPerf(sg, year) {
 }
 
 function buildMdtPerfDashboard(m) {
-  var cardsHtml = m.subGoals.map(function(sg) {
+  var _order = tlGetSectionOrder(m.year);
+  var cardsHtml = _order.map(function(si) {
+    var sg = m.subGoals[si]; if (!sg) return '';
     var perf = calcSgPerf(sg, m.year);
-    return '<div class="mdt-perf-dash-card" style="border-left:3px solid ' + sg.color + ';" onclick="selectMdtSection(' + m.year + ',' + sg.id + ')">'
+    return '<div class="mdt-perf-dash-card tl-dnd-row" data-secidx="' + si + '"'
+      + ' ondragover="mdtSecDragOver(event,' + si + ')" ondragleave="tlDragLeave(event)" ondrop="mdtSecDrop(event,' + si + ')"'
+      + ' style="border-left:3px solid ' + sg.color + ';" onclick="selectMdtSection(' + m.year + ',' + sg.id + ')">'
+      + '<span class="tl-drag-handle" draggable="true" title="\ub4dc\ub798\uadf8\ud574 \uc21c\uc11c \ubcc0\uacbd" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="mdtSecDragStart(event,' + si + ')" ondragend="tlDragEnd(event)">\u283F</span>'
       + '<div class="mdt-perf-dash-head">'
       +   '<span class="mdt-perf-dash-emoji">' + sg.emoji + '</span>'
       +   '<span class="mdt-perf-dash-name">' + escMdt(sg.text) + '</span>'
@@ -532,7 +537,8 @@ function buildMdtPerfSectionHtml(m, sg) {
 
   html += '<div class="mdt-act-cards" id="mdt-act-cards-' + sg.id + '">';
 
-  sg.actions.forEach(function(a) {
+  tlGetActionOrder(sg).forEach(function(aid) {
+    var a = sg.actions.find(function(x){ return x.id === aid; }); if (!a) return;
     if (!a.trackingType)     a.trackingType = 'task';
     if (!a.successThreshold) a.successThreshold = 80;
     if (!a.habitLog)         a.habitLog = {};
@@ -540,7 +546,11 @@ function buildMdtPerfSectionHtml(m, sg) {
     if (a.annualUnit === undefined)   a.annualUnit = '';
     if (!Array.isArray(a.quarters))   a.quarters = defaultMdtQuarters();
     if (mdtSelectedActId !== null && mdtSelectedActId !== undefined && a.id !== mdtSelectedActId) return;
-    html += buildActionCard(m, sg, a);
+    html += '<div class="mdt-act-dndwrap tl-dnd-row" data-actid="' + a.id + '"'
+      + ' ondragover="mdtActDragOver(event,' + a.id + ')" ondragleave="tlDragLeave(event)" ondrop="mdtActDrop(event,' + m.year + ',' + sg.id + ',' + a.id + ')">'
+      + '<span class="tl-drag-handle" draggable="true" title="\ub4dc\ub798\uadf8\ud574 \uc21c\uc11c \ubcc0\uacbd" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="mdtActDragStart(event,' + a.id + ')" ondragend="tlDragEnd(event)">\u283F</span>'
+      + buildActionCard(m, sg, a)
+      + '</div>';
   });
 
   html += '</div></div>';
@@ -1561,4 +1571,119 @@ function saveMdtProjectModal(year, sgId) {
   var hasContent = Object.values(sg.smart).some(function(v){ return v && v.trim(); });
   var center = document.querySelector('[data-prog="' + year + '-' + sgId + '"] .mdt-ic-edit-hint');
   if (center) center.textContent = hasContent ? '✅ 상세' : '✏️ 상세';
+}
+
+// ============================================================
+//  🔀 Section / Project 드래그 순서 변경 (라이프휠·만다라트 공용)
+//  - 데이터 배열/ID는 건드리지 않고 "표시 순서(order)"만 저장 → Task 연결 안전
+//  - Section 순서는 라이프휠·만다라트가 공유(양쪽에 함께 저장)해 항상 동기화
+// ============================================================
+function tlSanitizeOrder(ord, n) {
+  var out = [], seen = {};
+  if (Array.isArray(ord)) ord.forEach(function(v){ v = +v; if (v >= 0 && v < n && !seen[v]) { seen[v] = 1; out.push(v); } });
+  for (var i = 0; i < n; i++) if (!seen[i]) out.push(i);
+  return out;
+}
+function tlMoveInOrder(order, fromId, toId, after) {
+  if (fromId === toId) return order.slice();
+  var a = order.slice();
+  var fi = a.indexOf(fromId); if (fi < 0) return a;
+  var mv = a.splice(fi, 1)[0];
+  var ti = a.indexOf(toId); if (ti < 0) ti = a.length; else if (after) ti += 1;
+  a.splice(ti, 0, mv);
+  return a;
+}
+// Section 표시순서(섹션 인덱스 0..7의 순열) — 만다라트·라이프휠 레코드에 함께 저장
+function tlGetSectionOrder(year) {
+  var ord = null;
+  var m = (typeof getMdt === 'function') ? getMdt(year) : null;
+  if (m && Array.isArray(m.sectionOrder)) ord = m.sectionOrder;
+  if (!ord) { var lw = (typeof getLwYear === 'function') ? getLwYear(year) : null; if (lw && Array.isArray(lw.sectionOrder)) ord = lw.sectionOrder; }
+  return tlSanitizeOrder(ord, 8);
+}
+function tlSetSectionOrder(year, ord) {
+  ord = tlSanitizeOrder(ord, 8);
+  var m = (typeof getMdt === 'function') ? getMdt(year) : null;
+  if (m) { m.sectionOrder = ord; if (typeof saveMandalarts === 'function') saveMandalarts(); }
+  var lw = (typeof getLwYear === 'function') ? getLwYear(year) : null;
+  if (lw) { lw.sectionOrder = ord; if (typeof saveLifeWheel === 'function') saveLifeWheel(); }
+}
+// Project(action) 표시순서(action id 목록) — 해당 subGoal 에 저장
+function tlGetActionOrder(sg) {
+  var ids = (sg.actions || []).map(function(a){ return a.id; });
+  var ord = Array.isArray(sg.actionOrder) ? sg.actionOrder.filter(function(id){ return ids.indexOf(id) >= 0; }) : [];
+  ids.forEach(function(id){ if (ord.indexOf(id) < 0) ord.push(id); });
+  return ord;
+}
+
+// ── 공용 드래그 상태/헬퍼 ──
+var _tlDrag = null;
+function tlClearDrops(except) {
+  document.querySelectorAll('.tl-drop-before, .tl-drop-after').forEach(function(el){
+    if (el !== except) { el.classList.remove('tl-drop-before'); el.classList.remove('tl-drop-after'); }
+  });
+}
+function tlDragEnd() {
+  _tlDrag = null;
+  document.querySelectorAll('.tl-dragging').forEach(function(el){ el.classList.remove('tl-dragging'); });
+  tlClearDrops(null);
+}
+function tlDragLeave(ev) {
+  var r = ev.currentTarget;
+  if (r) { r.classList.remove('tl-drop-before'); r.classList.remove('tl-drop-after'); }
+}
+function tlGenericStart(ev, type, id) {
+  _tlDrag = { type: type, id: id };
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(id)); } catch (e) {}
+  var row = ev.currentTarget.closest ? ev.currentTarget.closest('.tl-dnd-row') : null;
+  if (row) setTimeout(function(){ row.classList.add('tl-dragging'); }, 0);
+}
+function tlGenericOver(ev, type, id) {
+  if (!_tlDrag || _tlDrag.type !== type) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  var row = ev.currentTarget;
+  if (id === _tlDrag.id) { tlClearDrops(null); return; }
+  tlClearDrops(row);
+  var rect = row.getBoundingClientRect();
+  var after = ev.clientY > rect.top + rect.height / 2;
+  row.classList.toggle('tl-drop-after', after);
+  row.classList.toggle('tl-drop-before', !after);
+}
+function tlDropIsAfter(ev) {
+  var row = ev.currentTarget;
+  if (!row) return false;
+  var r = row.getBoundingClientRect();
+  return ev.clientY > r.top + r.height / 2;
+}
+
+// ── 만다라트 Section(대시보드 카드) 순서 변경 ──
+function mdtSecDragStart(ev, idx) { tlGenericStart(ev, 'sec', idx); }
+function mdtSecDragOver(ev, idx)  { tlGenericOver(ev, 'sec', idx); }
+function mdtSecDrop(ev, idx) {
+  ev.preventDefault();
+  if (!_tlDrag || _tlDrag.type !== 'sec') { tlDragEnd(); return; }
+  var from = _tlDrag.id, after = tlDropIsAfter(ev);
+  tlDragEnd();
+  if (from === idx) return;
+  var year = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear : (typeof appGetYear === 'function' ? appGetYear() : null);
+  tlSetSectionOrder(year, tlMoveInOrder(tlGetSectionOrder(year), from, idx, after));
+  if (typeof renderMdtPerfPanel === 'function') renderMdtPerfPanel(year);
+}
+
+// ── 만다라트 Project(action 카드) 순서 변경 ──
+function mdtActDragStart(ev, actId) { tlGenericStart(ev, 'act', actId); }
+function mdtActDragOver(ev, actId)  { tlGenericOver(ev, 'act', actId); }
+function mdtActDrop(ev, year, sgId, actId) {
+  ev.preventDefault();
+  if (!_tlDrag || _tlDrag.type !== 'act') { tlDragEnd(); return; }
+  var from = _tlDrag.id, after = tlDropIsAfter(ev);
+  tlDragEnd();
+  if (from === actId) return;
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  sg.actionOrder = tlMoveInOrder(tlGetActionOrder(sg), from, actId, after);
+  if (typeof saveMandalarts === 'function') saveMandalarts();
+  if (typeof renderMdtPerfPanel === 'function') renderMdtPerfPanel(year);
 }
