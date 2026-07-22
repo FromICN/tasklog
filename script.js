@@ -1941,6 +1941,66 @@ function openNewTaskPanel(taskId) {
   }, 100);
 }
 
+// ============================================
+//  📅 세그먼트형 날짜 입력 (YYYY / MM / DD)
+//  - 연도 4자리 입력 시 자동으로 월(MM) 칸으로 커서 이동, 월 입력 후 일(DD)로 이동
+//  - 숨김 input(hiddenId)에 'YYYY-MM-DD'를 담아 기존 저장 로직과 호환
+// ============================================
+function buildDateSegInput(hiddenId, dateStr) {
+  var y = '', m = '', d = '';
+  if (dateStr) { var p = String(dateStr).split('-'); y = p[0] || ''; m = p[1] || ''; d = p[2] || ''; }
+  function inp(part, val, ph, cls, ml) {
+    return '<input type="text" class="seg-part ' + cls + '" id="' + hiddenId + '-' + part + '"'
+      + ' inputmode="numeric" maxlength="' + ml + '" placeholder="' + ph + '" value="' + val + '"'
+      + ' oninput="dsegInput(event,\'' + hiddenId + '\',\'' + part + '\')"'
+      + ' onkeydown="dsegKey(event,\'' + hiddenId + '\',\'' + part + '\')"'
+      + ' onfocus="this.select()">';
+  }
+  return '<div class="seg-date field-input" id="' + hiddenId + '-wrap">'
+    + inp('y', y, 'YYYY', 'seg-y', 4)
+    + '<span class="seg-sep">-</span>'
+    + inp('m', m, 'MM', 'seg-m', 2)
+    + '<span class="seg-sep">-</span>'
+    + inp('d', d, 'DD', 'seg-d', 2)
+    + '<input type="hidden" id="' + hiddenId + '" value="' + (dateStr || '') + '">'
+    + '</div>';
+}
+function dsegFocus(hiddenId, part, toEnd) {
+  var el = document.getElementById(hiddenId + '-' + part);
+  if (!el) return;
+  el.focus();
+  try { if (toEnd) { var L = el.value.length; el.setSelectionRange(L, L); } else { el.select(); } } catch (err) {}
+}
+function dsegInput(e, hiddenId, part) {
+  var el = e.target;
+  var v = el.value.replace(/\D/g, '');
+  if (v !== el.value) el.value = v;
+  if (typeof rpState !== 'undefined') rpState.dirty = true;
+  // 자동 커서 이동: 연도 4자리 → 월, 월 완료 → 일
+  if (part === 'y' && v.length >= 4) dsegFocus(hiddenId, 'm');
+  else if (part === 'm' && (v.length >= 2 || (v.length === 1 && +v > 1))) dsegFocus(hiddenId, 'd');
+  dsegSync(hiddenId);
+}
+function dsegKey(e, hiddenId, part) {
+  // 빈 칸에서 Backspace → 이전 칸으로 이동
+  if (e.key === 'Backspace' && e.target.value === '') {
+    var prev = (part === 'm') ? 'y' : (part === 'd') ? 'm' : null;
+    if (prev) { e.preventDefault(); dsegFocus(hiddenId, prev, true); }
+  }
+}
+function dsegSync(hiddenId) {
+  var g = function(part){ var el = document.getElementById(hiddenId + '-' + part); return el ? el.value : ''; };
+  var y = g('y'), m = g('m'), d = g('d');
+  var hid = document.getElementById(hiddenId); if (!hid) return;
+  if (y.length === 4 && m.length >= 1 && d.length >= 1) {
+    var mm = Math.min(12, Math.max(1, parseInt(m, 10) || 1));
+    var dd = Math.min(31, Math.max(1, parseInt(d, 10) || 1));
+    hid.value = y + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+  } else {
+    hid.value = '';
+  }
+}
+
 function buildRpForm(task) {
   var name       = task ? (task.completed ? task.text : task.text.replace(/^\[\d{6}\] /, '')) : '';
   var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
@@ -2025,9 +2085,9 @@ function buildRpForm(task) {
     + '</div></div>'
     + '<div style="display:flex;gap:10px;">'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Start</label>'
-    + '<input type="date" class="field-input" id="rp-start-date" value="'+startStr+'" onchange="rpState.dirty=true"></div>'
+    + buildDateSegInput('rp-start-date', startStr) + '</div>'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Due</label>'
-    + '<input type="date" class="field-input" id="rp-due-date" value="'+dueStr+'" onchange="rpState.dirty=true"></div>'
+    + buildDateSegInput('rp-due-date', dueStr) + '</div>'
     + '</div>'
     + todoHtml
     + eiHtml

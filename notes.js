@@ -50,11 +50,28 @@ function getArchivingNotes() {
 function nbDueMs(iso) { return iso ? new Date(iso).getTime() : Infinity; }
 function nbCmpMs(x, y) { if (x < y) return -1; if (x > y) return 1; return 0; }
 
+// ── Web 페이지 수동 정렬 순서 (드래그로 변경, localStorage 저장) ──
+//    저장된 순서가 우선, 순서에 없는 항목은 마감일 오름차순(기본) 뒤에 유지
+function nbLoadOrder(k){ try{ var r=localStorage.getItem(k); if(r){ var o=JSON.parse(r); if(Array.isArray(o)) return o; } }catch(e){} return []; }
+function nbSaveOrder(k,arr){ try{ localStorage.setItem(k, JSON.stringify(arr)); }catch(e){} }
+function nbApplyManualOrder(items, order, keyFn){
+  if(!order || !order.length) return items;
+  var pos={}; order.forEach(function(k,i){ pos[String(k)]=i; });
+  return items.slice().sort(function(a,b){
+    var pa=pos[keyFn(a)]; var pb=pos[keyFn(b)];
+    if(pa===undefined) pa=Infinity;
+    if(pb===undefined) pb=Infinity;
+    if(pa!==pb) return pa-pb;   // 수동 순서 우선
+    return 0;                    // 나머지는 기존(마감일) 순서 유지 (안정 정렬)
+  });
+}
+
 // 미완료 Task / To Do 수집 (마감일 오름차순 정렬)
 function getActiveTasks() {
   if (typeof tasks === 'undefined') return [];
-  return tasks.filter(function(t){ return !t.completed; })
+  var active = tasks.filter(function(t){ return !t.completed; })
               .sort(function(a, b){ return nbCmpMs(nbDueMs(a.dueDateTime), nbDueMs(b.dueDateTime)); });
+  return nbApplyManualOrder(active, nbLoadOrder('nbTaskOrder'), function(t){ return String(t.id); });
 }
 function getActiveSteps() {
   var out = [];
@@ -70,7 +87,7 @@ function getActiveSteps() {
     var db = (b.step && b.step.dueDateTime) ? b.step.dueDateTime : b.task.dueDateTime;
     return nbCmpMs(nbDueMs(da), nbDueMs(db));
   });
-  return out;
+  return nbApplyManualOrder(out, nbLoadOrder('nbStepOrder'), function(e){ return e.task.id + ':' + e.step.id; });
 }
 
 // ── 날짜 변환 헬퍼 ─────────────────────────
@@ -182,7 +199,7 @@ function buildTaskCard(task) {
   return '<div class="nb-card" draggable="true" data-kind="task" data-task-id="' + task.id + '"'
     + ' style="cursor:pointer;" title="클릭하면 상세 보기"'
     + ' onclick="openDetailPanel(' + task.id + ')"'
-    + ' ondragstart="nbDragStart(event)">'
+    + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:var(--success);"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-text">'+escNb(task.text)+'</div>'
@@ -197,7 +214,7 @@ function buildStepCard(task, step) {
   return '<div class="nb-card" draggable="true" data-kind="step" data-task-id="' + task.id + '" data-step-id="' + step.id + '"'
     + ' style="cursor:pointer;" title="클릭하면 상위 Task 상세 보기"'
     + ' onclick="openDetailPanel(' + task.id + ')"'
-    + ' ondragstart="nbDragStart(event)">'
+    + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:var(--info);"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-text">'+escNb(step.text)+'</div>'
@@ -265,7 +282,49 @@ function nbDrop(e, colEl) {
 document.addEventListener('dragend', function() {
   document.querySelectorAll('.nb-col-over').forEach(function(el){ el.classList.remove('nb-col-over'); });
   document.querySelectorAll('.nb-dragging').forEach(function(el){ el.classList.remove('nb-dragging'); });
+  document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after').forEach(function(el){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); });
 });
+
+// ── 같은 칼럼 내 카드 순서 변경 (Task / To Do) ──
+function nbCardDragOver(e, card){
+  if(!_nbDrag) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  var sameKind=(_nbDrag.kind===card.dataset.kind)&&(card.dataset.kind==='task'||card.dataset.kind==='step');
+  document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after').forEach(function(el){ if(el!==card){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); } });
+  if(sameKind){
+    var r=card.getBoundingClientRect(); var after=e.clientY>r.top+r.height/2;
+    card.classList.toggle('nb-card-drop-after',after);
+    card.classList.toggle('nb-card-drop-before',!after);
+  }
+}
+function nbCardDrop(e, card){
+  e.preventDefault(); e.stopPropagation();
+  card.classList.remove('nb-card-drop-before'); card.classList.remove('nb-card-drop-after');
+  var d=_nbDrag; _nbDrag=null; if(!d) return;
+  var cardKind=card.dataset.kind;
+  var sameKind=(d.kind===cardKind)&&(cardKind==='task'||cardKind==='step');
+  if(!sameKind){ nbApplyMove(d, cardKind); return; }   // 다른 종류 → 칼럼 이동 로직
+  var r=card.getBoundingClientRect(); var after=e.clientY>r.top+r.height/2;
+  if(cardKind==='task'){
+    var fromKey=String(d.taskId), toKey=String(card.dataset.taskId);
+    if(fromKey===toKey) return;
+    nbReorderSave('nbTaskOrder', getActiveTasks().map(function(t){ return String(t.id); }), fromKey, toKey, after);
+  } else {
+    var fromKeyS=d.taskId+':'+d.stepId, toKeyS=card.dataset.taskId+':'+card.dataset.stepId;
+    if(fromKeyS===toKeyS) return;
+    nbReorderSave('nbStepOrder', getActiveSteps().map(function(x){ return x.task.id+':'+x.step.id; }), fromKeyS, toKeyS, after);
+  }
+  renderNoteBoard();
+}
+function nbReorderSave(storeKey, keyList, fromKey, toKey, after){
+  var arr=keyList.slice();
+  var fi=arr.indexOf(fromKey); if(fi<0) return;
+  arr.splice(fi,1);
+  var ti=arr.indexOf(toKey); if(ti<0) ti=arr.length; else if(after) ti+=1;
+  arr.splice(ti,0,fromKey);
+  nbSaveOrder(storeKey, arr);
+}
 
 // ── 이동 로직 (모든 방향) ───────────────────
 function nbApplyMove(d, target) {
@@ -350,10 +409,44 @@ function nbStartStepLink(opts) {
   showStepPicker(opts.excludeTaskId);
 }
 
+var _nbPickerTasks = [];
+// 마감일 내림차순 (마감일 없음 = 맨 뒤)
+function nbTaskDueDescCmp(a, b){
+  var da=a.dueDateTime, db=b.dueDateTime;
+  if(!da && !db) return 0;
+  if(!da) return 1;
+  if(!db) return -1;
+  return nbDueMs(db) - nbDueMs(da);
+}
+function nbFmtPickerDue(iso){ var d=new Date(iso); if(isNaN(d.getTime())) return ''; return (d.getMonth()+1)+'/'+d.getDate(); }
+function nbPickerItemsHtml(q){
+  q=(q||'').trim().toLowerCase();
+  var list=_nbPickerTasks.filter(function(t){
+    if(!q) return true;
+    return String(t.text||'').toLowerCase().indexOf(q)>=0;
+  });
+  if(!list.length) return '<div class="nb-picker-empty">검색 결과가 없어요</div>';
+  return list.map(function(t){
+    var due=t.dueDateTime ? nbFmtPickerDue(t.dueDateTime) : '';
+    var label=escNb(String(t.text||'').replace(/^\[\d{6}\] /,'')) || '(제목 없음)';
+    return '<div class="nb-picker-item" onclick="nbAssignStep('+t.id+')">'
+      + '<span class="nb-picker-dot">•</span>'
+      + '<span class="nb-picker-item-text">'+label+'</span>'
+      + (due ? '<span class="nb-picker-item-due">📅 '+due+'</span>' : '')
+      + '</div>';
+  }).join('');
+}
+function nbFilterPicker(q){
+  var el=document.getElementById('nb-picker-list');
+  if(el) el.innerHTML=nbPickerItemsHtml(q);
+}
 function showStepPicker(excludeId) {
   removeStepPickers();
-  var taskList = getActiveTasks().filter(function(t){ return t.id !== excludeId; });
-  if (taskList.length === 0) {
+  var all = (typeof tasks !== 'undefined') ? tasks.slice() : [];
+  all = all.filter(function(t){ return t.id !== excludeId; });
+  all.sort(nbTaskDueDescCmp);   // 마감일 내림차순, 전체 TASK
+  _nbPickerTasks = all;
+  if (all.length === 0) {
     _nbPending = null;
     showNbToast('연결할 TASK가 없어요. 먼저 TASK를 추가하세요.');
     return;
@@ -362,19 +455,16 @@ function showStepPicker(excludeId) {
   picker.className = 'nb-step-picker';
   picker.innerHTML =
     '<div class="nb-picker-header">🪜 연결할 TASK 선택</div>'
-    + '<div class="nb-picker-list">'
-    + taskList.slice(0,12).map(function(t){
-        return '<div class="nb-picker-item" onclick="nbAssignStep(' + t.id + ')">'
-          + '<span class="nb-picker-dot">•</span>' + escNb(t.text)
-          + '</div>';
-      }).join('')
-    + '</div>'
+    + '<input type="text" class="nb-picker-search" id="nb-picker-search" placeholder="🔍 TASK 검색..."'
+    + ' oninput="nbFilterPicker(this.value)" onkeydown="if(event.key===\'Escape\'){nbCancelStepLink();}">'
+    + '<div class="nb-picker-list" id="nb-picker-list">' + nbPickerItemsHtml('') + '</div>'
     + '<div class="nb-picker-footer">'
     + '<button class="nb-picker-cancel" onclick="nbCancelStepLink()">취소</button>'
     + '</div>';
   var col = document.getElementById('nbcol-step');
   if (col) col.appendChild(picker);
   else document.body.appendChild(picker);
+  setTimeout(function(){ var si=document.getElementById('nb-picker-search'); if(si) si.focus(); }, 30);
 }
 
 function nbAssignStep(taskId) {
