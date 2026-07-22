@@ -3446,7 +3446,7 @@ mark.search-hl {
   width: 366px;
   min-width: 336px;
   max-width: 386px;
-  white-space: normal;
+  white-space: pre-line;   /* Enter 줄바꿈 유지 (라이프휠 Info/Ideal/Goal) */
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -3468,7 +3468,7 @@ mark.search-hl {
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-15);
   transition: background var(--dur-fast);
-  white-space: normal;
+  white-space: pre-line;   /* Enter 줄바꿈 유지 (라이프휠 Info/Ideal/Goal) */
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -9261,3 +9261,21 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .mdt-act-dndwrap { display: flex; align-items: flex-start; gap: 4px; position: relative; }
 .mdt-act-dndwrap > .tl-drag-handle { margin-top: 10px; }
 .mdt-act-dndwrap > :not(.tl-drag-handle) { flex: 1; min-width: 0; }
+
+/* ── 만다라트 세부 실적 관리 페이지: 저장 버튼 ───────────────── */
+.mdt-detail-actions { display: flex; align-items: center; gap: var(--space-2); }
+.mdt-detail-save-btn {
+  background: var(--brand-primary);
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  padding: var(--space-15) var(--space-3);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: opacity var(--dur-fast);
+}
+.mdt-detail-save-btn:hover { opacity: 0.88; }
+.mdt-detail-save-btn:active { transform: translateY(1px); }

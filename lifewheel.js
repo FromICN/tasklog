@@ -383,7 +383,7 @@ function lwBuildModalCvBlock(rowIdx) {
   var connected = lwGetSectionValueIds(rowIdx);
   var countColor = connected.length > 0 ? 'var(--brand-primary)' : 'var(--text-3)';
   var html = '<div class="smart-field-header" style="justify-content:space-between;">'
-    + '<span><span class="smart-icon">💎</span><span class="smart-label">Value</span></span>'
+    + '<span style="display:inline-flex;align-items:center;gap:var(--space-2);"><span class="smart-icon">💎</span><span class="smart-label">Value</span></span>'
     + '<span style="display:flex;align-items:center;gap:8px;">'
     + '<span style="font-size:12px;font-weight:700;color:' + countColor + ';">' + connected.length + ' / 3</span>'
     + '</span>'
@@ -813,8 +813,8 @@ function lwOpenSectionModal(idx) {
     + ' style="width:84px;border:1.5px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text-1);padding:7px 8px;font-size:13px;font-family:inherit;box-sizing:border-box;text-transform:uppercase;">'
     + '</div>'
     + '</div></div>'
-    + '<div style="display:flex;flex-direction:column;gap:4px;">'
-    + '<label style="font-size:11px;font-weight:700;color:var(--text-3);">Status</label>'
+    + '<div class="smart-field">'
+    + '<div class="smart-field-header"><span class="smart-icon">🚦</span><span class="smart-label">Status</span></div>'
     + '<div style="display:flex;gap:16px;flex-wrap:wrap;">' + statusOpts + '</div>'
     + '</div>'
     + '<div class="smart-field">'

@@ -728,10 +728,44 @@ function openSgDetail(year, sgId) {
     if (!a.midtermNote) a.midtermNote = '';
   });
   var content = document.getElementById('page-content');
-  if (content) content.innerHTML = buildSgDetailHtml(m, sg);
+  if (content) {
+    content.innerHTML = buildSgDetailHtml(m, sg);
+    // 세부 실적 관리 표: 컬럼 너비 드래그 조정 (localStorage 'mdtGridColW'에 저장 → 유지)
+    var _gt = content.querySelector('.mdt-grid-table');
+    if (_gt && typeof TLColResize !== 'undefined') TLColResize.table(_gt, 'mdtGridColW');
+  }
 }
 
 function closeSgDetail() { renderMdtView(); }
+
+// 세부 실적 관리 페이지 저장 버튼
+//  - 편집 중이던 셀(contenteditable/input/select)의 변경을 메모리에 반영한 뒤 영구 저장
+//  - saveActF 계열이 '메모리만 반영'이라, 이 버튼에서 saveMandalarts()로 확정 저장한다
+function saveSgDetail(year, sgId) {
+  // 포커스가 남아있는 셀의 onblur/onchange를 먼저 실행시켜 편집값을 메모리에 반영
+  if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
+  if (typeof saveMandalarts === 'function') saveMandalarts();
+  // 이 섹션 액션들의 dirty 상태 정리
+  var m = (typeof getMdt === 'function') ? getMdt(year) : null;
+  var sg = m ? m.subGoals.find(function(s){ return s.id === sgId; }) : null;
+  if (sg) sg.actions.forEach(function(a){ delete mdtDirtyCards[mdtCardKey(year, sgId, a.id)]; });
+  if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
+  if (typeof renderHomeHabitWidget === 'function') renderHomeHabitWidget();
+  // 버튼 피드백 + 토스트
+  var btn = document.getElementById('mdt-detail-save-btn');
+  if (btn) { var t = btn.innerHTML; btn.innerHTML = '\u2713 저장됨'; setTimeout(function(){ btn.innerHTML = t; }, 1200); }
+  mdtToast('저장되었습니다 \u2705');
+}
+
+// 간단 토스트 (기존 .nb-toast 스타일 재사용)
+function mdtToast(msg) {
+  var old = document.getElementById('nb-toast'); if (old) old.remove();
+  var t = document.createElement('div');
+  t.id = 'nb-toast'; t.className = 'nb-toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(function(){ t.classList.add('show'); });
+  setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ if (t.parentNode) t.remove(); }, 300); }, 1600);
+}
 
 function openMdtSmart(year, sgId) {
   var m  = getMdt(year);
@@ -851,8 +885,11 @@ function buildSgDetailHtml(m, sg) {
   var html = '<div class="mdt-detail-wrap">'
     + '<div class="mdt-detail-top">'
     + '<button class="mdt-back-btn" onclick="closeSgDetail()">&#8592; Mandalart</button>'
+    + '<div class="mdt-detail-actions">'
     + '<button class="mdt-smart-open-btn" id="mdt-smart-btn-'+sg.id+'"'
     + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:var(--brand-primary);">&#127919; 목표</button>'
+    + '<button class="mdt-detail-save-btn" id="mdt-detail-save-btn" onclick="saveSgDetail('+m.year+','+sg.id+')">&#128190; 저장</button>'
+    + '</div>'
     + '</div>'
     // 섹션 헤더 + 연간목표 실적 요약
     + '<div class="mdt-detail-hero" style="border-left:4px solid '+sg.color+';padding:12px 14px;margin-bottom:12px;background:var(--set-sec);border-radius:10px;">'
@@ -869,12 +906,12 @@ function buildSgDetailHtml(m, sg) {
     + '<div class="mdt-grid-table-wrap">'
     + '<table class="mdt-grid-table">'
     + '<thead><tr>'
-    + '<th class="mgt-th-proj">Project</th>'
-    + '<th class="mgt-th-type">달성형/습관형</th>'
-    + '<th class="mgt-th-goal">목표</th>'
-    + '<th class="mgt-th-kpi">관리지표</th>'
-    + '<th class="mgt-th-perf">달성현황</th>'
-    + '<th class="mgt-th-memo">메모</th>'
+    + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
+    + '<th class="mgt-th-type" data-cr-key="type">달성형/습관형</th>'
+    + '<th class="mgt-th-goal" data-cr-key="goal">목표</th>'
+    + '<th class="mgt-th-kpi" data-cr-key="kpi">관리지표</th>'
+    + '<th class="mgt-th-perf" data-cr-key="perf">달성현황</th>'
+    + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
     + '</tr></thead><tbody>';
 
   sg.actions.forEach(function(a) {
