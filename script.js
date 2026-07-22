@@ -2054,7 +2054,11 @@ function rpBuildStepsHtml() {
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
       + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, null)
       + '</div>';
-    return '<div class="dp-step" id="rp-step-'+s.id+'">'
+    return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
+      +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
+      + '<span class="step-drag-handle" draggable="true" title="드래그해 순서 변경"'
+      +   ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+      +   ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">\u283F</span>'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
@@ -2148,6 +2152,65 @@ function rpHandleStepInput(event) { if (event.key === 'Enter') rpAddStep(); }
 function rpRefreshSteps() {
   var list = document.getElementById('rp-steps-list');
   if (list) list.innerHTML = rpBuildStepsHtml();
+}
+
+// ── TO DO 순서 변경 (드래그 & 드롭) ──
+var _rpDragStepId = null;
+
+function rpStepDragStart(ev, stepId) {
+  _rpDragStepId = stepId;
+  ev.dataTransfer.effectAllowed = 'move';
+  try { ev.dataTransfer.setData('text/plain', String(stepId)); } catch (e) {}
+  var row = document.getElementById('rp-step-' + stepId);
+  if (row) setTimeout(function(){ row.classList.add('rp-step-dragging'); }, 0);
+}
+
+function rpStepDragEnd() {
+  _rpDragStepId = null;
+  document.querySelectorAll('.rp-step-dragging').forEach(function(el){ el.classList.remove('rp-step-dragging'); });
+  document.querySelectorAll('.rp-step-over, .rp-step-over-after').forEach(function(el){
+    el.classList.remove('rp-step-over'); el.classList.remove('rp-step-over-after');
+  });
+}
+
+function rpStepDragOver(ev, stepId) {
+  if (_rpDragStepId == null) return;            // 우리 핸들에서 시작한 드래그만 처리
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  var row = document.getElementById('rp-step-' + stepId);
+  if (!row || stepId === _rpDragStepId) return;
+  document.querySelectorAll('.rp-step-over, .rp-step-over-after').forEach(function(el){
+    if (el !== row) { el.classList.remove('rp-step-over'); el.classList.remove('rp-step-over-after'); }
+  });
+  var r = row.getBoundingClientRect();
+  var after = ev.clientY > r.top + r.height / 2;   // 행 중앙 기준 위/아래 삽입 방향
+  row.classList.toggle('rp-step-over-after', after);
+  row.classList.toggle('rp-step-over', !after);
+}
+
+function rpStepDragLeave(ev) {
+  var row = ev.currentTarget;
+  if (row) { row.classList.remove('rp-step-over'); row.classList.remove('rp-step-over-after'); }
+}
+
+function rpStepDrop(ev, targetStepId) {
+  ev.preventDefault();
+  var fromId = _rpDragStepId;
+  if (fromId == null || fromId === targetStepId) { rpStepDragEnd(); return; }
+  var arr = rpState.steps;
+  var fromIdx = arr.findIndex(function(s){ return s.id === fromId; });
+  if (fromIdx < 0) { rpStepDragEnd(); return; }
+  var row = document.getElementById('rp-step-' + targetStepId);
+  var after = false;
+  if (row) { var r = row.getBoundingClientRect(); after = ev.clientY > r.top + r.height / 2; }
+  var moved = arr.splice(fromIdx, 1)[0];         // 먼저 제거
+  var toIdx = arr.findIndex(function(s){ return s.id === targetStepId; });
+  if (toIdx < 0) toIdx = arr.length;
+  else if (after) toIdx += 1;
+  arr.splice(toIdx, 0, moved);                   // 대상 앞/뒤에 삽입
+  rpState.dirty = true;                          // 저장 시 순서 확정
+  rpStepDragEnd();
+  rpRefreshSteps();
 }
 
 // ── COWORKER (rp-form draft) ──
