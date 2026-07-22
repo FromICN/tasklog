@@ -9322,3 +9322,141 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .seg-m, .seg-d { width: 30px; }
 .seg-sep { color: var(--text-3); user-select: none; }
 .field-input.seg-date:focus-within { border-color: var(--brand-primary); }
+
+/* =============================================
+   📱 모바일 반응형 (≤768px)
+   - 사이드바 → 햄버거 드로어 (오프캔버스)
+   - 오른쪽 상세 패널 → 전체화면 오버레이
+   ============================================= */
+
+/* 데스크톱 기본: 햄버거/스크림 숨김 */
+.mobile-menu-btn { display: none; }
+.sidebar-scrim   { display: none; }
+
+@media (max-width: 768px) {
+  /* ── 햄버거 버튼 ── */
+  .mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    margin-right: 6px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-1);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-menu-btn:active { background: var(--sidebar-hover); }
+
+  /* ── 사이드바 → 오프캔버스 드로어 ── */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    height: 100dvh;
+    width: 244px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform var(--dur-base) ease;
+    box-shadow: 2px 0 16px rgba(0,0,0,0.35);
+  }
+  .app.sidebar-open .sidebar { transform: translateX(0); }
+
+  /* 드로어 안 nav 항목: 아이콘 왼쪽 + 라벨 오른쪽(가로 배치) */
+  .sidebar-nav { padding: var(--space-2); }
+  .nav-item {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    width: 100%;
+    height: 46px;
+    margin: 0 0 3px;
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-md);
+  }
+  .nav-item-icon { width: 22px; height: 22px; }
+  .nav-item-icon svg { width: 19px; height: 19px; }
+  .nav-item-label {
+    font-size: var(--fs-base);
+    letter-spacing: normal;
+    text-align: left;
+  }
+  .sidebar-bottom { padding: var(--space-2); }
+  #settings-nav-btn {
+    width: 100%;
+    height: 46px;
+    margin: 0;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+  }
+
+  /* ── 스크림(드로어 뒤 배경) ── */
+  .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) ease;
+  }
+  .app.sidebar-open .sidebar-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ── 본문 여백 축소 ── */
+  .main-content {
+    padding: var(--space-4) var(--space-3) var(--space-4);
+  }
+  .topbar {
+    margin: -18px -12px 14px -12px;
+    top: -18px;
+    padding: var(--space-3) var(--space-1) var(--space-25);
+    min-height: 52px;
+  }
+  .topbar-title { font-size: var(--fs-xl); }
+  .topbar-date  { display: none; }
+
+  /* ── 오른쪽 상세 패널 → 전체화면 오버레이 ── */
+  .right-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    height: 100dvh;
+    width: 100%;
+    max-width: 100%;
+    z-index: 1100;
+    transform: translateX(100%);
+    transition: transform var(--dur-base) ease;
+    border-left: none;
+  }
+  .right-panel.open {
+    width: 100%;
+    transform: translateX(0);
+    border-left: none;
+  }
+  .rp-body   { padding: var(--space-4) var(--space-4); }
+  .rp-header { padding: 16px var(--space-4) var(--space-3); }
+  .rp-footer { padding: var(--space-3) var(--space-4); }
+
+  /* ── 넓은 표: 가로 스크롤 허용(찌그러짐 방지) ── */
+  .todo-table-wrap,
+  .wbs-table-wrap,
+  .gantt-wrap,
+  .gantt-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .todo-table { min-width: 560px; }
+}

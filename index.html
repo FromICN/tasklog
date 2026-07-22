@@ -79,6 +79,9 @@
     </div>
   </aside>
 
+  <!-- ===== 모바일 드로어용 스크림 (사이드바 뒤 어둡게) ===== -->
+  <div class="sidebar-scrim" id="sidebar-scrim" onclick="closeSidebar()"></div>
+
   <!-- ===== 중앙 + 오른쪽 패널 래퍼 ===== -->
   <div class="content-wrapper">
 
@@ -88,6 +91,13 @@
       <!-- 탑바 -->
       <div class="topbar" id="topbar">
         <div class="topbar-left">
+          <button class="mobile-menu-btn" id="mobile-menu-btn" onclick="toggleSidebar()" aria-label="메뉴 열기">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
           <div class="topbar-title" id="topbar-title">홈</div>
         </div>
         <div class="topbar-right" id="topbar-right">

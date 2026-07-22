@@ -2618,10 +2618,28 @@ var MENU_RENDERERS = {
   journal:   'renderJournalView',
 };
 
+// 📱 모바일 사이드바 드로어 토글
+function openSidebar() {
+  document.querySelector('.app')?.classList.add('sidebar-open');
+}
+function closeSidebar() {
+  document.querySelector('.app')?.classList.remove('sidebar-open');
+}
+function toggleSidebar() {
+  document.querySelector('.app')?.classList.toggle('sidebar-open');
+}
+// ESC로 드로어 닫기
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeSidebar();
+});
+
 // 🧭 화면 전환 엔진
 function navToMenu(id) {
   if (!id) return;
   currentMenu = id;
+
+  // 📱 모바일: 메뉴 선택 시 드로어 자동 닫기
+  closeSidebar();
 
   // 1) 사이드바 활성 표시
   var navButtons = document.querySelectorAll('#sidebar-nav .nav-item');
