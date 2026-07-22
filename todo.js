@@ -281,7 +281,7 @@ function boardTh(col) {
   var upOn = (_boardSort.key === key && _boardSort.dir === 'asc');
   var dnOn = (_boardSort.key === key && _boardSort.dir === 'desc');
   // 항목 텍스트(헤더 셀) 자체 클릭 → 필터 드롭박스 (정렬 버튼/패널 클릭은 제외)
-  return '<th class="bd-th bd-th-' + key + '" id="bd-th-' + key + '" data-cr-key="' + key + '" style="position:relative;"'
+  return '<th class="bd-th bd-th-' + key + '" id="bd-th-' + key + '" data-cr-key="' + key + '" style="position:sticky;top:0;"'
     + ' title="클릭: 표시 항목 필터" onclick="boardToggleFilterPanel(\'' + key + '\',event)">'
     + '<span class="bd-th-label' + (filterOn ? ' bd-filter-on' : '') + '">' + col.label + '</span>'
     + '<span class="bd-sortbtns">'
