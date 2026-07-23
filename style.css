@@ -5436,8 +5436,8 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
 }
 .mda-row:hover .mda-name { color: var(--text-1); }
 .mda-name {
-  flex: 0 1 auto;
-  max-width: 60%;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: var(--fs-base);
   font-weight: 400;
   color: var(--text-2);
@@ -5447,8 +5447,7 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
   transition: color var(--dur-fast);
 }
 .mda-track {
-  flex: 1 1 auto;
-  min-width: 24px;
+  flex: 0 0 110px;
   height: 7px;
   border-radius: var(--radius-xs);
   background: var(--bg-3);
