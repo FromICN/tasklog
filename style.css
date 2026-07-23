@@ -7131,7 +7131,7 @@ body.light-mode .nav-item:hover {
   z-index: var(--z-sticky);
   background: var(--main-bg);
 }
-.wbs-header-row:hover { background: transparent; }
+.wbs-header-row:hover { background: var(--main-bg); }
 .wbs-head-label { color: var(--text-1); font-weight: 700; font-size: var(--fs-md); letter-spacing: 0.06em; }
 .wbs-colhead {
   font-size: var(--fs-md);
@@ -8492,7 +8492,7 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
-  background: var(--surface);
+  background: var(--bg-1);
 }
 .todo-table-row {
   cursor: pointer;
