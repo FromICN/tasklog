@@ -4721,13 +4721,15 @@ body.light-mode .lw-cv-tag {
   padding: 7px var(--space-25);
   border-radius: var(--radius-md);
   margin-bottom: 5px;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
+  background: var(--surface);
+  color: var(--text-1);
   cursor: pointer;
   transition: opacity var(--dur-fast);
 }
 .notif-card:hover { opacity: 0.85; }
-.notif-danger  { background: var(--danger-bg);  color: var(--danger); border-left: 3px solid var(--danger); }
-.notif-warning { background: rgba(245,166,35,0.12); color: var(--warning); border-left: 3px solid var(--warning); }
+.notif-danger  { background: var(--surface); color: var(--text-1); border-left: 3px solid var(--danger); }
+.notif-warning { background: var(--surface); color: var(--text-1); border-left: 3px solid var(--warning); }
 .notif-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notif-due  { margin-left: auto; flex-shrink: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -4895,7 +4897,7 @@ body.light-mode .lw-cv-tag {
   display: flex;
   align-items: center;
   gap: var(--space-15);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   color: var(--text-1);
   padding: var(--space-15) var(--space-2);
   border-left: 3px solid;
@@ -5006,7 +5008,7 @@ body.light-mode .lw-cv-tag {
 .habit-row:last-child { border-bottom: none; }
 .habit-info { flex: 1; min-width: 0; }
 .habit-name {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
@@ -5014,8 +5016,8 @@ body.light-mode .lw-cv-tag {
 }
 .habit-meta { font-size: var(--fs-2xs); color: var(--text-3); margin-top: 1px; }
 /* N일 연속 텍스트: 행 오른쪽 끝 배치 */
-.habit-meta-right { margin-top: 0; margin-left: var(--space-1); flex-shrink: 0; min-width: 62px; text-align: right; white-space: nowrap; }
-.habit-week { display: flex; gap: 3px; }
+.habit-meta-right { margin-top: 0; margin-left: auto; margin-right: var(--space-2); flex-shrink: 0; text-align: right; white-space: nowrap; }
+.habit-week { display: flex; gap: 3px; flex-shrink: 0; }
 .habit-dot {
   width: 18px;
   height: 18px;
@@ -5031,7 +5033,7 @@ body.light-mode .lw-cv-tag {
 }
 .habit-dot.done { background: rgba(34,192,139,0.25); border-color: #22C08B; color: #22C08B; }
 .habit-dot.future { opacity: 0.35; cursor: default; }
-.habit-dot.today { box-shadow: 0 0 0 1.5px var(--brand-primary); }
+.habit-dot.today { box-shadow: 0 0 0 0.5px var(--text-3); }
 
 /* ── Gantt Mini (일자/진행률 상세) ── */
 #gantt-body { display: flex; flex-direction: column; }
@@ -5433,7 +5435,7 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
 .mda-row:hover .mda-name { color: var(--text-1); }
 .mda-name {
   flex: 0 0 84px;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-base);
   font-weight: 700;
   color: var(--text-2);
   white-space: nowrap;

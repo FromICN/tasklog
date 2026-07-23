@@ -67,24 +67,33 @@ function buildCardShell(id, title, navTarget, bodyId) {
 }
 
 // ── 1. 알림 위젯 ──────────────────────────
+// 마감 알림 시점(D-3/2/1) · 토글 상태
+function notifThreshold() {
+  var v = parseInt(localStorage.getItem('app-notif-deadline-days'), 10);
+  return (v === 1 || v === 2 || v === 3) ? v : 3;
+}
+function notifDeadlineOn() { return localStorage.getItem('app-notif-deadline') !== '0'; }
+function notifJournalOn()  { return localStorage.getItem('app-notif-journal')  !== '0'; }
+
 function renderHomeNotif() {
   var el = document.getElementById('notif-body');
   if (!el) return;
   var items = [];
   var today = new Date(); today.setHours(0,0,0,0);
+  var thr = notifThreshold();
 
   // 이름 정리 + 마감일 M/D 표기
   function _cleanName(name) { return String(name || '').replace(/^\[\d{6}\]\s*/, ''); }
   function _dueMD(d) { return (d.getMonth() + 1) + '/' + d.getDate(); }
 
   // 마감일 하루 전(D-1)부터 알림: 모든 Task + 모든 To Do(하위 단계)
-  if (typeof tasks !== 'undefined') {
+  if (typeof tasks !== 'undefined' && notifDeadlineOn()) {
     tasks.forEach(function(t) {
       // 1) Task 본체
       if (!t.completed && t.dueDateTime) {
         var dueT = new Date(t.dueDateTime); dueT.setHours(0,0,0,0);
         var diffT = Math.round((dueT - today) / 86400000);
-        if (diffT <= 1) {
+        if (diffT <= thr) {
           items.push({ type:'danger', text: _cleanName(t.text), due: _dueMD(dueT), overdue: diffT < 0, taskId: t.id, _d: diffT });
         }
       }
@@ -93,7 +102,7 @@ function renderHomeNotif() {
         if (s.completed || !s.dueDateTime) return;
         var dueS = new Date(s.dueDateTime); dueS.setHours(0,0,0,0);
         var diffS = Math.round((dueS - today) / 86400000);
-        if (diffS <= 1) {
+        if (diffS <= thr) {
           items.push({ type:'danger', text: '☑ ' + _cleanName(s.text), due: _dueMD(dueS), overdue: diffS < 0, taskId: t.id, _d: diffS });
         }
       });
@@ -102,7 +111,7 @@ function renderHomeNotif() {
     items.sort(function(a, b){ return (a._d||0) - (b._d||0); });
   }
   var dow = today.getDay();
-  if (dow === 0 || dow >= 4) {
+  if (notifJournalOn() && (dow === 0 || dow >= 4)) {
     items.push({ type:'warning', text: '이번 주 업무일지를 작성해보세요', action: "navToMenu('journal')" });
   }
   if (items.length === 0) {
@@ -403,6 +412,14 @@ function renderHomeHabitWidget() {
   }
   var today = new Date();
   var DOW = ['일','월','화','수','목','금','토'];
+  // 정렬: 가나다순 · 단, 오늘 달성한 습관은 하단으로
+  habits = habits.slice().sort(function(x, y) {
+    var tk = fmtKey(today);
+    var xd = !!(x.a && x.a.habitLog && x.a.habitLog[tk]);
+    var yd = !!(y.a && y.a.habitLog && y.a.habitLog[tk]);
+    if (xd !== yd) return xd ? 1 : -1;
+    return (x.a.text || '').localeCompare(y.a.text || '', 'ko');
+  });
   var html = habits.map(function(h) {
     var a = h.a, sg = h.sg, log = a.habitLog || {};
     var streak = 0;
@@ -422,8 +439,8 @@ function renderHomeHabitWidget() {
     }
     return '<div class="habit-row">'
       + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div></div>'
-      + '<div class="habit-week">'+dots+'</div>'
       + '<div class="habit-meta habit-meta-right">🔥 '+streak+'일 연속</div>'
+      + '<div class="habit-week">'+dots+'</div>'
       + '</div>';
   }).join('');
   el.innerHTML = html;

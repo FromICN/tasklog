@@ -8,6 +8,7 @@ var settingsState = {
   lang: 'ko',
   weekStart: 'mon',
   notifDeadline: true,
+  notifDeadlineDays: 3,
   notifJournal: true,
   fontSize: 'medium',
   calSync: false,
@@ -28,6 +29,7 @@ function initSettings() {
   var lang      = localStorage.getItem('app-lang');
   var weekStart = localStorage.getItem('app-week-start');
   var notifD    = localStorage.getItem('app-notif-deadline');
+  var notifDD   = localStorage.getItem('app-notif-deadline-days');
   var notifJ    = localStorage.getItem('app-notif-journal');
   var fontSize  = localStorage.getItem('app-font-size');
   var calSync   = localStorage.getItem('app-cal-sync');
@@ -37,6 +39,7 @@ function initSettings() {
   if (lang)      settingsState.lang      = lang;
   if (weekStart) settingsState.weekStart = weekStart;
   if (notifD  !== null) settingsState.notifDeadline = notifD  !== '0';
+  if (notifDD !== null) { var _dd = parseInt(notifDD,10); settingsState.notifDeadlineDays = (_dd===1||_dd===2||_dd===3)?_dd:3; }
   if (notifJ  !== null) settingsState.notifJournal  = notifJ  !== '0';
   if (fontSize) { settingsState.fontSize = fontSize; applyFontSize(fontSize); }
   if (calSync !== null) settingsState.calSync = (calSync === '1');
@@ -202,8 +205,16 @@ function buildTabGeneral() {
     + '</div>'
     + '<div class="settings-section-head">알림</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">마감 임박 알림</div><div class="settings-row-desc">Task 마감 D-3일부터 표시</div></div>'
+    + '<div><div class="settings-row-label">마감 임박 알림</div><div class="settings-row-desc">선택한 시점부터 표시</div></div>'
     + buildToggle('settings-notif-deadline', settingsState.notifDeadline, "settingsToggleKey('notifDeadline','settings-notif-deadline')")
+    + '</div>'
+    + '<div class="settings-row">'
+    + '<div><div class="settings-row-label">마감 알림 시점</div><div class="settings-row-desc">며칠 전부터 알릴지 선택</div></div>'
+    + '<select class="settings-select" onchange="settingsSetNotifDays(this.value)">'
+    + '<option value="3"' + (settingsState.notifDeadlineDays === 3 ? ' selected' : '') + '>D-3</option>'
+    + '<option value="2"' + (settingsState.notifDeadlineDays === 2 ? ' selected' : '') + '>D-2</option>'
+    + '<option value="1"' + (settingsState.notifDeadlineDays === 1 ? ' selected' : '') + '>D-1</option>'
+    + '</select>'
     + '</div>'
     + '<div class="settings-row">'
     + '<div><div class="settings-row-label">주간일지 작성 알림</div><div class="settings-row-desc">매주 목요일부터 일요일까지</div></div>'
@@ -370,6 +381,13 @@ function settingsRenderCalTargets(cals) {
 
 function settingsSetPerCalDir(calId, dir) {
   if (typeof setCalDirection === 'function') setCalDirection(calId, dir);
+}
+
+function settingsSetNotifDays(v) {
+  var n = parseInt(v, 10); if (!(n === 1 || n === 2 || n === 3)) n = 3;
+  settingsState.notifDeadlineDays = n;
+  localStorage.setItem('app-notif-deadline-days', String(n));
+  if (typeof renderHomeNotif === 'function' && document.getElementById('notif-body')) renderHomeNotif();
 }
 
 function settingsSetCalTargetSel(kind, encVal) {

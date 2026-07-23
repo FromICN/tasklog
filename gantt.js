@@ -32,8 +32,11 @@ function getSectionThemeColor(idx, year) {
       var y = parseInt(year, 10);
       if (isNaN(y) && typeof appGetYear === 'function') y = appGetYear();
       var mdt = getMdt(y);
-      if (mdt && mdt.subGoals && mdt.subGoals[idx] && mdt.subGoals[idx].color)
-        return mdt.subGoals[idx].color;
+      if (mdt && mdt.subGoals) {
+        // 섹션은 배열 위치가 아니라 id 로 찾는다(재정렬돼도 색 일치). subGoal.id = idx+1
+        var _sg = mdt.subGoals.find(function(s){ return s.id === (idx + 1); });
+        if (_sg && _sg.color) return _sg.color;
+      }
     }
   } catch (e) {}
   // 2) 라이프휠 섹션 색
