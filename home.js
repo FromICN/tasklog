@@ -298,12 +298,12 @@ function collectDayItems(key) {
       if (t.calendarEventId) taskEventIds[t.calendarEventId] = true;
       var color = EI_COLORS[t.eisenhower] || 'var(--text-2)';
       if (t.dueDateTime && fmtKey(new Date(t.dueDateTime))===key) {
-        taskLogItems.push({ text: t.text, color: color, id: t.id, isCal: false, time: t.hasTime ? new Date(t.dueDateTime) : null });
+        taskLogItems.push({ text: t.text, color: color, id: t.id, isCal: false, kind: 'task', time: t.hasTime ? new Date(t.dueDateTime) : null });
       }
       if (Array.isArray(t.steps)) {
         t.steps.forEach(function(step) {
           if (step.dueDateTime && fmtKey(new Date(step.dueDateTime))===key) {
-            taskLogItems.push({ text: '→ ' + step.text, color: color, id: t.id, isCal: false, time: step.hasTime ? new Date(step.dueDateTime) : null });
+            taskLogItems.push({ text: step.text, color: color, id: t.id, isCal: false, kind: 'todo', time: step.hasTime ? new Date(step.dueDateTime) : null });
           }
         });
       }
@@ -336,16 +336,18 @@ function renderCalDetail() {
   if (!items.length) {
     html += '<div class="cal-detail-empty">예정된 항목이 없습니다</div>';
   } else {
-    html += items.map(function(item) {
+    html += '<div class="cal-detail-list">' + items.map(function(item) {
       var timeStr = item.time
         ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2,'0') + ':' + String(item.time.getMinutes()).padStart(2,'0') + '</span>'
         : '';
-      var badge = item.isCal ? googleLogoSvg() : '';
+      var leadBadge = item.isCal
+        ? googleLogoSvg()
+        : '<span class="cal-detail-badge ' + (item.kind === 'todo' ? 'todo' : 'task') + '">' + (item.kind === 'todo' ? 'ToDo' : 'Task') + '</span>';
       var oc = item.isCal ? '' : ' onclick="openDetailPanel(' + item.id + ')"';
       var cls = 'cal-detail-item' + (item.isCal ? ' is-cal' : '');
       return '<div class="' + cls + '" style="border-left-color:' + item.color + ';"' + oc + '>'
-        + timeStr + badge + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
-    }).join('');
+        + leadBadge + timeStr + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
+    }).join('') + '</div>';
   }
   el.innerHTML = html;
 }
