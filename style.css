@@ -7159,6 +7159,8 @@ body.light-mode .nav-item:hover {
 .wbs-head-cell.wbs-head-label { justify-content: flex-start; }
 .wbs-head-cell .bd-th-label { cursor: pointer; }
 .wbs-head-cell .bd-filter-panel { top: 100%; left: auto; right: 0; font-size: var(--fs-sm); font-weight: 400; letter-spacing: normal; }
+/* STATUS 헤더 셀: 필터 드롭다운이 잘리지 않도록 overflow 허용 (본문 배지 셀은 그대로 hidden 유지) */
+.wbs-head-cell.wbs-col-status-cell { overflow: visible; }
 
 /* WBS 타이틀 영역: 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽) */
 .wbs-title-tools {

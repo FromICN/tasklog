@@ -71,8 +71,8 @@ function renderWbsTitleYear() {
   opts += '<option value="__new__">+ 새 연도 추가</option>';
   opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
   // 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽)
+  // 연도 선택은 제거 — 연도 필터는 START/DUE 컬럼 헤더에서 처리
   slot.innerHTML = '<div class="wbs-title-tools">'
-    + '<select class="year-select" onchange="handleWbsYearSelect(this.value)">' + opts + '</select>'
     + '<input type="text" class="wbs-search-inp" id="wbs-search-inp" placeholder="🔍 Task · To Do 검색"'
     + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)">'
     + '</div>';
@@ -86,9 +86,8 @@ function wbsTaskYear(task) {
 }
 
 function wbsTaskPassesFilter(task) {
-  var y = wbsTaskYear(task);
-  if (y === null) return true;          // 미분류(연도 미지정) → 항상 표시
-  return y === wbsYearVal();
+  // 연도 제한 없이 전체 표시 — 연도 선택은 START/DUE 컬럼 필터로 이동
+  return true;
 }
 
 // ── 라이브 연계 (WBS ↔ LifeWheel · Mandalart 실시간 동기화) ──
@@ -187,6 +186,17 @@ function wbsColDisplayVal(task, key) {
   return v === '' ? '(없음)' : v;
 }
 
+// 필터용 값: START/DUE 는 '연도'(YYYY년) 단위로 묶는다. 그 외(STATUS)는 표시값 그대로.
+function wbsColFilterVal(task, key) {
+  if (key === 'start' || key === 'due') {
+    var d = (key === 'start') ? task.startDate : task.dueDateTime;
+    if (!d) return '(없음)';
+    var yr = new Date(d).getFullYear();
+    return isNaN(yr) ? '(없음)' : (yr + '년');
+  }
+  return wbsColDisplayVal(task, key);
+}
+
 function wbsSetSort(key, dir, ev) {
   if (ev) ev.stopPropagation();
   if (_wbsSort.key === key && _wbsSort.dir === dir) _wbsSort = { key: null, dir: 'asc' };
@@ -212,11 +222,14 @@ function wbsSortTasks(arr) {
 function wbsDistinctVals(key) {
   var set = {};
   (typeof tasks !== 'undefined' ? tasks : []).filter(wbsTaskPassesFilter).forEach(function(t) {
-    set[wbsColDisplayVal(t, key)] = true;
+    set[wbsColFilterVal(t, key)] = true;
   });
+  var yrRe = /^(\d{4})년$/;
   return Object.keys(set).sort(function(a, b) {
     if (a === '(없음)') return 1;
     if (b === '(없음)') return -1;
+    var ma = yrRe.exec(a), mb = yrRe.exec(b);
+    if (ma && mb) return (+mb[1]) - (+ma[1]);   // 연도: 최신 연도 먼저
     return a.localeCompare(b, 'ko');
   });
 }
@@ -225,7 +238,7 @@ function wbsPassesColFilters(task) {
   var keys = ['start', 'due', 'status'];
   for (var i = 0; i < keys.length; i++) {
     var ex = _wbsColFilters[keys[i]];
-    if (ex && ex[wbsColDisplayVal(task, keys[i])]) return false;
+    if (ex && ex[wbsColFilterVal(task, keys[i])]) return false;
   }
   return true;
 }
@@ -298,7 +311,7 @@ function wbsHeadCell(key, label, cls, filterable) {
 function wbsHeaderRow() {
   return '<div class="wbs-row wbs-header-row">'
     + '<span class="wbs-tog-empty"></span>'
-    + wbsHeadCell('item', '항목', 'wbs-sec-label wbs-head-label', false)
+    + wbsHeadCell('item', 'Section', 'wbs-sec-label wbs-head-label', false)
     + wbsHeadCell('start', 'START', 'wbs-colhead wbs-col-start', true)
     + wbsHeadCell('due', 'DUE', 'wbs-colhead wbs-col-due', true)
     + wbsHeadCell('status', 'STATUS', 'wbs-colhead wbs-col-status-cell', true)
