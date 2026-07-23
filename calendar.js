@@ -106,7 +106,8 @@ async function resolveTaskCalendarId() {
   try {
     const list = await gapi.client.calendar.calendarList.list({ maxResults: 250 });
     const items = (list.result && list.result.items) ? list.result.items : [];
-    const match = items.find(c => (c.summary || '').trim().toLowerCase() === TASK_CAL_NAME.toLowerCase());
+    const wantName = TASK_CAL_NAME.trim().toLowerCase();
+    const match = items.find(c => (c.summaryOverride || c.summary || '').trim().toLowerCase() === wantName);
     if (match) {
       taskCalendarId = match.id;
       console.log("📁 'TaskLog' 캘린더 사용:", match.id);

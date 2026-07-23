@@ -10,7 +10,7 @@ const GOOGLE_CONFIG = {
   API_KEY: 'AIzaSyBZDPLYXqAJzbqr9DmO9oyhV3V7X6Wzs3M',
   
   // 권한 (캘린더 + 드라이브)
- SCOPES: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file profile email', 
+ SCOPES: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file profile email', 
 
  // API 위치 (캘린더 + 드라이브)
   DISCOVERY_DOCS: [

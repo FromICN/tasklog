@@ -12,8 +12,7 @@ const CAL_TOKEN_KEY    = 'tasklog-cal-token';     // 캘린더 액세스 토큰(
 
 // 캘린더 스코프 (배열형 — 네이티브 플러그인용)
 const CAL_SCOPES_ARR = [
-  'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/calendar.readonly'
+  'https://www.googleapis.com/auth/calendar'
 ];
 
 let tokenClient  = null;   // GIS 토큰 클라이언트 (웹 캘린더 토큰 갱신용)
