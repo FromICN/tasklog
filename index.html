@@ -16,7 +16,7 @@
     (function () {
       try {
         var hasToken = false;
-        var raw = sessionStorage.getItem('tasklog-token');
+        var raw = localStorage.getItem('tasklog-token');
         if (raw) { var t = JSON.parse(raw); hasToken = !!(t && t.access_token && Date.now() < t.expires_at); }
         var autoOn = localStorage.getItem('tasklog-auto-login') === 'true';
         if (hasToken || autoOn) document.documentElement.classList.add('preauth-hide-gate');
@@ -45,7 +45,7 @@
       </span> 구글로 로그인
     </button>
     <label class="login-keep">
-      <input type="checkbox" id="keep-login"> 로그인 상태 유지
+      <input type="checkbox" id="keep-login" checked> 로그인 상태 유지
     </label>
   </div>
 </div>

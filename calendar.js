@@ -3,9 +3,24 @@
 // ============================================
 
 // 로그인 상태인지 확인하는 도우미 함수
+//  - gapi에 토큰이 설정돼 있으면 로그인 상태.
+//  - 아직 설정 전이어도(새로고침/재방문 직후) 저장된 유효 토큰이 있으면 복원 후 로그인으로 인정.
 function isSignedIn() {
-  const token = gapi.client.getToken();
-  return token !== null;
+  try {
+    if (window.gapi && gapi.client) {
+      var token = gapi.client.getToken();
+      if (token && token.access_token) return true;
+    }
+    var raw = localStorage.getItem('tasklog-token');
+    if (raw) {
+      var t = JSON.parse(raw);
+      if (t && t.access_token && Date.now() < t.expires_at) {
+        try { if (window.gapi && gapi.client) gapi.client.setToken({ access_token: t.access_token }); } catch (e) {}
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
 }
 
 // ── 구글 캘린더 색상 보정 ─────────────────────

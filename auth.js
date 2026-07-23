@@ -103,7 +103,7 @@ function _saveSessionToken(resp) {
   try {
     if (!resp || !resp.access_token) return;
     var ttlMs = (parseInt(resp.expires_in, 10) || 3600) * 1000;
-    sessionStorage.setItem(TOKEN_SESSION_KEY, JSON.stringify({
+    localStorage.setItem(TOKEN_SESSION_KEY, JSON.stringify({
       access_token: resp.access_token,
       expires_at: Date.now() + ttlMs - 60000   // 만료 1분 전까지만 유효 취급
     }));
@@ -113,7 +113,7 @@ function _saveSessionToken(resp) {
 }
 function _getValidSessionToken() {
   try {
-    var raw = sessionStorage.getItem(TOKEN_SESSION_KEY);
+    var raw = localStorage.getItem(TOKEN_SESSION_KEY);
     if (!raw) return null;
     var t = JSON.parse(raw);
     if (!t || !t.access_token || Date.now() >= t.expires_at) return null;
@@ -252,7 +252,8 @@ function handleSignOut() {
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);   // 저장 정보 삭제
   localStorage.removeItem(AUTO_LOGIN_KEY);     // 자동 로그인 해제(명시적 로그아웃 시에만)
-  sessionStorage.removeItem(TOKEN_SESSION_KEY);// 보관한 토큰 삭제
+  localStorage.removeItem(TOKEN_SESSION_KEY);   // 보관한 토큰 삭제(영구 저장분)
+  sessionStorage.removeItem(TOKEN_SESSION_KEY);// 이전 버전 호환 정리
   sessionStorage.removeItem('tasklog-synced'); // 다음 로그인 때 드라이브 재동기화
   _silentRetry = 0;
   updateAuthUI();
