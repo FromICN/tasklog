@@ -133,6 +133,40 @@ function loadMandalarts() {
 
 function saveMandalarts() {
   localStorage.setItem(MANDALART_KEY, JSON.stringify(mandalarts));
+  // 만다라트 Project(실행과제)/Section 명이 바뀌면 연계된 TASK 스냅샷도 자동 갱신
+  mdtSyncTasksFromMandalart();
+}
+
+// 만다라트 기준으로 모든 TASK의 연계 텍스트(Project·Section)를 재동기화한다.
+//  - task.mdtAction.text : 만다라트 실행과제(Project) 이름
+//  - task.mdtGoal.text   : 만다라트 핵심목표(Section) 이름
+// 변경이 있을 때만 saveTasks()로 영구 저장한다.
+function mdtSyncTasksFromMandalart() {
+  if (typeof tasks === 'undefined' || !Array.isArray(tasks)) return false;
+  var changed = false;
+  tasks.forEach(function(t) {
+    // Project(실행과제) 이름 동기화
+    if (t.mdtAction && t.mdtAction.actionId != null) {
+      var mA = getMdt(t.mdtAction.year);
+      var sgA = (mA && mA.subGoals) ? mA.subGoals.find(function(s){ return s.id === t.mdtAction.sgId; }) : null;
+      var act = (sgA && sgA.actions) ? sgA.actions.find(function(a){ return a.id === t.mdtAction.actionId; }) : null;
+      if (act && typeof act.text === 'string') {
+        var nA = act.text.trim();
+        if (nA && t.mdtAction.text !== nA) { t.mdtAction.text = nA; changed = true; }
+      }
+    }
+    // Section(핵심목표) 이름 동기화
+    if (t.mdtGoal && t.mdtGoal.sgId != null) {
+      var mG = getMdt(t.mdtGoal.year);
+      var sgG = (mG && mG.subGoals) ? mG.subGoals.find(function(s){ return s.id === t.mdtGoal.sgId; }) : null;
+      if (sgG && typeof sgG.text === 'string') {
+        var nG = sgG.text.trim();
+        if (nG && t.mdtGoal.text !== nG) { t.mdtGoal.text = nG; changed = true; }
+      }
+    }
+  });
+  if (changed && typeof saveTasks === 'function') saveTasks();
+  return changed;
 }
 
 function getMdt(year) {
