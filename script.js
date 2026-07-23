@@ -2652,9 +2652,7 @@ function navToMenu(id) {
   if (titleEl) {
     var _icon = _SVG[id] || '';
     var _title = MENU_TITLES[id] || '';
-    titleEl.innerHTML = _icon
-      ? '<span class="topbar-page-icon">'+_icon+'</span>'+_title
-      : _title;
+    titleEl.innerHTML = _title;   // 아이콘 제거, 텍스트만
   }
   var dateEl = document.getElementById('topbar-date');
   if (dateEl) {
