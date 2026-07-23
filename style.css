@@ -533,7 +533,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4) var(--space-4) var(--space-35);
-  margin: -26px -16px 19px -16px;
+  margin: -26px -16px 9px -16px;
   background: var(--main-bg);
   border-bottom: 1px solid transparent;
   flex-shrink: 0;
@@ -4870,12 +4870,20 @@ body.light-mode .lw-cv-tag {
   margin-top: var(--space-25);
   padding-top: var(--space-25);
   border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
+/* 캘린더 위젯 바디를 세로 flex로 → 상세목록이 남은 공간을 채움 */
+#cal-body { display: flex; flex-direction: column; }
+#cal-body > *:not(.cal-detail) { flex-shrink: 0; }
 .cal-detail-header {
   font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--text-1);
   margin-bottom: var(--space-2);
+  flex-shrink: 0;
 }
 .cal-detail-empty {
   font-size: var(--fs-sm);
@@ -4900,7 +4908,8 @@ body.light-mode .lw-cv-tag {
 .cal-detail-item:not(.is-cal):hover { background: var(--surface-hover); }
 /* 하단 상세 목록: 항목이 많으면 자동 스크롤 */
 .cal-detail-list {
-  max-height: 168px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--scroll-thumb) transparent;
@@ -6688,8 +6697,8 @@ body.light-mode {
   --text-3: #aaaaaa;
   --panel-bg: #EDF0F7;
   --card-bg: #EDF0F7;
-  --brand-primary: #3a56d4;
-  --accent-rgb: 79,110,247;   /* 라이트 모드는 기존 블루 유지 */
+  --brand-primary: #1a1a1a;
+  --accent-rgb: 26,26,26;   /* 라이트 모드 강조: 블랙 */
   --scroll-thumb: #c4c7cf;
   --scroll-thumb-hover: #a9adb8;
   /* 시맨틱 상태 색상 — 라이트 배경에선 진한 600 계열로 대비 확보 */
@@ -6734,6 +6743,13 @@ body.light-mode .lw-row:hover { background: rgba(0,0,0,0.03); }
 body.light-mode .lw-table td { border-bottom-color: rgba(0,0,0,0.09); }
 body.light-mode .settings-panel { background: var(--bg-1); border-left-color: var(--border); }
 body.light-mode .home-widget { background: var(--bg-1); border-color: rgba(0,0,0,0.07); box-shadow: var(--shadow-sm); }
+/* 홈 대시보드 위젯 상자: 화이트 배경 + 테두리선만 (그림자 제거) */
+body.light-mode .home-grid-row1 > .card,
+body.light-mode .home-grid-row2 > .card {
+  background: #ffffff;
+  border-color: rgba(0,0,0,0.12);
+  box-shadow: none;
+}
 body.light-mode .hw-cal-cell { color: var(--text-1); }
 body.light-mode .card { background: var(--bg-1); border-color: rgba(0,0,0,0.07); box-shadow: var(--shadow-sm); }
 body.light-mode .right-panel { background: var(--bg-1); }
@@ -9446,7 +9462,7 @@ body :is(input, textarea, [contenteditable]):focus-visible {
     padding: var(--space-4) var(--space-3) var(--space-4);
   }
   .topbar {
-    margin: -18px -12px 14px -12px;
+    margin: -18px -12px 7px -12px;
     top: -18px;
     padding: var(--space-3) var(--space-1) var(--space-25);
     min-height: 52px;
