@@ -4718,18 +4718,18 @@ body.light-mode .lw-cv-tag {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 7px var(--space-25);
+  padding: 6px var(--space-25);
   border-radius: var(--radius-md);
   margin-bottom: 5px;
   font-size: var(--fs-base);
-  background: var(--surface);
+  background: rgba(127,127,127,0.06);
   color: var(--text-1);
   cursor: pointer;
   transition: opacity var(--dur-fast);
 }
 .notif-card:hover { opacity: 0.85; }
-.notif-danger  { background: var(--surface); color: var(--text-1); border-left: 3px solid var(--danger); }
-.notif-warning { background: var(--surface); color: var(--text-1); border-left: 3px solid var(--warning); }
+.notif-danger  { background: rgba(127,127,127,0.06); color: var(--text-1); border-left: 3px solid var(--danger); }
+.notif-warning { background: rgba(127,127,127,0.06); color: var(--text-1); border-left: 3px solid var(--warning); }
 .notif-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notif-due  { margin-left: auto; flex-shrink: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -4865,7 +4865,7 @@ body.light-mode .lw-cv-tag {
   background: var(--surface-hover);
   box-shadow: inset 0 0 0 1.5px var(--brand-primary);
 }
-.cal-cell.today.selected { box-shadow: inset 0 0 0 1.5px var(--brand-primary); }
+.cal-cell.today.selected { box-shadow: none; }
 
 /* 캘린더 위젯 하단 상세 패널 */
 .cal-detail {
@@ -5084,8 +5084,9 @@ body.light-mode .lw-cv-tag {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #ffffff;
+  background: var(--bg-1);
 }
+body.light-mode .gm-header { background: #ffffff; }
 .gm-left-spacer { flex-shrink: 0; width: var(--gm-left, 136px); }
 
 /* Life Wheel 가치 칩 삭제 버튼 */
@@ -5335,7 +5336,7 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   height: auto;
   border: none;
   background: none;
-  color: var(--success);
+  color: var(--text-1);
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
@@ -5356,7 +5357,7 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   font-size: var(--fs-3xs);
   color: var(--success);
 }
-.gm-sub-check.done { background: var(--success); border-color: var(--success); color: #fff; }
+.gm-sub-check.done { background: none; border-color: transparent; color: var(--text-1); }
 .gm-sub-name { font-size: var(--fs-2xs); color: var(--text-2); }
 .gm-sub-name.done { text-decoration: line-through; color: var(--text-3); }
 .gm-sub-dot {
@@ -5407,7 +5408,8 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   background: var(--surface);
   padding: var(--space-1) var(--space-3) var(--space-2);
 }
-.gantt-page .gm-header { background: #ffffff; }
+.gantt-page .gm-header { background: var(--bg-1); }
+body.light-mode .gantt-page .gm-header { background: #ffffff; }
 
 /* 라이트 모드에서의 음영(흰색 오버레이는 보이지 않으므로 검정 기반으로 보정) */
 body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
@@ -5419,7 +5421,7 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: var(--space-05);
+  padding: 0;
   box-sizing: border-box;
 }
 .wheel-wrap svg { display: block; width: 100%; height: 100%; }
@@ -5434,9 +5436,10 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
 }
 .mda-row:hover .mda-name { color: var(--text-1); }
 .mda-name {
-  flex: 0 0 84px;
+  flex: 0 1 auto;
+  max-width: 60%;
   font-size: var(--fs-base);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
@@ -5444,7 +5447,8 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
   transition: color var(--dur-fast);
 }
 .mda-track {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 24px;
   height: 7px;
   border-radius: var(--radius-xs);
   background: var(--bg-3);

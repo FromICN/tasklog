@@ -713,7 +713,7 @@ function buildWheelSVG(scores, labels, colors) {
     var anchor=(Math.abs(dx)<0.3)?'middle':(dx>0?'end':'start');
     return {x:(CX+LR*dx).toFixed(1),y:(CY+LR*dy).toFixed(1),anchor:anchor,label:s,color:colors[i]};
   });
-  var svg='<svg viewBox="4 4 192 192" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">';
+  var svg='<svg viewBox="9 9 182 182" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style="display:block;">';
   [2,4,6,8,10].forEach(function(n){ svg+='<circle cx="'+CX+'" cy="'+CY+'" r="'+((n/10)*R).toFixed(1)+'" fill="none" stroke="var(--border)" stroke-width="1.1"'+(n===10?'':' stroke-dasharray="3.5,2.5"')+'/>'; });
   spokes.forEach(function(s){ svg+='<line x1="'+CX+'" y1="'+CY+'" x2="'+s.x.toFixed(1)+'" y2="'+s.y.toFixed(1)+'" stroke="var(--border)" stroke-width="1.1"/>'; });
   svg+='<path d="'+path+'" fill="rgba(79,110,247,0.12)" stroke="#4F6EF7" stroke-width="2.2" stroke-linejoin="round"/>';
