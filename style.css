@@ -6811,7 +6811,7 @@ body.light-mode .nav-item:hover {
 .nb-layout {
   display: flex;
   gap: var(--space-4);
-  height: calc(100vh - 130px);
+  height: 100%;
   min-height: 400px;
 }
 
@@ -7260,7 +7260,7 @@ body.light-mode .nav-item:hover {
    ============================================= */
 .mvv-page {
   /* 좌우 여백: Web 페이지 기준 */
-  padding: var(--space-05) 0;
+  padding: var(--space-05) 0 var(--space-05);
   max-width: none;
   margin: 0;
   display: flex;
@@ -8550,7 +8550,7 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 0 var(--space-25) var(--space-6);
+  padding: 0 var(--space-25) var(--space-05);
 }
 .todo-table {
   width: 100%;
