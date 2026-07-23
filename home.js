@@ -40,14 +40,14 @@ function renderHomeView() {
 function buildHomeLayout() {
   return '<div class="home-page">'
     + '<div class="home-grid-row1">'
-    + buildCardShell('cal-widget', null, null, 'cal-body')
-    + buildCardShell('gantt-widget', '📊 Gantt', 'project', 'gantt-body')
+    + buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
+    + buildCardShell('gantt-widget', 'Gantt', 'project', 'gantt-body')
     + '</div>'
     + '<div class="home-grid-row2">'
-    + buildCardShell('habit-widget', '🌱 Habit Tracker', 'mandalart', 'habit-body')
-    + buildCardShell('notif-widget', '🔔 Alarm', null, 'notif-body')
-    + buildCardShell('mandalart-widget', '🔮 Mandalart', 'mandalart', 'mandalart-body')
-    + buildCardShell('wheel-widget', '🎡 Life Wheel', 'wheel', 'wheel-body')
+    + buildCardShell('habit-widget', 'Habit Tracker', 'mandalart', 'habit-body')
+    + buildCardShell('notif-widget', 'Alarm', null, 'notif-body')
+    + buildCardShell('mandalart-widget', 'Mandalart', 'mandalart', 'mandalart-body')
+    + buildCardShell('wheel-widget', 'Life Wheel', 'wheel', 'wheel-body')
     + '</div>'
     + '</div>';
 }
@@ -585,12 +585,14 @@ function renderHomeGanttMini() {
     var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
     if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
 
+    var _open = !!_ganttOpen[task.id];
+    var _hasSteps = (task.steps || []).length > 0;
     var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
       + '<div class="gm-left">'
+      + (_hasSteps ? '<span class="gm-toggle" onclick="ganttToggleTask('+task.id+',event)">'+(_open?'\u25be':'\u25b8')+'</span>' : '<span class="gm-toggle-empty"></span>')
       + progressCircleSvg(pct, color)
       + '<div class="gm-info">'
       + '<div class="gm-name" title="'+hwEsc(label)+'">'+hwEsc(shortLabel)+'</div>'
-      + '<div class="gm-date">'+hwEsc(dateLbl)+'</div>'
       + '</div>'
       + '</div>'
       + '<div class="gm-grid">'
@@ -599,6 +601,7 @@ function renderHomeGanttMini() {
           ? '<div class="gm-bar" style="left:'+barLeftPct.toFixed(3)+'%;width:'+barWPct.toFixed(3)+'%;border-color:'+color+';background:'+color+'25;">'
             + '<div class="gm-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
           : '')
+      + ((!_open && _hasSteps) ? ganttStepMarkers(task, mS, mE, daysInMonth, color) : '')
       + '</div>'
       + '</div>';
 
@@ -624,6 +627,7 @@ function renderHomeGanttMini() {
 function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
   var steps = task.steps || [];
   if (!steps.length) return '';
+  if (typeof _ganttOpen !== 'undefined' && !_ganttOpen[task.id]) return '';   // 기본 접힘
   var shown = steps.slice(0, GM_MAX_SUBROWS);
   var html = shown.map(function(step) {
     var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;

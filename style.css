@@ -4674,13 +4674,13 @@ body.light-mode .lw-cv-tag {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-25) var(--space-35) var(--space-2);
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   flex-shrink: 0;
 }
 .card-title {
-  font-size: var(--fs-sm);
+  font-size: calc(var(--fs-sm) + 1px);
   font-weight: 700;
-  color: var(--text-2);
+  color: var(--text-1);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -5082,7 +5082,7 @@ body.light-mode .lw-cv-tag {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--surface);
+  background: #ffffff;
 }
 .gm-left-spacer { flex-shrink: 0; width: var(--gm-left, 136px); }
 
@@ -5250,15 +5250,15 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   padding-bottom: var(--space-1);
 }
 .gm-hcell.gm-today { color: var(--brand-primary); font-weight: 700; }
-.gm-hcell.gm-sun { color: var(--danger); }
-.gm-hcell.gm-sat { color: var(--info); }
+.gm-hcell.gm-sun { color: var(--text-3); font-weight: 700; }
+.gm-hcell.gm-sat { color: var(--text-3); font-weight: 700; }
 
 .gm-body { position: relative; }
 .gm-row {
   display: flex;
   align-items: center;
   min-height: 34px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px dotted var(--border);
   cursor: pointer;
   transition: background var(--dur-fast);
 }
@@ -5298,10 +5298,46 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   min-width: 0;
   align-self: stretch;
 }
-.gm-bgcell { flex: 1 1 0; min-width: 0; height: 100%; border-right: 1px solid var(--border); }
+.gm-bgcell { flex: 1 1 0; min-width: 0; height: 100%; border-right: 1px dotted var(--border); }
 .gm-bgcell:last-child { border-right: none; }
 .gm-bgcell.gm-weekend-col { background: rgba(255,255,255,0.025); }
-.gm-bgcell.gm-today-col { background: rgba(96,165,250,0.08); }
+.gm-bgcell.gm-today-col { background: rgba(0,0,0,0.10); }
+
+/* Gantt: to-do 펼치기 토글 */
+.gm-toggle {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-3);
+  cursor: pointer;
+  user-select: none;
+  text-align: center;
+}
+.gm-toggle:hover { color: var(--text-1); }
+.gm-toggle-empty { flex-shrink: 0; width: 12px; }
+/* Gantt: 접힌 Task 행에 겹치는 to-do 마커(점=마감일, 체크=완료) */
+.gm-step-mark {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  z-index: 2;
+  border: 1px solid var(--surface);
+  cursor: default;
+}
+.gm-step-mark.done {
+  width: auto;
+  height: auto;
+  border: none;
+  background: none;
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
 
 /* ── Gantt Mini: 하위 to-do 서브로우 ── */
 .gm-row.gm-subrow { min-height: 24px; }
@@ -5344,15 +5380,7 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
 }
 .gm-bar-fill { height: 100%; border-radius: 7px 0 0 7px; }
 
-.gm-today-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1.5px;
-  background: rgba(96,165,250,0.4);
-  pointer-events: none;
-  z-index: 1;
-}
+.gm-today-line { display: none; }
 .gm-more {
   font-size: var(--fs-2xs);
   color: var(--text-3);
@@ -5377,7 +5405,7 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   background: var(--surface);
   padding: var(--space-1) var(--space-3) var(--space-2);
 }
-.gantt-page .gm-header { background: var(--surface); }
+.gantt-page .gm-header { background: #ffffff; }
 
 /* 라이트 모드에서의 음영(흰색 오버레이는 보이지 않으므로 검정 기반으로 보정) */
 body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }

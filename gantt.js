@@ -111,10 +111,34 @@ function getTaskProgress(task) {
   return Math.round(steps.filter(function(s){ return s.completed; }).length / steps.length * 100);
 }
 
+// ── Gantt: Task별 to-do 펼침 상태 (기본 접힘) ──
+var _ganttOpen = {};
+function ganttToggleTask(id, ev) {
+  if (ev) ev.stopPropagation();
+  _ganttOpen[id] = !_ganttOpen[id];
+  if (document.getElementById('gantt-body') && typeof renderHomeGanttMini === 'function') renderHomeGanttMini();
+  if (document.querySelector('.gantt-page') && typeof renderGanttView === 'function') renderGanttView();
+}
+
+// 접힌 Task 행에 겹쳐 그릴 to-do 마커: 마감일=점, 완료=체크. 커서 올리면 이름(title).
+function ganttStepMarkers(task, mS, mE, daysInMonth, color) {
+  var steps = task.steps || [];
+  return steps.map(function(step) {
+    var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;
+    if (!(sd && sd >= mS && sd <= mE)) return '';
+    var leftPct = (sd.getDate() - 1 + 0.5) / daysInMonth * 100;
+    var nm = (typeof hwEsc === 'function') ? hwEsc(step.text || '') : (step.text || '');
+    if (step.completed) {
+      return '<div class="gm-step-mark done" style="left:' + leftPct.toFixed(3) + '%;" title="' + nm + '">\u2713</div>';
+    }
+    return '<div class="gm-step-mark" style="left:' + leftPct.toFixed(3) + '%;background:' + color + ';" title="' + nm + '"></div>';
+  }).join('');
+}
+
 // 진행률 원 (테마 대응: 트랙/텍스트 색은 CSS 변수)
 function progressCircleSvg(pct, color) {
   var r = 13, circ = 2 * Math.PI * r, dash = circ * pct / 100;
-  return '<svg width="30" height="30" viewBox="0 0 30 30" style="flex-shrink:0;">'
+  return '<svg width="15" height="15" viewBox="0 0 30 30" style="flex-shrink:0;">'
     + '<circle cx="15" cy="15" r="' + r + '" fill="none" style="stroke:var(--border)" stroke-width="3"/>'
     + '<circle cx="15" cy="15" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="3"'
     + ' stroke-dasharray="' + dash.toFixed(1) + ' ' + circ.toFixed(1) + '"'
@@ -251,12 +275,14 @@ function renderGanttView() {
     var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
     if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
 
+    var _open = !!_ganttOpen[task.id];
+    var _hasSteps = (task.steps || []).length > 0;
     var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel(' + task.id + ')">'
       + '<div class="gm-left">'
+      + (_hasSteps ? '<span class="gm-toggle" onclick="ganttToggleTask(' + task.id + ',event)">' + (_open ? '\u25be' : '\u25b8') + '</span>' : '<span class="gm-toggle-empty"></span>')
       + progressCircleSvg(pct, color)
       + '<div class="gm-info">'
       + '<div class="gm-name" title="' + hwEsc(label) + '">' + hwEsc(shortLabel) + '</div>'
-      + '<div class="gm-date">' + hwEsc(dateLbl) + '</div>'
       + '</div>'
       + '</div>'
       + '<div class="gm-grid">'
@@ -265,6 +291,7 @@ function renderGanttView() {
           ? '<div class="gm-bar" style="left:' + barLeftPct.toFixed(3) + '%;width:' + barWPct.toFixed(3) + '%;border-color:' + color + ';background:' + color + '25;">'
             + '<div class="gm-bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>'
           : '')
+      + ((!_open && _hasSteps) ? ganttStepMarkers(task, mS, mE, daysInMonth, color) : '')
       + '</div>'
       + '</div>';
 
