@@ -5,7 +5,6 @@
 <title>Web 페이지 미리보기</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  /* 미리보기 전용: main-content 여백 재현 */
   body { margin: 0; }
   .main-content { min-height: 100vh; box-sizing: border-box; }
 </style>
@@ -16,7 +15,6 @@
   </div>
 
   <script>
-    // ── notes.js 가 기대하는 최소 스텁 ──
     function formatDueDate(iso, hasTime){
       var d = new Date(iso);
       var s = (d.getMonth()+1)+'월 '+d.getDate()+'일';
@@ -27,7 +25,6 @@
     function toTimeInputVal(iso){ var d=new Date(iso); return d.toTimeString().slice(0,5); }
     function todoSectionEmoji(){ return ''; }
     function openDetailPanel(){}
-    // 목 데이터
     var tasks = [
       { id:1, text:'디자인 시안 확정하기', completed:false, dueDateTime:'2026-07-28T09:00:00', hasTime:false,
         lwSectionName:'프로덕트', steps:[{id:11,text:'컬러 팔레트',completed:true,dueDateTime:null},
@@ -44,7 +41,7 @@
   </script>
   <script src="notes.js"></script>
   <script>
-    document.body.classList.remove('light-mode'); // 다크 기본
+    document.body.classList.remove('light-mode');
     renderNotesView();
   </script>
 </body>

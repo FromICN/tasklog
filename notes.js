@@ -109,7 +109,7 @@ function renderNotesView() {
     '<div class="nb-layout">'
     + '<div class="nb-write-panel">'
     + '<div class="nb-write-header">+ Memo</div>'
-    + '<textarea class="nb-textarea" id="nb-input" placeholder="자유롭게 메모를 작성하세요...\n\n아이디어, 생각, 할 것들을 써보세요." onkeydown="nbInputKeyDown(event)"></textarea>'
+    + '<textarea class="nb-textarea" id="nb-input" placeholder="메모를 입력하세요..." onkeydown="nbInputKeyDown(event)"></textarea>'
     + '<button class="nb-add-btn" onclick="nbAddNote()">+ Archiving에 추가</button>'
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
@@ -171,7 +171,7 @@ function buildMemoCard(note) {
   var timeStr = note.createdAt ? new Date(note.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
   return '<div class="nb-card" draggable="true" data-kind="memo" data-note-id="' + note.id + '"'
     + ' ondragstart="nbDragStart(event)">'
-    + '<div class="nb-card-strip" style="background:rgba(255,255,255,0.25);"></div>'
+    + '<div class="nb-card-strip" style="background:#555;"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-text">'+escNb(note.text)+'</div>'
     + dueHtml
