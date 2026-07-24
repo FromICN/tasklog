@@ -6955,7 +6955,7 @@ body.light-mode .nav-item:hover {
   display: flex;
   flex-shrink: 0;
   background: rgba(127,127,127,0.06);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: var(--radius-md);
   overflow: hidden;
   cursor: grab;
