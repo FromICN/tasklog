@@ -9399,6 +9399,42 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .seg-sep { color: var(--text-3); user-select: none; }
 .field-input.seg-date:focus-within { border-color: var(--brand-primary); }
 
+/* ── Task 수정창: Start/Due 시간 입력 + To Do 스크롤 + 피커 시간 ── */
+.rp-dt-row { display: flex; gap: 6px; align-items: stretch; }
+.rp-dt-row .seg-date { flex: 1 1 auto; min-width: 0; }
+.rp-time-inp {
+  flex: 0 0 58px;
+  width: 58px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
+/* To Do 목록: 최대 10개까지 보이고 그 이상은 스크롤 */
+#rp-steps-list {
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+#rp-steps-list::-webkit-scrollbar { width: 6px; }
+#rp-steps-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: var(--radius-xs); }
+/* To Do 마감일 피커: 날짜 아래 간략 시간 입력 */
+.sdp-time-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.sdp-time-label { font-size: var(--fs-xs); color: var(--text-2); flex-shrink: 0; }
+.sdp-time-inp {
+  width: 74px;
+  text-align: center;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+.sdp-time-inp:focus { outline: none; border-color: var(--brand-primary); }
+
 /* =============================================
    📱 모바일 반응형 (≤768px)
    - 사이드바 → 햄버거 드로어 (오프캔버스)

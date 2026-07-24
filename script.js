@@ -637,21 +637,14 @@ function buildPickerHtml(id, dateStr, timeStr) {
   var timeVal  = s.timeStr || '';
 
   return '<div class="sdp-wrap" id="sdp-' + id + '">'
-    + '<div class="sdp-inputs-row">'
-    + '<div class="sdp-field">'
-    + '<label class="sdp-field-label">날짜</label>'
-    + '<input type="text" class="sdp-date-inp" id="sdp-text-' + id + '"'
-    + ' placeholder="YYYYMMDD"'
-    + ' value="' + dateDisp + '"'
-    + ' oninput="onPickerText(\'' + id + '\')"'
-    + ' onfocus="openPickerCal(\'' + id + '\')"'
-    + ' onkeydown="onPickerKey(event,\'' + id + '\')"'
-    + ' autocomplete="off" readonly>'
-    + '</div>'
-    + (s.dateStr ? '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕</button>' : '')
-    + '</div>'
     + '<div class="sdp-cal-wrap" id="sdp-cal-' + id + '" style="display:none;">'
     + buildPickerCalHtml(id)
+    + '</div>'
+    + '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
+    + '<span class="sdp-time-label">시간</span>'
+    + '<input type="text" class="sdp-time-inp" id="sdp-time-' + id + '" inputmode="numeric" maxlength="5"'
+    + ' placeholder="HH:MM" value="' + timeVal + '" oninput="pickerTimeInput(event,\'' + id + '\')" onfocus="this.select()">'
+    + '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕</button>'
     + '</div>'
     + '</div>';
 }
@@ -790,13 +783,26 @@ function pickerPickDate(id, year, month, day) {
   updatePickerPreview(id);
   var w = document.getElementById('sdp-cal-' + id);
   if (w && w.style.display !== 'none') w.innerHTML = buildPickerCalHtml(id);
+  var tr = document.getElementById('sdp-timerow-' + id);
+  if (tr) { tr.style.display = 'flex'; var ti = document.getElementById('sdp-time-' + id); if (ti) setTimeout(function(){ ti.focus(); }, 20); }
   onPickerChanged(id);
 }
 
+// 시간 입력 자동 포맷 (1800 → 18:00)
+function pickerTimeInput(e, id) {
+  var el = e.target;
+  var v = el.value.replace(/\D/g,'').slice(0,4);
+  el.value = (v.length === 4) ? v.slice(0,2) + ':' + v.slice(2)
+           : (v.length === 3) ? v.slice(0,1) + ':' + v.slice(1) : v;
+  pickerSetTime(id);
+}
 function pickerSetTime(id) {
-  var s = pickerState[id];
+  var s = pickerState[id]; if (!s) return;
   var timeEl = document.getElementById('sdp-time-' + id);
-  s.timeStr = timeEl ? (timeEl.value || null) : null;
+  var v = timeEl ? timeEl.value.trim() : '';
+  var m = /^(\d{1,2}):(\d{2})$/.exec(v);
+  if (m) { var hh = Math.min(23, +m[1]), mm = Math.min(59, +m[2]); s.timeStr = String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0'); }
+  else s.timeStr = null;
   updatePickerPreview(id);
   onPickerChanged(id);
 }
@@ -1938,6 +1944,7 @@ function openNewTaskPanel(taskId) {
   setTimeout(function(){
     var inp = document.getElementById('rp-task-name');
     if (inp) inp.focus();
+    rpScrollStepsToLastUndone();
   }, 100);
 }
 
@@ -2006,6 +2013,7 @@ function buildRpForm(task) {
   var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
   var dueStr     = (task && task.dueDateTime) ? toDateInputVal(task.dueDateTime) : '';
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
+  var startTimeStr = (task && task.startDate && task.startHasTime) ? toTimeInputVal(task.startDate) : '';
   var notesVal   = task ? (task.notes || '') : '';
 
   // Priority (ASAP / NEXT / SCHEDULE / SOMEDAY) — 내부값은 DO/DELEGATE/SCHEDULE/DROP 유지
@@ -2085,9 +2093,11 @@ function buildRpForm(task) {
     + '</div></div>'
     + '<div style="display:flex;gap:10px;">'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Start</label>'
-    + buildDateSegInput('rp-start-date', startStr) + '</div>'
+    + '<div class="rp-dt-row">' + buildDateSegInput('rp-start-date', startStr)
+    +   '<input type="text" class="field-input rp-time-inp" id="rp-start-time" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="'+startTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
     + '<div class="field-group" style="flex:1;"><label class="field-label">Due</label>'
-    + buildDateSegInput('rp-due-date', dueStr) + '</div>'
+    + '<div class="rp-dt-row">' + buildDateSegInput('rp-due-date', dueStr)
+    +   '<input type="text" class="field-input rp-time-inp" id="rp-due-time" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="'+dueTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
     + '</div>'
     + todoHtml
     + eiHtml
@@ -2112,7 +2122,7 @@ function rpBuildStepsHtml() {
       : '';
     var hasDate = !!s.dueDateTime;
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
-      + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, null)
+      + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, (hasDate && s.hasTime) ? toTimeInputVal(s.dueDateTime) : null)
       + '</div>';
     return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
       +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
@@ -2163,10 +2173,17 @@ function rpSaveStepFromPicker(id) {
   var s = rpState.steps.find(function(x){ return x.id === stepId; });
   if (!s) return;
   var pv = getPickerValue(id);
-  if (pv.dateStr) { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }
-  else { s.dueDateTime = null; s.hasTime = false; }
+  if (pv.dateStr) {
+    if (pv.timeStr) { s.dueDateTime = pv.dateStr + 'T' + pv.timeStr + ':00'; s.hasTime = true; }
+    else { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }
+  } else { s.dueDateTime = null; s.hasTime = false; }
   rpState.dirty = true;
-  rpRefreshSteps();
+  // 폼(달력·시간 입력)을 닫지 않고 버튼 라벨만 갱신 → 날짜 후 시간 순차 입력 유지
+  var btn = document.querySelector('#rp-step-' + stepId + ' .step-cal-btn');
+  if (btn) {
+    btn.classList.toggle('has-date', !!s.dueDateTime);
+    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, s.hasTime) : '📅';
+  }
 }
 
 // 연계 TASK 드롭다운: 완료된 TASK는 목록에서 제외
@@ -2212,6 +2229,26 @@ function rpHandleStepInput(event) { if (event.key === 'Enter') rpAddStep(); }
 function rpRefreshSteps() {
   var list = document.getElementById('rp-steps-list');
   if (list) list.innerHTML = rpBuildStepsHtml();
+}
+
+// Start/Due 시간 입력 자동 포맷 (1800 → 18:00, 24시간)
+function rpTimeInput(el) {
+  var v = el.value.replace(/\D/g,'').slice(0,4);
+  el.value = (v.length === 4) ? v.slice(0,2) + ':' + v.slice(2)
+           : (v.length === 3) ? v.slice(0,1) + ':' + v.slice(1) : v;
+  if (typeof rpState !== 'undefined') rpState.dirty = true;
+}
+
+// To Do 목록: 완료되지 않은 가장 아래 항목이 보이도록 스크롤
+function rpScrollStepsToLastUndone() {
+  var list = document.getElementById('rp-steps-list');
+  if (!list) return;
+  var undone = (rpState.steps || []).filter(function(s){ return !s.completed; });
+  if (!undone.length) return;
+  var last = undone[undone.length - 1];
+  var el = document.getElementById('rp-step-' + last.id);
+  if (!el) return;
+  list.scrollTop = Math.max(0, el.offsetTop + el.offsetHeight - list.clientHeight);
 }
 
 // ── TO DO 순서 변경 (드래그 & 드롭) ──
@@ -2445,11 +2482,14 @@ function saveRightPanel() {
   var dueDate   = (document.getElementById('rp-due-date')   || {}).value  || '';
   var startDate = (document.getElementById('rp-start-date') || {}).value  || '';
   var notesVal  = (document.getElementById('rp-notes')      || {}).value  || '';
+  var _normTime = function(v){ var mm=/^(\d{1,2}):(\d{2})$/.exec(String(v||'').trim()); if(!mm) return null; var H=Math.min(23,+mm[1]),M=Math.min(59,+mm[2]); return String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'); };
+  var dueTime   = _normTime((document.getElementById('rp-due-time')   || {}).value);
+  var startTime = _normTime((document.getElementById('rp-start-time') || {}).value);
   var upstreamDepts = rpState.upstreamDepts.slice();
   var upstreamDeptVal = upstreamDepts.join(', ');
 
   var dueDateTime = null, hasTime = false;
-  if (dueDate) { dueDateTime = dueDate+'T09:00:00'; hasTime = false; }
+  if (dueDate) { dueDateTime = dueTime ? dueDate+'T'+dueTime+':00' : dueDate+'T09:00:00'; hasTime = !!dueTime; }
 
   var reminderDate = (document.getElementById('rp-reminder-date') || {}).value || '';
   var reminderVal = reminderDate ? reminderDate+'T09:00:00' : null;
@@ -2478,7 +2518,8 @@ function saveRightPanel() {
       task.starred     = rpState.starred;
       task.eisenhower  = rpState.eisenhower;
       task.status      = rpState.status;
-      task.startDate   = startDate ? startDate+'T09:00:00' : null;
+      task.startDate    = startDate ? (startTime ? startDate+'T'+startTime+':00' : startDate+'T09:00:00') : null;
+      task.startHasTime = !!(startDate && startTime);
       task.dueDateTime = dueDateTime;
       task.hasTime     = hasTime;
       task.notes       = notesVal;
@@ -2499,7 +2540,8 @@ function saveRightPanel() {
       completed: rpState.completed, starred: rpState.starred,
       createdAt: new Date().toISOString(),
       dueDateTime: dueDateTime, hasTime: hasTime,
-      startDate: startDate ? startDate+'T09:00:00' : null,
+      startDate: startDate ? (startTime ? startDate+'T'+startTime+':00' : startDate+'T09:00:00') : null,
+      startHasTime: !!(startDate && startTime),
       eisenhower: rpState.eisenhower, status: rpState.status, notes: notesVal,
       steps: rpState.steps, reminder: reminderVal, assignee: '', assignees: rpState.assignees.slice(),
       repeat: rpState.repeat || null,
