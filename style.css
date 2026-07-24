@@ -5559,17 +5559,28 @@ body.light-mode .gm-bgcell.gm-weekend-col { background: rgba(0,0,0,0.025); }
 }
 body.light-mode .qm-native { color-scheme: light; }
 
-/* 메모 카드의 마감 날짜 배지 */
-.nb-card-due {
+/* 메모 카드의 마감 날짜 배지 (홈 위젯 .hw-badge 기준 무채색 회색) */
+.nb-card-due, .nb-card-progress {
   display: inline-block;
   margin-top: var(--space-15);
   padding: var(--space-05) var(--space-2);
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: var(--brand-primary);
-  background: rgba(79, 110, 247, 0.14);
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
+body.light-mode .nb-card-due, body.light-mode .nb-card-progress {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* 마감일 배지: 텍스트 줄 오른쪽 끝 / 진행현황 배지: 텍스트 바로 오른쪽 */
+.nb-card-topline { display: flex; align-items: flex-start; gap: var(--space-15); }
+.nb-card-textwrap { flex: 1; min-width: 0; }
+.nb-card-topline .nb-card-text { display: inline; }
+.nb-card-progress { margin-top: 0; margin-left: var(--space-1); vertical-align: middle; }
+.nb-card-topline .nb-card-due { margin-top: 0; flex-shrink: 0; }
 
 /* ── Life Wheel: 타이틀과 연도 드롭박스 같은 줄 배치 ── */
 .cat-lifewheel .main-title-area {
@@ -6822,7 +6833,7 @@ body.light-mode .nav-item:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-25);
-  background: var(--surface);
+  background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
@@ -6832,7 +6843,6 @@ body.light-mode .nav-item:hover {
   font-weight: 700;
   color: var(--text-1);
   padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border);
 }
 .nb-textarea {
   flex: 1;
@@ -6881,7 +6891,7 @@ body.light-mode .nav-item:hover {
 .nb-col {
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -6897,7 +6907,6 @@ body.light-mode .nav-item:hover {
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-35) var(--space-25);
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .nb-col-title { font-size: var(--fs-base); font-weight: 700; color: var(--text-1); }
@@ -6911,9 +6920,7 @@ body.light-mode .nav-item:hover {
 }
 
 /* 컬럼별 색상 강조 */
-#nbcol-task .nb-col-header { border-bottom-color: var(--success-border); }
 #nbcol-task.nb-col-over { border-color: var(--success); background: var(--success-bg); }
-#nbcol-step .nb-col-header { border-bottom-color: var(--info-border); }
 #nbcol-step.nb-col-over { border-color: var(--info); background: var(--info-bg); }
 
 .nb-col-hint {

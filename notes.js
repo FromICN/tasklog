@@ -108,15 +108,14 @@ function renderNotesView() {
   content.innerHTML =
     '<div class="nb-layout">'
     + '<div class="nb-write-panel">'
-    + '<div class="nb-write-header">✏️ 새 메모</div>'
+    + '<div class="nb-write-header">+ Memo</div>'
     + '<textarea class="nb-textarea" id="nb-input" placeholder="자유롭게 메모를 작성하세요...\n\n아이디어, 생각, 할 것들을 써보세요." onkeydown="nbInputKeyDown(event)"></textarea>'
     + '<button class="nb-add-btn" onclick="nbAddNote()">+ Archiving에 추가</button>'
-    + '<div class="nb-write-tip">💡 Shift+Enter 또는 버튼으로 추가 · 카드를 드래그해 칼럼 간 이동</div>'
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
-    + buildNbColumn('memo', '🗄️ Archiving', '작성한 메모가 여기 쌓여요')
-    + buildNbColumn('task', '✅ Task', '미완료 Task가 모두 표시돼요')
-    + buildNbColumn('step', '📋 To Do', '미완료 To Do가 모두 표시돼요')
+    + buildNbColumn('memo', 'Archiving', '작성한 메모가 여기 쌓여요')
+    + buildNbColumn('task', 'Task', '미완료 Task가 모두 표시돼요')
+    + buildNbColumn('step', 'To Do', '미완료 To Do가 모두 표시돼요')
     + '</div>'
     + '</div>';
   renderNoteBoard();
@@ -185,10 +184,11 @@ function buildMemoCard(note) {
 }
 
 function buildTaskCard(task) {
-  var badges = nbDueBadgeIso(task.dueDateTime, task.hasTime);
+  var dueBadge = nbDueBadgeIso(task.dueDateTime, task.hasTime);
+  var progBadge = '';
   if (task.steps && task.steps.length) {
     var done = task.steps.filter(function(s){ return s.completed; }).length;
-    badges += '<span class="nb-card-due">📝 '+done+'/'+task.steps.length+'</span>';
+    progBadge = '<span class="nb-card-progress">📝 '+done+'/'+task.steps.length+'</span>';
   }
   var proj = '';
   // Project 이모지: 연계된 상위 Section 이모지와 통일 (todo.js 공용 해석기)
@@ -202,9 +202,11 @@ function buildTaskCard(task) {
     + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:var(--success);"></div>'
     + '<div class="nb-card-body">'
-    + '<div class="nb-card-text">'+escNb(task.text)+'</div>'
+    + '<div class="nb-card-topline">'
+    + '<div class="nb-card-textwrap"><span class="nb-card-text">'+escNb(task.text)+'</span>'+progBadge+'</div>'
+    + dueBadge
+    + '</div>'
     + projHtml
-    + (badges ? '<div style="display:flex;flex-wrap:wrap;gap:4px;">'+badges+'</div>' : '')
     + '</div>'
     + '</div>';
 }
@@ -217,9 +219,11 @@ function buildStepCard(task, step) {
     + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:var(--info);"></div>'
     + '<div class="nb-card-body">'
-    + '<div class="nb-card-text">'+escNb(step.text)+'</div>'
+    + '<div class="nb-card-topline">'
+    + '<div class="nb-card-textwrap"><span class="nb-card-text">'+escNb(step.text)+'</span></div>'
+    + dueHtml
+    + '</div>'
     + '<div class="nb-card-taskref">↳ '+escNb(task.text)+'</div>'
-    + (dueHtml ? '<div>'+dueHtml+'</div>' : '')
     + '</div>'
     + '</div>';
 }

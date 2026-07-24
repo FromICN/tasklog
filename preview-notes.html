@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Web 페이지 미리보기</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  /* 미리보기 전용: main-content 여백 재현 */
+  body { margin: 0; }
+  .main-content { min-height: 100vh; box-sizing: border-box; }
+</style>
+</head>
+<body>
+  <div class="main-content">
+    <div id="page-content"></div>
+  </div>
+
+  <script>
+    // ── notes.js 가 기대하는 최소 스텁 ──
+    function formatDueDate(iso, hasTime){
+      var d = new Date(iso);
+      var s = (d.getMonth()+1)+'월 '+d.getDate()+'일';
+      if (hasTime) s += ' ' + String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+      return s;
+    }
+    function toDateInputVal(iso){ var d=new Date(iso); return d.toISOString().slice(0,10); }
+    function toTimeInputVal(iso){ var d=new Date(iso); return d.toTimeString().slice(0,5); }
+    function todoSectionEmoji(){ return ''; }
+    function openDetailPanel(){}
+    // 목 데이터
+    var tasks = [
+      { id:1, text:'디자인 시안 확정하기', completed:false, dueDateTime:'2026-07-28T09:00:00', hasTime:false,
+        lwSectionName:'프로덕트', steps:[{id:11,text:'컬러 팔레트',completed:true,dueDateTime:null},
+                                        {id:12,text:'타이포',completed:false,dueDateTime:'2026-07-26T14:00:00',hasTime:true}] },
+      { id:2, text:'주간 보고서 작성 및 팀 공유용 요약 정리', completed:false, dueDateTime:'2026-07-25T18:00:00', hasTime:true, steps:[] },
+      { id:3, text:'회의록 정리', completed:false, dueDateTime:null, steps:[{id:31,text:'a',completed:false}] }
+    ];
+    var notesData = [];
+    localStorage.setItem('my-tasklog-notes', JSON.stringify([
+      { id:101, text:'아이디어: 온보딩 플로우 개선', type:'memo', dueDate:'2026-07-30', dueTime:null, createdAt:new Date().toISOString() },
+      { id:102, text:'리서치 링크 모아두기', type:'memo', dueDate:null, dueTime:null, createdAt:new Date().toISOString() }
+    ]));
+    function addTask(){} function deleteTask(){} function saveTasks(){}
+  </script>
+  <script src="notes.js"></script>
+  <script>
+    document.body.classList.remove('light-mode'); // 다크 기본
+    renderNotesView();
+  </script>
+</body>
+</html>
