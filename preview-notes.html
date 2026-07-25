@@ -13,14 +13,8 @@
   <div class="main-content">
     <div id="page-content"></div>
   </div>
-
   <script>
-    function formatDueDate(iso, hasTime){
-      var d = new Date(iso);
-      var s = (d.getMonth()+1)+'월 '+d.getDate()+'일';
-      if (hasTime) s += ' ' + String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-      return s;
-    }
+    function formatDueDate(iso, hasTime){ var d=new Date(iso); var s=(d.getMonth()+1)+'월 '+d.getDate()+'일'; if(hasTime) s+=' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); return s; }
     function toDateInputVal(iso){ var d=new Date(iso); return d.toISOString().slice(0,10); }
     function toTimeInputVal(iso){ var d=new Date(iso); return d.toTimeString().slice(0,5); }
     function todoSectionEmoji(){ return ''; }

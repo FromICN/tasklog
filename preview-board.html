@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Board 페이지 미리보기</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { margin: 0; }
+  .main-content { min-height: 100vh; box-sizing: border-box; padding: 24px 20px; }
+</style>
+</head>
+<body>
+  <div class="main-content">
+    <div id="page-content"></div>
+  </div>
+
+  <script>
+    function escapeHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function appGetYear(){ return 2026; }
+    function openDetailPanel(){}
+    var detailTaskId = null;
+    var tasks = [
+      { id:1, text:'[260711] 실비보험 청구', completed:false, status:'진행', startDate:'2026-07-01',
+        dueDateTime:'2026-07-11T09:00:00', lwSectionName:'재무', lwSectionEmoji:'💰', priority:'High',
+        prevTaskIds:[], nextTaskIds:[2], assignees:['김대리'],
+        steps:[{id:11,text:'해람(25/4/24~26/3/30)',completed:false,dueDateTime:'2026-03-30T09:00:00'},
+               {id:12,text:'세브란스(26/3/30)',completed:false,dueDateTime:'2026-03-30T09:00:00'}] },
+      { id:2, text:'[260722] 실비보험 청구', completed:false, status:'대기', dueDateTime:'2026-07-22T09:00:00',
+        lwSectionName:'건강', lwSectionEmoji:'💪', prevTaskIds:[1], nextTaskIds:[], steps:[] },
+      { id:3, text:'[260701] 분기 보고서', completed:true, status:'완료', dueDateTime:'2026-07-05T09:00:00',
+        prevTaskIds:[], nextTaskIds:[], steps:[] }
+    ];
+  </script>
+  <script src="colresize.js"></script>
+  <script src="todo.js"></script>
+  <script>
+    document.body.classList.remove('light-mode');
+    renderTodoView();
+  </script>
+</body>
+</html>

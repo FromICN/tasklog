@@ -118,6 +118,27 @@ function todoProjectLabel(task) {
   return (em ? em + ' ' : '') + key;
 }
 
+// Project 이모지만 (텍스트 제외) — Board 표 표시용
+function todoProjectEmoji(task) {
+  if (todoProjectKey(task) === '프로젝트 없음') return '';
+  var em = todoSectionEmoji(task);
+  if (!em && task.mdtAction && task.mdtAction.text) em = '🔮';
+  return em || '';
+}
+
+// Linked Tasks 라벨 (선행/후행 연결 Task 이름)
+function todoLinkedTasksLabel(task) {
+  var ids = [].concat(task.prevTaskIds || []).concat(task.nextTaskIds || []);
+  if (!ids.length) return '';
+  var seen = {};
+  var names = ids.map(function(id){
+    if (seen[id]) return null; seen[id] = 1;
+    var t = (typeof tasks !== 'undefined') ? tasks.find(function(x){ return x.id === id; }) : null;
+    return t ? String(t.text || '').replace(/^\[\d{6}\] /,'') : null;
+  }).filter(Boolean);
+  return names.join(', ');
+}
+
 // ============================================
 //  통합 표 정의
 //  entry = { task, step } (step 없는 Task는 step:null 한 행)
@@ -132,7 +153,7 @@ var BOARD_COLS = [
     cell:function(e){ return '<td class="todo-table-title bd-td-task">' + escapeHtml(e.task.text) + '</td>'; } },
   { key:'project',  label:'Project',
     val:function(e){ return todoProjectKey(e.task); },
-    cell:function(e){ var p = todoProjectLabel(e.task); return '<td class="todo-table-proj">' + (p ? escapeHtml(p) : todoEmptyCell()) + '</td>'; } },
+    cell:function(e){ var em = todoProjectEmoji(e.task); return '<td class="todo-table-proj">' + (em ? em : todoEmptyCell()) + '</td>'; } },
   { key:'start',    label:'Start',
     val:function(e){ return e.task.startDate ? fmtTodoTableDate(e.task.startDate) : ''; },
     cell:function(e){ return '<td class="todo-table-start">' + (e.task.startDate ? fmtTodoTableDate(e.task.startDate) : todoEmptyCell()) + '</td>'; } },
@@ -151,7 +172,50 @@ var BOARD_COLS = [
   { key:'upstream', label:'UpStream Dept.',
     val:function(e){ return (Array.isArray(e.task.upstreamDepts) && e.task.upstreamDepts.length) ? e.task.upstreamDepts.join(', ') : (e.task.upstreamDept || ''); },
     cell:function(e){ var o = (Array.isArray(e.task.upstreamDepts) && e.task.upstreamDepts.length) ? e.task.upstreamDepts.join(', ') : (e.task.upstreamDept || ''); return '<td class="todo-table-org">' + (o ? escapeHtml(o) : todoEmptyCell()) + '</td>'; } },
+  { key:'priority', label:'Priority',
+    val:function(e){ return e.task.priority || ''; },
+    cell:function(e){ return '<td class="todo-table-priority">' + (e.task.priority ? escapeHtml(String(e.task.priority)) : todoEmptyCell()) + '</td>'; } },
+  { key:'linked',   label:'Linked Tasks',
+    val:function(e){ return todoLinkedTasksLabel(e.task); },
+    cell:function(e){ var l = todoLinkedTasksLabel(e.task); return '<td class="todo-table-linked">' + (l ? escapeHtml(l) : todoEmptyCell()) + '</td>'; } },
+  { key:'memo',     label:'Memo',
+    val:function(e){ return e.task.memo || ''; },
+    cell:function(e){ return '<td class="todo-table-memo">' + (e.task.memo ? escapeHtml(String(e.task.memo)) : todoEmptyCell()) + '</td>'; } },
 ];
+
+// ── 표시 컬럼 선택 (오른쪽 상단 필터 아이콘) ──
+var BD_FILTER_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
+var _boardColVis = null;
+var _boardColPickerOpen = false;
+function boardLoadColVis() {
+  if (_boardColVis) return _boardColVis;
+  try { var r = localStorage.getItem('boardColVis'); if (r) _boardColVis = JSON.parse(r); } catch (e) {}
+  if (!_boardColVis || typeof _boardColVis !== 'object') _boardColVis = {};
+  return _boardColVis;
+}
+function boardSaveColVis() { try { localStorage.setItem('boardColVis', JSON.stringify(_boardColVis)); } catch (e) {} }
+function boardColVisible(key) { return boardLoadColVis()[key] !== false; }   // 기본: 모두 표시
+function boardVisibleCols() { return BOARD_COLS.filter(function(c){ return boardColVisible(c.key); }); }
+function boardToggleColVis(key, ev) {
+  if (ev) ev.stopPropagation();
+  var v = boardLoadColVis();
+  v[key] = (v[key] === false) ? true : false;
+  if (!BOARD_COLS.some(function(c){ return v[c.key] !== false; })) v[key] = true;   // 최소 1개 유지
+  boardSaveColVis();
+  renderTodoView();
+}
+function boardToggleColPicker(ev) { if (ev) ev.stopPropagation(); _boardColPickerOpen = !_boardColPickerOpen; renderTodoView(); }
+function boardColPickerPanel() {
+  if (!_boardColPickerOpen) return '';
+  var items = BOARD_COLS.map(function(c){
+    var checked = boardColVisible(c.key) ? ' checked' : '';
+    return '<label class="todo-colpick-item"><input type="checkbox"' + checked
+      + ' onclick="event.stopPropagation();" onchange="boardToggleColVis(\'' + c.key + '\',event)">'
+      + '<span>' + c.label + '</span></label>';
+  }).join('');
+  return '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+    + '<div class="bd-colpick-title">표시 항목</div>' + items + '</div>';
+}
 
 // 행의 마감일 (To Do 행 = step 마감일 우선, 없으면 상위 Task 마감일)
 function boardEntryDue(e) {
@@ -247,8 +311,9 @@ function boardDistinctVals(key) {
 }
 
 function boardPassesFilters(e) {
-  for (var i = 0; i < BOARD_COLS.length; i++) {
-    var col = BOARD_COLS[i];
+  var cols = boardVisibleCols();
+  for (var i = 0; i < cols.length; i++) {
+    var col = cols[i];
     var ex = _boardFilters[col.key];
     if (!ex) continue;
     if (ex[boardFilterDisplayVal(col, e)]) return false;
@@ -296,7 +361,12 @@ function boardTh(col) {
 function renderTodoView() {
   var content = document.getElementById('page-content');
   if (!content) return;
-  content.innerHTML = '<div class="todo-view"><div id="todo-body">' + buildBoardTable() + '</div></div>';
+  content.innerHTML = '<div class="todo-view">'
+    + '<div class="bd-toolbar">'
+    + '<button class="bd-colpick-btn' + (_boardColPickerOpen ? ' on' : '') + '" id="bd-colpick-btn" title="표시 항목 선택" onclick="boardToggleColPicker(event)">' + BD_FILTER_ICON + '</button>'
+    + boardColPickerPanel()
+    + '</div>'
+    + '<div id="todo-body">' + buildBoardTable() + '</div></div>';
   boardAttachColResize();
 }
 
@@ -316,7 +386,7 @@ function buildBoardRow(e) {
   var isDone = (e.step ? e.step.completed : e.task.completed) ? 'is-done' : '';
   var isSel  = (typeof detailTaskId !== 'undefined' && detailTaskId === e.task.id) ? 'is-selected' : '';
   return '<tr class="todo-table-row ' + isDone + ' ' + isSel + '" onclick="openDetailPanel(' + e.task.id + ')">'
-    + BOARD_COLS.map(function(c){ return c.cell(e); }).join('')
+    + boardVisibleCols().map(function(c){ return c.cell(e); }).join('')
     + '</tr>';
 }
 
@@ -327,11 +397,12 @@ function buildBoardTable() {
   }
 
   var visible = entries.filter(boardPassesFilters);
-  var head = '<thead><tr>' + BOARD_COLS.map(boardTh).join('') + '</tr></thead>';
+  var vcols = boardVisibleCols();
+  var head = '<thead><tr>' + vcols.map(boardTh).join('') + '</tr></thead>';
 
   if (!visible.length) {
     return '<div class="todo-table-wrap"><table class="todo-table bd-table">' + head
-      + '<tbody><tr><td colspan="' + BOARD_COLS.length + '" style="text-align:center;padding:30px;color:var(--text-3);">표시할 항목이 없어요. 헤더를 클릭해 필터를 확인하세요.</td></tr></tbody>'
+      + '<tbody><tr><td colspan="' + vcols.length + '" style="text-align:center;padding:30px;color:var(--text-3);">표시할 항목이 없어요. 헤더를 클릭해 필터를 확인하세요.</td></tr></tbody>'
       + '</table></div>';
   }
 
@@ -353,15 +424,14 @@ function buildBoardTable() {
   // 완료 항목: 하단 "완료됨" 그룹 (기본 접힘)
   if (completed.length > 0) {
     var cs = _boardSort.key ? boardApplySort(completed) : completed;
-    body += buildTodoGroupRows('board-completed', '완료됨', 'var(--text-2)', cs, true, BOARD_COLS.length, buildBoardRow);
+    body += buildTodoGroupRows('board-completed', '완료됨', 'var(--text-2)', cs, true, boardVisibleCols().length, buildBoardRow);
   }
 
   return '<div class="todo-table-wrap">'
     + '<table class="todo-table bd-table">' + head
     + '<tbody>' + body + '</tbody>'
     + '</table>'
-    + '</div>'
-    + '<div class="todo-table-count">총 ' + visible.length + '개</div>';
+    + '</div>';
 }
 
 // 그룹 헤더 + 행 (rowFn으로 각 항목 렌더)
@@ -384,6 +454,16 @@ function toggleTodoSection(key) {
   _todoCollapsed[key] = !_todoCollapsed[key];
   refreshTodoBody();
 }
+
+// 컬럼 선택 패널 바깥 클릭 시 닫기
+document.addEventListener('click', function(e) {
+  if (!_boardColPickerOpen) return;
+  var btn = document.getElementById('bd-colpick-btn');
+  var pnl = document.querySelector('.bd-colpick-panel');
+  if ((btn && btn.contains(e.target)) || (pnl && pnl.contains(e.target))) return;
+  _boardColPickerOpen = false;
+  renderTodoView();
+});
 
 // 필터 패널 바깥 클릭 시 닫기
 document.addEventListener('click', function(e) {
