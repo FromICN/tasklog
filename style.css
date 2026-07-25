@@ -8595,6 +8595,9 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   border-bottom: none;
   vertical-align: middle;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* 이름(To Do/Task/Project) 열은 왼쪽 정렬 (.todo-table-row td 보다 우선하도록 명시도 ↑) */
 .todo-table thead th.todo-th-title { text-align: left; }
@@ -8658,6 +8661,22 @@ body.light-mode .bd-colpick-btn:hover, body.light-mode .bd-colpick-btn.on { colo
   gap: var(--space-05);
 }
 .bd-colpick-title { font-size: var(--fs-xs); color: var(--text-3); padding: var(--space-1) var(--space-2) var(--space-05); }
+.bd-colpick-search-wrap { padding: var(--space-05) var(--space-1) var(--space-15); border-bottom: 1px solid var(--border); margin-bottom: var(--space-05); }
+.bd-colpick-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  padding: var(--space-1) var(--space-2);
+  outline: none;
+}
+.bd-colpick-search:focus { border-color: var(--text-2); }
+/* 컬럼 헤더 드래그 재정렬 */
+.bd-th-label[draggable="true"] { cursor: grab; }
+.bd-th-label[draggable="true"]:active { cursor: grabbing; }
 
 /* To Do 탭: 날짜 그룹 + 컬럼 표 (다른 페이지와 동일한 카드 스타일) */
 .todo-list-table-wrap {

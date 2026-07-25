@@ -147,10 +147,10 @@ function todoLinkedTasksLabel(task) {
 var BOARD_COLS = [
   { key:'todo',     label:'To Do',
     val:function(e){ return e.step ? (e.step.text || '') : ''; },
-    cell:function(e){ return '<td class="todo-table-title bd-td-todo">' + (e.step ? escapeHtml(e.step.text) : todoEmptyCell()) + '</td>'; } },
+    cell:function(e){ return '<td class="todo-table-title bd-td-todo"' + (e.step ? ' title="' + escapeHtml(e.step.text) + '"' : '') + '>' + (e.step ? escapeHtml(e.step.text) : todoEmptyCell()) + '</td>'; } },
   { key:'task',     label:'Task',
     val:function(e){ return (e.task.text || '').replace(/^\[\d{6}\] /,''); },
-    cell:function(e){ return '<td class="todo-table-title bd-td-task">' + escapeHtml(e.task.text) + '</td>'; } },
+    cell:function(e){ return '<td class="todo-table-title bd-td-task" title="' + escapeHtml(e.task.text) + '">' + escapeHtml(e.task.text) + '</td>'; } },
   { key:'project',  label:'Project',
     val:function(e){ return todoProjectKey(e.task); },
     cell:function(e){ var em = todoProjectEmoji(e.task); return '<td class="todo-table-proj">' + (em ? em : todoEmptyCell()) + '</td>'; } },
@@ -184,7 +184,12 @@ var BOARD_COLS = [
 ];
 
 // ── 표시 컬럼 선택 (오른쪽 상단 필터 아이콘) ──
-var BD_FILTER_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>';
+var BD_FILTER_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<path d="M3 4 L13 4 L9 9 L9 13 L7 14.5 L7 9 Z"></path>'
+  + '<circle cx="15.5" cy="15.5" r="3.3"></circle>'
+  + '<line x1="18" y1="18" x2="21.5" y2="21.5"></line>'
+  + '<line x1="22" y1="2" x2="2" y2="22" stroke-width="1.3" opacity="0.55"></line>'
+  + '</svg>';
 var _boardColVis = null;
 var _boardColPickerOpen = false;
 function boardLoadColVis() {
@@ -195,7 +200,54 @@ function boardLoadColVis() {
 }
 function boardSaveColVis() { try { localStorage.setItem('boardColVis', JSON.stringify(_boardColVis)); } catch (e) {} }
 function boardColVisible(key) { return boardLoadColVis()[key] !== false; }   // 기본: 모두 표시
-function boardVisibleCols() { return BOARD_COLS.filter(function(c){ return boardColVisible(c.key); }); }
+// 컬럼 순서 (드래그 재정렬, localStorage 저장)
+function boardLoadColOrder() { try { var r = localStorage.getItem('boardColOrder'); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } catch (e) {} return []; }
+function boardOrderedCols() {
+  var order = boardLoadColOrder();
+  if (!order.length) return BOARD_COLS.slice();
+  var byKey = {}; BOARD_COLS.forEach(function(c){ byKey[c.key] = c; });
+  var out = [];
+  order.forEach(function(k){ if (byKey[k]) { out.push(byKey[k]); delete byKey[k]; } });
+  BOARD_COLS.forEach(function(c){ if (byKey[c.key]) out.push(c); });   // 순서에 없는 항목은 원래 순서로 뒤에
+  return out;
+}
+function boardVisibleCols() { return boardOrderedCols().filter(function(c){ return boardColVisible(c.key); }); }
+
+// 컬럼 헤더 드래그로 순서 변경
+var _bdColDrag = null;
+function boardColDragStart(key, ev) {
+  _bdColDrag = key;
+  if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', key); } catch(e){} }
+  if (ev.stopPropagation) ev.stopPropagation();
+}
+function boardColDragOver(ev) { ev.preventDefault(); if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; }
+function boardColDrop(toKey, ev) {
+  ev.preventDefault(); if (ev.stopPropagation) ev.stopPropagation();
+  var from = _bdColDrag; _bdColDrag = null;
+  if (!from || from === toKey) return;
+  var order = boardOrderedCols().map(function(c){ return c.key; });
+  var fi = order.indexOf(from); if (fi < 0) return;
+  order.splice(fi, 1);
+  var ti = order.indexOf(toKey); if (ti < 0) ti = order.length;
+  var th = document.getElementById('bd-th-' + toKey);
+  if (th) { var r = th.getBoundingClientRect(); if (ev.clientX > r.left + r.width / 2) ti += 1; }
+  order.splice(ti, 0, from);
+  try { localStorage.setItem('boardColOrder', JSON.stringify(order)); } catch (e) {}
+  renderTodoView();
+}
+
+// 전체 내용 검색
+var _boardSearch = '';
+function boardMatchesSearch(e) {
+  var q = (_boardSearch || '').trim().toLowerCase();
+  if (!q) return true;
+  for (var i = 0; i < BOARD_COLS.length; i++) {
+    var v = BOARD_COLS[i].val(e);
+    if (String(v == null ? '' : v).toLowerCase().indexOf(q) >= 0) return true;
+  }
+  return false;
+}
+function boardOnSearch(v) { _boardSearch = v; refreshTodoBody(); }
 function boardToggleColVis(key, ev) {
   if (ev) ev.stopPropagation();
   var v = boardLoadColVis();
@@ -214,6 +266,10 @@ function boardColPickerPanel() {
       + '<span>' + c.label + '</span></label>';
   }).join('');
   return '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+    + '<div class="bd-colpick-search-wrap">'
+    + '<input type="text" class="bd-colpick-search" id="bd-colpick-search" placeholder="🔍 전체 검색..." value="' + escapeHtml(_boardSearch || '') + '"'
+    + ' oninput="boardOnSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+    + '</div>'
     + '<div class="bd-colpick-title">표시 항목</div>' + items + '</div>';
 }
 
@@ -347,8 +403,10 @@ function boardTh(col) {
   var dnOn = (_boardSort.key === key && _boardSort.dir === 'desc');
   // 항목 텍스트(헤더 셀) 자체 클릭 → 필터 드롭박스 (정렬 버튼/패널 클릭은 제외)
   return '<th class="bd-th bd-th-' + key + '" id="bd-th-' + key + '" data-cr-key="' + key + '" style="position:sticky;top:0;"'
-    + ' title="클릭: 표시 항목 필터" onclick="boardToggleFilterPanel(\'' + key + '\',event)">'
-    + '<span class="bd-th-label' + (filterOn ? ' bd-filter-on' : '') + '">' + col.label + '</span>'
+    + ' ondragover="boardColDragOver(event)" ondrop="boardColDrop(\'' + key + '\',event)"'
+    + ' title="클릭: 표시 항목 필터 · 드래그: 순서 변경" onclick="boardToggleFilterPanel(\'' + key + '\',event)">'
+    + '<span class="bd-th-label' + (filterOn ? ' bd-filter-on' : '') + '" draggable="true"'
+    + ' ondragstart="boardColDragStart(\'' + key + '\',event)">' + col.label + '</span>'
     + '<span class="bd-sortbtns">'
     + '<button class="bd-sortbtn' + (upOn ? ' on' : '') + '" title="오름차순" onclick="boardSetSort(\'' + key + '\',\'asc\',event)">▲</button>'
     + '<button class="bd-sortbtn' + (dnOn ? ' on' : '') + '" title="내림차순" onclick="boardSetSort(\'' + key + '\',\'desc\',event)">▼</button>'
@@ -395,7 +453,7 @@ function buildBoardTable() {
     return '<div class="todo-empty">등록된 Task가 없어요 ✨</div>';
   }
 
-  var visible = entries.filter(boardPassesFilters);
+  var visible = entries.filter(boardPassesFilters).filter(boardMatchesSearch);
   var vcols = boardVisibleCols();
   var head = '<thead><tr>' + vcols.map(boardTh).join('') + '</tr></thead>';
 
