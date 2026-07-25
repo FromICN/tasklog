@@ -20,11 +20,17 @@
     <div id="page-content" style="flex:1;overflow-y:auto;"></div>
   </div>
   <script>
+    // 트래커 데모: 20·21·22주 작성됨으로 표시
+    var _demoJournal = {
+      '2026-W20': { savedAt:'2026-05-18T00:00:00Z', sections:{achievement:'x'} },
+      '2026-W21': { savedAt:'2026-05-25T00:00:00Z', sections:{plan:'y'} },
+      '2026-W22': { savedAt:'2026-06-01T00:00:00Z', sections:{issue:'z'} }
+    };
+    var _origGet = localStorage.getItem.bind(localStorage);
+    localStorage.getItem = function(k){ if(k==='my-tasklog-journal') return JSON.stringify(_demoJournal); return _origGet(k); };
     var tasks = [
       { id:1, text:'[260721] 실비보험 청구 완료 처리', completed:true, dueDateTime:'2026-07-21T09:00:00',
-        steps:[{id:11,text:'해람 서류 접수',completed:true},{id:12,text:'세브란스 제출',completed:true}] },
-      { id:2, text:'분기 리포트 초안', completed:false, dueDateTime:'2026-07-30T09:00:00',
-        steps:[{id:21,text:'데이터 취합',completed:false,dueDateTime:'2026-07-29T09:00:00'}] }
+        steps:[{id:11,text:'해람 서류 접수',completed:true}] }
     ];
   </script>
   <script src="journal.js"></script>

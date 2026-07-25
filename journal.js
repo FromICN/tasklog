@@ -121,14 +121,15 @@ function renderJournalView() {
     +       '<div class="jnl-cal-grid" id="jnl-cal-grid"></div>'
     +       '<div id="jnl-week-label" style="display:none;"></div>'
     +     '</div>'
+    +     jnlTrackerSection()
     +     jnlEvalSection()
     +   '</div>'
     +   '<div class="jnl-right">'
     +     '<div class="jnl-top-row">'
     +       jnlSection('achievement', 'Key Achievements', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
-          '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">이번 주 완료 실적 불러오기</button>', true)
+          '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">Load Data</button>', true)
     +       jnlSection('plan', 'Upcoming Tasks', '다음 주에 예정된 일을 기록하세요.',
-          '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">다음 주 예정 업무 불러오기</button>', true)
+          '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">Load Data</button>', true)
     +     '</div>'
     +   '</div>'
     + '</div>'
@@ -171,6 +172,7 @@ function jnlFillEntry(key) {
   var mon = jnlWeekMonday(key);
   _jnlCalMonth = new Date(mon.getFullYear(), mon.getMonth(), 1);
   jnlBuildCalendar();
+  jnlBuildTracker();
   _jnlEval = Object.assign({ goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 }, entry.evaluation || {});
   jnlRenderEvalState();
   jnlUpdateSavedAt(entry.savedAt);
@@ -445,6 +447,37 @@ function jnlNavYear(delta) {
   jnlBuildWeekNav();
 }
 
+// ── 주간 작성 트래커 (1년 52주) ───────────────
+function jnlTrackerSection() {
+  return '<div class="jnl-tracker">'
+    + '<div class="jnl-tracker-head">Weekly Tracker</div>'
+    + '<div class="jnl-tracker-grid" id="jnl-tracker-grid"></div>'
+    + '</div>';
+}
+function jnlEntryWritten(e) {
+  if (!e) return false;
+  if (e.savedAt) return true;
+  var s = e.sections || {};
+  return !!(s.achievement || s.plan || s.issue);
+}
+function jnlBuildTracker() {
+  var grid = document.getElementById('jnl-tracker-grid');
+  if (!grid) return;
+  var year = parseInt(_journalWeek.split('-W')[0], 10);
+  var thisWeek = getWeekKey();
+  var html = '';
+  for (var w = 1; w <= 52; w++) {
+    var key = year + '-W' + String(w).padStart(2, '0');
+    var written = jnlEntryWritten(journalData[key]);
+    var isSel = (key === _journalWeek);
+    var isFuture = (key > thisWeek);
+    var cls = 'jnl-tracker-btn' + (written ? ' done' : '') + (isSel ? ' sel' : '') + (isFuture ? ' future' : '');
+    html += '<button class="' + cls + '"' + (isFuture ? ' disabled' : ' onclick="jnlGoToWeek(\'' + key + '\')"')
+      + ' title="' + w + '주">' + (written ? '\u2713' : w) + '</button>';
+  }
+  grid.innerHTML = html;
+}
+
 // ── 캘린더(주 선택) ─────────────────────────
 var _jnlCalMonth = null;   // 표시 중인 달 (1일)
 
@@ -497,6 +530,7 @@ function jnlCalNav(delta) {
   if (!_jnlCalMonth) { var mon0 = jnlWeekMonday(_journalWeek); _jnlCalMonth = new Date(mon0.getFullYear(), mon0.getMonth(), 1); }
   _jnlCalMonth = new Date(_jnlCalMonth.getFullYear(), _jnlCalMonth.getMonth() + delta, 1);
   jnlBuildCalendar();
+  jnlBuildTracker();
 }
 
 // ── Weekly Review (별점) ─────────────────────
@@ -510,7 +544,7 @@ function jnlEvalSection() {
   }
   function block(k, q) {
     return '<div class="jnl-eval-block">'
-      + '<div class="jnl-eval-q">' + q + '</div>'
+      + '<span class="jnl-eval-q">' + q + '</span>'
       + starRow(k)
       + '</div>';
   }

@@ -347,7 +347,7 @@ function renderSubGoalCard(m, sg) {
     if (actIdx === null) {
       // 중앙 셀: Section 이름 + section별 최종목표 표시 (#2)
       var fg = (sg.smart && sg.smart.finalGoal) ? sg.smart.finalGoal : '';
-      return '<div class="mdt-inner-center" style="background:'+color+'28;border-bottom:2px solid '+color+'55;cursor:pointer;" data-prog="'+m.year+'-'+sg.id+'" onclick="event.stopPropagation();openSgDetail('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+' 관리 페이지 열기">'
+      return '<div class="mdt-inner-center" style="cursor:pointer;" data-prog="'+m.year+'-'+sg.id+'" onclick="event.stopPropagation();openSgDetail('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+' 관리 페이지 열기">'
         + '<div class="mdt-ic-name mdt-fit-text" data-fit-base="12" style="color:'+color+';font-weight:700;">'+escMdt(sg.text)+'</div>'
         + (fg ? '<div class="mdt-ic-final mdt-fit-text" data-fit-base="10">'+escMdt(fg)+'</div>' : '')
         + '</div>';
@@ -356,7 +356,7 @@ function renderSubGoalCard(m, sg) {
     if (!act) return '<div class="mdt-inner-cell"></div>';
     // #1: 동그라미/다이아 아이콘 제거, 텍스트만 표시. 완료 시 테마컬러 명도70% 배경.
     var doneCls = act.completed ? ' mdt-proj-done' : '';
-    var doneStyle = act.completed ? ('background:'+mdtLighten(color,70)+';border-color:'+mdtLighten(color,60)+';') : '';
+    var doneStyle = act.completed ? ('background:'+color+'33;') : '';
     return '<div class="mdt-inner-cell mdt-proj-cell'+doneCls+'" style="'+doneStyle+'" onclick="event.stopPropagation();selectMdtAction('+m.year+','+sg.id+','+act.id+')">'
       + '<span class="mdt-inner-text mdt-fit-text'+(act.text?'':' mdt-cell-empty')+(act.completed?' mdt-cell-done-text':'')+'" data-fit-base="12" data-year="'+m.year+'" data-sg="'+sg.id+'" data-act="'+act.id+'">'
       +   escMdt(act.text)
@@ -365,7 +365,6 @@ function renderSubGoalCard(m, sg) {
   }).join('');
 
   return '<div class="mdt-outer-card" id="mdt-card-'+m.year+'-'+sg.id+'"'
-    + ' style="border-color:'+color+'55;"'
     + ' onclick="onMdtCardClick(event,'+m.year+','+sg.id+')">'
     + '<div class="mdt-inner-grid">'+cells+'</div>'
     + '</div>';
@@ -384,7 +383,6 @@ function renderCoreCard(m) {
     var sg = m.subGoals[sgIdx];
     if (!sg) return '<div class="mdt-inner-cell"></div>';
     return '<div class="mdt-inner-cell mdt-core-sg-ref"'
-      + ' style="background:'+sg.color+'18;border-bottom:2px solid '+sg.color+'55;"'
       + ' onclick="event.stopPropagation();openSgDetail('+m.year+','+sg.id+')" title="'+escMdt(sg.text)+' 관리 페이지 열기">'
       + '<div class="mdt-ic-emoji" style="font-size:20px;">'+sg.emoji+'</div>'
       + '<div class="mdt-ic-name mdt-fit-text" data-fit-base="11" style="color:'+sg.color+';">'+escMdt(sg.text)+'</div>'

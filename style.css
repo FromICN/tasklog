@@ -3958,11 +3958,11 @@ body.light-mode .lw-cv-tag {
 }
 
 .mdt-core-outer {
-  border: 2px solid rgba(139,92,246,0.5) !important;
-  background: rgba(139,92,246,0.05) !important;
-  box-shadow: 0 0 0 3px rgba(139,92,246,0.07) !important;
+  border: 1px solid var(--border) !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
-.mdt-core-outer:hover { border-color: rgba(139,92,246,0.75) !important; }
+.mdt-core-outer:hover { box-shadow: 0 0 0 2px var(--brand-primary) !important; }
 
 .mdt-inner-grid {
   display: grid;
@@ -4032,8 +4032,8 @@ body.light-mode .lw-cv-tag {
 .mdt-inner-center:hover { filter: brightness(1.1); }
 
 .mdt-core-center {
-  background: rgba(139,92,246,0.2) !important;
-  border-color: rgba(139,92,246,0.3) !important;
+  background: transparent !important;
+  border-color: var(--border) !important;
 }
 
 .mdt-core-sg-ref {
@@ -4045,8 +4045,8 @@ body.light-mode .lw-cv-tag {
   cursor: pointer;
   padding: var(--space-15) var(--space-1);
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  background: transparent;
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .mdt-core-sg-ref:hover {
@@ -6117,6 +6117,8 @@ body.light-mode .year-select option { color: #1a1a1a; }
 }
 /* 우측 영역: 세로 스택 (성과·계획 나란히 → 회고 → 평가) */
 .jnl-left { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.jnl-left .jnl-sec-eval { flex: 1; }
+.jnl-cal-panel, .jnl-tracker { flex: 0 0 auto; }
 .jnl-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .jnl-top-row { display: flex; gap: var(--space-3); }
 .jnl-top-row .jnl-section { flex: 1; min-width: 0; }
@@ -6274,8 +6276,8 @@ body.light-mode .year-select option { color: #1a1a1a; }
 
 /* 한 주 업무 평가 */
 .jnl-sec-eval .jnl-eval { display: flex; flex-direction: column; gap: var(--space-3); }
-.jnl-eval-block { display: flex; flex-direction: column; gap: var(--space-15); }
-.jnl-eval-q { font-size: var(--fs-sm); font-weight: 700; color: var(--text-1); }
+.jnl-eval-block { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); }
+.jnl-eval-q { font-size: var(--fs-sm); font-weight: 400; color: var(--text-1); }
 .jnl-eval-scores { display: flex; flex-direction: column; gap: var(--space-1); }
 .jnl-eval-score { display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; padding: var(--space-1) var(--space-15); border-radius: var(--radius-sm); }
 .jnl-eval-score:hover { background: var(--sidebar-hover); }
@@ -6284,11 +6286,19 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .jnl-eval-desc { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.4; }
 .jnl-eval-check { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; font-size: var(--fs-sm); color: var(--text-1); padding: var(--space-05) var(--space-15); }
 .jnl-eval-check input { accent-color: var(--brand-primary); cursor: pointer; }
-.jnl-stars { display: flex; gap: 3px; font-size: 22px; line-height: 1; }
+.jnl-stars { display: flex; gap: 3px; font-size: 20px; line-height: 1; margin-left: auto; }
 .jnl-star { color: var(--text-3); cursor: pointer; user-select: none; transition: color var(--dur-fast), transform var(--dur-fast); }
 .jnl-star:hover { color: var(--warning); transform: scale(1.1); }
 .jnl-star.on { color: var(--warning); }
 .jnl-eval-guide { font-size: var(--fs-xs); color: var(--text-3); line-height: 1.4; }
+.jnl-tracker { background: var(--main-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-25) var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.jnl-tracker-head { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.jnl-tracker-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
+.jnl-tracker-btn { font-size: var(--fs-2xs); height: 19px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: transparent; color: var(--text-3); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: border-color var(--dur-fast), color var(--dur-fast); }
+.jnl-tracker-btn:hover { border-color: var(--text-2); color: var(--text-1); }
+.jnl-tracker-btn.done { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
+.jnl-tracker-btn.sel { outline: 1px solid var(--text-1); outline-offset: -1px; }
+.jnl-tracker-btn.future { opacity: 0.3; cursor: default; }
 
 /* =============================================
    ⚙️ 설정 버튼 & 패널
@@ -7858,8 +7868,7 @@ body.light-mode .nav-item:hover {
 }
 .mdt-outer-card:hover { box-shadow: 0 0 0 2px var(--brand-primary); }
 .mdt-core-outer {
-  border: 2px solid var(--brand-primary);
-  box-shadow: 0 0 0 1px rgba(var(--accent-rgb),0.2);
+  border: 1px solid var(--border);
 }
 
 /* 내부 3×3 그리드 */
@@ -8052,11 +8061,12 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-cedit-cancel-btn { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-2); font-size: var(--fs-base); padding: 7px var(--space-35); cursor: pointer; }
 
 /* ── 우측 실적관리 패널 ── */
-.mdt-perf-panel { flex: 1 1 auto; min-width: 380px; overflow-y: auto; padding-left: 0; }
+.mdt-perf-panel { flex: 1 1 auto; min-width: 380px; padding-left: 0; display: flex; flex-direction: column; overflow: hidden; }
+.mdt-perf-dash { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .mdt-perf-dash-title { font-size: var(--fs-sm); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-25); }
 .mdt-perf-dash-list { display: flex; flex-direction: column; gap: var(--space-2); }
-.mdt-perf-dash-card { background: var(--surface); border: none; border-radius: var(--radius-md); padding: var(--space-25) var(--space-3); cursor: pointer; transition: box-shadow var(--dur-fast); }
-.mdt-perf-summary-box { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--main-bg); padding: var(--space-3); }
+.mdt-perf-dash-card { background: rgba(127,127,127,0.06); border: none; border-radius: var(--radius-md); padding: var(--space-25) var(--space-3); cursor: pointer; transition: box-shadow var(--dur-fast); }
+.mdt-perf-summary-box { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--main-bg); padding: var(--space-3); flex: 1; min-height: 0; overflow-y: auto; }
 .mdt-perf-dash-card:hover { box-shadow: var(--shadow-sm); }
 .mdt-perf-dash-head { display: flex; align-items: center; gap: var(--space-15); margin-bottom: var(--space-15); }
 .mdt-perf-dash-emoji { font-size: var(--fs-xl); }
@@ -9155,7 +9165,7 @@ body.light-mode .pm-btn-save { background: #f0f0f0; }
 
 /* #3: 전체실적 상단 연간 목표 입력 */
 .mdt-perf-annual {
-  background: var(--surface);
+  background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--space-25) var(--space-3);
