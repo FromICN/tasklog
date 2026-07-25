@@ -111,14 +111,17 @@ function renderJournalView() {
   content.innerHTML =
     '<div class="jnl-page">'
     + '<div class="jnl-body">'
-    +   '<div class="jnl-cal-panel">'
-    +     '<div class="jnl-cal-head">'
-    +       '<button class="jnl-cal-navbtn" onclick="jnlCalNav(-1)">\u2039</button>'
-    +       '<div class="jnl-cal-title" id="jnl-cal-title"></div>'
-    +       '<button class="jnl-cal-navbtn" onclick="jnlCalNav(1)">\u203a</button>'
+    +   '<div class="jnl-left">'
+    +     '<div class="jnl-cal-panel">'
+    +       '<div class="jnl-cal-head">'
+    +         '<button class="jnl-cal-navbtn" onclick="jnlCalNav(-1)">\u2039</button>'
+    +         '<div class="jnl-cal-title" id="jnl-cal-title"></div>'
+    +         '<button class="jnl-cal-navbtn" onclick="jnlCalNav(1)">\u203a</button>'
+    +       '</div>'
+    +       '<div class="jnl-cal-grid" id="jnl-cal-grid"></div>'
+    +       '<div id="jnl-week-label" style="display:none;"></div>'
     +     '</div>'
-    +     '<div class="jnl-cal-grid" id="jnl-cal-grid"></div>'
-    +     '<div class="jnl-cal-weeklabel" id="jnl-week-label"></div>'
+    +     jnlEvalSection()
     +   '</div>'
     +   '<div class="jnl-right">'
     +     '<div class="jnl-top-row">'
@@ -128,7 +131,6 @@ function renderJournalView() {
           '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">다음 주 예정 업무 불러오기</button>', true)
     +     '</div>'
     +     jnlSection('issue', '회고', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
-    +     jnlEvalSection()
     +   '</div>'
     + '</div>'
     + '<div class="jnl-footer" id="jnl-saved-at"></div>'

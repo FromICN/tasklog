@@ -539,7 +539,7 @@ body {
   flex-shrink: 0;
   position: sticky;
   top: -26px;
-  z-index: var(--z-sticky);
+  z-index: var(--z-dropdown);
   min-height: 60px;
   box-sizing: border-box;
 }
@@ -6104,6 +6104,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
   color: var(--text-3);
 }
 /* 우측 영역: 세로 스택 (성과·계획 나란히 → 회고 → 평가) */
+.jnl-left { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .jnl-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
 .jnl-top-row { display: flex; gap: var(--space-3); }
 .jnl-top-row .jnl-section { flex: 1; min-width: 0; }
@@ -6219,7 +6220,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
 
 /* 좌측 캘린더(주 선택) */
 .jnl-cal-panel {
-  width: 300px; flex-shrink: 0;
+  width: 100%;
   background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -6253,7 +6254,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .jnl-cal-weeklabel { font-size: var(--fs-sm); color: var(--text-2); text-align: center; padding-top: var(--space-1); font-weight: 600; }
 
 /* Req8: 주요 성과 / 다음 주 계획 세로 길이 고정 + 스크롤 */
-.jnl-top-row .jnl-rta { height: 200px; flex: 0 0 auto; overflow-y: auto; }
+.jnl-top-row .jnl-rta { height: 360px; flex: 0 0 auto; overflow-y: auto; }
 .jnl-sec-issue .jnl-ta { height: 130px; flex: 0 0 auto; }
 
 /* 한 주 업무 평가 */
