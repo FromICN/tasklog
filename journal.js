@@ -92,7 +92,7 @@ function getJournalEntry(key) {
         plan: ''          // 다음 주 계획
       },
       memo: '',           // 기타 메모
-      evaluation: { goal: 0, priority: 0, collab: 0 },
+      evaluation: { goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 },
       savedAt: null
     };
   }
@@ -125,14 +125,14 @@ function renderJournalView() {
     +   '</div>'
     +   '<div class="jnl-right">'
     +     '<div class="jnl-top-row">'
-    +       jnlSection('achievement', '주요 성과', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
+    +       jnlSection('achievement', 'Key Achievements', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
           '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">이번 주 완료 실적 불러오기</button>', true)
-    +       jnlSection('plan', '다음 주 계획', '다음 주에 예정된 일을 기록하세요.',
+    +       jnlSection('plan', 'Upcoming Tasks', '다음 주에 예정된 일을 기록하세요.',
           '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">다음 주 예정 업무 불러오기</button>', true)
     +     '</div>'
     +   '</div>'
     + '</div>'
-    + jnlSection('issue', '회고', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
+    + jnlSection('issue', 'Retrospective', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
     + '<div class="jnl-footer" id="jnl-saved-at"></div>'
     + '</div>';
 
@@ -171,7 +171,7 @@ function jnlFillEntry(key) {
   var mon = jnlWeekMonday(key);
   _jnlCalMonth = new Date(mon.getFullYear(), mon.getMonth(), 1);
   jnlBuildCalendar();
-  _jnlEval = Object.assign({ goal: 0, priority: 0, collab: 0 }, entry.evaluation || {});
+  _jnlEval = Object.assign({ goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 }, entry.evaluation || {});
   jnlRenderEvalState();
   jnlUpdateSavedAt(entry.savedAt);
   jnlClearDirty();
@@ -499,8 +499,8 @@ function jnlCalNav(delta) {
   jnlBuildCalendar();
 }
 
-// ── 한 주 업무 평가 (별점) ───────────────────
-var _jnlEval = { goal: 0, priority: 0, collab: 0 };
+// ── Weekly Review (별점) ─────────────────────
+var _jnlEval = { goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 };
 
 function jnlEvalSection() {
   function starRow(k) {
@@ -508,19 +508,20 @@ function jnlEvalSection() {
     for (var i = 1; i <= 5; i++) s += '<span class="jnl-star" onclick="jnlEvalStar(\'' + k + '\',' + i + ')">\u2605</span>';
     return s + '</div>';
   }
-  function block(k, q, guide) {
+  function block(k, q) {
     return '<div class="jnl-eval-block">'
       + '<div class="jnl-eval-q">' + q + '</div>'
       + starRow(k)
-      + '<div class="jnl-eval-guide">' + guide + '</div>'
       + '</div>';
   }
   return '<div class="jnl-section jnl-sec-eval">'
-    + '<div class="jnl-section-head"><div class="jnl-section-title">한 주 업무 평가</div></div>'
+    + '<div class="jnl-section-head"><div class="jnl-section-title">Weekly Review</div></div>'
     + '<div class="jnl-eval">'
-    + block('goal', '목표 달성률 (Plan vs. Actual)', '5\u2605 계획된 핵심 과제 100% 이상 완수 · 3\u2605 80~90% 완수(일반적) · 1\u2605 50% 미만·사유 공유 미흡')
-    + block('priority', '업무의 우선순위 설정 및 시간 관리', '중요한 과제(High-impact)에 집중했는가 · 기한(Deadline)을 준수했는가')
-    + block('collab', '문제 해결 및 협업 능력', '장애 요인을 사전에 공유하고 해결책을 모색했는가 · 팀원/타 부서와의 소통이 원활했는가')
+    + block('goal', 'Goal Achievement Rate')
+    + block('prioritization', 'Prioritization')
+    + block('timeManagement', 'Time Management')
+    + block('problemSolving', 'Problem-Solving')
+    + block('collaboration', 'Collaboration')
     + '</div>'
     + '</div>';
 }
@@ -533,7 +534,7 @@ function jnlPaintStars(k) {
     if ((i + 1) <= _jnlEval[k]) stars[i].classList.add('on'); else stars[i].classList.remove('on');
   }
 }
-function jnlRenderEvalState() { ['goal', 'priority', 'collab'].forEach(jnlPaintStars); }
+function jnlRenderEvalState() { ['goal', 'prioritization', 'timeManagement', 'problemSolving', 'collaboration'].forEach(jnlPaintStars); }
 
 // ── 토스트 ─────────────────────────────────
 

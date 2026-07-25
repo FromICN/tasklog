@@ -271,7 +271,7 @@ function renderMdtView() {
         return '<option value="'+y+'"'+(y===currentMdtYear?' selected':'')+'>'+y+'년</option>';
       }).join('');
     opts += '<option value="__new__">+ 새 연도 추가</option>';
-    opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
+    opts += '<option value="__delete__">현재 연도 삭제</option>';
     yearSelHtml = '<select class="year-select" onchange="handleMdtYearSelect(this.value)">'+opts+'</select>';
   }
   var yearSlot = document.getElementById('topbar-mdt-year-slot');
@@ -526,15 +526,17 @@ function buildMdtPerfDashboard(m) {
 
   // #3: 전체실적 창 최상단 연간 목표 입력 (만다라트 중앙에 표시)
   var annualHtml = '<div class="mdt-perf-annual">'
-    + '<label class="mdt-perf-annual-label">🎯 ' + m.year + ' 연간 목표</label>'
+    + '<label class="mdt-perf-annual-label">' + m.year + ' 연간 목표</label>'
     + '<input class="mdt-perf-annual-inp" type="text" value="' + escMdt(m.coreGoal.text || '') + '"'
     + ' placeholder="올해의 핵심 목표를 입력하세요..." onchange="saveMdtAnnualGoal(' + m.year + ',this.value)">'
     + '</div>';
 
   return '<div class="mdt-perf-dash">'
     + annualHtml
-    + '<div class="mdt-perf-dash-title">📊 전체 실적 요약</div>'
-    + '<div class="mdt-perf-dash-list">' + cardsHtml + '</div>'
+    + '<div class="mdt-perf-summary-box">'
+    +   '<div class="mdt-perf-dash-title">전체 실적 요약</div>'
+    +   '<div class="mdt-perf-dash-list">' + cardsHtml + '</div>'
+    + '</div>'
     + '</div>';
 }
 

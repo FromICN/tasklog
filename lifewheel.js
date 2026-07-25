@@ -16,9 +16,9 @@ const LW_SECTION_DEFAULTS = [
 ];
 
 const LW_STATUS = {
-  strength: { label:'✅ 강점',     color:'var(--success)' },
-  maintain: { label:'🔥 유지/고민', color:'var(--warning)' },
-  concern:  { label:'⚠️ 개선 필요', color:'var(--danger)' }
+  strength: { label:'강점',     color:'var(--success)' },
+  maintain: { label:'유지/고민', color:'var(--warning)' },
+  concern:  { label:'개선 필요', color:'var(--danger)' }
 };
 
 // ────────────────────────────────────────────
@@ -315,7 +315,7 @@ function renderLwYearSlot() {
     return '<option value="' + yr + '"' + (yr === lwCurrentYear ? ' selected' : '') + '>' + yr + '년</option>';
   }).join('');
   opts += '<option value="__new__">+ 새 연도 추가</option>';
-  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
+  opts += '<option value="__delete__">현재 연도 삭제</option>';
   slot.innerHTML = '<select class="year-select" onchange="handleLwYearSelect(this.value)">' + opts + '</select>';
 }
 
@@ -579,9 +579,9 @@ function buildLwWheelTab() {
       + '<td class="lw-section"' + (secColor ? ' style="border-left:3px solid ' + secColor + ';"' : '') + '>'
       + '<span class="tl-drag-handle" draggable="true" title="드래그해 순서 변경" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="lwSecDragStart(event,' + i + ')" ondragend="tlDragEnd(event)">⠿</span>'
       + '<span style="font-size:16px;margin-right:6px;">' + (sec.emoji || '⭐') + '</span><span' + (secColor ? ' style="color:' + secColor + ';font-weight:600;"' : '') + '>' + hwEsc(sec.name || '') + '</span></td>'
-      + '<td class="lw-score-cell"><div class="lw-score-wrap" onclick="event.stopPropagation();"><div class="lw-score-bar">' + scoreBar + '</div><span class="lw-score-num" style="font-size:11px;min-width:24px;">' + (sec.score || 5) + '/10</span></div></td>'
-      + '<td style="white-space:nowrap;"><span style="font-size:12px;font-weight:600;color:' + statusInfo.color + ';">' + statusInfo.label + '</span></td>'
-      + '<td class="lw-info" style="font-size:12px;color:var(--text-2);">' + hwEsc(infoText) + '</td>'
+      + '<td class="lw-score-cell"><div class="lw-score-wrap" onclick="event.stopPropagation();"><div class="lw-score-bar">' + scoreBar + '</div><span class="lw-score-num" style="font-size:var(--fs-base);min-width:24px;">' + (sec.score || 5) + '/10</span></div></td>'
+      + '<td style="white-space:nowrap;"><span style="font-size:var(--fs-base);font-weight:600;color:var(--text-1);">' + statusInfo.label + '</span></td>'
+      + '<td class="lw-info" style="font-size:var(--fs-base);color:var(--text-2);">' + hwEsc(infoText) + '</td>'
       + '<td class="lw-ideal"><div class="lw-ideal-text">' + hwEsc(idealText) + '</div></td>'
       + '<td class="lw-ideal"><div class="lw-ideal-text">' + hwEsc(goalText) + '</div></td>'
       + '<td class="lw-cv-cell">' + cvCell + '</td>'
@@ -787,7 +787,7 @@ function lwOpenSectionModal(idx) {
   var html = '<div class="lw-modal-overlay" id="lw-modal-overlay" onclick="lwModalOverlayClick(event)">'
     + '<div class="lw-modal smart-modal">'
     + '<div class="lw-modal-header">'
-    + '<span>' + (sec.emoji || '⭐') + ' ' + hwEsc(sec.name || '') + ' 편집</span>'
+    + '<span>' + hwEsc(sec.name || '') + ' 편집</span>'
     + '<button class="lw-modal-close" onclick="lwCloseSectionModal()">✕</button>'
     + '</div>'
     + '<div class="smart-fields-wrap">'
@@ -814,20 +814,20 @@ function lwOpenSectionModal(idx) {
     + '</div>'
     + '</div></div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">🚦</span><span class="smart-label">Status</span></div>'
+    + '<div class="smart-field-header"><span class="smart-label">Status</span></div>'
     + '<div style="display:flex;gap:16px;flex-wrap:wrap;">' + statusOpts + '</div>'
     + '</div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">📝</span><span class="smart-label">Info</span></div>'
+    + '<div class="smart-field-header"><span class="smart-label">Info</span></div>'
     + '<textarea class="smart-textarea" id="lw-info">' + hwEsc(sec.info || '') + '</textarea>'
     + '</div>'
     + smartHtml
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">🏁</span><span class="smart-label">Goal</span></div>'
+    + '<div class="smart-field-header"><span class="smart-label">Goal</span></div>'
     + '<textarea class="smart-textarea" id="lw-smart-finalGoal">' + hwEsc(sec.smart.finalGoal || '') + '</textarea>'
     + '</div>'
     + '<div class="smart-field">'
-    + '<div class="smart-field-header"><span class="smart-icon">✨</span><span class="smart-label">Ideal</span></div>'
+    + '<div class="smart-field-header"><span class="smart-label">Ideal</span></div>'
     + '<textarea class="smart-textarea" id="lw-ideal">' + hwEsc(sec.ideal || '') + '</textarea>'
     + '</div>'
     + '<div class="smart-final-field" id="lw-modal-cv-block">' + lwBuildModalCvBlock(idx) + '</div>'

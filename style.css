@@ -3365,7 +3365,7 @@ mark.search-hl {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  background: var(--surface);
+  background: var(--main-bg);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   padding: var(--space-1);
@@ -3546,7 +3546,7 @@ body.light-mode .lw-cv-tag {
 
 .lw-score-num {
   font-weight: 700;
-  color: var(--info);
+  color: var(--text-1);
   font-size: var(--fs-md);
   min-width: 16px;
 }
@@ -5874,7 +5874,7 @@ body.light-mode .lw-sv-popup { background: #fff; }
 .year-select {
   background: rgba(255,255,255,0.08);
   color: var(--text-1);
-  border: 1px solid rgba(255,255,255,0.15);
+  border: none;
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-25);
   font-size: var(--fs-base);
@@ -6024,7 +6024,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
 /* 바디 — 좌측 주간업무 목록 + 우측 2×2 영역 */
 .jnl-body {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--space-3);
   flex: 1;
   min-height: 0;
@@ -6266,7 +6266,10 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .jnl-cal-weeklabel { font-size: var(--fs-sm); color: var(--text-2); text-align: center; padding-top: var(--space-1); font-weight: 600; }
 
 /* Req8: 주요 성과 / 다음 주 계획 세로 길이 고정 + 스크롤 */
-.jnl-top-row .jnl-rta { height: 480px; flex: 0 0 auto; overflow-y: auto; }
+/* 성과/계획: 우측 컬럼 높이를 채워 중앙 여백 제거 */
+.jnl-top-row { flex: 1; align-items: stretch; }
+.jnl-top-row .jnl-section { min-height: 0; }
+.jnl-top-row .jnl-rta { flex: 1; min-height: 220px; overflow-y: auto; }
 .jnl-sec-issue .jnl-ta { height: 130px; flex: 0 0 auto; }
 
 /* 한 주 업무 평가 */
@@ -7842,7 +7845,7 @@ body.light-mode .nav-item:hover {
 
 /* 3×3 외부 카드 */
 .mdt-outer-card {
-  background: var(--surface);
+  background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -8052,7 +8055,8 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-perf-panel { flex: 1 1 auto; min-width: 380px; overflow-y: auto; padding-left: 0; }
 .mdt-perf-dash-title { font-size: var(--fs-sm); font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-25); }
 .mdt-perf-dash-list { display: flex; flex-direction: column; gap: var(--space-2); }
-.mdt-perf-dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-25) var(--space-3); cursor: pointer; transition: box-shadow var(--dur-fast); }
+.mdt-perf-dash-card { background: var(--surface); border: none; border-radius: var(--radius-md); padding: var(--space-25) var(--space-3); cursor: pointer; transition: box-shadow var(--dur-fast); }
+.mdt-perf-summary-box { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--main-bg); padding: var(--space-3); }
 .mdt-perf-dash-card:hover { box-shadow: var(--shadow-sm); }
 .mdt-perf-dash-head { display: flex; align-items: center; gap: var(--space-15); margin-bottom: var(--space-15); }
 .mdt-perf-dash-emoji { font-size: var(--fs-xl); }
