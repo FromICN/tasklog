@@ -6011,9 +6011,8 @@ body.light-mode .year-select option { color: #1a1a1a; }
 
 /* 바디 — 좌측 주간업무 목록 + 우측 2×2 영역 */
 .jnl-body {
-  display: grid;
-  grid-template-columns: 300px 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-3);
   flex: 1;
   min-height: 0;
@@ -6104,14 +6103,14 @@ body.light-mode .year-select option { color: #1a1a1a; }
   font-size: var(--fs-xs);
   color: var(--text-3);
 }
-/* 우측 영역 배치: 성과·계획은 상단, 회고는 하단 전체 폭 */
-.jnl-sec-achievement { grid-column: 2; grid-row: 1; }
-.jnl-sec-plan        { grid-column: 3; grid-row: 1; }
-.jnl-sec-issue       { grid-column: 2 / -1; grid-row: 2; }
+/* 우측 영역: 세로 스택 (성과·계획 나란히 → 회고 → 평가) */
+.jnl-right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.jnl-top-row { display: flex; gap: var(--space-3); }
+.jnl-top-row .jnl-section { flex: 1; min-width: 0; }
 
 /* 섹션 카드 */
 .jnl-section {
-  background: var(--surface);
+  background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: var(--space-35) var(--space-4);
@@ -6133,7 +6132,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .jnl-pull-btn {
   flex-shrink: 0;
   background: rgba(var(--accent-rgb),0.12);
-  border: 1px solid rgba(var(--accent-rgb),0.3);
+  border: none;
   border-radius: var(--radius-sm);
   color: var(--brand-primary);
   font-size: var(--fs-xs);
@@ -6154,7 +6153,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
   min-height: 0;
   resize: none;
   background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-1);
   font-size: var(--fs-base);
@@ -6165,7 +6164,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
   box-sizing: border-box;
   width: 100%;
 }
-.jnl-ta:focus { outline: none; border-color: var(--brand-primary); }
+.jnl-ta:focus { outline: none; border-color: var(--text-2); }
 
 /* 배지가 표시되는 편집 영역 (주요 성과 / 다음 주 계획) */
 .jnl-rta {
@@ -6173,7 +6172,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
   min-height: 0;
   overflow-y: auto;
   background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
+  border: 0.5px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-1);
   font-size: var(--fs-base);
@@ -6184,7 +6183,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
   box-sizing: border-box;
   width: 100%;
 }
-.jnl-rta:focus { outline: none; border-color: var(--brand-primary); }
+.jnl-rta:focus { outline: none; border-color: var(--text-2); }
 .jnl-rta:empty:before {
   content: attr(data-ph);
   color: var(--text-3);
@@ -6206,16 +6205,8 @@ body.light-mode .year-select option { color: #1a1a1a; }
   user-select: none;
   white-space: nowrap;
 }
-.jnl-badge-task {
-  color: var(--brand-primary);
-  background: rgba(var(--accent-rgb),0.12);
-  border: 1px solid rgba(var(--accent-rgb),0.45);
-}
-.jnl-badge-todo {
-  color: var(--success);
-  background: rgba(46,160,67,0.12);
-  border: 1px solid rgba(46,160,67,0.45);
-}
+.jnl-badge-task { color: #fff; background: var(--brand-primary); border: none; }
+.jnl-badge-todo { color: var(--text-2); background: rgba(127,127,127,0.20); border: none; }
 
 /* 푸터 */
 .jnl-footer {
@@ -6225,6 +6216,58 @@ body.light-mode .year-select option { color: #1a1a1a; }
   flex-shrink: 0;
   padding-bottom: var(--space-1);
 }
+
+/* 좌측 캘린더(주 선택) */
+.jnl-cal-panel {
+  width: 300px; flex-shrink: 0;
+  background: var(--main-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-25);
+  display: flex; flex-direction: column; gap: var(--space-2);
+  box-sizing: border-box;
+}
+.jnl-cal-head { display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-1); }
+.jnl-cal-title { font-size: var(--fs-md); font-weight: 700; color: var(--text-1); }
+.jnl-cal-navbtn {
+  background: transparent; border: none; color: var(--text-2);
+  font-size: var(--fs-xl); width: 26px; height: 26px; line-height: 1;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  border-radius: var(--radius-sm); transition: background var(--dur-fast), color var(--dur-fast);
+}
+.jnl-cal-navbtn:hover { background: var(--sidebar-hover); color: var(--text-1); }
+.jnl-cal-grid { display: flex; flex-direction: column; gap: 2px; }
+.jnl-cal-dow-row, .jnl-cal-week { display: grid; grid-template-columns: repeat(7, 1fr); }
+.jnl-cal-dow { text-align: center; font-size: var(--fs-2xs); color: var(--text-3); font-weight: 600; padding: 2px 0; }
+.jnl-cal-dow.sun, .jnl-cal-cell.sun { color: var(--danger); }
+.jnl-cal-dow.sat, .jnl-cal-cell.sat { color: var(--info); }
+.jnl-cal-week { border-radius: var(--radius-sm); cursor: pointer; transition: background var(--dur-fast); }
+.jnl-cal-week:hover { background: var(--sidebar-hover); }
+.jnl-cal-week.sel { background: rgba(127,127,127,0.16); }
+.jnl-cal-week.future { opacity: 0.35; cursor: default; }
+.jnl-cal-week.future:hover { background: transparent; }
+.jnl-cal-cell { text-align: center; font-size: var(--fs-xs); color: var(--text-1); padding: 5px 0; border-radius: var(--radius-xs); }
+.jnl-cal-cell.out { color: var(--text-3); }
+.jnl-cal-cell.today { outline: 1px solid var(--text-2); outline-offset: -1px; }
+.jnl-cal-week.sel .jnl-cal-cell { font-weight: 600; }
+.jnl-cal-weeklabel { font-size: var(--fs-sm); color: var(--text-2); text-align: center; padding-top: var(--space-1); font-weight: 600; }
+
+/* Req8: 주요 성과 / 다음 주 계획 세로 길이 고정 + 스크롤 */
+.jnl-top-row .jnl-rta { height: 200px; flex: 0 0 auto; overflow-y: auto; }
+.jnl-sec-issue .jnl-ta { height: 130px; flex: 0 0 auto; }
+
+/* 한 주 업무 평가 */
+.jnl-sec-eval .jnl-eval { display: flex; flex-direction: column; gap: var(--space-3); }
+.jnl-eval-block { display: flex; flex-direction: column; gap: var(--space-15); }
+.jnl-eval-q { font-size: var(--fs-sm); font-weight: 700; color: var(--text-1); }
+.jnl-eval-scores { display: flex; flex-direction: column; gap: var(--space-1); }
+.jnl-eval-score { display: flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; padding: var(--space-1) var(--space-15); border-radius: var(--radius-sm); }
+.jnl-eval-score:hover { background: var(--sidebar-hover); }
+.jnl-eval-score input { margin-top: 3px; accent-color: var(--brand-primary); cursor: pointer; flex-shrink: 0; }
+.jnl-eval-pt { font-size: var(--fs-sm); font-weight: 700; color: var(--text-1); flex-shrink: 0; min-width: 30px; }
+.jnl-eval-desc { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.4; }
+.jnl-eval-check { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; font-size: var(--fs-sm); color: var(--text-1); padding: var(--space-05) var(--space-15); }
+.jnl-eval-check input { accent-color: var(--brand-primary); cursor: pointer; }
 
 /* =============================================
    ⚙️ 설정 버튼 & 패널

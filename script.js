@@ -2719,6 +2719,8 @@ function navToMenu(id) {
   if (mdtYearSlot) mdtYearSlot.innerHTML = '';
   var boardSlot0 = document.getElementById('topbar-board-slot');
   if (boardSlot0) boardSlot0.innerHTML = '';
+  var jnlSlot0 = document.getElementById('topbar-journal-slot');
+  if (jnlSlot0) jnlSlot0.innerHTML = '';
 
   // 5) 본문 렌더
   var fnName = MENU_RENDERERS[id];

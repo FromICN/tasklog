@@ -92,6 +92,7 @@ function getJournalEntry(key) {
         plan: ''          // 다음 주 계획
       },
       memo: '',           // 기타 메모
+      evaluation: { goal: null, highImpact: false, deadline: false, proactive: false, communication: false },
       savedAt: null
     };
   }
@@ -107,44 +108,34 @@ function renderJournalView() {
   var content = document.getElementById('page-content');
   if (!content) return;
 
-  var thisWeek = getWeekKey();
-  var isCurrentWeek = (_journalWeek === thisWeek);
-
   content.innerHTML =
     '<div class="jnl-page">'
-    + '<div class="jnl-header">'
-    +   '<div class="jnl-week-nav">'
-    +     '<button class="jnl-nav-btn" onclick="jnlPrevWeek()">‹</button>'
-    +     '<div class="jnl-week-label" id="jnl-week-label"></div>'
-    +     '<button class="jnl-nav-btn" onclick="jnlNextWeek()">›</button>'
-    +   '</div>'
-    +   '<div class="jnl-header-right">'
-    +     '<button class="jnl-save-btn" id="jnl-save-btn" onclick="jnlSave()">저장</button>'
-    +     '<button class="jnl-today-btn" onclick="jnlGoThisWeek()">이번주</button>'
-    +   '</div>'
-    + '</div>'
-
     + '<div class="jnl-body">'
-
-    + '<div class="jnl-tasklist">'
-    +   '<div class="jnl-wknav-head">'
-    +     '<button class="jnl-wknav-ybtn" onclick="jnlNavYear(-1)">‹</button>'
-    +     '<div class="jnl-wknav-year" id="jnl-wknav-year"></div>'
-    +     '<button class="jnl-wknav-ybtn" onclick="jnlNavYear(1)">›</button>'
+    +   '<div class="jnl-cal-panel">'
+    +     '<div class="jnl-cal-head">'
+    +       '<button class="jnl-cal-navbtn" onclick="jnlCalNav(-1)">\u2039</button>'
+    +       '<div class="jnl-cal-title" id="jnl-cal-title"></div>'
+    +       '<button class="jnl-cal-navbtn" onclick="jnlCalNav(1)">\u203a</button>'
+    +     '</div>'
+    +     '<div class="jnl-cal-grid" id="jnl-cal-grid"></div>'
+    +     '<div class="jnl-cal-weeklabel" id="jnl-week-label"></div>'
     +   '</div>'
-    +   '<div class="jnl-wknav-body" id="jnl-wknav-body"></div>'
+    +   '<div class="jnl-right">'
+    +     '<div class="jnl-top-row">'
+    +       jnlSection('achievement', '주요 성과', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
+          '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">이번 주 완료 실적 불러오기</button>', true)
+    +       jnlSection('plan', '다음 주 계획', '다음 주에 예정된 일을 기록하세요.',
+          '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">다음 주 예정 업무 불러오기</button>', true)
+    +     '</div>'
+    +     jnlSection('issue', '회고', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
+    +     jnlEvalSection()
+    +   '</div>'
     + '</div>'
-
-    + jnlSection('achievement', '🏆 주요 성과', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
-        '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">⬇ 이번 주 완료 실적 불러오기</button>', true)
-    + jnlSection('plan',        '📋 다음 주 계획', '다음 주에 예정된 일을 기록하세요.',
-        '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">⬇ 다음 주 예정 업무 불러오기</button>', true)
-    + jnlSection('issue',       '🔄 회고', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
-
-    + '</div>' // jnl-body
-
     + '<div class="jnl-footer" id="jnl-saved-at"></div>'
-    + '</div>'; // jnl-page
+    + '</div>';
+
+  var slot = document.getElementById('topbar-journal-slot');
+  if (slot) slot.innerHTML = '<button class="jnl-save-btn" id="jnl-save-btn" onclick="jnlSave()">저장</button>';
 
   jnlFillEntry(_journalWeek);
 }
@@ -175,8 +166,11 @@ function jnlFillEntry(key) {
     else el.innerHTML = jnlNormalizeRich(val);
   });
 
-  _jnlNavYear = parseInt(key.split('-W')[0]);
-  jnlBuildWeekNav();
+  var mon = jnlWeekMonday(key);
+  _jnlCalMonth = new Date(mon.getFullYear(), mon.getMonth(), 1);
+  jnlBuildCalendar();
+  _jnlEval = Object.assign({ goal: null, highImpact: false, deadline: false, proactive: false, communication: false }, entry.evaluation || {});
+  jnlRenderEvalState();
   jnlUpdateSavedAt(entry.savedAt);
   jnlClearDirty();
 }
@@ -209,12 +203,13 @@ function jnlSave() {
     if (!el) return;
     entry.sections[k] = (el.tagName === 'TEXTAREA') ? el.value : el.innerHTML;
   });
+  entry.evaluation = Object.assign({}, _jnlEval);
   entry.savedAt = new Date().toISOString();
   entry.weekLabel = getWeekLabel(_journalWeek);
   saveJournal();
   jnlUpdateSavedAt(entry.savedAt);
   jnlClearDirty();
-  showJnlToast('✅ 저장되었습니다!');
+  showJnlToast('저장되었습니다');
 }
 
 // ── 주차 이동 ───────────────────────────────
@@ -446,6 +441,112 @@ function jnlNavYear(delta) {
   if (_jnlNavYear == null) _jnlNavYear = parseInt(_journalWeek.split('-W')[0]);
   _jnlNavYear += delta;
   jnlBuildWeekNav();
+}
+
+// ── 캘린더(주 선택) ─────────────────────────
+var _jnlCalMonth = null;   // 표시 중인 달 (1일)
+
+function jnlWeekMonday(key) {
+  var p = key.split('-W');
+  return jnlIsoMonday(parseInt(p[0], 10), parseInt(p[1], 10));
+}
+function jnlIsSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function jnlBuildCalendar() {
+  var grid = document.getElementById('jnl-cal-grid');
+  var titleEl = document.getElementById('jnl-cal-title');
+  if (!grid) return;
+  if (!_jnlCalMonth) { var mon0 = jnlWeekMonday(_journalWeek); _jnlCalMonth = new Date(mon0.getFullYear(), mon0.getMonth(), 1); }
+  var y = _jnlCalMonth.getFullYear(), m = _jnlCalMonth.getMonth();
+  if (titleEl) titleEl.textContent = y + '년 ' + (m + 1) + '월';
+
+  var thisWeek = getWeekKey();
+  var today = new Date();
+  var dows = ['월', '화', '수', '목', '금', '토', '일'];
+  var html = '<div class="jnl-cal-dow-row">'
+    + dows.map(function(d, i) { return '<div class="jnl-cal-dow' + (i === 5 ? ' sat' : (i === 6 ? ' sun' : '')) + '">' + d + '</div>'; }).join('')
+    + '</div>';
+
+  var first = new Date(y, m, 1);
+  var day = first.getDay() || 7;                 // 1(월)~7(일)
+  var cur = new Date(y, m, 1 - (day - 1));        // 그 주의 월요일
+  var monthEnd = new Date(y, m + 1, 0);
+  for (var w = 0; w < 6; w++) {
+    var wkKey = getWeekKey(cur);
+    var isFuture = (wkKey > thisWeek);
+    var isSel = (wkKey === _journalWeek);
+    html += '<div class="jnl-cal-week' + (isSel ? ' sel' : '') + (isFuture ? ' future' : '') + '"'
+      + (isFuture ? '' : ' onclick="jnlGoToWeek(\'' + wkKey + '\')"') + '>';
+    for (var i = 0; i < 7; i++) {
+      var dd = new Date(cur.getTime() + i * 86400000);
+      var out = (dd.getMonth() !== m);
+      var isToday = jnlIsSameDay(dd, today);
+      html += '<div class="jnl-cal-cell' + (out ? ' out' : '') + (isToday ? ' today' : '')
+        + (i === 5 ? ' sat' : (i === 6 ? ' sun' : '')) + '">' + dd.getDate() + '</div>';
+    }
+    html += '</div>';
+    cur = new Date(cur.getTime() + 7 * 86400000);
+    if (cur > monthEnd) break;
+  }
+  grid.innerHTML = html;
+}
+function jnlCalNav(delta) {
+  if (!_jnlCalMonth) { var mon0 = jnlWeekMonday(_journalWeek); _jnlCalMonth = new Date(mon0.getFullYear(), mon0.getMonth(), 1); }
+  _jnlCalMonth = new Date(_jnlCalMonth.getFullYear(), _jnlCalMonth.getMonth() + delta, 1);
+  jnlBuildCalendar();
+}
+
+// ── 한 주 업무 평가 ─────────────────────────
+var _jnlEval = { goal: null, highImpact: false, deadline: false, proactive: false, communication: false };
+
+function jnlEvalSection() {
+  function goalOpt(v, desc) {
+    return '<label class="jnl-eval-score">'
+      + '<input type="radio" name="jnl-eval-goal" value="' + v + '" onchange="jnlEvalSet(\'goal\',' + v + ')">'
+      + '<span class="jnl-eval-pt">' + v + '점</span>'
+      + '<span class="jnl-eval-desc">' + desc + '</span></label>';
+  }
+  function checkOpt(k, label) {
+    return '<label class="jnl-eval-check">'
+      + '<input type="checkbox" id="jnl-eval-' + k + '" onchange="jnlEvalToggle(\'' + k + '\',this.checked)">'
+      + '<span>' + label + '</span></label>';
+  }
+  return '<div class="jnl-section jnl-sec-eval">'
+    + '<div class="jnl-section-head"><div class="jnl-section-title">한 주 업무 평가</div></div>'
+    + '<div class="jnl-eval">'
+    +   '<div class="jnl-eval-block">'
+    +     '<div class="jnl-eval-q">목표 달성률 (Plan vs. Actual)</div>'
+    +     '<div class="jnl-eval-scores">'
+    +       goalOpt(5, '계획된 핵심 과제를 100% 이상 완수하고 기대 이상의 성과 창출')
+    +       goalOpt(3, '계획된 핵심 과제의 80~90%를 완수함 (일반적 수준)')
+    +       goalOpt(1, '주요 과제 달성률이 50% 미만이며, 사유 공유가 미흡함')
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="jnl-eval-block">'
+    +     '<div class="jnl-eval-q">업무의 우선순위 설정 및 시간 관리</div>'
+    +     checkOpt('highImpact', '중요한 과제(High-impact)에 집중했는가?')
+    +     checkOpt('deadline', '기한(Deadline)을 준수했는가?')
+    +   '</div>'
+    +   '<div class="jnl-eval-block">'
+    +     '<div class="jnl-eval-q">문제 해결 및 협업 능력</div>'
+    +     checkOpt('proactive', '장애 요인을 사전에 공유하고 해결책을 모색했는가?')
+    +     checkOpt('communication', '팀원/타 부서와의 소통이 원활했는가?')
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+}
+function jnlEvalSet(k, v) { _jnlEval[k] = v; jnlMarkDirty(); }
+function jnlEvalToggle(k, on) { _jnlEval[k] = !!on; jnlMarkDirty(); }
+function jnlRenderEvalState() {
+  ['5', '3', '1'].forEach(function(v) {
+    var r = document.querySelector('input[name="jnl-eval-goal"][value="' + v + '"]');
+    if (r) r.checked = (String(_jnlEval.goal) === v);
+  });
+  ['highImpact', 'deadline', 'proactive', 'communication'].forEach(function(k) {
+    var c = document.getElementById('jnl-eval-' + k);
+    if (c) c.checked = !!_jnlEval[k];
+  });
 }
 
 // ── 토스트 ─────────────────────────────────
