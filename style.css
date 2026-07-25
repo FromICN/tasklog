@@ -8624,29 +8624,24 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
   text-align: right;
 }
 
-/* Board 표시 항목 선택 (오른쪽 상단 필터 아이콘) */
-.bd-toolbar {
-  position: relative;
-  flex: 0 0 auto;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 0 var(--space-1) var(--space-15);
-}
+/* Board 표시 항목 선택 (타이틀 영역 오른쪽 끝 필터 아이콘) */
+.topbar-board-slot { position: relative; display: flex; align-items: center; }
 .bd-colpick-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: none;
+  background: transparent;
   color: var(--text-2);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: color var(--dur-fast), border-color var(--dur-fast);
+  transition: color var(--dur-fast);
 }
-.bd-colpick-btn:hover, .bd-colpick-btn.on { color: var(--text-1); border-color: var(--info); }
+/* 강조색: 다크=회색, 라이트=블랙 (테마 일치) */
+.bd-colpick-btn:hover, .bd-colpick-btn.on { color: #b0b0b0; }
+body.light-mode .bd-colpick-btn:hover, body.light-mode .bd-colpick-btn.on { color: #000; }
 .bd-colpick-panel {
   position: absolute;
   top: calc(100% + 2px);

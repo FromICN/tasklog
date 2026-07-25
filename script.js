@@ -2717,6 +2717,8 @@ function navToMenu(id) {
   // 4.5) 만다라트 연도 슬롯 초기화 (다른 메뉴로 이동 시 비움)
   var mdtYearSlot = document.getElementById('topbar-mdt-year-slot');
   if (mdtYearSlot) mdtYearSlot.innerHTML = '';
+  var boardSlot0 = document.getElementById('topbar-board-slot');
+  if (boardSlot0) boardSlot0.innerHTML = '';
 
   // 5) 본문 렌더
   var fnName = MENU_RENDERERS[id];

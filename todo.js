@@ -361,12 +361,11 @@ function boardTh(col) {
 function renderTodoView() {
   var content = document.getElementById('page-content');
   if (!content) return;
-  content.innerHTML = '<div class="todo-view">'
-    + '<div class="bd-toolbar">'
-    + '<button class="bd-colpick-btn' + (_boardColPickerOpen ? ' on' : '') + '" id="bd-colpick-btn" title="표시 항목 선택" onclick="boardToggleColPicker(event)">' + BD_FILTER_ICON + '</button>'
-    + boardColPickerPanel()
-    + '</div>'
-    + '<div id="todo-body">' + buildBoardTable() + '</div></div>';
+  content.innerHTML = '<div class="todo-view"><div id="todo-body">' + buildBoardTable() + '</div></div>';
+  var slot = document.getElementById('topbar-board-slot');
+  if (slot) {
+    slot.innerHTML = '<button class="bd-colpick-btn' + (_boardColPickerOpen ? ' on' : '') + '" id="bd-colpick-btn" title="표시 항목 선택" onclick="boardToggleColPicker(event)">' + BD_FILTER_ICON + '</button>' + boardColPickerPanel();
+  }
   boardAttachColResize();
 }
 
