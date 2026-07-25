@@ -128,7 +128,6 @@ function _renderMVV() {
   content.innerHTML =
     '<div class="mvv-page">'
     + buildMVVMainView()
-    + buildMVVSaveBar()
     + '</div>';
   renderMVVYearSlot();
   bindMVVEvents();
@@ -146,8 +145,8 @@ function renderMVVYearSlot() {
     return '<option value="' + yr + '"' + (yr === y ? ' selected' : '') + '>' + yr + '년</option>';
   }).join('');
   opts += '<option value="__new__">+ 새 연도 추가</option>';
-  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  slot.innerHTML = '<select class="year-select" onchange="handleMvvYearSelect(this.value)">' + opts + '</select>';
+  opts += '<option value="__delete__">현재 연도 삭제</option>';
+  slot.innerHTML = '<select class="year-select mvv-year-select" onchange="handleMvvYearSelect(this.value)">' + opts + '</select>';
 }
 
 // 연도 드롭박스 handler
@@ -169,16 +168,21 @@ function handleMvvYearSelect(val) {
 
 // ── 카드 헬퍼 ────────────────────────────
 function buildMVVTextCard(opts) {
-  // opts: { id, icon, iconBg, title, subtitle, value, placeholder }
+  // opts: { id, title, value, placeholder }
   return '<div class="mvv-card">'
     + '<div class="mvv-card-header">'
-    + '<div class="mvv-card-icon" style="background:' + opts.iconBg + ';">' + opts.icon + '</div>'
-    + '<div><div class="mvv-card-title">' + opts.title + '</div></div>'
+    + '<div class="mvv-card-title">' + opts.title + '</div>'
     + '</div>'
-    + '<textarea class="mvv-textarea" id="' + opts.id + '" placeholder="' + opts.placeholder + '">'
-    + mvvEsc(opts.value)
-    + '</textarea>'
+    + '<div class="mvv-rta" id="' + opts.id + '" contenteditable="true" data-ph="' + mvvAttr(opts.placeholder) + '">'
+    + mvvNormalizeRich(opts.value)
+    + '</div>'
     + '</div>';
+}
+function mvvAttr(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+function mvvNormalizeRich(val) {
+  if (!val) return '';
+  if (/<(div|span|br|b|strong|i|u|p)/i.test(val)) return val;
+  return mvvEsc(val).replace(/\n/g, '<br>');
 }
 
 // ── 메인 뷰 (Why / How / What + Action Plan) ──
@@ -187,28 +191,28 @@ function buildMVVMainView() {
     id: 'mvv-mission', icon: '🎯', iconBg: 'rgba(79,110,247,0.12)',
     title: 'Why (Mission)', subtitle: '나는 왜 존재하는가',
     value: mvvState.mission,
-    placeholder: '지금 이 순간 내가 살아가는 이유·목적을 한 문장으로 적어보세요.\n\n예: 나는 꾸준한 성장을 통해 주변 사람들에게 긍정적인 영향을 미치기 위해 존재한다.',
+    placeholder: '나는 왜 존재하는가 — 삶의 이유·목적을 한 문장으로 적어보세요.',
     previewIcon: '💬', previewClass: 'mvv-preview-mission',
   });
   var howCard = buildMVVTextCard({
     id: 'mvv-vision', icon: '🔭', iconBg: 'rgba(34,192,139,0.12)',
     title: 'How (Vision)', subtitle: '나는 어떻게 살아갈 것인가',
     value: mvvState.vision,
-    placeholder: '미션을 실현하기 위해 어떤 방식·태도로 살아갈지 그려보세요.\n\n예: 2030년까지 재정적 자유를 달성하고, 내 분야에서 신뢰받는 전문가로 성장한다.',
+    placeholder: '나는 어떻게 살아갈 것인가 — 실현 방식·태도를 적어보세요.',
     previewIcon: '🔭', previewClass: 'mvv-preview-vision',
   });
   var whatCard = buildMVVTextCard({
     id: 'mvv-what', icon: '🧩', iconBg: 'rgba(245,166,35,0.12)',
     title: 'What', subtitle: '나는 무엇을 하는가',
     value: mvvState.what,
-    placeholder: '미션·비전을 이루기 위해 실제로 하는 일을 적어보세요.\n\n예: 매일 글을 쓰고, 사람들과 지식을 나누며, 꾸준히 운동한다.',
+    placeholder: '나는 무엇을 하는가 — 실제로 하는 일을 적어보세요.',
     previewIcon: '🧩', previewClass: 'mvv-preview-what',
   });
   var actionCard = buildMVVTextCard({
     id: 'mvv-action', icon: '🚀', iconBg: 'rgba(224,92,122,0.12)',
     title: 'Action Plan', subtitle: '구체적인 실행 계획',
     value: mvvState.actionPlan,
-    placeholder: 'Why·How·What을 실현할 구체적인 행동·계획을 자유롭게 적어보세요.\n\n예:\n- 주 3회 운동 (월/수/금)\n- 매일 아침 30분 독서\n- 분기마다 목표 점검',
+    placeholder: '구체적인 실행 계획을 자유롭게 적어보세요.',
     previewIcon: '🚀', previewClass: 'mvv-preview-action',
   });
 
@@ -240,13 +244,21 @@ function bindMVVEvents() {
     { id: 'mvv-action',  key: 'actionPlan' },
   ];
   fields.forEach(function(f) {
-    var ta = document.getElementById(f.id);
-    if (!ta) return;
-    ta.addEventListener('input', function() {
-      mvvState[f.key] = this.value;
+    var el = document.getElementById(f.id);
+    if (!el) return;
+    el.addEventListener('input', function() {
+      mvvState[f.key] = this.innerHTML;
       mvvMarkDirty();
+      mvvScheduleAutoSave();
     });
   });
+}
+
+// 자동 저장 (디바운스)
+var _mvvSaveTimer = null;
+function mvvScheduleAutoSave() {
+  if (_mvvSaveTimer) clearTimeout(_mvvSaveTimer);
+  _mvvSaveTimer = setTimeout(function() { saveMVVData(); }, 800);
 }
 
 // HTML 이스케이프 (MVV 전용 헬퍼)

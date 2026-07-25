@@ -92,7 +92,7 @@ function getJournalEntry(key) {
         plan: ''          // 다음 주 계획
       },
       memo: '',           // 기타 메모
-      evaluation: { goal: null, highImpact: false, deadline: false, proactive: false, communication: false },
+      evaluation: { goal: 0, priority: 0, collab: 0 },
       savedAt: null
     };
   }
@@ -130,9 +130,9 @@ function renderJournalView() {
     +       jnlSection('plan', '다음 주 계획', '다음 주에 예정된 일을 기록하세요.',
           '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">다음 주 예정 업무 불러오기</button>', true)
     +     '</div>'
-    +     jnlSection('issue', '회고', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
     +   '</div>'
     + '</div>'
+    + jnlSection('issue', '회고', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
     + '<div class="jnl-footer" id="jnl-saved-at"></div>'
     + '</div>';
 
@@ -171,7 +171,7 @@ function jnlFillEntry(key) {
   var mon = jnlWeekMonday(key);
   _jnlCalMonth = new Date(mon.getFullYear(), mon.getMonth(), 1);
   jnlBuildCalendar();
-  _jnlEval = Object.assign({ goal: null, highImpact: false, deadline: false, proactive: false, communication: false }, entry.evaluation || {});
+  _jnlEval = Object.assign({ goal: 0, priority: 0, collab: 0 }, entry.evaluation || {});
   jnlRenderEvalState();
   jnlUpdateSavedAt(entry.savedAt);
   jnlClearDirty();
@@ -499,57 +499,41 @@ function jnlCalNav(delta) {
   jnlBuildCalendar();
 }
 
-// ── 한 주 업무 평가 ─────────────────────────
-var _jnlEval = { goal: null, highImpact: false, deadline: false, proactive: false, communication: false };
+// ── 한 주 업무 평가 (별점) ───────────────────
+var _jnlEval = { goal: 0, priority: 0, collab: 0 };
 
 function jnlEvalSection() {
-  function goalOpt(v, desc) {
-    return '<label class="jnl-eval-score">'
-      + '<input type="radio" name="jnl-eval-goal" value="' + v + '" onchange="jnlEvalSet(\'goal\',' + v + ')">'
-      + '<span class="jnl-eval-pt">' + v + '점</span>'
-      + '<span class="jnl-eval-desc">' + desc + '</span></label>';
+  function starRow(k) {
+    var s = '<div class="jnl-stars" data-k="' + k + '">';
+    for (var i = 1; i <= 5; i++) s += '<span class="jnl-star" onclick="jnlEvalStar(\'' + k + '\',' + i + ')">\u2605</span>';
+    return s + '</div>';
   }
-  function checkOpt(k, label) {
-    return '<label class="jnl-eval-check">'
-      + '<input type="checkbox" id="jnl-eval-' + k + '" onchange="jnlEvalToggle(\'' + k + '\',this.checked)">'
-      + '<span>' + label + '</span></label>';
+  function block(k, q, guide) {
+    return '<div class="jnl-eval-block">'
+      + '<div class="jnl-eval-q">' + q + '</div>'
+      + starRow(k)
+      + '<div class="jnl-eval-guide">' + guide + '</div>'
+      + '</div>';
   }
   return '<div class="jnl-section jnl-sec-eval">'
     + '<div class="jnl-section-head"><div class="jnl-section-title">한 주 업무 평가</div></div>'
     + '<div class="jnl-eval">'
-    +   '<div class="jnl-eval-block">'
-    +     '<div class="jnl-eval-q">목표 달성률 (Plan vs. Actual)</div>'
-    +     '<div class="jnl-eval-scores">'
-    +       goalOpt(5, '계획된 핵심 과제를 100% 이상 완수하고 기대 이상의 성과 창출')
-    +       goalOpt(3, '계획된 핵심 과제의 80~90%를 완수함 (일반적 수준)')
-    +       goalOpt(1, '주요 과제 달성률이 50% 미만이며, 사유 공유가 미흡함')
-    +     '</div>'
-    +   '</div>'
-    +   '<div class="jnl-eval-block">'
-    +     '<div class="jnl-eval-q">업무의 우선순위 설정 및 시간 관리</div>'
-    +     checkOpt('highImpact', '중요한 과제(High-impact)에 집중했는가?')
-    +     checkOpt('deadline', '기한(Deadline)을 준수했는가?')
-    +   '</div>'
-    +   '<div class="jnl-eval-block">'
-    +     '<div class="jnl-eval-q">문제 해결 및 협업 능력</div>'
-    +     checkOpt('proactive', '장애 요인을 사전에 공유하고 해결책을 모색했는가?')
-    +     checkOpt('communication', '팀원/타 부서와의 소통이 원활했는가?')
-    +   '</div>'
+    + block('goal', '목표 달성률 (Plan vs. Actual)', '5\u2605 계획된 핵심 과제 100% 이상 완수 · 3\u2605 80~90% 완수(일반적) · 1\u2605 50% 미만·사유 공유 미흡')
+    + block('priority', '업무의 우선순위 설정 및 시간 관리', '중요한 과제(High-impact)에 집중했는가 · 기한(Deadline)을 준수했는가')
+    + block('collab', '문제 해결 및 협업 능력', '장애 요인을 사전에 공유하고 해결책을 모색했는가 · 팀원/타 부서와의 소통이 원활했는가')
     + '</div>'
     + '</div>';
 }
-function jnlEvalSet(k, v) { _jnlEval[k] = v; jnlMarkDirty(); }
-function jnlEvalToggle(k, on) { _jnlEval[k] = !!on; jnlMarkDirty(); }
-function jnlRenderEvalState() {
-  ['5', '3', '1'].forEach(function(v) {
-    var r = document.querySelector('input[name="jnl-eval-goal"][value="' + v + '"]');
-    if (r) r.checked = (String(_jnlEval.goal) === v);
-  });
-  ['highImpact', 'deadline', 'proactive', 'communication'].forEach(function(k) {
-    var c = document.getElementById('jnl-eval-' + k);
-    if (c) c.checked = !!_jnlEval[k];
-  });
+function jnlEvalStar(k, v) { if (_jnlEval[k] === v) v = 0; _jnlEval[k] = v; jnlMarkDirty(); jnlPaintStars(k); }
+function jnlPaintStars(k) {
+  var wrap = document.querySelector('.jnl-stars[data-k="' + k + '"]');
+  if (!wrap) return;
+  var stars = wrap.querySelectorAll('.jnl-star');
+  for (var i = 0; i < stars.length; i++) {
+    if ((i + 1) <= _jnlEval[k]) stars[i].classList.add('on'); else stars[i].classList.remove('on');
+  }
 }
+function jnlRenderEvalState() { ['goal', 'priority', 'collab'].forEach(jnlPaintStars); }
 
 // ── 토스트 ─────────────────────────────────
 

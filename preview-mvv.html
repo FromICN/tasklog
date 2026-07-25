@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MVV 미리보기</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { margin: 0; }
+  .main-content { min-height: 100vh; box-sizing: border-box; padding: 26px 16px 12px; }
+</style>
+</head>
+<body>
+  <div class="main-content" id="main-content">
+    <div class="topbar" id="topbar">
+      <div class="topbar-left"><div class="topbar-title" id="topbar-title">MVV</div></div>
+      <div class="topbar-right" id="topbar-right">
+        <div class="topbar-mdt-year-slot" id="topbar-mdt-year-slot"></div>
+      </div>
+    </div>
+    <div id="page-content" style="flex:1;overflow-y:auto;"></div>
+  </div>
+  <script>
+    function appAllSavedYears(){ return [2026,2025]; }
+    document.body.classList.remove('light-mode');
+  </script>
+  <script src="mvv.js"></script>
+  <script>
+    renderMVVPage();
+  </script>
+</body>
+</html>
