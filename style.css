@@ -9851,3 +9851,90 @@ body :is(input, textarea, [contenteditable]):focus-visible {
   background: var(--bg-1);
   border: none;
 }
+
+/* =========================================================
+   ✏️ Task 수정 패널 — 2차 개선 (2026-07)
+   ========================================================= */
+
+/* [R2 #1] Start·Due: 날짜+시간을 하나의 상자로, 열 폭 고정(due가 밀리지 않도록) */
+.rp-dt-cols { display: flex; gap: 10px; }
+.rp-dt-col { flex: 1 1 0; min-width: 0; }
+.rp-dt-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.rp-dt-row:focus-within { border-color: var(--brand-primary); }
+.rp-dt-row .seg-date.field-input,
+.rp-dt-row .rp-time-inp {
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+.rp-dt-row .field-input.seg-date:focus-within { border-color: transparent; }
+.rp-dt-row .seg-date { flex: 1 1 auto; min-width: 0; justify-content: center; }
+.rp-dt-row .rp-time-inp {
+  flex: 0 0 54px;
+  width: 54px;
+  border-left: 0.5px solid var(--border);
+}
+
+/* [R2 #2] 클릭식 24시간 시계 */
+.sdp-clock-wrap { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.sdp-clock { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.sdp-clock-head { display: flex; align-items: center; gap: 4px; width: 100%; }
+.sdp-clock-seg {
+  font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
+  background: var(--surface); color: var(--text-2);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 2px 8px; cursor: pointer; min-width: 42px; text-align: center;
+  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
+}
+.sdp-clock-seg.on {
+  color: var(--brand-primary); border-color: var(--brand-primary);
+  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+}
+.sdp-clock-colon { font-size: 20px; font-weight: 700; color: var(--text-2); }
+.sdp-clock-spacer { flex: 1; }
+.sdp-clock-none {
+  font-size: var(--fs-2xs); color: var(--text-2);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-full); padding: 3px 8px; cursor: pointer; white-space: nowrap;
+}
+.sdp-clock-none.on { color: var(--brand-primary); border-color: var(--brand-primary); }
+.sdp-clock-face {
+  position: relative; width: 210px; height: 210px;
+  border-radius: 50%; background: var(--bg-1); flex-shrink: 0;
+}
+.sdp-ck-num {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-sm); font-variant-numeric: tabular-nums; line-height: 1;
+  background: transparent; border: none; color: var(--text-1);
+  cursor: pointer; z-index: 2; padding: 0;
+}
+.sdp-ck-num.inner { font-size: var(--fs-2xs); color: var(--text-2); }
+.sdp-ck-num:hover { background: var(--surface-hover); }
+.sdp-ck-num.on, .sdp-ck-num.inner.on { color: #fff; font-weight: 700; }
+.sdp-ck-hand { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; }
+.sdp-ck-hand line { stroke: var(--brand-primary); stroke-width: 2; }
+.sdp-ck-seldot { fill: var(--brand-primary); }
+.sdp-ck-center { fill: var(--brand-primary); }
+.sdp-clock-hint { font-size: var(--fs-2xs); color: var(--text-3); text-align: center; }
+
+/* [R2 #3] Project·Linked Tasks 글자색을 다른 칸처럼 회색으로 */
+.rp-form .proj-dd-trigger,
+.rp-form .proj-dd-trigger.is-set,
+.rp-form .proj-dd-cur,
+#rp-prev-sel, #rp-next-sel { color: var(--text-2); }
+
+/* [R2 #4] 완료된 Task·To Do 체크 테두리 1px 축소 */
+.task-check.is-done { border-width: 1px; }
+.step-check.is-done { border-width: 0.5px !important; }

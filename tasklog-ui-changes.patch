@@ -1,8 +1,148 @@
 diff --git a/script.js b/script.js
-index 605c1e2..214e555 100644
+index 605c1e2..51a7662 100644
 --- a/script.js
 +++ b/script.js
-@@ -1932,7 +1932,14 @@ function openNewTaskPanel(taskId) {
+@@ -636,19 +636,122 @@ function buildPickerHtml(id, dateStr, timeStr) {
+   var dateDisp = s.dateStr ? formatDateDisplay(s.dateStr) : '';
+   var timeVal  = s.timeStr || '';
+ 
++  var showClock = (id !== 'dp-reminder');
+   return '<div class="sdp-wrap" id="sdp-' + id + '">'
+     + '<div class="sdp-cal-wrap" id="sdp-cal-' + id + '" style="display:none;">'
+     + buildPickerCalHtml(id)
+     + '</div>'
+-    + '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
+-    + '<span class="sdp-time-label">시간</span>'
+-    + '<input type="text" class="sdp-time-inp" id="sdp-time-' + id + '" inputmode="numeric" maxlength="5"'
+-    + ' placeholder="HH:MM" value="' + timeVal + '" oninput="pickerTimeInput(event,\'' + id + '\')" onfocus="this.select()">'
+-    + '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕</button>'
++    + (showClock
++        ? '<div class="sdp-clock-wrap" id="sdp-clockwrap-' + id + '" style="display:' + (s.dateStr ? 'block' : 'none') + ';">' + buildClockHtml(id) + '</div>'
++        : '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
++          + '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕ 지우기</button></div>')
++    + '</div>';
++}
++
++// ── 24시간 클릭식 시계 (날짜 선택 후 시·분을 클릭으로 지정) ──
++function pad2(n){ return String(n).padStart(2, '0'); }
++
++function buildClockHtml(id) {
++  var s = pickerState[id] || {};
++  var hh = s.timeStr ? +s.timeStr.slice(0,2) : 9;
++  var mm = s.timeStr ? +s.timeStr.slice(3,5) : 0;
++  var mode = s.clockMode || 'hour';
++  return '<div class="sdp-clock" id="sdp-clock-' + id + '">'
++    + '<div class="sdp-clock-head">'
++    +   '<button class="sdp-clock-seg' + (mode==='hour'?' on':'') + '" id="sdp-clock-hh-' + id + '" onclick="clockSetMode(\'' + id + '\',\'hour\')">' + pad2(hh) + '</button>'
++    +   '<span class="sdp-clock-colon">:</span>'
++    +   '<button class="sdp-clock-seg' + (mode==='minute'?' on':'') + '" id="sdp-clock-mm-' + id + '" onclick="clockSetMode(\'' + id + '\',\'minute\')">' + pad2(mm) + '</button>'
++    +   '<span class="sdp-clock-spacer"></span>'
++    +   '<button class="sdp-clock-none' + (s.timeStr?'':' on') + '" onclick="clockClearTime(\'' + id + '\')" title="시간 지정 안 함">시간없음</button>'
++    +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜·시간 지우기">✕</button>'
+     + '</div>'
++    + '<div class="sdp-clock-face" id="sdp-clock-face-' + id + '">' + buildClockFace(id, mode, hh, mm) + '</div>'
++    + '<div class="sdp-clock-hint">' + (mode==='hour' ? '시(時)를 선택하세요 · 바깥 0–11 / 안쪽 12–23' : '분(分)을 선택하세요') + '</div>'
+     + '</div>';
+ }
+ 
++function buildClockFace(id, mode, hh, mm) {
++  var SIZE = 210, C = SIZE/2, RO = C-18, RI = C-52;
++  var parts = '', selR, selAng;
++  if (mode === 'hour') {
++    for (var h = 0; h < 24; h++) {
++      var ring = (h < 12) ? RO : RI;
++      var ang = (h % 12) * 30;
++      var rad = (ang - 90) * Math.PI / 180;
++      var x = C + ring * Math.cos(rad), y = C + ring * Math.sin(rad);
++      parts += '<button class="sdp-ck-num' + (h>=12?' inner':'') + (h===hh?' on':'') + '"'
++        + ' style="left:' + x.toFixed(1) + 'px;top:' + y.toFixed(1) + 'px;"'
++        + ' onclick="clockPickHour(\'' + id + '\',' + h + ')">' + pad2(h) + '</button>';
++    }
++    selR = (hh < 12) ? RO : RI; selAng = (hh % 12) * 30;
++  } else {
++    for (var m = 0; m < 60; m += 5) {
++      var ang2 = (m / 5) * 30;
++      var rad2 = (ang2 - 90) * Math.PI / 180;
++      var x2 = C + RO * Math.cos(rad2), y2 = C + RO * Math.sin(rad2);
++      parts += '<button class="sdp-ck-num' + (m===mm?' on':'') + '"'
++        + ' style="left:' + x2.toFixed(1) + 'px;top:' + y2.toFixed(1) + 'px;"'
++        + ' onclick="clockPickMinute(\'' + id + '\',' + m + ')">' + pad2(m) + '</button>';
++    }
++    selR = RO; selAng = (mm / 5) * 30;
++  }
++  var hrad = (selAng - 90) * Math.PI / 180;
++  var hx = C + selR * Math.cos(hrad), hy = C + selR * Math.sin(hrad);
++  return '<svg class="sdp-ck-hand" width="' + SIZE + '" height="' + SIZE + '" viewBox="0 0 ' + SIZE + ' ' + SIZE + '">'
++    + '<line x1="' + C + '" y1="' + C + '" x2="' + hx.toFixed(1) + '" y2="' + hy.toFixed(1) + '"/>'
++    + '<circle class="sdp-ck-seldot" cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="17"/>'
++    + '<circle class="sdp-ck-center" cx="' + C + '" cy="' + C + '" r="3.5"/>'
++    + '</svg>' + parts;
++}
++
++function refreshClock(id) {
++  var s = pickerState[id]; if (!s) return;
++  var hh = s.timeStr ? +s.timeStr.slice(0,2) : 9;
++  var mm = s.timeStr ? +s.timeStr.slice(3,5) : 0;
++  var mode = s.clockMode || 'hour';
++  var face = document.getElementById('sdp-clock-face-' + id);
++  if (face) face.innerHTML = buildClockFace(id, mode, hh, mm);
++  var hb = document.getElementById('sdp-clock-hh-' + id);
++  var mb = document.getElementById('sdp-clock-mm-' + id);
++  if (hb) { hb.textContent = pad2(hh); hb.classList.toggle('on', mode==='hour'); }
++  if (mb) { mb.textContent = pad2(mm); mb.classList.toggle('on', mode==='minute'); }
++  var clk = document.getElementById('sdp-clock-' + id);
++  if (clk) {
++    var hint = clk.querySelector('.sdp-clock-hint');
++    if (hint) hint.textContent = (mode==='hour') ? '시(時)를 선택하세요 · 바깥 0–11 / 안쪽 12–23' : '분(分)을 선택하세요';
++    var none = clk.querySelector('.sdp-clock-none');
++    if (none) none.classList.toggle('on', !s.timeStr);
++  }
++}
++
++function clockSetMode(id, mode) {
++  if (!pickerState[id]) return;
++  pickerState[id].clockMode = mode;
++  refreshClock(id);
++}
++function clockPickHour(id, h) {
++  var s = pickerState[id]; if (!s) return;
++  var mm = s.timeStr ? +s.timeStr.slice(3,5) : 0;
++  s.timeStr = pad2(h) + ':' + pad2(mm);
++  s.clockMode = 'minute';
++  refreshClock(id);
++  onPickerChanged(id);
++}
++function clockPickMinute(id, m) {
++  var s = pickerState[id]; if (!s) return;
++  var hh = s.timeStr ? +s.timeStr.slice(0,2) : 9;
++  s.timeStr = pad2(hh) + ':' + pad2(m);
++  refreshClock(id);
++  onPickerChanged(id);
++}
++function clockClearTime(id) {
++  var s = pickerState[id]; if (!s) return;
++  s.timeStr = null;
++  s.clockMode = 'hour';
++  refreshClock(id);
++  onPickerChanged(id);
++}
++
+ function buildPickerCalHtml(id) {
+   var s = pickerState[id];
+   if (!s) return '';
+@@ -783,8 +886,10 @@ function pickerPickDate(id, year, month, day) {
+   updatePickerPreview(id);
+   var w = document.getElementById('sdp-cal-' + id);
+   if (w && w.style.display !== 'none') w.innerHTML = buildPickerCalHtml(id);
++  var cw = document.getElementById('sdp-clockwrap-' + id);
++  if (cw) { cw.style.display = 'block'; pickerState[id].clockMode = 'hour'; refreshClock(id); }
+   var tr = document.getElementById('sdp-timerow-' + id);
+-  if (tr) { tr.style.display = 'flex'; var ti = document.getElementById('sdp-time-' + id); if (ti) setTimeout(function(){ ti.focus(); }, 20); }
++  if (tr) tr.style.display = 'flex';
+   onPickerChanged(id);
+ }
+ 
+@@ -1932,7 +2037,14 @@ function openNewTaskPanel(taskId) {
  
    var body = document.getElementById('rp-body');
    if (body) { body.classList.remove('rp-body--detail'); body.innerHTML = buildRpForm(task); }
@@ -18,7 +158,7 @@ index 605c1e2..214e555 100644
  
    // 생성/수정 모드: rp-footer(저장/취소) 복원
    var rpFoot = document.querySelector('.rp-footer');
-@@ -2070,9 +2077,9 @@ function buildRpForm(task) {
+@@ -2070,9 +2182,9 @@ function buildRpForm(task) {
    // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
    var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
      + '<div style="display:flex;gap:10px;">'
@@ -30,7 +170,26 @@ index 605c1e2..214e555 100644
      + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
      + '</div></div>';
  
-@@ -2396,8 +2403,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
+@@ -2091,13 +2203,13 @@ function buildRpForm(task) {
+     + '<div class="task-check rp-task-check'+(rpState.completed?' is-done':'')+'" onclick="rpToggleComplete()" title="완료 여부"></div>'
+     + '<input class="field-input" id="rp-task-name" placeholder="할 일을 입력하세요" value="'+rpEsc(name)+'" oninput="rpState.dirty=true">'
+     + '</div></div>'
+-    + '<div style="display:flex;gap:10px;">'
+-    + '<div class="field-group" style="flex:1;"><label class="field-label">Start</label>'
++    + '<div class="rp-dt-cols">'
++    + '<div class="field-group rp-dt-col"><label class="field-label">Start</label>'
+     + '<div class="rp-dt-row">' + buildDateSegInput('rp-start-date', startStr)
+-    +   '<input type="text" class="field-input rp-time-inp" id="rp-start-time" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="'+startTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
+-    + '<div class="field-group" style="flex:1;"><label class="field-label">Due</label>'
++    +   '<input type="text" class="field-input rp-time-inp" id="rp-start-time" inputmode="numeric" maxlength="5" placeholder="--:--" value="'+startTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
++    + '<div class="field-group rp-dt-col"><label class="field-label">Due</label>'
+     + '<div class="rp-dt-row">' + buildDateSegInput('rp-due-date', dueStr)
+-    +   '<input type="text" class="field-input rp-time-inp" id="rp-due-time" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="'+dueTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
++    +   '<input type="text" class="field-input rp-time-inp" id="rp-due-time" inputmode="numeric" maxlength="5" placeholder="--:--" value="'+dueTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
+     + '</div>'
+     + todoHtml
+     + eiHtml
+@@ -2396,8 +2508,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
  
  function rpDepSingleOptions(dir) {
    var cur = rpDepIds(dir)[0] || '';
@@ -56,10 +215,10 @@ index 605c1e2..214e555 100644
        var s = (t.id === cur) ? ' selected' : '';
        return '<option value="'+t.id+'"'+s+'>'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>';
 diff --git a/style.css b/style.css
-index 2bfd509..7a77f4e 100644
+index 2bfd509..751b806 100644
 --- a/style.css
 +++ b/style.css
-@@ -9763,3 +9763,91 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -9763,3 +9763,178 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -151,3 +310,90 @@ index 2bfd509..7a77f4e 100644
 +  background: var(--bg-1);
 +  border: none;
 +}
++
++/* =========================================================
++   ✏️ Task 수정 패널 — 2차 개선 (2026-07)
++   ========================================================= */
++
++/* [R2 #1] Start·Due: 날짜+시간을 하나의 상자로, 열 폭 고정(due가 밀리지 않도록) */
++.rp-dt-cols { display: flex; gap: 10px; }
++.rp-dt-col { flex: 1 1 0; min-width: 0; }
++.rp-dt-row {
++  display: flex;
++  align-items: stretch;
++  gap: 0;
++  width: 100%;
++  box-sizing: border-box;
++  background: var(--bg);
++  border: 0.5px solid var(--border);
++  border-radius: var(--radius-md);
++  overflow: hidden;
++}
++.rp-dt-row:focus-within { border-color: var(--brand-primary); }
++.rp-dt-row .seg-date.field-input,
++.rp-dt-row .rp-time-inp {
++  border: none;
++  background: transparent;
++  border-radius: 0;
++}
++.rp-dt-row .field-input.seg-date:focus-within { border-color: transparent; }
++.rp-dt-row .seg-date { flex: 1 1 auto; min-width: 0; justify-content: center; }
++.rp-dt-row .rp-time-inp {
++  flex: 0 0 54px;
++  width: 54px;
++  border-left: 0.5px solid var(--border);
++}
++
++/* [R2 #2] 클릭식 24시간 시계 */
++.sdp-clock-wrap { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
++.sdp-clock { display: flex; flex-direction: column; align-items: center; gap: 8px; }
++.sdp-clock-head { display: flex; align-items: center; gap: 4px; width: 100%; }
++.sdp-clock-seg {
++  font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
++  background: var(--surface); color: var(--text-2);
++  border: 1px solid var(--border); border-radius: var(--radius-sm);
++  padding: 2px 8px; cursor: pointer; min-width: 42px; text-align: center;
++  transition: color var(--dur-fast), border-color var(--dur-fast), background var(--dur-fast);
++}
++.sdp-clock-seg.on {
++  color: var(--brand-primary); border-color: var(--brand-primary);
++  background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
++}
++.sdp-clock-colon { font-size: 20px; font-weight: 700; color: var(--text-2); }
++.sdp-clock-spacer { flex: 1; }
++.sdp-clock-none {
++  font-size: var(--fs-2xs); color: var(--text-2);
++  background: var(--surface); border: 1px solid var(--border);
++  border-radius: var(--radius-full); padding: 3px 8px; cursor: pointer; white-space: nowrap;
++}
++.sdp-clock-none.on { color: var(--brand-primary); border-color: var(--brand-primary); }
++.sdp-clock-face {
++  position: relative; width: 210px; height: 210px;
++  border-radius: 50%; background: var(--bg-1); flex-shrink: 0;
++}
++.sdp-ck-num {
++  position: absolute; transform: translate(-50%, -50%);
++  width: 30px; height: 30px; border-radius: 50%;
++  display: flex; align-items: center; justify-content: center;
++  font-size: var(--fs-sm); font-variant-numeric: tabular-nums; line-height: 1;
++  background: transparent; border: none; color: var(--text-1);
++  cursor: pointer; z-index: 2; padding: 0;
++}
++.sdp-ck-num.inner { font-size: var(--fs-2xs); color: var(--text-2); }
++.sdp-ck-num:hover { background: var(--surface-hover); }
++.sdp-ck-num.on, .sdp-ck-num.inner.on { color: #fff; font-weight: 700; }
++.sdp-ck-hand { position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; }
++.sdp-ck-hand line { stroke: var(--brand-primary); stroke-width: 2; }
++.sdp-ck-seldot { fill: var(--brand-primary); }
++.sdp-ck-center { fill: var(--brand-primary); }
++.sdp-clock-hint { font-size: var(--fs-2xs); color: var(--text-3); text-align: center; }
++
++/* [R2 #3] Project·Linked Tasks 글자색을 다른 칸처럼 회색으로 */
++.rp-form .proj-dd-trigger,
++.rp-form .proj-dd-trigger.is-set,
++.rp-form .proj-dd-cur,
++#rp-prev-sel, #rp-next-sel { color: var(--text-2); }
++
++/* [R2 #4] 완료된 Task·To Do 체크 테두리 1px 축소 */
++.task-check.is-done { border-width: 1px; }
++.step-check.is-done { border-width: 0.5px !important; }
