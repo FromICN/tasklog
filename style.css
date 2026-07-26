@@ -4649,7 +4649,7 @@ body.light-mode .lw-cv-tag {
 }
 .home-grid-row2 {
   display: grid;
-  grid-template-columns: 412px 1fr 310px 203px;
+  grid-template-columns: 1.7fr 1.2fr 1fr;
   gap: var(--space-3);
   height: 272px;
   flex-shrink: 0;
@@ -5017,6 +5017,7 @@ body.hw-resizing { user-select: none; }
 .todo-text.done { text-decoration: line-through; color: var(--text-3); }
 
 /* ── Habit Tracker ── */
+.habit-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--space-3); }
 .habit-row {
   display: flex;
   align-items: center;

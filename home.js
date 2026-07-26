@@ -28,7 +28,6 @@ function renderHomeView() {
   var content = document.getElementById('page-content');
   if (!content) return;
   content.innerHTML = buildHomeLayout();
-  renderHomeNotif();
   renderHomeCalendar();
   renderHomeMandalartWidget();
   renderHomeHabitWidget();
@@ -46,7 +45,6 @@ function buildHomeLayout() {
     + '</div>'
     + '<div class="home-grid-row2">'
     + buildCardShell('habit-widget', 'Habit Tracker', 'mandalart', 'habit-body')
-    + buildCardShell('notif-widget', 'Alarm', null, 'notif-body')
     + buildCardShell('mandalart-widget', 'Mandalart', 'mandalart', 'mandalart-body')
     + buildCardShell('wheel-widget', 'Life Wheel', 'wheel', 'wheel-body')
     + '</div>'
@@ -423,11 +421,6 @@ function renderHomeHabitWidget() {
   });
   var html = habits.map(function(h) {
     var a = h.a, sg = h.sg, log = a.habitLog || {};
-    var streak = 0;
-    for (var i=0; i<365; i++) {
-      var d=new Date(today.getTime()); d.setDate(d.getDate()-i);
-      if (log[fmtKey(d)]) streak++; else if (i>0) break;
-    }
     // 오늘 포함 최근 7일(과거→오늘) 표시 — 모든 칸 클릭 가능
     var base = new Date(today.getTime()); base.setHours(0,0,0,0);
     var dots = '';
@@ -440,11 +433,10 @@ function renderHomeHabitWidget() {
     }
     return '<div class="habit-row">'
       + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div></div>'
-      + '<div class="habit-meta habit-meta-right">🔥 '+streak+'일 연속</div>'
       + '<div class="habit-week">'+dots+'</div>'
       + '</div>';
   }).join('');
-  el.innerHTML = html;
+  el.innerHTML = '<div class="habit-2col">' + html + '</div>';
 }
 
 function hpToggleHabitDay(year, sgId, actId, dateKey) {
@@ -848,7 +840,7 @@ function fmtKey(d) {
 // ============================================
 //  홈 위젯 레이아웃 — 크기 조정 / 위치 변경 (스크롤 없이 이웃이 보정)
 // ============================================
-var HW_LKEY = 'home-layout-v1';
+var HW_LKEY = 'home-layout-v2';
 var _hwDrag = null;
 function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
 function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }
