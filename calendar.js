@@ -494,7 +494,8 @@ async function autoSyncCalendar() {
   _calAutoSyncDone = true;
 
   console.log('🔁 구글 캘린더 자동 동기화 시작...');
-  await autoPushTasksToCalendar();      // 1) TaskLog → 구글 캘린더 (보내기)
+  // 쓰기(내보내기) 제거 — 불러오기 전용
+  // await autoPushTasksToCalendar();  // (비활성화)
   // 2) 구글 캘린더 → TaskLog (가져오기, 조용히)
   //    캘린더별 동기화 방향 설정(off/pull/two)은 fetchCalendarEvents 내부에서 반영됨
   await fetchCalendarEvents(true);

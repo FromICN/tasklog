@@ -133,14 +133,13 @@ function closeSettings() {
 function buildSettingsModal() {
   return '<div class="settings-modal" onclick="event.stopPropagation()">'
     + '<div class="settings-modal-header">'
-    + '<span class="settings-modal-title">⚙️ Setting</span>'
+    + '<span class="settings-modal-title">Setting</span>'
     + '<button class="settings-close" onclick="closeSettings()">✕</button>'
     + '</div>'
     + '<div class="settings-body">'
     + '<div class="settings-tabs" id="settings-tabs">'
     + buildSettingsTabBtn('general',  '일반')
     + buildSettingsTabBtn('display',  '화면')
-    + buildSettingsTabBtn('calendar', '캘린더 동기화')
     + buildSettingsTabBtn('backup',   '백업 & 복원')
     + '</div>'
     + '<div class="settings-content" id="settings-content"></div>'
@@ -158,16 +157,42 @@ function buildSettingsTabBtn(id, label) {
 
 function setSettingsTab(tabId) {
   settingsState.tab = tabId;
-  ['general','display','calendar','backup'].forEach(function(t) {
+  ['general','display','backup'].forEach(function(t) {
     var el = document.getElementById('stab-' + t);
     if (el) el.classList.toggle('active', t === tabId);
   });
   var content = document.getElementById('settings-content');
   if (!content) return;
-  if (tabId === 'general')  content.innerHTML = buildTabGeneral();
+  if (tabId === 'general')  content.innerHTML = buildTabGeneral() + buildCalendarLinkGeneral();
   if (tabId === 'display')  content.innerHTML = buildTabDisplay();
-  if (tabId === 'calendar') content.innerHTML = buildTabCalendar();
   if (tabId === 'backup')   content.innerHTML = buildTabBackup();
+  content.scrollTop = 0;   // 탭 이동 시 상단 고정
+  if (tabId === 'general' && settingsState.calSync && typeof isSignedIn === 'function' && isSignedIn()) setTimeout(settingsLoadCalendarList, 0);
+}
+
+// 일반 탭에 들어가는 '캘린더 연동 (불러오기 전용)' 섹션
+function buildCalendarLinkGeneral() {
+  var calSync = settingsState.calSync;
+  var signedIn = typeof isSignedIn === 'function' && isSignedIn();
+  var syncBtnText = settingsState.syncStatus === 'syncing' ? '불러오는 중...'
+    : settingsState.syncStatus === 'done' ? '불러오기 완료' : '지금 불러오기';
+  var subHtml = !calSync ? '' :
+    '<div class="settings-section-head">구글 캘린더 목록 (불러올 캘린더 선택)</div>'
+    + '<div id="settings-cal-list">'
+    + (signedIn
+        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오는 중...</div>'
+        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">Google 로그인 후 캘린더 목록을 확인할 수 있습니다.</div>')
+    + '</div>';
+  return '<div class="settings-section-head" style="margin-top:14px;">캘린더 연동 (불러오기)</div>'
+    + '<div class="settings-row">'
+    + '<div><div class="settings-row-label">구글 캘린더 불러오기</div><div class="settings-row-desc">구글 캘린더 일정을 TaskLog로 가져옵니다 (쓰기 없음)</div></div>'
+    + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
+    + '</div>'
+    + subHtml
+    + '<div style="margin-top:14px;">'
+    + '<button onclick="settingsDoSync()" ' + (calSync ? '' : 'disabled') + ' style="width:100%;height:40px;border-radius:8px;border:none;cursor:' + (calSync ? 'pointer' : 'not-allowed') + ';background:' + (calSync ? 'var(--brand-primary)' : 'var(--border)') + ';color:' + (calSync ? '#fff' : 'var(--text-3)') + ';font-size:13px;font-weight:700;font-family:inherit;">'
+    + syncBtnText + '</button>'
+    + '</div>';
 }
 
 // ── General tab ───────────────────────────
@@ -350,7 +375,6 @@ function settingsRenderCalList(cals) {
       + '<select class="settings-select" data-calid="' + idEnc + '" onchange="settingsSetPerCalDir(decodeURIComponent(this.dataset.calid), this.value)">'
       + '<option value="off"'  + (dir === 'off'  ? ' selected' : '') + '>동기화 안 함</option>'
       + '<option value="pull"' + (dir === 'pull' ? ' selected' : '') + '>가져오기 (구글 → TaskLog)</option>'
-      + '<option value="two"'  + (dir === 'two'  ? ' selected' : '') + '>양방향</option>'
       + '</select>'
       + '</div>';
   }).join('');
@@ -498,7 +522,7 @@ function settingsSetWeekStart(v) {
 function settingsToggleCalSync() {
   settingsState.calSync = !settingsState.calSync;
   localStorage.setItem('app-cal-sync', settingsState.calSync ? '1' : '0');
-  setSettingsTab('calendar');
+  setSettingsTab('general');
 }
 function settingsSetCalProvider(id) {
   settingsState.calProvider = id;
@@ -519,8 +543,8 @@ function settingsDoSync() {
   if (!settingsState.calSync) return;
   if (typeof fetchCalendarEvents === 'function') fetchCalendarEvents();
   settingsState.syncStatus = 'syncing';
-  setSettingsTab('calendar');
-  setTimeout(function() { settingsState.syncStatus = 'done'; setSettingsTab('calendar'); }, 2000);
+  setSettingsTab('general');
+  setTimeout(function() { settingsState.syncStatus = 'done'; setSettingsTab('general'); }, 2000);
 }
 function settingsToggleAutoBackup() {
   if (!(typeof isSignedIn === 'function' && isSignedIn())) {

@@ -267,7 +267,8 @@ function boardColPickerPanel() {
   }).join('');
   return '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
     + '<div class="bd-colpick-search-wrap">'
-    + '<input type="text" class="bd-colpick-search" id="bd-colpick-search" placeholder="🔍 전체 검색..." value="' + escapeHtml(_boardSearch || '') + '"'
+    + '<span class="bd-colpick-search-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>'
+    + '<input type="text" class="bd-colpick-search" id="bd-colpick-search" placeholder="전체 검색..." value="' + escapeHtml(_boardSearch || '') + '"'
     + ' oninput="boardOnSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
     + '</div>'
     + '<div class="bd-colpick-title">표시 항목</div>' + items + '</div>';
@@ -558,5 +559,13 @@ document.addEventListener('click', function(e) {
   if (th && !th.contains(e.target)) {
     _boardFilterOpen = null;
     renderTodoView();
+  }
+});
+
+// 컬럼 너비 드래그 중에도 제목줄 자간·장평을 재조정 (잘림 방지)
+var hwBoardResizeFitBound = true;
+document.addEventListener('mousemove', function () {
+  if (document.body.classList.contains('cr-resizing') && document.querySelector('#todo-body .bd-table') && typeof boardFitHeaders === 'function') {
+    boardFitHeaders();
   }
 });
