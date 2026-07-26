@@ -1932,7 +1932,14 @@ function openNewTaskPanel(taskId) {
 
   var body = document.getElementById('rp-body');
   if (body) { body.classList.remove('rp-body--detail'); body.innerHTML = buildRpForm(task); }
-  _projDDCallbacks['rp-proj'] = function(sel){ rpState.mdtAction = sel; rpState.dirty = true; };
+  _projDDCallbacks['rp-proj'] = function(sel){
+    rpState.mdtAction = sel; rpState.dirty = true;
+    // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
+    var pv = document.getElementById('rp-prev-sel');
+    var nx = document.getElementById('rp-next-sel');
+    if (pv) pv.innerHTML = rpDepSingleOptions('prev');
+    if (nx) nx.innerHTML = rpDepSingleOptions('next');
+  };
 
   // 생성/수정 모드: rp-footer(저장/취소) 복원
   var rpFoot = document.querySelector('.rp-footer');
@@ -2070,9 +2077,9 @@ function buildRpForm(task) {
   // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
   var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
     + '<div style="display:flex;gap:10px;">'
-    + '<div class="field-group" style="flex:1;"><label class="field-label">이전 (선행)</label>'
+    + '<div class="field-group" style="flex:1;">'
     + '<select class="field-input" id="rp-prev-sel" onchange="rpSetDep(\'prev\',this.value)">'+rpDepSingleOptions('prev')+'</select></div>'
-    + '<div class="field-group" style="flex:1;"><label class="field-label">다음 (후행)</label>'
+    + '<div class="field-group" style="flex:1;">'
     + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
     + '</div></div>';
 
@@ -2396,8 +2403,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
 
 function rpDepSingleOptions(dir) {
   var cur = rpDepIds(dir)[0] || '';
-  var opts = '<option value="">— 선택 안 함 —</option>';
-  opts += tasks.filter(function(t){ return t.id !== rpState.taskId; })
+  // 선택 안 함 자리표시자 텍스트를 방향별로 '이전' / '다음' 으로 표기
+  var placeholder = (dir === 'prev') ? '이전' : '다음';
+  var opts = '<option value="">' + placeholder + '</option>';
+  // 선택된 프로젝트(실행과제) 하위 Task만 노출. 프로젝트 미선택 시 전체 표시.
+  var proj = rpState.mdtAction;
+  opts += tasks.filter(function(t){
+      if (t.id === rpState.taskId) return false;
+      if (t.id === cur) return true;                 // 이미 선택된 항목은 항상 표시
+      if (proj && proj.actionId != null) {
+        return t.mdtAction
+          && t.mdtAction.year     === proj.year
+          && t.mdtAction.sgId     === proj.sgId
+          && t.mdtAction.actionId === proj.actionId;
+      }
+      return true;
+    })
     .map(function(t){
       var s = (t.id === cur) ? ' selected' : '';
       return '<option value="'+t.id+'"'+s+'>'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>';

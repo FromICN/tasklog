@@ -1,0 +1,153 @@
+diff --git a/script.js b/script.js
+index 605c1e2..214e555 100644
+--- a/script.js
++++ b/script.js
+@@ -1932,7 +1932,14 @@ function openNewTaskPanel(taskId) {
+ 
+   var body = document.getElementById('rp-body');
+   if (body) { body.classList.remove('rp-body--detail'); body.innerHTML = buildRpForm(task); }
+-  _projDDCallbacks['rp-proj'] = function(sel){ rpState.mdtAction = sel; rpState.dirty = true; };
++  _projDDCallbacks['rp-proj'] = function(sel){
++    rpState.mdtAction = sel; rpState.dirty = true;
++    // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
++    var pv = document.getElementById('rp-prev-sel');
++    var nx = document.getElementById('rp-next-sel');
++    if (pv) pv.innerHTML = rpDepSingleOptions('prev');
++    if (nx) nx.innerHTML = rpDepSingleOptions('next');
++  };
+ 
+   // 생성/수정 모드: rp-footer(저장/취소) 복원
+   var rpFoot = document.querySelector('.rp-footer');
+@@ -2070,9 +2077,9 @@ function buildRpForm(task) {
+   // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
+   var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
+     + '<div style="display:flex;gap:10px;">'
+-    + '<div class="field-group" style="flex:1;"><label class="field-label">이전 (선행)</label>'
++    + '<div class="field-group" style="flex:1;">'
+     + '<select class="field-input" id="rp-prev-sel" onchange="rpSetDep(\'prev\',this.value)">'+rpDepSingleOptions('prev')+'</select></div>'
+-    + '<div class="field-group" style="flex:1;"><label class="field-label">다음 (후행)</label>'
++    + '<div class="field-group" style="flex:1;">'
+     + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
+     + '</div></div>';
+ 
+@@ -2396,8 +2403,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
+ 
+ function rpDepSingleOptions(dir) {
+   var cur = rpDepIds(dir)[0] || '';
+-  var opts = '<option value="">— 선택 안 함 —</option>';
+-  opts += tasks.filter(function(t){ return t.id !== rpState.taskId; })
++  // 선택 안 함 자리표시자 텍스트를 방향별로 '이전' / '다음' 으로 표기
++  var placeholder = (dir === 'prev') ? '이전' : '다음';
++  var opts = '<option value="">' + placeholder + '</option>';
++  // 선택된 프로젝트(실행과제) 하위 Task만 노출. 프로젝트 미선택 시 전체 표시.
++  var proj = rpState.mdtAction;
++  opts += tasks.filter(function(t){
++      if (t.id === rpState.taskId) return false;
++      if (t.id === cur) return true;                 // 이미 선택된 항목은 항상 표시
++      if (proj && proj.actionId != null) {
++        return t.mdtAction
++          && t.mdtAction.year     === proj.year
++          && t.mdtAction.sgId     === proj.sgId
++          && t.mdtAction.actionId === proj.actionId;
++      }
++      return true;
++    })
+     .map(function(t){
+       var s = (t.id === cur) ? ' selected' : '';
+       return '<option value="'+t.id+'"'+s+'>'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>';
+diff --git a/style.css b/style.css
+index 2bfd509..7a77f4e 100644
+--- a/style.css
++++ b/style.css
+@@ -9763,3 +9763,91 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+   }
+   .todo-table { min-width: 560px; }
+ }
++
++/* =========================================================
++   ✏️ Task 수정 패널 — UI 개선 (2026-07)
++   테마색(흰색/검정) = var(--bg), 테마 회색 = var(--bg-1)
++   ========================================================= */
++
++/* [Task #1] Task 입력창 포커스: 모서리 라운드 + 포커스 링 굵기 1pt 축소(2px→1px) */
++#rp-task-name { border-radius: var(--radius-md); }
++#rp-task-name:focus-visible {
++  outline-width: 1px;
++  outline-offset: 1px;
++  border-radius: var(--radius-md);
++}
++
++/* [Task #2] To Do 영역을 박스로: 배경=테마색(흰/검), 마감일 버튼 테두리는 옅은 회색·최대한 얇게 */
++.rp-form .dp-steps-section {
++  background: var(--bg);
++  border: 1px solid var(--border);
++  border-radius: var(--radius-md);
++  padding: var(--space-15) var(--space-2);
++}
++.rp-form .step-cal-btn {
++  border: 0.5px solid var(--border);
++}
++
++/* [Task #3] Priority · Status 개별 항목 배경 = 테마색(흰/검) */
++.rp-form .rp-ei-btn,
++.rp-form .rp-status-btn {
++  background: var(--bg);
++}
++.rp-form .rp-ei-btn:hover,
++.rp-form .rp-status-btn:hover {
++  background: var(--surface-hover);
++}
++
++/* [Task #4] Project · Linked Tasks 박스 배경 = 테마색(흰/검) */
++.rp-form .proj-dd-trigger,
++#rp-prev-sel,
++#rp-next-sel {
++  background: var(--bg);
++}
++
++/* =========================================================
++   🔮 Mandalart — UI 개선 (2026-07)
++   테마색(흰색/검정) = var(--bg), 테마 회색 = var(--bg-1)
++   ========================================================= */
++
++/* [MDT #1] 왼쪽 만다라트 박스: 내부 상단 여백 1pt 늘리기 */
++.mdt-left-panel { padding-top: 1px; }
++
++/* [MDT #2] "연간 목표" 박스 배경 = 테마색(흰/검) */
++.mdt-perf-annual { background: var(--bg); }
++
++/* [MDT #3] 개별 section 카드 세로로 채워 '전체 실적 요약' 박스 하단 여백 제거 */
++.mdt-perf-summary-box { display: flex; flex-direction: column; }
++.mdt-perf-dash-list { flex: 1 1 auto; }
++.mdt-perf-dash-card {
++  flex: 1 1 auto;
++  display: flex;
++  flex-direction: column;
++  justify-content: center;
++}
++
++/* [MDT #4] section 세부내역 박스 배경 = 테마색(흰/검) + [MDT #6] 스크롤 */
++.mdt-perf-section {
++  background: var(--bg);
++  border: 1px solid var(--border);
++  border-radius: var(--radius-lg);
++  padding: var(--space-3);
++  display: flex;
++  flex-direction: column;
++  flex: 1 1 auto;
++  min-height: 0;
++}
++.mdt-perf-section-head { flex: 0 0 auto; margin-bottom: var(--space-2); }
++.mdt-act-cards {
++  flex: 1 1 auto;
++  min-height: 0;
++  overflow-y: auto;
++  padding: var(--space-25) 0 0;
++}
++
++/* [MDT #5] "전체" · "목표" 버튼: 테마 회색 배경 + 테두리 제거 */
++.mdt-perf-back,
++.mdt-smart-open-btn {
++  background: var(--bg-1);
++  border: none;
++}
