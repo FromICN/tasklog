@@ -34,6 +34,7 @@ function renderHomeView() {
   renderHomeHabitWidget();
   renderHomeGanttMini();
   renderHomeLifeWheel();
+  hwInitLayout();
 }
 
 // ── 전체 레이아웃 ──────────────────────────
@@ -841,4 +842,128 @@ function fmtKey(d) {
   return d.getFullYear() + '-'
     + String(d.getMonth()+1).padStart(2,'0') + '-'
     + String(d.getDate()).padStart(2,'0');
+}
+
+
+// ============================================
+//  홈 위젯 레이아웃 — 크기 조정 / 위치 변경 (스크롤 없이 이웃이 보정)
+// ============================================
+var HW_LKEY = 'home-layout-v1';
+var _hwDrag = null;
+function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
+function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }
+function hwRowCards(row) { return Array.prototype.filter.call(row.children, function (c) { return c.classList && c.classList.contains('card'); }); }
+function hwOrder(row) { return hwRowCards(row).map(function (c) { return c.id; }); }
+function hwApplyOrder(row, order) {
+  if (!order || !order.length) return;
+  order.forEach(function (id) { var el = document.getElementById(id); if (el && el.parentNode === row) row.appendChild(el); });
+}
+
+function hwInitLayout() {
+  var row1 = document.querySelector('.home-grid-row1');
+  var row2 = document.querySelector('.home-grid-row2');
+  var page = document.querySelector('.home-page');
+  if (!row1 || !row2 || !page) return;
+  var L = hwLoadLayout();
+  if (L.order1) hwApplyOrder(row1, L.order1);
+  if (L.order2) hwApplyOrder(row2, L.order2);
+  if (L.row1cols) row1.style.gridTemplateColumns = L.row1cols;
+  if (L.row2cols) row2.style.gridTemplateColumns = L.row2cols;
+  if (L.row2h) row2.style.height = L.row2h + 'px';
+
+  hwAddColHandles(row1, 'row1cols');
+  hwAddColHandles(row2, 'row2cols');
+  hwAddRowHandle(row1, row2, page);
+  hwAddReorder(row1, 'order1');
+  hwAddReorder(row2, 'order2');
+}
+
+// ── 가로 크기 조정 (이웃 열이 반대로 보정 → 총 너비 유지) ──
+function hwAddColHandles(row, key) {
+  var cards = hwRowCards(row);
+  cards.forEach(function (card, i) {
+    if (i === cards.length - 1) return;
+    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+    var h = document.createElement('div');
+    h.className = 'hw-resize-x';
+    h.title = '드래그해 너비 조정';
+    card.appendChild(h);
+    h.addEventListener('mousedown', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      var widths = cards.map(function (c) { return c.getBoundingClientRect().width; });
+      var startX = e.clientX, MIN = 90;
+      function mm(ev) {
+        var d = ev.clientX - startX;
+        var nd = Math.max(MIN - widths[i], Math.min(widths[i + 1] - MIN, d));
+        var w = widths.slice(); w[i] += nd; w[i + 1] -= nd;
+        row.style.gridTemplateColumns = w.map(function (x) { return x + 'px'; }).join(' ');
+      }
+      function mu() {
+        document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
+        document.body.classList.remove('hw-resizing');
+        var Ly = hwLoadLayout(); Ly[key] = row.style.gridTemplateColumns; hwSaveLayout(Ly);
+      }
+      document.body.classList.add('hw-resizing');
+      document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+    });
+  });
+}
+
+// ── 세로 크기 조정 (두 행 경계 · row1은 flex로 자동 보정) ──
+function hwAddRowHandle(row1, row2, page) {
+  if (getComputedStyle(row2).position === 'static') row2.style.position = 'relative';
+  var h = document.createElement('div');
+  h.className = 'hw-resize-y';
+  h.title = '드래그해 높이 조정';
+  row2.appendChild(h);
+  h.addEventListener('mousedown', function (e) {
+    e.preventDefault(); e.stopPropagation();
+    var startY = e.clientY, startH = row2.getBoundingClientRect().height;
+    var pageH = page.getBoundingClientRect().height;
+    function mm(ev) {
+      var d = ev.clientY - startY;
+      var nh = Math.max(140, Math.min(pageH - 200, startH - d));
+      row2.style.height = nh + 'px';
+    }
+    function mu() {
+      document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
+      document.body.classList.remove('hw-resizing');
+      var Ly = hwLoadLayout(); Ly.row2h = Math.round(parseFloat(row2.style.height)); hwSaveLayout(Ly);
+    }
+    document.body.classList.add('hw-resizing');
+    document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+  });
+}
+
+// ── 위치 변경 (헤더 드래그로 같은 행 내 위젯 교체) ──
+function hwSwap(a, b) {
+  var parent = a.parentNode;
+  var next = (b.nextSibling === a) ? b : b.nextSibling;
+  parent.insertBefore(b, a);
+  parent.insertBefore(a, next);
+}
+function hwAddReorder(row, key) {
+  hwRowCards(row).forEach(function (card) {
+    var head = card.querySelector('.card-header');
+    if (!head) return;
+    head.setAttribute('draggable', 'true');
+    head.classList.add('hw-drag-head');
+    head.addEventListener('dragstart', function (e) {
+      _hwDrag = { row: row, id: card.id };
+      if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', card.id); } catch (_) {} }
+      setTimeout(function () { card.classList.add('hw-dragging'); }, 0);
+    });
+    head.addEventListener('dragend', function () { card.classList.remove('hw-dragging'); _hwDrag = null; });
+    card.addEventListener('dragover', function (e) { if (_hwDrag && _hwDrag.row === row) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; } });
+    card.addEventListener('drop', function (e) {
+      if (!_hwDrag || _hwDrag.row !== row) return;
+      e.preventDefault(); e.stopPropagation();
+      var src = document.getElementById(_hwDrag.id);
+      if (src && src !== card) {
+        hwSwap(src, card);
+        var Ly = hwLoadLayout(); Ly[key] = hwOrder(row); hwSaveLayout(Ly);
+      }
+      _hwDrag = null;
+    });
+  });
 }

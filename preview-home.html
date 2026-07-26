@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Home 위젯 레이아웃 미리보기</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { margin: 0; }
+  .main-content { height: 100vh; box-sizing: border-box; padding: 20px 16px; overflow: hidden; }
+  .hw-demo-body { padding: 14px; color: var(--text-2); font-size: 13px; }
+  .hw-hint { position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%); background: var(--bg-1,#252525); color: var(--text-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 12px; z-index: 50; }
+</style>
+</head>
+<body>
+  <div class="main-content" id="main-content">
+    <div id="page-content" style="height:100%;"></div>
+  </div>
+  <div class="hw-hint">위젯 오른쪽 모서리 = 너비 조정 · 두 행 경계 = 높이 조정 · 헤더 드래그 = 위치 변경</div>
+
+  <script>
+    // 데이터 의존 렌더러를 자리표시자로 대체
+    function _fill(id, label){ var el=document.getElementById(id); if(el) el.innerHTML='<div class="hw-demo-body">'+label+' 위젯 내용</div>'; }
+    function renderHomeNotif(){ _fill('notif-body','Alarm'); }
+    function renderHomeCalendar(){ _fill('cal-body','Calendar'); }
+    function renderHomeMandalartWidget(){ _fill('mandalart-body','Mandalart'); }
+    function renderHomeHabitWidget(){ _fill('habit-body','Habit Tracker'); }
+    function renderHomeGanttMini(){ _fill('gantt-body','Gantt'); }
+    function renderHomeLifeWheel(){ _fill('wheel-body','Life Wheel'); }
+    function navToMenu(){}
+    document.body.classList.remove('light-mode');
+  </script>
+  <script src="home.js"></script>
+  <script>renderHomeView();</script>
+</body>
+</html>
