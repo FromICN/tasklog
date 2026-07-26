@@ -2091,9 +2091,9 @@ function buildDateSegInput(hiddenId, dateStr) {
 // ── Start/Due 통합 입력: YYYY-MM-DD-HH:MM 한 칸에 타이핑 ──
 function buildDateTimeInput(id, dateStr, timeStr) {
   var val = '';
-  if (dateStr) { val = dateStr; if (timeStr) val += '-' + timeStr; }
+  if (dateStr) { val = dateStr; if (timeStr) val += '  ' + timeStr; }
   return '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
-    + ' inputmode="numeric" placeholder="YYYY-MM-DD-HH:MM" value="' + val + '"'
+    + ' inputmode="numeric" placeholder="YYYY-MM-DD  HH:MM" value="' + val + '"'
     + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">';
 }
 function rpDtInput(el) {
@@ -2101,7 +2101,7 @@ function rpDtInput(el) {
   var out = d.slice(0, 4);
   if (d.length > 4)  out += '-' + d.slice(4, 6);
   if (d.length > 6)  out += '-' + d.slice(6, 8);
-  if (d.length > 8)  out += '-' + d.slice(8, 10);
+  if (d.length > 8)  out += '  ' + d.slice(8, 10);
   if (d.length > 10) out += ':' + d.slice(10, 12);
   el.value = out;
   if (typeof rpState !== 'undefined') rpState.dirty = true;

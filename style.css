@@ -9972,3 +9972,17 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .wbs-titlefilter-list { max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 .wbs-titlefilter-list::-webkit-scrollbar { width: 6px; }
 .wbs-titlefilter-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: var(--radius-xs); }
+
+/* =========================================================
+   ✏️ Task 수정 패널 — 4차 개선 (2026-07)
+   ========================================================= */
+
+/* [R4 #2] To Do 캘린더·시계 크기 80%로 축소 */
+.step-date-form .sdp-cal-wrap,
+.step-date-form .sdp-clock { zoom: 0.8; }
+
+/* [R4 #3] To Do 내부 좌우 여백 최소화 + 요소 간 간격 최소화 */
+.rp-form .dp-steps-section { padding-left: var(--space-05); padding-right: var(--space-05); }
+.rp-form .rp-dnd-step { gap: var(--space-1); }
+.rp-form .rp-dnd-step .step-drag-handle { margin-right: -2px; }  /* 드래그 핸들 ↔ 체크 */
+.rp-form .rp-dnd-step .step-delete { margin-left: -2px; }        /* 기한 배지 ↔ 삭제(✕) */

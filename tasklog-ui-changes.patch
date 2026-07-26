@@ -1,5 +1,5 @@
 diff --git a/script.js b/script.js
-index 605c1e2..9206a1c 100644
+index 605c1e2..5ab8b6f 100644
 --- a/script.js
 +++ b/script.js
 @@ -636,19 +636,123 @@ function buildPickerHtml(id, dateStr, timeStr) {
@@ -180,9 +180,9 @@ index 605c1e2..9206a1c 100644
 +// ── Start/Due 통합 입력: YYYY-MM-DD-HH:MM 한 칸에 타이핑 ──
 +function buildDateTimeInput(id, dateStr, timeStr) {
 +  var val = '';
-+  if (dateStr) { val = dateStr; if (timeStr) val += '-' + timeStr; }
++  if (dateStr) { val = dateStr; if (timeStr) val += '  ' + timeStr; }
 +  return '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
-+    + ' inputmode="numeric" placeholder="YYYY-MM-DD-HH:MM" value="' + val + '"'
++    + ' inputmode="numeric" placeholder="YYYY-MM-DD  HH:MM" value="' + val + '"'
 +    + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">';
 +}
 +function rpDtInput(el) {
@@ -190,7 +190,7 @@ index 605c1e2..9206a1c 100644
 +  var out = d.slice(0, 4);
 +  if (d.length > 4)  out += '-' + d.slice(4, 6);
 +  if (d.length > 6)  out += '-' + d.slice(6, 8);
-+  if (d.length > 8)  out += '-' + d.slice(8, 10);
++  if (d.length > 8)  out += '  ' + d.slice(8, 10);
 +  if (d.length > 10) out += ':' + d.slice(10, 12);
 +  el.value = out;
 +  if (typeof rpState !== 'undefined') rpState.dirty = true;
@@ -291,10 +291,10 @@ index 605c1e2..9206a1c 100644
    var upstreamDeptVal = upstreamDepts.join(', ');
  
 diff --git a/style.css b/style.css
-index 2bfd509..c06f48f 100644
+index 2bfd509..5d0b82e 100644
 --- a/style.css
 +++ b/style.css
-@@ -9763,3 +9763,212 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -9763,3 +9763,226 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -507,6 +507,20 @@ index 2bfd509..c06f48f 100644
 +.wbs-titlefilter-list { max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 +.wbs-titlefilter-list::-webkit-scrollbar { width: 6px; }
 +.wbs-titlefilter-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: var(--radius-xs); }
++
++/* =========================================================
++   ✏️ Task 수정 패널 — 4차 개선 (2026-07)
++   ========================================================= */
++
++/* [R4 #2] To Do 캘린더·시계 크기 80%로 축소 */
++.step-date-form .sdp-cal-wrap,
++.step-date-form .sdp-clock { zoom: 0.8; }
++
++/* [R4 #3] To Do 내부 좌우 여백 최소화 + 요소 간 간격 최소화 */
++.rp-form .dp-steps-section { padding-left: var(--space-05); padding-right: var(--space-05); }
++.rp-form .rp-dnd-step { gap: var(--space-1); }
++.rp-form .rp-dnd-step .step-drag-handle { margin-right: -2px; }  /* 드래그 핸들 ↔ 체크 */
++.rp-form .rp-dnd-step .step-delete { margin-left: -2px; }        /* 기한 배지 ↔ 삭제(✕) */
 diff --git a/wbs.js b/wbs.js
 index cb56c19..4cecd31 100644
 --- a/wbs.js
