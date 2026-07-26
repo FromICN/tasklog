@@ -3653,7 +3653,7 @@ body.light-mode .lw-cv-tag {
 }
 
 .lw-modal {
-  background: var(--panel-bg);
+  background: var(--main-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   width: 480px;
@@ -3743,18 +3743,18 @@ body.light-mode .lw-cv-tag {
 }
 
 .lw-modal-save {
-  background: var(--info);
-  color: #fff;
+  background: var(--text-1);
+  color: var(--main-bg);
   border: none;
   border-radius: var(--radius-sm);
   padding: 7px 18px;
   font-size: var(--fs-base);
   font-weight: 600;
   cursor: pointer;
-  transition: background var(--dur-fast);
+  transition: opacity var(--dur-fast);
 }
 
-.lw-modal-save:hover { background: var(--info); }
+.lw-modal-save:hover { opacity: 0.85; }
 
 .lw-modal-cancel {
   background: rgba(255,255,255,0.07);
@@ -5405,10 +5405,10 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
 .gantt-page .gm-wrap {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: var(--main-bg);
   padding: var(--space-1) var(--space-3) var(--space-2);
 }
-.gantt-page .gm-header { background: var(--bg-1); }
+.gantt-page .gm-header { background: var(--main-bg); }
 body.light-mode .gantt-page .gm-header { background: #ffffff; }
 
 /* 라이트 모드에서의 음영(흰색 오버레이는 보이지 않으므로 검정 기반으로 보정) */
@@ -5896,9 +5896,10 @@ body.light-mode .year-select option { color: #1a1a1a; }
   background: var(--brand-primary);
   color: #fff;
   border: none;
-  border-radius: var(--radius-md);
-  padding: var(--space-2) 18px;
-  font-weight: 700;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-25);
+  font-size: var(--fs-base);
+  font-weight: 600;
 }
 .mvv-year-select:hover { background: var(--brand-primary); opacity: 0.85; }
 .mvv-year-select:focus { border: none; }
@@ -6293,8 +6294,8 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .jnl-eval-guide { font-size: var(--fs-xs); color: var(--text-3); line-height: 1.4; }
 .jnl-tracker { background: var(--main-bg); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-25) var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
 .jnl-tracker-head { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
-.jnl-tracker-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 3px; }
-.jnl-tracker-btn { font-size: var(--fs-2xs); height: 19px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: transparent; color: var(--text-3); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: border-color var(--dur-fast), color var(--dur-fast); }
+.jnl-tracker-grid { display: grid; grid-template-columns: repeat(13, 1fr); gap: 4px; }
+.jnl-tracker-btn { font-size: var(--fs-xs); height: 28px; border: 1px solid var(--border); border-radius: var(--radius-xs); background: transparent; color: var(--text-3); cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: border-color var(--dur-fast), color var(--dur-fast); }
 .jnl-tracker-btn:hover { border-color: var(--text-2); color: var(--text-1); }
 .jnl-tracker-btn.done { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
 .jnl-tracker-btn.sel { outline: 1px solid var(--text-1); outline-offset: -1px; }
@@ -8713,7 +8714,7 @@ body.light-mode .todo-add-input { background: #f5f5f5; color: #1a1a1a; }
 .todo-progress-wrap { display: flex; align-items: center; gap: var(--space-15); }
 .todo-progress-bar { flex: 1; min-width: 50px; height: 5px; background: rgba(255,255,255,0.1); border-radius: var(--radius-xs); overflow: hidden; }
 .todo-progress-fill { height: 100%; background: linear-gradient(90deg, var(--info), var(--success)); border-radius: var(--radius-xs); transition: width var(--dur-slow) ease; }
-.todo-progress-pct { font-size: var(--fs-xs); color: var(--text-2); min-width: 30px; text-align: right; }
+.todo-progress-pct { font-size: var(--fs-base); color: var(--text-1); min-width: 30px; text-align: right; }
 .todo-table-count {
   padding: var(--space-25) var(--space-1) 0;
   color: var(--text-2);
@@ -8802,13 +8803,11 @@ body.light-mode .bd-colpick-btn:hover, body.light-mode .bd-colpick-btn.on { colo
   color: var(--text-3);
   font-size: var(--fs-sm);
 }
-.todo-table-work, .todo-table-start { white-space: nowrap; color: var(--text-2); }
+.todo-table-work, .todo-table-start { white-space: nowrap; color: var(--text-1); }
 .todo-table-assignee, .todo-table-org { white-space: nowrap; color: var(--text-1); }
-.todo-status-badge {
+.todo-status-badge, .todo-status-text {
   display: inline-block;
-  padding: var(--space-05) var(--space-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-base);
   font-weight: 600;
   white-space: nowrap;
 }

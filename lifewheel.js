@@ -383,7 +383,7 @@ function lwBuildModalCvBlock(rowIdx) {
   var connected = lwGetSectionValueIds(rowIdx);
   var countColor = connected.length > 0 ? 'var(--brand-primary)' : 'var(--text-3)';
   var html = '<div class="smart-field-header" style="justify-content:space-between;">'
-    + '<span style="display:inline-flex;align-items:center;gap:var(--space-2);"><span class="smart-icon">💎</span><span class="smart-label">Value</span></span>'
+    + '<span style="display:inline-flex;align-items:center;gap:var(--space-2);"><span class="smart-label">Value</span></span>'
     + '<span style="display:flex;align-items:center;gap:8px;">'
     + '<span style="font-size:12px;font-weight:700;color:' + countColor + ';">' + connected.length + ' / 3</span>'
     + '</span>'
@@ -473,7 +473,7 @@ function lwOpenCvPicker(rowIdx) {
   };
   ol.innerHTML = '<div class="lw-modal lw-cv-picker-modal">'
     + '<div class="lw-modal-header">'
-    + '<span><span class="smart-icon">💎</span> 핵심가치 선택</span>'
+    + '<span>핵심가치 선택</span>'
     + '<button class="lw-modal-close" onclick="lwCloseCvPicker()">✕</button>'
     + '</div>'
     + '<div class="lw-modal-body" id="lw-cv-picker-body">' + lwBuildCvPickerBody() + '</div>'

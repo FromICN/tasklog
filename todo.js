@@ -31,7 +31,7 @@ function buildTodoStatusCell(task) {
   if (!task.status) return todoEmptyCell();
   var colors = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--info)', '취소':'var(--text-3)' };
   var c = colors[task.status] || 'var(--text-2)';
-  return '<span class="todo-status-badge" style="color:'+c+';background:color-mix(in srgb, '+c+' 12%, transparent);border:1px solid color-mix(in srgb, '+c+' 33%, transparent);">'+escapeHtml(task.status)+'</span>';
+  return '<span class="todo-status-text" style="color:'+c+';font-weight:600;">'+escapeHtml(task.status)+'</span>';
 }
 
 // 담당자 셀
@@ -431,6 +431,34 @@ function refreshTodoBody() {
   var el = document.getElementById('todo-body');
   if (el) el.innerHTML = buildBoardTable();
   boardAttachColResize();
+  boardFitHeadersRAF();
+}
+
+// 제목줄 텍스트가 열 너비보다 길면 자간·장평을 줄여 숨김 방지
+function boardFitHeadersRAF() {
+  if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(boardFitHeaders);
+  else boardFitHeaders();
+}
+function boardFitHeaders() {
+  var ths = document.querySelectorAll('#todo-body .bd-th');
+  for (var i = 0; i < ths.length; i++) {
+    var th = ths[i];
+    var lbl = th.querySelector('.bd-th-label');
+    if (!lbl) continue;
+    lbl.style.display = 'inline-block';
+    lbl.style.transform = '';
+    lbl.style.letterSpacing = '';
+    var cs = window.getComputedStyle(th);
+    var avail = th.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    var sb = th.querySelector('.bd-sortbtns');
+    if (sb) avail -= (sb.offsetWidth + 4);
+    var w = lbl.scrollWidth;
+    if (w > avail && avail > 8) {
+      lbl.style.letterSpacing = '-0.04em';
+      lbl.style.transform = 'scaleX(' + Math.max(0.55, avail / w) + ')';
+      lbl.style.transformOrigin = 'left center';
+    }
+  }
 }
 
 // 컬럼 너비 드래그 조정 (localStorage 저장 → 새로고침 후에도 유지)
