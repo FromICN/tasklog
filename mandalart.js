@@ -399,17 +399,12 @@ function renderCoreCard(m) {
 // ── 실적 관리 패널 (우측) ──
 
 function selectMdtSection(year, sgId) {
-  mdtSelectedSgId = sgId;
-  mdtSelectedActId = null;
-  highlightSelectedSection(year, sgId);
-  renderMdtPerfPanel(year);
+  // 개별 실적 관리 영역(우측 패널)을 만들지 않고 세부 실적관리 페이지 전체 화면으로 이동
+  openSgDetail(year, sgId);
 }
 
 function selectMdtAction(year, sgId, actId) {
-  mdtSelectedSgId = sgId;
-  mdtSelectedActId = actId;
-  highlightSelectedSection(year, sgId);
-  renderMdtPerfPanel(year);
+  openSgDetail(year, sgId);
 }
 
 function clearMdtSection(year) {
@@ -513,7 +508,7 @@ function buildMdtPerfDashboard(m) {
     var perf = calcSgPerf(sg, m.year);
     return '<div class="mdt-perf-dash-card tl-dnd-row" data-secidx="' + si + '"'
       + ' ondragover="mdtSecDragOver(event,' + si + ')" ondragleave="tlDragLeave(event)" ondrop="mdtSecDrop(event,' + si + ')"'
-      + ' style="border-left:3px solid ' + sg.color + ';" onclick="selectMdtSection(' + m.year + ',' + sg.id + ')">'
+      + ' style="border-left:3px solid ' + sg.color + ';" onclick="openSgDetail(' + m.year + ',' + sg.id + ')">'
       + '<span class="tl-drag-handle" draggable="true" title="\ub4dc\ub798\uadf8\ud574 \uc21c\uc11c \ubcc0\uacbd" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" ondragstart="mdtSecDragStart(event,' + si + ')" ondragend="tlDragEnd(event)">\u283F</span>'
       + '<div class="mdt-perf-dash-head">'
       +   '<span class="mdt-perf-dash-emoji">' + sg.emoji + '</span>'
@@ -537,7 +532,7 @@ function buildMdtPerfDashboard(m) {
   return '<div class="mdt-perf-dash">'
     + annualHtml
     + '<div class="mdt-perf-summary-box">'
-    +   '<div class="mdt-perf-dash-title">전체 실적 요약</div>'
+    +   '<div class="mdt-perf-dash-title">달성 현황</div>'
     +   '<div class="mdt-perf-dash-list">' + cardsHtml + '</div>'
     + '</div>'
     + '</div>';
@@ -937,11 +932,9 @@ function buildSgDetailHtml(m, sg) {
     +   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
     +     '<span style="font-size:22px;">'+sg.emoji+'</span>'
     +     '<span style="font-size:15px;font-weight:700;color:'+sg.color+';">'+escMdt(sg.text || ('Section '+sg.id))+'</span>'
+    +     '<span style="margin-left:auto;font-size:12px;color:var(--text-1);white-space:nowrap;">'+m.year+' 연간 실적 <b>'+perf.pct+'%</b> ('+perf.done+'/'+perf.total+')</span>'
     +   '</div>'
     +   '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:'+perf.pct+'%;background:'+sg.color+';"></div></div>'
-    +   '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;">'
-    +     '<span style="font-size:12px;color:var(--text-1);">📊 '+m.year+' 연간 실적 <b>'+perf.pct+'%</b> ('+perf.done+'/'+perf.total+')</span>'
-    +   '</div>'
     + '</div>'
     + '<div class="mdt-grid-table-wrap">'
     + '<table class="mdt-grid-table">'
@@ -1023,7 +1016,7 @@ function mdtToggleResultMonth(year, sgId, actId, month) {
   refreshMdtGridForAction(year, sgId, actId);
 }
 
-// 실적형: 1~12월 월별 달성 체크 그리드 (12월은 연 성공 판단)
+// 실적형: 1~12월 월별 달성 배지 (클릭 시 초록으로 달성 표시, 12월은 연 성공 판단)
 function mdtResultMonthsHtml(yr, sgId, a) {
   if (!a.resultMonths) a.resultMonths = {};
   a.resultMonths[12] = !!a.completed;   // 12월 ↔ a.completed 동기화
@@ -1031,11 +1024,9 @@ function mdtResultMonthsHtml(yr, sgId, a) {
   for (var mo = 1; mo <= 12; mo++) {
     var on = !!a.resultMonths[mo];
     var isDec = (mo === 12);
-    cells += '<label class="mgt-month-cell' + (isDec ? ' is-dec' : '') + (on ? ' on' : '') + '"'
-      + ' title="' + mo + '월' + (isDec ? ' · 연 성공 판단' : '') + '">'
-      + '<input type="checkbox"' + (on ? ' checked' : '')
-      + ' onchange="mdtToggleResultMonth(' + yr + ',' + sgId + ',' + a.id + ',' + mo + ')">'
-      + '<span>' + mo + '</span></label>';
+    cells += '<button type="button" class="mgt-month-badge' + (isDec ? ' is-dec' : '') + (on ? ' on' : '') + '"'
+      + ' title="' + mo + '월' + (isDec ? ' · 연 성공 판단' : '') + '"'
+      + ' onclick="mdtToggleResultMonth(' + yr + ',' + sgId + ',' + a.id + ',' + mo + ')">' + mo + '월</button>';
   }
   return '<div class="mgt-month-grid">' + cells + '</div>';
 }
@@ -1092,7 +1083,8 @@ function mdtPerfCellHtml(m, sg, a) {
     return '<div class="mgt-perf-result">' + mdtResultMonthsHtml(yr, sgId, a) + badge + '</div>';
   }
   return '<div class="mgt-perf-habit"><span class="mgt-perf-label">' + escMdt(perf.label) + '</span>' + badge + '</div>'
-    + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
+    + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
+    + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
 }
 
 // 그리드 행 (습관형은 아래에 월간 캘린더 행 추가: 캘린더 왼쪽 · 메모 오른쪽)
@@ -1107,9 +1099,7 @@ function buildMdtGridRow(m, sg, a) {
     + '<option value="weekly"' + (tv === 'weekly' ? ' selected' : '') + '>습관형/주간</option>'
     + '</select>';
 
-  var memoCell = isHabit
-    ? '<span class="mgt-goal-note">아래 칸에 입력</span>'
-    : '<div class="mdt-memo-box mdt-memo-sm" contenteditable="true" spellcheck="false" data-ph="메모..."'
+  var memoCell = '<div class="mdt-memo-box mdt-memo-sm" contenteditable="true" spellcheck="false" data-ph="메모..."'
       + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
       + ' onblur="saveActCE(this);saveMandalarts();">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>';
 
@@ -1129,20 +1119,6 @@ function buildMdtGridRow(m, sg, a) {
     + '<td class="mgt-td-memo">' + memoCell + '</td>'
     + '</tr>';
 
-  // 습관형: 월간 캘린더(왼쪽) + 메모(오른쪽) 행 — home의 Habit Tracker와 연동(habitLog 공유)
-  if (isHabit) {
-    html += '<tr class="mgt-habit-row"><td colspan="6">'
-      + '<div class="mgt-habit-detail" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">'
-      + '<div class="mgt-habit-cal">' + buildHabitCalendar(yr, sgId, a) + '</div>'
-      + '<div class="mgt-habit-memo">'
-      + '<span class="mdt-hb-lbl">메모</span>'
-      + '<div class="mdt-memo-box" contenteditable="true" spellcheck="false" data-ph="메모를 입력하세요..."'
-      + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
-      + ' onblur="saveActCE(this);saveMandalarts();">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>'
-      + '</div>'
-      + '</div>'
-      + '</td></tr>';
-  }
   return html;
 }
 
@@ -1260,6 +1236,8 @@ function _mdtRerenderActCard(year, sgId, actId) {
   var m = getMdt(year); if (!m) return;
   var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
   var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
+  // 세부 실적관리 그리드가 열려 있으면 그리드 전체를 다시 그린다(캘린더는 달성현황 셀에 위치)
+  if (document.querySelector('.mdt-grid-table')) { openSgDetail(year, sgId); return; }
   var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
   if (!card) return;
   if (card.classList && card.classList.contains('mgt-habit-detail')) {

@@ -10056,3 +10056,48 @@ body.light-mode .right-panel {
 .mgt-month-cell input { margin: 0; accent-color: var(--brand-primary); cursor: pointer; }
 .mgt-month-cell.on { color: var(--brand-primary); font-weight: 700; }
 .mgt-month-cell.is-dec span { text-decoration: underline; text-underline-offset: 2px; }
+
+/* =========================================================
+   🔮 Mandalart — 6차 개선 (2026-07)
+   ========================================================= */
+
+/* [R6 #1] 달성 현황(전체 실적 요약) SECTION 카드 배경 = 회색 */
+.mdt-perf-dash-card { background: rgba(127,127,127,0.10); }
+
+/* [R6 #7] 누적형 목표·달성현황 입력 값 글자 크기·색상 통일(다른 항목과 동일) */
+.mdt-annual-target-inp,
+.mdt-annual-unit-inp {
+  font-size: var(--fs-xs);
+  color: var(--text-1);
+}
+
+/* [R6 #5] 달성형·실적: 월별 달성 배지(클릭 시 초록으로 달성 표시) */
+.mgt-month-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.mgt-month-badge {
+  font-size: var(--fs-2xs);
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 3px 0;
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.mgt-month-badge:hover { border-color: var(--brand-primary); }
+.mgt-month-badge.on {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success-border);
+  font-weight: 700;
+}
+.mgt-month-badge.is-dec { text-decoration: underline; text-underline-offset: 2px; }
+
+/* [R6 #8] 습관형 캘린더: 달성현황 셀로 이동 + 80% 축소 */
+.mgt-td-perf { vertical-align: top; min-width: 200px; }
+.mgt-perf-cal { zoom: 0.8; margin-top: 6px; }
+
+/* [R6 #3] 세부 실적관리 화면 잔여 박스 배경 = 테마색(흰/검) */
+.mgt-perf-habit, .mgt-perf-cum, .mgt-perf-result { background: var(--bg); }
