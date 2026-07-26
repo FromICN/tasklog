@@ -291,10 +291,39 @@ index 605c1e2..5ab8b6f 100644
    var upstreamDeptVal = upstreamDepts.join(', ');
  
 diff --git a/style.css b/style.css
-index 2bfd509..5d0b82e 100644
+index 2bfd509..d410c32 100644
 --- a/style.css
 +++ b/style.css
-@@ -9763,3 +9763,226 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -6825,22 +6825,22 @@ body.light-mode .year-select option { color: #1a1a1a; }
+ body.light-mode {
+   --set-sec: rgba(0,0,0,0.04);
+   --bg:   #ffffff;
+-  --bg-1: #EDF0F7;
++  --bg-1: #F6F6F6;
+   --bg-2: rgba(0,0,0,0.04);
+   --bg-3: rgba(0,0,0,0.07);
+-  --sidebar-bg: #E3E6F0;
++  --sidebar-bg: #EEF1F5;
+   --sidebar-hover: rgba(0,0,0,0.06);
+   --sidebar-active: #ffffff;
+   --main-bg: #ffffff;
+-  --topbar-bg: #EDF0F7;
+-  --surface: #EDF0F7;
++  --topbar-bg: #F6F6F6;
++  --surface: #F6F6F6;
+   --surface-hover: rgba(0,0,0,0.06);
+   --border: rgba(0,0,0,0.09);
+   --text-1: #1a1a1a;
+   --text-2: #555555;
+   --text-3: #aaaaaa;
+-  --panel-bg: #EDF0F7;
+-  --card-bg: #EDF0F7;
++  --panel-bg: #F6F6F6;
++  --card-bg: #F6F6F6;
+   --brand-primary: #1a1a1a;
+   --accent-rgb: 26,26,26;   /* 라이트 모드 강조: 블랙 */
+   --scroll-thumb: #c4c7cf;
+@@ -9763,3 +9763,240 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -521,6 +550,20 @@ index 2bfd509..5d0b82e 100644
 +.rp-form .rp-dnd-step { gap: var(--space-1); }
 +.rp-form .rp-dnd-step .step-drag-handle { margin-right: -2px; }  /* 드래그 핸들 ↔ 체크 */
 +.rp-form .rp-dnd-step .step-delete { margin-left: -2px; }        /* 기한 배지 ↔ 삭제(✕) */
++
++/* =========================================================
++   🎨 배경 회색 통일 (라이트 모드, 2026-07)
++   · 일반 영역 = #F6F6F6 (변수 기본값)
++   · 사이드바 + Task 수정 창(right-panel) = #EEF1F5 유지
++   ========================================================= */
++body.light-mode .sidebar,
++body.light-mode .right-panel {
++  --bg-1:      #EEF1F5;
++  --surface:   #EEF1F5;
++  --card-bg:   #EEF1F5;
++  --panel-bg:  #EEF1F5;
++  --topbar-bg: #EEF1F5;
++}
 diff --git a/wbs.js b/wbs.js
 index cb56c19..4cecd31 100644
 --- a/wbs.js
