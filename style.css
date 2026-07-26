@@ -10000,3 +10000,59 @@ body.light-mode .right-panel {
   --panel-bg:  #EEF1F5;
   --topbar-bg: #EEF1F5;
 }
+
+/* =========================================================
+   🔮 Mandalart — 5차 개선 (2026-07)
+   ========================================================= */
+
+/* [R5 #7] 세부실적관리·실적 패널: 배지·버튼 제외 배경을 테마색(흰/검)으로 */
+.mdt-grid-table th,
+.mgt-habit-row td,
+.mgt-type-sel,
+.mgt-text-inp,
+.mdt-perf-dash-card,
+.mdt-annual-block,
+.mdt-q-cell,
+.mdt-q-val,
+.mdt-memo-box,
+.mdt-annual-target-inp,
+.mdt-annual-unit-inp,
+.mdt-hb-thr {
+  background: var(--bg);
+}
+/* [R5 #3] 누적형 목표 입력창 등 입력 요소 테두리 = 테마 경계선 */
+.mdt-annual-target-inp,
+.mdt-annual-unit-inp,
+.mdt-q-val,
+.mdt-hb-thr {
+  border: 1px solid var(--border);
+}
+
+/* [R5 #5] 세부실적관리 창: 목표·저장 버튼 크기 통일 */
+.mdt-detail-actions .mdt-smart-open-btn,
+.mdt-detail-actions .mdt-detail-save-btn {
+  height: 32px;
+  min-width: 88px;
+  padding: 0 14px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+/* [R5 #2] 달성형·실적: 1~12월 월별 달성 체크 그리드 */
+.mgt-perf-result { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.mgt-result-head { display: flex; align-items: center; gap: 6px; }
+.mgt-month-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.mgt-month-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: var(--fs-2xs); color: var(--text-2);
+  cursor: pointer; user-select: none;
+}
+.mgt-month-cell input { margin: 0; accent-color: var(--brand-primary); cursor: pointer; }
+.mgt-month-cell.on { color: var(--brand-primary); font-weight: 700; }
+.mgt-month-cell.is-dec span { text-decoration: underline; text-underline-offset: 2px; }
