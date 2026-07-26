@@ -666,7 +666,6 @@ function buildClockHtml(id) {
     +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜·시간 지우기">✕</button>'
     + '</div>'
     + '<div class="sdp-clock-face" id="sdp-clock-face-' + id + '">' + buildClockFace(id, mode, hh, mm) + '</div>'
-    + '<div class="sdp-clock-hint">' + (mode==='hour' ? '시(時)를 선택하세요 · 바깥 0–11 / 안쪽 12–23' : '분(分)을 선택하세요') + '</div>'
     + '</div>';
 }
 
@@ -717,8 +716,6 @@ function refreshClock(id) {
   if (mb) { mb.textContent = pad2(mm); mb.classList.toggle('on', mode==='minute'); }
   var clk = document.getElementById('sdp-clock-' + id);
   if (clk) {
-    var hint = clk.querySelector('.sdp-clock-hint');
-    if (hint) hint.textContent = (mode==='hour') ? '시(時)를 선택하세요 · 바깥 0–11 / 안쪽 12–23' : '분(分)을 선택하세요';
     var none = clk.querySelector('.sdp-clock-none');
     if (none) none.classList.toggle('on', !s.timeStr);
   }
@@ -743,6 +740,10 @@ function clockPickMinute(id, m) {
   s.timeStr = pad2(hh) + ':' + pad2(m);
   refreshClock(id);
   onPickerChanged(id);
+  // 분(mm)까지 선택하면 입력창(팝오버)을 닫음 — To Do 마감일 등 단계 폼 대상
+  var wrap = document.getElementById('sdp-' + id);
+  var form = wrap ? (wrap.closest('.step-date-form') || wrap.closest('.dp-sub-form')) : null;
+  if (form) setTimeout(function(){ form.style.display = 'none'; }, 120);
 }
 function clockClearTime(id) {
   var s = pickerState[id]; if (!s) return;
@@ -826,6 +827,9 @@ function openPickerCal(id) {
   if (!w) return;
   w.style.display = 'block';
   w.innerHTML = buildPickerCalHtml(id);
+  // 캘린더를 다시 열 때는 시계를 감춰 '캘린더 → 시계' 순서를 유지
+  var cw = document.getElementById('sdp-clockwrap-' + id);
+  if (cw) cw.style.display = 'none';
 }
 
 function closePickerCal(id) {
@@ -884,8 +888,8 @@ function pickerPickDate(id, year, month, day) {
   var textEl = document.getElementById('sdp-text-' + id);
   if (textEl) textEl.value = formatDateDisplay(s.dateStr);
   updatePickerPreview(id);
-  var w = document.getElementById('sdp-cal-' + id);
-  if (w && w.style.display !== 'none') w.innerHTML = buildPickerCalHtml(id);
+  // 일자 선택이 끝나면 캘린더는 감추고 시계를 노출
+  closePickerCal(id);
   var cw = document.getElementById('sdp-clockwrap-' + id);
   if (cw) { cw.style.display = 'block'; pickerState[id].clockMode = 'hour'; refreshClock(id); }
   var tr = document.getElementById('sdp-timerow-' + id);
@@ -2084,6 +2088,41 @@ function buildDateSegInput(hiddenId, dateStr) {
     + '<input type="hidden" id="' + hiddenId + '" value="' + (dateStr || '') + '">'
     + '</div>';
 }
+// ── Start/Due 통합 입력: YYYY-MM-DD-HH:MM 한 칸에 타이핑 ──
+function buildDateTimeInput(id, dateStr, timeStr) {
+  var val = '';
+  if (dateStr) { val = dateStr; if (timeStr) val += '-' + timeStr; }
+  return '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
+    + ' inputmode="numeric" placeholder="YYYY-MM-DD-HH:MM" value="' + val + '"'
+    + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">';
+}
+function rpDtInput(el) {
+  var d = el.value.replace(/\D/g, '').slice(0, 12);
+  var out = d.slice(0, 4);
+  if (d.length > 4)  out += '-' + d.slice(4, 6);
+  if (d.length > 6)  out += '-' + d.slice(6, 8);
+  if (d.length > 8)  out += '-' + d.slice(8, 10);
+  if (d.length > 10) out += ':' + d.slice(10, 12);
+  el.value = out;
+  if (typeof rpState !== 'undefined') rpState.dirty = true;
+}
+function parseRpDateTime(id) {
+  var el = document.getElementById(id);
+  var raw = el ? el.value.replace(/\D/g, '') : '';
+  if (raw.length < 8) return { dateStr: null, timeStr: null };
+  var y  = raw.slice(0, 4);
+  var mo = Math.min(12, Math.max(1, parseInt(raw.slice(4, 6), 10) || 1));
+  var da = Math.min(31, Math.max(1, parseInt(raw.slice(6, 8), 10) || 1));
+  var dateStr = y + '-' + pad2(mo) + '-' + pad2(da);
+  var timeStr = null;
+  if (raw.length >= 10) {
+    var hh = Math.min(23, parseInt(raw.slice(8, 10), 10) || 0);
+    var mm = (raw.length >= 12) ? Math.min(59, parseInt(raw.slice(10, 12), 10) || 0) : 0;
+    timeStr = pad2(hh) + ':' + pad2(mm);
+  }
+  return { dateStr: dateStr, timeStr: timeStr };
+}
+
 function dsegFocus(hiddenId, part, toEnd) {
   var el = document.getElementById(hiddenId + '-' + part);
   if (!el) return;
@@ -2205,11 +2244,9 @@ function buildRpForm(task) {
     + '</div></div>'
     + '<div class="rp-dt-cols">'
     + '<div class="field-group rp-dt-col"><label class="field-label">Start</label>'
-    + '<div class="rp-dt-row">' + buildDateSegInput('rp-start-date', startStr)
-    +   '<input type="text" class="field-input rp-time-inp" id="rp-start-time" inputmode="numeric" maxlength="5" placeholder="--:--" value="'+startTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
+    + buildDateTimeInput('rp-start-dt', startStr, startTimeStr) + '</div>'
     + '<div class="field-group rp-dt-col"><label class="field-label">Due</label>'
-    + '<div class="rp-dt-row">' + buildDateSegInput('rp-due-date', dueStr)
-    +   '<input type="text" class="field-input rp-time-inp" id="rp-due-time" inputmode="numeric" maxlength="5" placeholder="--:--" value="'+dueTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
+    + buildDateTimeInput('rp-due-dt', dueStr, dueTimeStr) + '</div>'
     + '</div>'
     + todoHtml
     + eiHtml
@@ -2605,12 +2642,13 @@ function saveRightPanel() {
     return;
   }
 
-  var dueDate   = (document.getElementById('rp-due-date')   || {}).value  || '';
-  var startDate = (document.getElementById('rp-start-date') || {}).value  || '';
+  var _dueDt    = parseRpDateTime('rp-due-dt');
+  var _startDt  = parseRpDateTime('rp-start-dt');
+  var dueDate   = _dueDt.dateStr   || '';
+  var startDate = _startDt.dateStr || '';
   var notesVal  = (document.getElementById('rp-notes')      || {}).value  || '';
-  var _normTime = function(v){ var mm=/^(\d{1,2}):(\d{2})$/.exec(String(v||'').trim()); if(!mm) return null; var H=Math.min(23,+mm[1]),M=Math.min(59,+mm[2]); return String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'); };
-  var dueTime   = _normTime((document.getElementById('rp-due-time')   || {}).value);
-  var startTime = _normTime((document.getElementById('rp-start-time') || {}).value);
+  var dueTime   = _dueDt.timeStr;
+  var startTime = _startDt.timeStr;
   var upstreamDepts = rpState.upstreamDepts.slice();
   var upstreamDeptVal = upstreamDepts.join(', ');
 

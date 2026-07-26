@@ -1,8 +1,8 @@
 diff --git a/script.js b/script.js
-index 605c1e2..51a7662 100644
+index 605c1e2..9206a1c 100644
 --- a/script.js
 +++ b/script.js
-@@ -636,19 +636,122 @@ function buildPickerHtml(id, dateStr, timeStr) {
+@@ -636,19 +636,123 @@ function buildPickerHtml(id, dateStr, timeStr) {
    var dateDisp = s.dateStr ? formatDateDisplay(s.dateStr) : '';
    var timeVal  = s.timeStr || '';
  
@@ -41,7 +41,6 @@ index 605c1e2..51a7662 100644
 +    +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜·시간 지우기">✕</button>'
      + '</div>'
 +    + '<div class="sdp-clock-face" id="sdp-clock-face-' + id + '">' + buildClockFace(id, mode, hh, mm) + '</div>'
-+    + '<div class="sdp-clock-hint">' + (mode==='hour' ? '시(時)를 선택하세요 · 바깥 0–11 / 안쪽 12–23' : '분(分)을 선택하세요') + '</div>'
      + '</div>';
  }
  
@@ -92,8 +91,6 @@ index 605c1e2..51a7662 100644
 +  if (mb) { mb.textContent = pad2(mm); mb.classList.toggle('on', mode==='minute'); }
 +  var clk = document.getElementById('sdp-clock-' + id);
 +  if (clk) {
-+    var hint = clk.querySelector('.sdp-clock-hint');
-+    if (hint) hint.textContent = (mode==='hour') ? '시(時)를 선택하세요 · 바깥 0–11 / 안쪽 12–23' : '분(分)을 선택하세요';
 +    var none = clk.querySelector('.sdp-clock-none');
 +    if (none) none.classList.toggle('on', !s.timeStr);
 +  }
@@ -118,6 +115,10 @@ index 605c1e2..51a7662 100644
 +  s.timeStr = pad2(hh) + ':' + pad2(m);
 +  refreshClock(id);
 +  onPickerChanged(id);
++  // 분(mm)까지 선택하면 입력창(팝오버)을 닫음 — To Do 마감일 등 단계 폼 대상
++  var wrap = document.getElementById('sdp-' + id);
++  var form = wrap ? (wrap.closest('.step-date-form') || wrap.closest('.dp-sub-form')) : null;
++  if (form) setTimeout(function(){ form.style.display = 'none'; }, 120);
 +}
 +function clockClearTime(id) {
 +  var s = pickerState[id]; if (!s) return;
@@ -130,10 +131,24 @@ index 605c1e2..51a7662 100644
  function buildPickerCalHtml(id) {
    var s = pickerState[id];
    if (!s) return '';
-@@ -783,8 +886,10 @@ function pickerPickDate(id, year, month, day) {
+@@ -723,6 +827,9 @@ function openPickerCal(id) {
+   if (!w) return;
+   w.style.display = 'block';
+   w.innerHTML = buildPickerCalHtml(id);
++  // 캘린더를 다시 열 때는 시계를 감춰 '캘린더 → 시계' 순서를 유지
++  var cw = document.getElementById('sdp-clockwrap-' + id);
++  if (cw) cw.style.display = 'none';
+ }
+ 
+ function closePickerCal(id) {
+@@ -781,10 +888,12 @@ function pickerPickDate(id, year, month, day) {
+   var textEl = document.getElementById('sdp-text-' + id);
+   if (textEl) textEl.value = formatDateDisplay(s.dateStr);
    updatePickerPreview(id);
-   var w = document.getElementById('sdp-cal-' + id);
-   if (w && w.style.display !== 'none') w.innerHTML = buildPickerCalHtml(id);
+-  var w = document.getElementById('sdp-cal-' + id);
+-  if (w && w.style.display !== 'none') w.innerHTML = buildPickerCalHtml(id);
++  // 일자 선택이 끝나면 캘린더는 감추고 시계를 노출
++  closePickerCal(id);
 +  var cw = document.getElementById('sdp-clockwrap-' + id);
 +  if (cw) { cw.style.display = 'block'; pickerState[id].clockMode = 'hour'; refreshClock(id); }
    var tr = document.getElementById('sdp-timerow-' + id);
@@ -142,7 +157,7 @@ index 605c1e2..51a7662 100644
    onPickerChanged(id);
  }
  
-@@ -1932,7 +2037,14 @@ function openNewTaskPanel(taskId) {
+@@ -1932,7 +2041,14 @@ function openNewTaskPanel(taskId) {
  
    var body = document.getElementById('rp-body');
    if (body) { body.classList.remove('rp-body--detail'); body.innerHTML = buildRpForm(task); }
@@ -158,7 +173,49 @@ index 605c1e2..51a7662 100644
  
    // 생성/수정 모드: rp-footer(저장/취소) 복원
    var rpFoot = document.querySelector('.rp-footer');
-@@ -2070,9 +2182,9 @@ function buildRpForm(task) {
+@@ -1972,6 +2088,41 @@ function buildDateSegInput(hiddenId, dateStr) {
+     + '<input type="hidden" id="' + hiddenId + '" value="' + (dateStr || '') + '">'
+     + '</div>';
+ }
++// ── Start/Due 통합 입력: YYYY-MM-DD-HH:MM 한 칸에 타이핑 ──
++function buildDateTimeInput(id, dateStr, timeStr) {
++  var val = '';
++  if (dateStr) { val = dateStr; if (timeStr) val += '-' + timeStr; }
++  return '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
++    + ' inputmode="numeric" placeholder="YYYY-MM-DD-HH:MM" value="' + val + '"'
++    + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">';
++}
++function rpDtInput(el) {
++  var d = el.value.replace(/\D/g, '').slice(0, 12);
++  var out = d.slice(0, 4);
++  if (d.length > 4)  out += '-' + d.slice(4, 6);
++  if (d.length > 6)  out += '-' + d.slice(6, 8);
++  if (d.length > 8)  out += '-' + d.slice(8, 10);
++  if (d.length > 10) out += ':' + d.slice(10, 12);
++  el.value = out;
++  if (typeof rpState !== 'undefined') rpState.dirty = true;
++}
++function parseRpDateTime(id) {
++  var el = document.getElementById(id);
++  var raw = el ? el.value.replace(/\D/g, '') : '';
++  if (raw.length < 8) return { dateStr: null, timeStr: null };
++  var y  = raw.slice(0, 4);
++  var mo = Math.min(12, Math.max(1, parseInt(raw.slice(4, 6), 10) || 1));
++  var da = Math.min(31, Math.max(1, parseInt(raw.slice(6, 8), 10) || 1));
++  var dateStr = y + '-' + pad2(mo) + '-' + pad2(da);
++  var timeStr = null;
++  if (raw.length >= 10) {
++    var hh = Math.min(23, parseInt(raw.slice(8, 10), 10) || 0);
++    var mm = (raw.length >= 12) ? Math.min(59, parseInt(raw.slice(10, 12), 10) || 0) : 0;
++    timeStr = pad2(hh) + ':' + pad2(mm);
++  }
++  return { dateStr: dateStr, timeStr: timeStr };
++}
++
+ function dsegFocus(hiddenId, part, toEnd) {
+   var el = document.getElementById(hiddenId + '-' + part);
+   if (!el) return;
+@@ -2070,9 +2221,9 @@ function buildRpForm(task) {
    // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
    var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
      + '<div style="display:flex;gap:10px;">'
@@ -170,26 +227,26 @@ index 605c1e2..51a7662 100644
      + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
      + '</div></div>';
  
-@@ -2091,13 +2203,13 @@ function buildRpForm(task) {
+@@ -2091,13 +2242,11 @@ function buildRpForm(task) {
      + '<div class="task-check rp-task-check'+(rpState.completed?' is-done':'')+'" onclick="rpToggleComplete()" title="완료 여부"></div>'
      + '<input class="field-input" id="rp-task-name" placeholder="할 일을 입력하세요" value="'+rpEsc(name)+'" oninput="rpState.dirty=true">'
      + '</div></div>'
 -    + '<div style="display:flex;gap:10px;">'
 -    + '<div class="field-group" style="flex:1;"><label class="field-label">Start</label>'
-+    + '<div class="rp-dt-cols">'
-+    + '<div class="field-group rp-dt-col"><label class="field-label">Start</label>'
-     + '<div class="rp-dt-row">' + buildDateSegInput('rp-start-date', startStr)
+-    + '<div class="rp-dt-row">' + buildDateSegInput('rp-start-date', startStr)
 -    +   '<input type="text" class="field-input rp-time-inp" id="rp-start-time" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="'+startTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
 -    + '<div class="field-group" style="flex:1;"><label class="field-label">Due</label>'
-+    +   '<input type="text" class="field-input rp-time-inp" id="rp-start-time" inputmode="numeric" maxlength="5" placeholder="--:--" value="'+startTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
-+    + '<div class="field-group rp-dt-col"><label class="field-label">Due</label>'
-     + '<div class="rp-dt-row">' + buildDateSegInput('rp-due-date', dueStr)
+-    + '<div class="rp-dt-row">' + buildDateSegInput('rp-due-date', dueStr)
 -    +   '<input type="text" class="field-input rp-time-inp" id="rp-due-time" inputmode="numeric" maxlength="5" placeholder="HH:MM" value="'+dueTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
-+    +   '<input type="text" class="field-input rp-time-inp" id="rp-due-time" inputmode="numeric" maxlength="5" placeholder="--:--" value="'+dueTimeStr+'" oninput="rpTimeInput(this)" onfocus="this.select()"></div></div>'
++    + '<div class="rp-dt-cols">'
++    + '<div class="field-group rp-dt-col"><label class="field-label">Start</label>'
++    + buildDateTimeInput('rp-start-dt', startStr, startTimeStr) + '</div>'
++    + '<div class="field-group rp-dt-col"><label class="field-label">Due</label>'
++    + buildDateTimeInput('rp-due-dt', dueStr, dueTimeStr) + '</div>'
      + '</div>'
      + todoHtml
      + eiHtml
-@@ -2396,8 +2508,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
+@@ -2396,8 +2545,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
  
  function rpDepSingleOptions(dir) {
    var cur = rpDepIds(dir)[0] || '';
@@ -214,11 +271,30 @@ index 605c1e2..51a7662 100644
      .map(function(t){
        var s = (t.id === cur) ? ' selected' : '';
        return '<option value="'+t.id+'"'+s+'>'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>';
+@@ -2479,12 +2642,13 @@ function saveRightPanel() {
+     return;
+   }
+ 
+-  var dueDate   = (document.getElementById('rp-due-date')   || {}).value  || '';
+-  var startDate = (document.getElementById('rp-start-date') || {}).value  || '';
++  var _dueDt    = parseRpDateTime('rp-due-dt');
++  var _startDt  = parseRpDateTime('rp-start-dt');
++  var dueDate   = _dueDt.dateStr   || '';
++  var startDate = _startDt.dateStr || '';
+   var notesVal  = (document.getElementById('rp-notes')      || {}).value  || '';
+-  var _normTime = function(v){ var mm=/^(\d{1,2}):(\d{2})$/.exec(String(v||'').trim()); if(!mm) return null; var H=Math.min(23,+mm[1]),M=Math.min(59,+mm[2]); return String(H).padStart(2,'0')+':'+String(M).padStart(2,'0'); };
+-  var dueTime   = _normTime((document.getElementById('rp-due-time')   || {}).value);
+-  var startTime = _normTime((document.getElementById('rp-start-time') || {}).value);
++  var dueTime   = _dueDt.timeStr;
++  var startTime = _startDt.timeStr;
+   var upstreamDepts = rpState.upstreamDepts.slice();
+   var upstreamDeptVal = upstreamDepts.join(', ');
+ 
 diff --git a/style.css b/style.css
-index 2bfd509..751b806 100644
+index 2bfd509..c06f48f 100644
 --- a/style.css
 +++ b/style.css
-@@ -9763,3 +9763,178 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -9763,3 +9763,212 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -228,13 +304,10 @@ index 2bfd509..751b806 100644
 +   테마색(흰색/검정) = var(--bg), 테마 회색 = var(--bg-1)
 +   ========================================================= */
 +
-+/* [Task #1] Task 입력창 포커스: 모서리 라운드 + 포커스 링 굵기 1pt 축소(2px→1px) */
++/* [R3 #1] Task 입력창 포커스 테두리 제거 */
 +#rp-task-name { border-radius: var(--radius-md); }
-+#rp-task-name:focus-visible {
-+  outline-width: 1px;
-+  outline-offset: 1px;
-+  border-radius: var(--radius-md);
-+}
++#rp-task-name:focus { border-color: var(--border); }
++#rp-task-name:focus-visible { outline: none; }
 +
 +/* [Task #2] To Do 영역을 박스로: 배경=테마색(흰/검), 마감일 버튼 테두리는 옅은 회색·최대한 얇게 */
 +.rp-form .dp-steps-section {
@@ -397,3 +470,147 @@ index 2bfd509..751b806 100644
 +/* [R2 #4] 완료된 Task·To Do 체크 테두리 1px 축소 */
 +.task-check.is-done { border-width: 1px; }
 +.step-check.is-done { border-width: 0.5px !important; }
++
++/* =========================================================
++   ✏️ Task 수정 패널 — 3차 개선 (2026-07)
++   ========================================================= */
++
++/* [R3 #2] Start/Due 통합 타이핑 입력: 숫자 간격 줄여 한 칸에 전부 표시 */
++.rp-dtinput {
++  font-variant-numeric: tabular-nums;
++  letter-spacing: -0.2px;
++  text-align: center;
++  padding-left: var(--space-1);
++  padding-right: var(--space-1);
++}
++.rp-dtinput::placeholder { letter-spacing: -0.2px; }
++
++/* [R3 #3] 시계: 설명 문구 제거로 하단 여백 최소화 */
++.sdp-clock { gap: 6px; }
++
++/* =========================================================
++   🗂️ WBS — 제목(Section) 표시 항목 필터 (2026-07)
++   ========================================================= */
++.wbs-titlefilter { margin-top: var(--space-1); border-top: 1px solid var(--border); padding-top: var(--space-1); min-width: 190px; }
++.wbs-titlefilter-head {
++  display: flex; align-items: center; justify-content: space-between;
++  font-size: var(--fs-xs); font-weight: 600; color: var(--text-2);
++  padding: var(--space-05) var(--space-1) var(--space-15);
++}
++.wbs-tf-actions { display: flex; gap: 4px; }
++.wbs-tf-actions button {
++  font-size: var(--fs-2xs); color: var(--text-2);
++  background: var(--surface); border: 1px solid var(--border);
++  border-radius: var(--radius-sm); padding: 2px 6px; cursor: pointer;
++}
++.wbs-tf-actions button:hover { color: var(--text-1); background: var(--surface-hover); }
++.wbs-titlefilter-list { max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
++.wbs-titlefilter-list::-webkit-scrollbar { width: 6px; }
++.wbs-titlefilter-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: var(--radius-xs); }
+diff --git a/wbs.js b/wbs.js
+index cb56c19..4cecd31 100644
+--- a/wbs.js
++++ b/wbs.js
+@@ -72,13 +72,17 @@ function renderWbsTitleYear() {
+   opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
+   // 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽)
+   // 연도 선택은 제거 — 연도 필터는 START/DUE 컬럼 헤더에서 처리
++  var _titleFilterActive = Object.keys(_wbsTitleFilter).length > 0;
++  var _panelOn = _wbsSearchOpen || _wbsSearch || _titleFilterActive;
+   slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
+-    + '<button class="bd-colpick-btn' + (_wbsSearchOpen ? ' on' : '') + '" id="wbs-search-btn" title="검색" onclick="wbsToggleSearch(event)">'
++    + '<button class="bd-colpick-btn' + (_panelOn ? ' on' : '') + '" id="wbs-search-btn" title="검색 · 제목 필터" onclick="wbsToggleSearch(event)">'
+     + (typeof BD_FILTER_ICON !== 'undefined' ? BD_FILTER_ICON : '\uD83D\uDD0D') + '</button>'
+     + (_wbsSearchOpen
+         ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+           + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="wbs-search-inp" placeholder="Task \u00B7 To Do \uAC80\uC0C9"'
+-          + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div></div>'
++          + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
++          + wbsTitleFilterPanelHtml()
++          + '</div>'
+         : '')
+     + '</div>';
+ }
+@@ -192,6 +196,7 @@ function wbsDueCol(task) {
+ // ── 컬럼 정렬/필터 상태 ──
+ var _wbsSort = { key: null, dir: 'asc' };      // key: 'item' | 'start' | 'due' | 'status'
+ var _wbsColFilters = {};                        // { key: { '값': true(제외) } }
++var _wbsTitleFilter = {};                        // { sectionKey: true(숨김) } — 제목(Section) 표시 항목 필터
+ var _wbsFilterOpen = null;
+ 
+ function wbsColVal(task, key) {
+@@ -263,6 +268,65 @@ function wbsPassesColFilters(task) {
+   return true;
+ }
+ 
++// ── 제목(Section) 표시 항목 필터 ──
++function wbsTaskSectionKey(task) {
++  var sg = wbsTaskSgId(task);
++  return (sg != null) ? String(sg) : '_';
++}
++function wbsDistinctSections() {
++  var present = {};
++  (typeof tasks !== 'undefined' ? tasks : []).filter(wbsTaskPassesFilter).forEach(function(t) {
++    present[wbsTaskSectionKey(t)] = true;
++  });
++  var mdt = wbsLiveMdt();
++  var ordered = [];
++  if (mdt && Array.isArray(mdt.subGoals)) {
++    mdt.subGoals.forEach(function(sg) {
++      var k = String(sg.id);
++      if (present[k]) { ordered.push({ key: k, label: wbsGoalText(sg.id, 'Section') }); delete present[k]; }
++    });
++  }
++  Object.keys(present).filter(function(k){ return k !== '_'; }).sort(function(a,b){ return +a - +b; })
++    .forEach(function(k){ ordered.push({ key: k, label: wbsGoalText(parseInt(k, 10), 'Section') }); delete present[k]; });
++  if (present['_']) ordered.push({ key: '_', label: '📂 미분류' });
++  return ordered;
++}
++function wbsPassesTitleFilter(task) {
++  return !_wbsTitleFilter[wbsTaskSectionKey(task)];
++}
++function wbsToggleTitleFilterVal(key, ev) {
++  if (ev) ev.stopPropagation();
++  if (_wbsTitleFilter[key]) delete _wbsTitleFilter[key];
++  else _wbsTitleFilter[key] = true;
++  wbsRefreshTree();
++  renderWbsTitleYear();
++}
++function wbsTitleFilterAll(on, ev) {
++  if (ev) ev.stopPropagation();
++  _wbsTitleFilter = {};
++  if (!on) wbsDistinctSections().forEach(function(s){ _wbsTitleFilter[s.key] = true; });
++  wbsRefreshTree();
++  renderWbsTitleYear();
++}
++function wbsTitleFilterPanelHtml() {
++  var secs = wbsDistinctSections();
++  if (!secs.length) return '';
++  var items = secs.map(function(s) {
++    var checked = _wbsTitleFilter[s.key] ? '' : ' checked';
++    return '<label class="todo-colpick-item"><input type="checkbox"' + checked
++      + ' onclick="event.stopPropagation();" onchange="wbsToggleTitleFilterVal(\'' + s.key + '\',event)">'
++      + '<span>' + wbsEsc(s.label) + '</span></label>';
++  }).join('');
++  return '<div class="wbs-titlefilter">'
++    + '<div class="wbs-titlefilter-head"><span>제목 표시 항목</span>'
++    +   '<span class="wbs-tf-actions">'
++    +     '<button onclick="wbsTitleFilterAll(true,event)">전체</button>'
++    +     '<button onclick="wbsTitleFilterAll(false,event)">해제</button>'
++    +   '</span></div>'
++    + '<div class="wbs-titlefilter-list">' + items + '</div>'
++    + '</div>';
++}
++
+ function wbsToggleFilterPanel(key, ev) {
+   if (ev) ev.stopPropagation();
+   _wbsFilterOpen = (_wbsFilterOpen === key) ? null : key;
+@@ -486,7 +550,7 @@ function buildWbsTree() {
+     return '<div class="wbs-empty">✨ 등록된 할 일이 없어요<br><small>TASK에 Section·Project를 설정하면 여기서 트리로 볼 수 있어요.</small></div>';
+ 
+   var filtered = tasks.filter(function(t) {
+-    return wbsTaskPassesFilter(t) && wbsMatchesSearch(t) && wbsPassesColFilters(t);
++    return wbsTaskPassesFilter(t) && wbsMatchesSearch(t) && wbsPassesColFilters(t) && wbsPassesTitleFilter(t);
+   });
+   if (!filtered.length)
+     return wbsHeaderRow() + '<div class="wbs-empty">✨ 조건에 맞는 할 일이 없어요</div>';

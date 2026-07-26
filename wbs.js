@@ -72,13 +72,17 @@ function renderWbsTitleYear() {
   opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
   // 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽)
   // 연도 선택은 제거 — 연도 필터는 START/DUE 컬럼 헤더에서 처리
+  var _titleFilterActive = Object.keys(_wbsTitleFilter).length > 0;
+  var _panelOn = _wbsSearchOpen || _wbsSearch || _titleFilterActive;
   slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
-    + '<button class="bd-colpick-btn' + (_wbsSearchOpen ? ' on' : '') + '" id="wbs-search-btn" title="검색" onclick="wbsToggleSearch(event)">'
+    + '<button class="bd-colpick-btn' + (_panelOn ? ' on' : '') + '" id="wbs-search-btn" title="검색 · 제목 필터" onclick="wbsToggleSearch(event)">'
     + (typeof BD_FILTER_ICON !== 'undefined' ? BD_FILTER_ICON : '\uD83D\uDD0D') + '</button>'
     + (_wbsSearchOpen
         ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
           + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="wbs-search-inp" placeholder="Task \u00B7 To Do \uAC80\uC0C9"'
-          + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div></div>'
+          + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
+          + wbsTitleFilterPanelHtml()
+          + '</div>'
         : '')
     + '</div>';
 }
@@ -192,6 +196,7 @@ function wbsDueCol(task) {
 // ── 컬럼 정렬/필터 상태 ──
 var _wbsSort = { key: null, dir: 'asc' };      // key: 'item' | 'start' | 'due' | 'status'
 var _wbsColFilters = {};                        // { key: { '값': true(제외) } }
+var _wbsTitleFilter = {};                        // { sectionKey: true(숨김) } — 제목(Section) 표시 항목 필터
 var _wbsFilterOpen = null;
 
 function wbsColVal(task, key) {
@@ -261,6 +266,65 @@ function wbsPassesColFilters(task) {
     if (ex && ex[wbsColFilterVal(task, keys[i])]) return false;
   }
   return true;
+}
+
+// ── 제목(Section) 표시 항목 필터 ──
+function wbsTaskSectionKey(task) {
+  var sg = wbsTaskSgId(task);
+  return (sg != null) ? String(sg) : '_';
+}
+function wbsDistinctSections() {
+  var present = {};
+  (typeof tasks !== 'undefined' ? tasks : []).filter(wbsTaskPassesFilter).forEach(function(t) {
+    present[wbsTaskSectionKey(t)] = true;
+  });
+  var mdt = wbsLiveMdt();
+  var ordered = [];
+  if (mdt && Array.isArray(mdt.subGoals)) {
+    mdt.subGoals.forEach(function(sg) {
+      var k = String(sg.id);
+      if (present[k]) { ordered.push({ key: k, label: wbsGoalText(sg.id, 'Section') }); delete present[k]; }
+    });
+  }
+  Object.keys(present).filter(function(k){ return k !== '_'; }).sort(function(a,b){ return +a - +b; })
+    .forEach(function(k){ ordered.push({ key: k, label: wbsGoalText(parseInt(k, 10), 'Section') }); delete present[k]; });
+  if (present['_']) ordered.push({ key: '_', label: '📂 미분류' });
+  return ordered;
+}
+function wbsPassesTitleFilter(task) {
+  return !_wbsTitleFilter[wbsTaskSectionKey(task)];
+}
+function wbsToggleTitleFilterVal(key, ev) {
+  if (ev) ev.stopPropagation();
+  if (_wbsTitleFilter[key]) delete _wbsTitleFilter[key];
+  else _wbsTitleFilter[key] = true;
+  wbsRefreshTree();
+  renderWbsTitleYear();
+}
+function wbsTitleFilterAll(on, ev) {
+  if (ev) ev.stopPropagation();
+  _wbsTitleFilter = {};
+  if (!on) wbsDistinctSections().forEach(function(s){ _wbsTitleFilter[s.key] = true; });
+  wbsRefreshTree();
+  renderWbsTitleYear();
+}
+function wbsTitleFilterPanelHtml() {
+  var secs = wbsDistinctSections();
+  if (!secs.length) return '';
+  var items = secs.map(function(s) {
+    var checked = _wbsTitleFilter[s.key] ? '' : ' checked';
+    return '<label class="todo-colpick-item"><input type="checkbox"' + checked
+      + ' onclick="event.stopPropagation();" onchange="wbsToggleTitleFilterVal(\'' + s.key + '\',event)">'
+      + '<span>' + wbsEsc(s.label) + '</span></label>';
+  }).join('');
+  return '<div class="wbs-titlefilter">'
+    + '<div class="wbs-titlefilter-head"><span>제목 표시 항목</span>'
+    +   '<span class="wbs-tf-actions">'
+    +     '<button onclick="wbsTitleFilterAll(true,event)">전체</button>'
+    +     '<button onclick="wbsTitleFilterAll(false,event)">해제</button>'
+    +   '</span></div>'
+    + '<div class="wbs-titlefilter-list">' + items + '</div>'
+    + '</div>';
 }
 
 function wbsToggleFilterPanel(key, ev) {
@@ -486,7 +550,7 @@ function buildWbsTree() {
     return '<div class="wbs-empty">✨ 등록된 할 일이 없어요<br><small>TASK에 Section·Project를 설정하면 여기서 트리로 볼 수 있어요.</small></div>';
 
   var filtered = tasks.filter(function(t) {
-    return wbsTaskPassesFilter(t) && wbsMatchesSearch(t) && wbsPassesColFilters(t);
+    return wbsTaskPassesFilter(t) && wbsMatchesSearch(t) && wbsPassesColFilters(t) && wbsPassesTitleFilter(t);
   });
   if (!filtered.length)
     return wbsHeaderRow() + '<div class="wbs-empty">✨ 조건에 맞는 할 일이 없어요</div>';
