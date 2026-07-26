@@ -110,7 +110,7 @@ function renderNotesView() {
     + '<div class="nb-write-panel">'
     + '<div class="nb-write-header">+ Memo</div>'
     + '<textarea class="nb-textarea" id="nb-input" placeholder="메모를 입력하세요..." onkeydown="nbInputKeyDown(event)"></textarea>'
-    + '<button class="nb-add-btn" onclick="nbAddNote()">+ Archiving에 추가</button>'
+    + '<button class="nb-add-btn" onclick="nbAddNote()">+ Archiving</button>'
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
     + buildNbColumn('memo', 'Archiving', '작성한 메모가 여기 쌓여요')

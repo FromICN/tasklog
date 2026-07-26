@@ -6925,7 +6925,7 @@ body.light-mode .nav-item:hover {
 .nb-textarea {
   flex: 1;
   background: rgba(255,255,255,0.05);
-  border: 0.5px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-1);
   font-size: var(--fs-base);
@@ -6941,8 +6941,8 @@ body.light-mode .nav-item:hover {
 }
 .nb-textarea:focus { border-color: #5a5a5a; }
 .nb-add-btn {
-  background: var(--info);
-  color: #fff;
+  background: var(--text-1);
+  color: var(--main-bg);
   border: none;
   border-radius: var(--radius-md);
   padding: var(--space-15) var(--space-3);
@@ -6951,9 +6951,9 @@ body.light-mode .nav-item:hover {
   cursor: pointer;
   flex-shrink: 0;
   white-space: nowrap;
-  transition: background var(--dur-fast);
+  transition: opacity var(--dur-fast);
 }
-.nb-add-btn:hover { background: #2563eb; }
+.nb-add-btn:hover { opacity: 0.85; }
 .nb-write-tip {
   font-size: var(--fs-xs);
   color: var(--text-3);
@@ -7123,7 +7123,7 @@ body.light-mode .nav-item:hover {
    🗂 WBS 트리 뷰
    ============================================= */
 .cat-wbs { overflow-y: auto !important; }
-.wbs-wrap { padding-bottom: var(--space-05); }
+.wbs-wrap { padding: var(--space-1) var(--space-25) var(--space-05); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--main-bg); }
 .wbs-empty { color: var(--text-2); text-align: center; padding: 48px; font-size: var(--fs-md); }
 
 /* 필터 툴바 */
@@ -7332,6 +7332,8 @@ body.light-mode .nav-item:hover {
   align-items: center;
   gap: var(--space-2);
 }
+.wbs-status-text { font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+.wbs-col-due.set { color: var(--text-1); }
 .wbs-search-inp {
   width: 200px;
   background: var(--surface);

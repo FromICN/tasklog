@@ -72,11 +72,31 @@ function renderWbsTitleYear() {
   opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
   // 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽)
   // 연도 선택은 제거 — 연도 필터는 START/DUE 컬럼 헤더에서 처리
-  slot.innerHTML = '<div class="wbs-title-tools">'
-    + '<input type="text" class="wbs-search-inp" id="wbs-search-inp" placeholder="🔍 Task · To Do 검색"'
-    + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)">'
+  slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
+    + '<button class="bd-colpick-btn' + (_wbsSearchOpen ? ' on' : '') + '" id="wbs-search-btn" title="검색" onclick="wbsToggleSearch(event)">'
+    + (typeof BD_FILTER_ICON !== 'undefined' ? BD_FILTER_ICON : '\uD83D\uDD0D') + '</button>'
+    + (_wbsSearchOpen
+        ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+          + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="wbs-search-inp" placeholder="Task \u00B7 To Do \uAC80\uC0C9"'
+          + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div></div>'
+        : '')
     + '</div>';
 }
+var _wbsSearchOpen = false;
+function wbsToggleSearch(ev) {
+  if (ev) ev.stopPropagation();
+  _wbsSearchOpen = !_wbsSearchOpen;
+  renderWbsTitleYear();
+  if (_wbsSearchOpen) setTimeout(function(){ var i = document.getElementById('wbs-search-inp'); if (i) i.focus(); }, 30);
+}
+document.addEventListener('click', function(e) {
+  if (!_wbsSearchOpen) return;
+  var btn = document.getElementById('wbs-search-btn');
+  var pnl = document.querySelector('#topbar-mdt-year-slot .bd-colpick-panel');
+  if ((btn && btn.contains(e.target)) || (pnl && pnl.contains(e.target))) return;
+  _wbsSearchOpen = false;
+  renderWbsTitleYear();
+});
 
 // ── 연도 필터 (전역 연도 기준 · 연도 미지정 항목은 항상 표시) ──
 function wbsTaskYear(task) {
@@ -166,7 +186,7 @@ function wbsStartCol(task) {
 function wbsDueCol(task) {
   if (!task.dueDateTime) return wbsEmptyCol('wbs-col-due');
   var st  = (typeof getDueStatus === 'function') ? getDueStatus(task.dueDateTime) : '';
-  return '<span class="wbs-col wbs-col-due set ' + (st || '') + '">' + wbsEsc(wbsFmtDate(task.dueDateTime)) + '</span>';
+  return '<span class="wbs-col wbs-col-due set">' + wbsEsc(wbsFmtDate(task.dueDateTime)) + '</span>';
 }
 
 // ── 컬럼 정렬/필터 상태 ──
@@ -357,7 +377,7 @@ var WBS_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '
 
 function wbsStatusBadge(label) {
   var c = WBS_STATUS_COLORS[label] || 'var(--text-2)';
-  return '<span class="wbs-badge" style="color:' + c + ';border:1px solid color-mix(in srgb, ' + c + ' 40%, transparent);background:color-mix(in srgb, ' + c + ' 13%, transparent);">' + label + '</span>';
+  return '<span class="wbs-status-text" style="color:' + c + ';font-weight:600;">' + label + '</span>';
 }
 
 // TASK 자체 상태값 기준 (완료 체크 우선, 없으면 task.status, 기본 대기)
