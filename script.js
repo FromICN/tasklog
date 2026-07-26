@@ -658,10 +658,6 @@ function buildClockHtml(id) {
   var mode = s.clockMode || 'hour';
   return '<div class="sdp-clock" id="sdp-clock-' + id + '">'
     + '<div class="sdp-clock-head">'
-    +   '<button class="sdp-clock-seg' + (mode==='hour'?' on':'') + '" id="sdp-clock-hh-' + id + '" onclick="clockSetMode(\'' + id + '\',\'hour\')">' + pad2(hh) + '</button>'
-    +   '<span class="sdp-clock-colon">:</span>'
-    +   '<button class="sdp-clock-seg' + (mode==='minute'?' on':'') + '" id="sdp-clock-mm-' + id + '" onclick="clockSetMode(\'' + id + '\',\'minute\')">' + pad2(mm) + '</button>'
-    +   '<span class="sdp-clock-spacer"></span>'
     +   '<button class="sdp-clock-none' + (s.timeStr?'':' on') + '" onclick="clockClearTime(\'' + id + '\')" title="시간 지정 안 함">시간없음</button>'
     +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜·시간 지우기">✕</button>'
     + '</div>'
@@ -749,8 +745,12 @@ function clockClearTime(id) {
   var s = pickerState[id]; if (!s) return;
   s.timeStr = null;
   s.clockMode = 'hour';
-  refreshClock(id);
   onPickerChanged(id);
+  // '시간없음' 확정 → 날짜만 지정하고 입력 팝오버를 닫음(분 선택과 동일 UX)
+  var wrap = document.getElementById('sdp-' + id);
+  var form = wrap ? (wrap.closest('.step-date-form') || wrap.closest('.dp-sub-form')) : null;
+  if (form) form.style.display = 'none';
+  else refreshClock(id);
 }
 
 function buildPickerCalHtml(id) {
@@ -2799,7 +2799,13 @@ function initSidebarCollapse() {
 function initSidebar() {
   var nav = document.getElementById('sidebar-nav');
   if (!nav) return;
-  nav.innerHTML = MENUS.map(function(m) {
+  // 설정 아이콘을 HOME 위(사이드바 최상단)에 배치
+  var settingsBtn = '<button class="nav-item" id="settings-nav-btn" title="Setting" onclick="openSettings()">'
+    + '<span class="nav-item-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>'
+    + '<span class="nav-item-label">Setting</span>'
+    + '</button>'
+    + '<div class="nav-divider"></div>';
+  nav.innerHTML = settingsBtn + MENUS.map(function(m) {
     if (m.divider) return '<div class="nav-divider"></div>';
     var full = MENU_TITLES[m.id] || m.label;
     return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'

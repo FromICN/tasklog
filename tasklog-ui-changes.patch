@@ -1,5 +1,29 @@
+diff --git a/index.html b/index.html
+index ea734f2..3a0c08e 100644
+--- a/index.html
++++ b/index.html
+@@ -65,18 +65,9 @@
+       <!-- JS로 채워짐 -->
+     </nav>
+ 
+-    <!-- 하단: 설정 (테마 전환은 Setting > 화면 탭에서) -->
++    <!-- 하단: 테마 전환 (설정은 상단 HOME 위로 이동) -->
+     <div class="sidebar-bottom">
+       <button class="tswitch" id="theme-switch" title="테마 변경" onclick="if(typeof toggleDarkMode==='function')toggleDarkMode()" style="display:block;margin:0 auto 10px;"><span></span></button>
+-      <button class="nav-item" id="settings-nav-btn" title="Setting" onclick="openSettings()">
+-        <span class="nav-item-icon">
+-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+-            <circle cx="12" cy="12" r="3"/>
+-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+-          </svg>
+-        </span>
+-        <span class="nav-item-label">Setting</span>
+-      </button>
+     </div>
+   </aside>
+ 
 diff --git a/mandalart.js b/mandalart.js
-index 7aded6c..d8a6e68 100644
+index 7aded6c..6faa80f 100644
 --- a/mandalart.js
 +++ b/mandalart.js
 @@ -109,6 +109,8 @@ function loadMandalarts() {
@@ -100,7 +124,7 @@ index 7aded6c..d8a6e68 100644
      if (a.annualTarget === undefined) a.annualTarget = 0;
      if (a.annualUnit === undefined)   a.annualUnit = '';
      if (!Array.isArray(a.quarters))   a.quarters = defaultMdtQuarters();
-@@ -922,20 +924,17 @@ function buildSgDetailHtml(m, sg) {
+@@ -922,28 +924,24 @@ function buildSgDetailHtml(m, sg) {
      + '<div class="mdt-detail-actions">'
      + '<button class="mdt-smart-open-btn" id="mdt-smart-btn-'+sg.id+'"'
      + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:var(--brand-primary);">&#127919; 목표</button>'
@@ -124,7 +148,16 @@ index 7aded6c..d8a6e68 100644
      + '</div>'
      + '<div class="mdt-grid-table-wrap">'
      + '<table class="mdt-grid-table">'
-@@ -954,6 +953,8 @@ function buildSgDetailHtml(m, sg) {
+     + '<thead><tr>'
+     + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
+     + '<th class="mgt-th-type" data-cr-key="type">달성형/습관형</th>'
+-    + '<th class="mgt-th-goal" data-cr-key="goal">목표</th>'
+-    + '<th class="mgt-th-kpi" data-cr-key="kpi">관리지표</th>'
++    + '<th class="mgt-th-goal" data-cr-key="goal">목표(관리지표)</th>'
+     + '<th class="mgt-th-perf" data-cr-key="perf">달성현황</th>'
+     + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
+     + '</tr></thead><tbody>';
+@@ -954,6 +952,8 @@ function buildSgDetailHtml(m, sg) {
      if (!a.habitFreq)        a.habitFreq = 'daily';
      if (!a.successThreshold) a.successThreshold = 80;
      if (!a.habitLog)         a.habitLog = {};
@@ -133,7 +166,7 @@ index 7aded6c..d8a6e68 100644
      html += buildMdtGridRow(m, sg, a);
    });
  
-@@ -993,12 +994,43 @@ function mdtToggleResultDone(year, sgId, actId) {
+@@ -993,12 +993,43 @@ function mdtToggleResultDone(year, sgId, actId) {
    var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
    var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
    a.completed = !a.completed;
@@ -177,7 +210,7 @@ index 7aded6c..d8a6e68 100644
  // 그리드 셀: 목표
  function mdtGoalCellHtml(m, sg, a) {
    var yr = m.year, sgId = sg.id;
-@@ -1010,7 +1042,6 @@ function mdtGoalCellHtml(m, sg, a) {
+@@ -1010,19 +1041,25 @@ function mdtGoalCellHtml(m, sg, a) {
        + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value);saveMandalarts();" title="연간 목표 횟수">'
        + '<input type="text" class="mdt-annual-unit-inp" value="' + escMdt(a.annualUnit || '') + '" placeholder="단위"'
        + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value);saveMandalarts();">'
@@ -185,29 +218,31 @@ index 7aded6c..d8a6e68 100644
        + '</div>';
    }
    if (tv === 'result') {
-@@ -1018,11 +1049,19 @@ function mdtGoalCellHtml(m, sg, a) {
+     return '<input type="text" class="mgt-text-inp" value="' + escMdt(a.goalText || '') + '" placeholder="목표 (12월 달성 여부로 판단)"'
        + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'goalText\',this.value);saveMandalarts();">';
    }
-   // 습관형: 성공 기준 %
+-  // 습관형: 성공 기준 %
 -  var base = (tv === 'weekly') ? '52주' : '365일';
++  // 습관형: 목표(윗줄) + 성공기준(아랫줄)
 +  if (tv === 'weekly') {
 +    return '<div class="mgt-goal-habit">'
-+      + '주 <input type="number" class="mdt-hb-thr" value="' + (a.habitWeeklyTarget || 1) + '" min="1" max="7"'
-+      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'habitWeeklyTarget\',+this.value);saveMandalarts();" title="주 N회 목표">회 이상'
-+      + '<span class="mgt-goal-note">· 성공</span>'
-+      + '<input type="number" class="mdt-hb-thr" value="' + (a.successThreshold || 80) + '" min="1" max="100"'
-+      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);saveMandalarts();" title="연간 성공 기준(달성 주 비율)">%'
++      + '<div class="mgt-goal-main">주 <input type="text" inputmode="numeric" class="mdt-hb-thr" value="' + (a.habitWeeklyTarget || 1) + '"'
++      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'habitWeeklyTarget\',+this.value);saveMandalarts();" title="주 N회 목표">회 이상</div>'
++      + '<div class="mgt-goal-sub">성공기준 <input type="text" inputmode="numeric" class="mdt-hb-thr" value="' + (a.successThreshold || 80) + '"'
++      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);saveMandalarts();" title="연간 성공 기준(달성 주 비율)">% 이상</div>'
 +      + '</div>';
 +  }
    return '<div class="mgt-goal-habit">'
-     + '<input type="number" class="mdt-hb-thr" value="' + (a.successThreshold || 80) + '" min="1" max="100"'
-     + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);saveMandalarts();">%'
+-    + '<input type="number" class="mdt-hb-thr" value="' + (a.successThreshold || 80) + '" min="1" max="100"'
+-    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);saveMandalarts();">%'
 -    + '<span class="mgt-goal-note">/ ' + base + ' 기준</span>'
-+    + '<span class="mgt-goal-note">/ 365일 기준</span>'
++    + '<div class="mgt-goal-main">매일</div>'
++    + '<div class="mgt-goal-sub">성공기준 <input type="text" inputmode="numeric" class="mdt-hb-thr" value="' + (a.successThreshold || 80) + '"'
++    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);saveMandalarts();">% 이상</div>'
      + '</div>';
  }
  
-@@ -1041,13 +1080,11 @@ function mdtPerfCellHtml(m, sg, a) {
+@@ -1041,13 +1078,24 @@ function mdtPerfCellHtml(m, sg, a) {
        + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
    }
    if (tv === 'result') {
@@ -215,16 +250,29 @@ index 7aded6c..d8a6e68 100644
 -      + '<input type="checkbox"' + (a.completed ? ' checked' : '') + ' onchange="mdtToggleResultDone(' + yr + ',' + sgId + ',' + a.id + ')">'
 -      + '<span>12월 달성</span>' + badge
 -      + '</label>';
-+    return '<div class="mgt-perf-result">' + mdtResultMonthsHtml(yr, sgId, a) + badge + '</div>';
++    var resBadge = perf.achieved ? '<span class="mgt-perf-badge mgt-perf-badge-sq on">달성</span>' : '';
++    return '<div class="mgt-perf-result">' + mdtResultMonthsHtml(yr, sgId, a) + resBadge + '</div>';
    }
++  var calOpen = !!_mdtHabitCalOpen[yr + '-' + sgId + '-' + a.id];
    return '<div class="mgt-perf-habit"><span class="mgt-perf-label">' + escMdt(perf.label) + '</span>' + badge + '</div>'
 -    + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
-+    + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
-+    + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
++    + '<div class="mdt-perf-dash-bar mgt-hb-bar" title="클릭하면 캘린더 열기/닫기"'
++    +   ' onclick="mdtToggleHabitCal(' + yr + ',' + sgId + ',' + a.id + ')">'
++    +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
++    + '<div class="mgt-perf-cal' + (calOpen ? '' : ' is-collapsed') + '" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
++}
++
++// 습관형 달성현황: 실적바 클릭 시 캘린더 드롭다운(열림 상태 유지)
++var _mdtHabitCalOpen = {};
++function mdtToggleHabitCal(year, sgId, actId) {
++  var k = year + '-' + sgId + '-' + actId;
++  _mdtHabitCalOpen[k] = !_mdtHabitCalOpen[k];
++  var el = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
++  if (el) el.classList.toggle('is-collapsed', !_mdtHabitCalOpen[k]);
  }
  
  // 그리드 행 (습관형은 아래에 월간 캘린더 행 추가: 캘린더 왼쪽 · 메모 오른쪽)
-@@ -1056,15 +1093,13 @@ function buildMdtGridRow(m, sg, a) {
+@@ -1056,15 +1104,13 @@ function buildMdtGridRow(m, sg, a) {
    var tv = mdtActTypeVal(a);
    var isHabit = (tv === 'daily' || tv === 'weekly');
    var typeSel = '<select class="mgt-type-sel" onchange="mdtSetActType(' + yr + ',' + sgId + ',' + a.id + ',this.value)">'
@@ -245,7 +293,17 @@ index 7aded6c..d8a6e68 100644
        + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
        + ' onblur="saveActCE(this);saveMandalarts();">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>';
  
-@@ -1084,20 +1119,6 @@ function buildMdtGridRow(m, sg, a) {
+@@ -1077,27 +1123,13 @@ function buildMdtGridRow(m, sg, a) {
+     + (a.text ? escMdt(a.text) : '<span style="opacity:0.35;">Project ' + a.id + '</span>') + '</span>'
+     + '</td>'
+     + '<td class="mgt-td-type">' + typeSel + '</td>'
+-    + '<td class="mgt-td-goal">' + mdtGoalCellHtml(m, sg, a) + '</td>'
+-    + '<td class="mgt-td-kpi"><input type="text" class="mgt-text-inp" value="' + escMdt(a.evalIndicators || '') + '" placeholder="관리지표"'
+-    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'evalIndicators\',this.value);saveMandalarts();"></td>'
++    + '<td class="mgt-td-goal"><div class="mgt-goalkpi"><div class="mgt-goalkpi-goal">' + mdtGoalCellHtml(m, sg, a) + '</div>'
++    + '<input type="text" class="mgt-text-inp mgt-kpi-inp" value="' + escMdt(a.evalIndicators || '') + '" placeholder="관리지표"'
++    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'evalIndicators\',this.value);saveMandalarts();"></div></td>'
+     + '<td class="mgt-td-perf">' + mdtPerfCellHtml(m, sg, a) + '</td>'
      + '<td class="mgt-td-memo">' + memoCell + '</td>'
      + '</tr>';
  
@@ -266,7 +324,7 @@ index 7aded6c..d8a6e68 100644
    return html;
  }
  
-@@ -1215,6 +1236,8 @@ function _mdtRerenderActCard(year, sgId, actId) {
+@@ -1215,6 +1247,8 @@ function _mdtRerenderActCard(year, sgId, actId) {
    var m = getMdt(year); if (!m) return;
    var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
    var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
@@ -275,7 +333,7 @@ index 7aded6c..d8a6e68 100644
    var card = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
    if (!card) return;
    if (card.classList && card.classList.contains('mgt-habit-detail')) {
-@@ -1318,11 +1341,9 @@ function buildAnnualTargetHtml(m, sg, a) {
+@@ -1318,11 +1352,9 @@ function buildAnnualTargetHtml(m, sg, a) {
    if (a.achieveType === 'result') {
      var perfR = mdtActPerf(a, yr);
      return '<div class="mdt-annual-block">'
@@ -290,7 +348,7 @@ index 7aded6c..d8a6e68 100644
        + '</div>';
    }
    var target = a.annualTarget || 0;
-@@ -1370,10 +1391,14 @@ function buildHabitCardBody(m, sg, a) {
+@@ -1370,10 +1402,14 @@ function buildHabitCardBody(m, sg, a) {
  
    return '<div style="padding:4px 0;">'
      + '<div class="mdt-hb-settings">'
@@ -306,7 +364,7 @@ index 7aded6c..d8a6e68 100644
      +   '<span class="mdt-hb-chip" title="연간 달성 현황">📊 ' + yearStat.done + unit + '/' + yearStat.total + unit + ' (<b>' + yearStat.rate + '</b>%)</span>'
      + '</div>'
      // 월간 캘린더(왼쪽) + 메모(오른쪽) — 주간 실적/주간 버튼 제거
-@@ -1396,6 +1421,8 @@ function buildActionCard(m, sg, a) {
+@@ -1396,6 +1432,8 @@ function buildActionCard(m, sg, a) {
    if (!a.trackingType)           a.trackingType = 'task';
    if (!a.successThreshold)       a.successThreshold = 80;
    if (!a.habitLog)               a.habitLog = {};
@@ -315,7 +373,7 @@ index 7aded6c..d8a6e68 100644
    if (a.annualTarget === undefined) a.annualTarget = 0;
    if (a.annualUnit === undefined)   a.annualUnit = '';
    if (!Array.isArray(a.quarters))   a.quarters = defaultMdtQuarters();
-@@ -1405,16 +1432,16 @@ function buildActionCard(m, sg, a) {
+@@ -1405,16 +1443,16 @@ function buildActionCard(m, sg, a) {
  
    var tv = mdtActTypeVal(a);
    var typeToggle = '<select class="mgt-type-sel" onchange="mdtSetActType(' + yr + ',' + sgId + ',' + a.id + ',this.value)">'
@@ -337,7 +395,7 @@ index 7aded6c..d8a6e68 100644
  
    return '<div class="mdt-act-card' + dirtyClass + '" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">'
      + '<div class="mdt-act-card-header">'
-@@ -1446,7 +1473,7 @@ function commitMdtCard(year, sgId, actId) {
+@@ -1446,7 +1484,7 @@ function commitMdtCard(year, sgId, actId) {
    var btn = card ? card.querySelector('.mdt-act-save-btn') : null;
    if (btn) {
      btn.textContent = '✓ 저장됨';
@@ -347,7 +405,7 @@ index 7aded6c..d8a6e68 100644
  }
  
 diff --git a/script.js b/script.js
-index 605c1e2..5ab8b6f 100644
+index 605c1e2..61128e9 100644
 --- a/script.js
 +++ b/script.js
 @@ -636,19 +636,123 @@ function buildPickerHtml(id, dateStr, timeStr) {
@@ -381,10 +439,6 @@ index 605c1e2..5ab8b6f 100644
 +  var mode = s.clockMode || 'hour';
 +  return '<div class="sdp-clock" id="sdp-clock-' + id + '">'
 +    + '<div class="sdp-clock-head">'
-+    +   '<button class="sdp-clock-seg' + (mode==='hour'?' on':'') + '" id="sdp-clock-hh-' + id + '" onclick="clockSetMode(\'' + id + '\',\'hour\')">' + pad2(hh) + '</button>'
-+    +   '<span class="sdp-clock-colon">:</span>'
-+    +   '<button class="sdp-clock-seg' + (mode==='minute'?' on':'') + '" id="sdp-clock-mm-' + id + '" onclick="clockSetMode(\'' + id + '\',\'minute\')">' + pad2(mm) + '</button>'
-+    +   '<span class="sdp-clock-spacer"></span>'
 +    +   '<button class="sdp-clock-none' + (s.timeStr?'':' on') + '" onclick="clockClearTime(\'' + id + '\')" title="시간 지정 안 함">시간없음</button>'
 +    +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜·시간 지우기">✕</button>'
      + '</div>'
@@ -472,8 +526,12 @@ index 605c1e2..5ab8b6f 100644
 +  var s = pickerState[id]; if (!s) return;
 +  s.timeStr = null;
 +  s.clockMode = 'hour';
-+  refreshClock(id);
 +  onPickerChanged(id);
++  // '시간없음' 확정 → 날짜만 지정하고 입력 팝오버를 닫음(분 선택과 동일 UX)
++  var wrap = document.getElementById('sdp-' + id);
++  var form = wrap ? (wrap.closest('.step-date-form') || wrap.closest('.dp-sub-form')) : null;
++  if (form) form.style.display = 'none';
++  else refreshClock(id);
 +}
 +
  function buildPickerCalHtml(id) {
@@ -638,8 +696,23 @@ index 605c1e2..5ab8b6f 100644
    var upstreamDepts = rpState.upstreamDepts.slice();
    var upstreamDeptVal = upstreamDepts.join(', ');
  
+@@ -2635,7 +2799,13 @@ function initSidebarCollapse() {
+ function initSidebar() {
+   var nav = document.getElementById('sidebar-nav');
+   if (!nav) return;
+-  nav.innerHTML = MENUS.map(function(m) {
++  // 설정 아이콘을 HOME 위(사이드바 최상단)에 배치
++  var settingsBtn = '<button class="nav-item" id="settings-nav-btn" title="Setting" onclick="openSettings()">'
++    + '<span class="nav-item-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>'
++    + '<span class="nav-item-label">Setting</span>'
++    + '</button>'
++    + '<div class="nav-divider"></div>';
++  nav.innerHTML = settingsBtn + MENUS.map(function(m) {
+     if (m.divider) return '<div class="nav-divider"></div>';
+     var full = MENU_TITLES[m.id] || m.label;
+     return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'
 diff --git a/style.css b/style.css
-index 2bfd509..d8473ce 100644
+index 2bfd509..a366dd7 100644
 --- a/style.css
 +++ b/style.css
 @@ -6825,22 +6825,22 @@ body.light-mode .year-select option { color: #1a1a1a; }
@@ -671,7 +744,7 @@ index 2bfd509..d8473ce 100644
    --brand-primary: #1a1a1a;
    --accent-rgb: 26,26,26;   /* 라이트 모드 강조: 블랙 */
    --scroll-thumb: #c4c7cf;
-@@ -9763,3 +9763,341 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -9763,3 +9763,370 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -795,9 +868,9 @@ index 2bfd509..d8473ce 100644
 +}
 +
 +/* [R2 #2] 클릭식 24시간 시계 */
-+.sdp-clock-wrap { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
++.sdp-clock-wrap { margin-top: 4px; padding-top: 0; border-top: none; }
 +.sdp-clock { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-+.sdp-clock-head { display: flex; align-items: center; gap: 4px; width: 100%; }
++.sdp-clock-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; width: 100%; }
 +.sdp-clock-seg {
 +  font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
 +  background: var(--surface); color: var(--text-2);
@@ -1013,6 +1086,35 @@ index 2bfd509..d8473ce 100644
 +
 +/* [R6 #3] 세부 실적관리 화면 잔여 박스 배경 = 테마색(흰/검) */
 +.mgt-perf-habit, .mgt-perf-cum, .mgt-perf-result { background: var(--bg); }
++
++/* =========================================================
++   🔮 Mandalart — 7차 개선 (2026-07)
++   ========================================================= */
++
++/* [R7 #1] 달성형/실적 달성 배지: 라운딩 사각형 (진행중 배지는 미표시) */
++.mgt-perf-badge-sq { border-radius: var(--radius-sm); padding: 2px 9px; font-size: var(--fs-2xs); }
++
++/* [R7 #2] 목표(관리지표) 통합 셀: 목표 위 · 관리지표 입력 아래 */
++.mgt-goalkpi { display: flex; flex-direction: column; gap: 5px; }
++.mgt-kpi-inp { width: 100%; }
++
++/* [R7 #3] 습관형 캘린더: 평소 숨김 + 실적바 클릭 시 드롭다운 */
++.mgt-perf-cal.is-collapsed { display: none; }
++.mgt-hb-bar { cursor: pointer; }
++.mgt-hb-bar:hover { outline: 1px solid var(--border); outline-offset: 1px; }
++
++/* [R7 #4] 습관형 목표: 스피너 제거(타이핑) + 성공기준 아랫줄 */
++.mgt-goal-habit { flex-direction: column; align-items: flex-start; gap: 3px; }
++.mgt-goal-main { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-1); }
++.mgt-goal-sub  { display: flex; align-items: center; gap: 4px; font-size: var(--fs-2xs); color: var(--text-2); }
++.mdt-hb-thr {
++  width: 42px;
++  text-align: center;
++  -moz-appearance: textfield;
++  appearance: textfield;
++}
++.mdt-hb-thr::-webkit-outer-spin-button,
++.mdt-hb-thr::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 diff --git a/wbs.js b/wbs.js
 index cb56c19..4cecd31 100644
 --- a/wbs.js

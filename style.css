@@ -9883,9 +9883,9 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 }
 
 /* [R2 #2] 클릭식 24시간 시계 */
-.sdp-clock-wrap { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.sdp-clock-wrap { margin-top: 4px; padding-top: 0; border-top: none; }
 .sdp-clock { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.sdp-clock-head { display: flex; align-items: center; gap: 4px; width: 100%; }
+.sdp-clock-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; width: 100%; }
 .sdp-clock-seg {
   font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
   background: var(--surface); color: var(--text-2);
@@ -10101,3 +10101,32 @@ body.light-mode .right-panel {
 
 /* [R6 #3] 세부 실적관리 화면 잔여 박스 배경 = 테마색(흰/검) */
 .mgt-perf-habit, .mgt-perf-cum, .mgt-perf-result { background: var(--bg); }
+
+/* =========================================================
+   🔮 Mandalart — 7차 개선 (2026-07)
+   ========================================================= */
+
+/* [R7 #1] 달성형/실적 달성 배지: 라운딩 사각형 (진행중 배지는 미표시) */
+.mgt-perf-badge-sq { border-radius: var(--radius-sm); padding: 2px 9px; font-size: var(--fs-2xs); }
+
+/* [R7 #2] 목표(관리지표) 통합 셀: 목표 위 · 관리지표 입력 아래 */
+.mgt-goalkpi { display: flex; flex-direction: column; gap: 5px; }
+.mgt-kpi-inp { width: 100%; }
+
+/* [R7 #3] 습관형 캘린더: 평소 숨김 + 실적바 클릭 시 드롭다운 */
+.mgt-perf-cal.is-collapsed { display: none; }
+.mgt-hb-bar { cursor: pointer; }
+.mgt-hb-bar:hover { outline: 1px solid var(--border); outline-offset: 1px; }
+
+/* [R7 #4] 습관형 목표: 스피너 제거(타이핑) + 성공기준 아랫줄 */
+.mgt-goal-habit { flex-direction: column; align-items: flex-start; gap: 3px; }
+.mgt-goal-main { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-1); }
+.mgt-goal-sub  { display: flex; align-items: center; gap: 4px; font-size: var(--fs-2xs); color: var(--text-2); }
+.mdt-hb-thr {
+  width: 42px;
+  text-align: center;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.mdt-hb-thr::-webkit-outer-spin-button,
+.mdt-hb-thr::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
