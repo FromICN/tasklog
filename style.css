@@ -10130,3 +10130,27 @@ body.light-mode .right-panel {
 }
 .mdt-hb-thr::-webkit-outer-spin-button,
 .mdt-hb-thr::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* =========================================================
+   🔮 Mandalart — 8차 개선 (2026-07)
+   ========================================================= */
+
+/* [R8 #2] 실적 월별 배지: 라운드 사각형 + 실패(빨강) + 12월 밑줄 연회색 */
+.mgt-month-badge { border-radius: var(--radius-sm); }
+.mgt-month-badge.fail {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--danger-border);
+  font-weight: 700;
+}
+.mgt-month-badge.is-dec { text-decoration-color: var(--text-3); }
+
+/* [R8 #5] 일간형 목표 한 줄 표시 */
+.mgt-goal-1line {
+  flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px;
+  font-size: var(--fs-xs); color: var(--text-1);
+}
+
+/* [R8 #6] 습관 실적바: 일간은 클릭 토글 없음(커서 기본, hover outline 제거) */
+.mgt-hb-bar--static { cursor: default; }
+.mgt-hb-bar--static:hover { outline: none; }
