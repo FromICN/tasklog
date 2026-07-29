@@ -1265,7 +1265,7 @@ index 2bfd509..ae1f927 100644
 +}
 +.rp-stepdt-clear:hover { color: var(--text-1); background: var(--surface-hover); }
 diff --git a/wbs.js b/wbs.js
-index cb56c19..c01ac51 100644
+index cb56c19..9acc6aa 100644
 --- a/wbs.js
 +++ b/wbs.js
 @@ -72,13 +72,17 @@ function renderWbsTitleYear() {
@@ -1442,12 +1442,141 @@ index cb56c19..c01ac51 100644
      inner += renderWbsCoreGroup(nodeId + '-' + sk, coreLabel, actionGroups, lk, parseInt(sk));
    });
    var secTasks = [];
-@@ -568,7 +652,7 @@ function renderWbsCoreGroup(nodeId, label, actionGroups, lk, sgId) {
+@@ -562,20 +646,27 @@ function renderWbsSection(nodeId, label, sgGroups, lk) {
+ function renderWbsCoreGroup(nodeId, label, actionGroups, lk, sgId) {
+   if (_wbsOpen[nodeId] === undefined) _wbsOpen[nodeId] = true;
+   var open = _wbsOpen[nodeId];
++  var allTasksEarly = [].concat.apply([], Object.values(actionGroups));
++  var firstT = allTasksEarly[0] || null;
++  var dropYear = wbsTaskYear(firstT);
++  var sgText = (firstT && firstT.mdtGoal && firstT.mdtGoal.text) ? firstT.mdtGoal.text : '';
++  var dropAttrs = ' data-wbs-drop-sgid="' + (sgId != null ? sgId : '') + '"'
++    + ' data-wbs-drop-year="' + (dropYear != null ? dropYear : '') + '"'
++    + ' data-wbs-drop-sgtext="' + encodeURIComponent(sgText || '') + '"';
+   var inner = '';
+-  if (actionGroups['_']) inner += renderWbsActionGroup(nodeId + '-none', 'Project 미연결', actionGroups['_'], lk, '_', '');
++  if (actionGroups['_']) inner += renderWbsActionGroup(nodeId + '-none', 'Project 미연결', actionGroups['_'], lk, '_', '', sgId, dropYear, sgText);
+   Object.keys(actionGroups).filter(function(k){ return k !== '_'; }).forEach(function(ak) {
      var taskArr = actionGroups[ak];
      var first = taskArr[0];
      var stored = (first && first.mdtAction) ? first.mdtAction.text : '';
 -    var akText = wbsActionText(sgId, parseInt(ak), stored);   // 라이브 만다라트 실행과제명
+-    inner += renderWbsActionGroup(nodeId + '-' + ak, akText, taskArr, lk, ak, akText);
 +    var akText = wbsActionText(sgId, parseInt(ak), stored, wbsTaskYear(first));   // 작업 연도 기준 실행과제명
-     inner += renderWbsActionGroup(nodeId + '-' + ak, akText, taskArr, lk, ak, akText);
++    inner += renderWbsActionGroup(nodeId + '-' + ak, akText, taskArr, lk, ak, akText, sgId, dropYear, sgText);
    });
-   var allTasks = [].concat.apply([], Object.values(actionGroups));
+-  var allTasks = [].concat.apply([], Object.values(actionGroups));
++  var allTasks = allTasksEarly;
+   var done  = wbsDoneCount(allTasks);
+   var total = allTasks.length;
+   return '<div class="wbs-core-node">'
+-    + '<div class="wbs-row wbs-core-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '">'
++    + '<div class="wbs-row wbs-core-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '"' + dropAttrs + '>'
+     + '<span class="wbs-tog" id="tog-' + nodeId + '">' + (open ? '▼' : '▶') + '</span>'
+     + '<span class="wbs-sg-label">' + wbsEsc(label) + '</span>'
+     + wbsEmptyCol('wbs-col-start') + wbsEmptyCol('wbs-col-due')
+@@ -587,14 +678,17 @@ function renderWbsCoreGroup(nodeId, label, actionGroups, lk, sgId) {
+ }
+ 
+ // 3단계: Project (mandalart action)
+-function renderWbsActionGroup(nodeId, label, taskArr, lk, ak, akText) {
++function renderWbsActionGroup(nodeId, label, taskArr, lk, ak, akText, sgId, dropYear, sgText) {
+   if (_wbsOpen[nodeId] === undefined) _wbsOpen[nodeId] = true;
+   var open = _wbsOpen[nodeId];
+   var done  = wbsDoneCount(taskArr);
+   var total = taskArr.length;
+   var inner = wbsSortTasks(taskArr).map(renderWbsTask).join('');
++  var dropAttrs = ' data-wbs-drop-sgid="' + (sgId != null ? sgId : '') + '"'
++    + ' data-wbs-drop-year="' + (dropYear != null ? dropYear : '') + '"'
++    + ' data-wbs-drop-sgtext="' + encodeURIComponent(sgText || '') + '"';
+   return '<div class="wbs-action-node">'
+-    + '<div class="wbs-row wbs-action-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '" data-wbs-drop-ak="' + ak + '" data-wbs-drop-ak-text="' + encodeURIComponent(akText || '') + '">'
++    + '<div class="wbs-row wbs-action-row" data-wbs-toggle="' + nodeId + '" data-wbs-drop-lk="' + lk + '" data-wbs-drop-ak="' + ak + '" data-wbs-drop-ak-text="' + encodeURIComponent(akText || '') + '"' + dropAttrs + '>'
+     + '<span class="wbs-tog" id="tog-' + nodeId + '">' + (open ? '▼' : '▶') + '</span>'
+     + '<span class="wbs-sg-label">' + wbsEsc(label) + '</span>'
+     + wbsEmptyCol('wbs-col-start') + wbsEmptyCol('wbs-col-due')
+@@ -652,35 +746,45 @@ function renderWbsTask(task) {
+ 
+ var _wbsDrag = null; // { type:'task', taskId } | { type:'step', taskId, stepId }
+ 
+-function wbsAssignTaskSection(task, lk) {
++function wbsAssignTaskSection(task, sgId, dropYear, sgText, lk) {
+   if (typeof loadLifeWheel === 'function') loadLifeWheel();
+-  if (lk === null) {
++  var hasLk = (lk !== null && lk !== undefined && lk !== '_' && lk !== '');
++  if (sgId == null && !hasLk) {
++    // 미분류(Section 없음)로 이동
+     delete task.lwSection; delete task.lwSectionName; delete task.lwSectionEmoji;
+     delete task.mdtGoal;   delete task.mdtAction;
+     return;
+   }
++  // 라이프휠 섹션 인덱스: lk 우선, 없으면 sgId-1
++  var idx = hasLk ? parseInt(lk) : (sgId != null ? sgId - 1 : null);
+   var secs = (typeof getLwSections === 'function') ? getLwSections() : [];
+-  var sec = secs ? secs[lk] : null;
+-  task.lwSection = lk;
+-  task.lwSectionName  = sec ? sec.name  : '';
+-  task.lwSectionEmoji = sec ? sec.emoji : '';
+-  var year = (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear();
+-  var mdt  = (typeof getMdt === 'function') ? getMdt(year) : null;
+-  if (mdt && mdt.subGoals[lk]) {
+-    var sg = mdt.subGoals[lk];
+-    task.mdtGoal = { year: year, sgId: sg.id, text: sg.text };
++  var sec = (secs && idx != null) ? secs[idx] : null;
++  if (idx != null) {
++    task.lwSection = idx;
++    task.lwSectionName  = sec ? sec.name  : '';
++    task.lwSectionEmoji = sec ? sec.emoji : '';
++  }
++  // 만다라트 목표(Section): 드롭 대상의 실제 sgId + 연도로 정확히 배정 (인덱스 추정 금지)
++  var year = (dropYear != null) ? dropYear
++           : ((typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear());
++  var effSgId = (sgId != null) ? sgId : (idx != null ? idx + 1 : null);
++  var mdt = (typeof getMdt === 'function') ? getMdt(year) : null;
++  var sg  = (mdt && effSgId != null) ? (mdt.subGoals || []).find(function(s){ return s.id === effSgId; }) : null;
++  if (effSgId != null) {
++    task.mdtGoal = { year: year, sgId: effSgId, text: (sg && sg.text) ? sg.text : (sgText || '') };
+   } else {
+     delete task.mdtGoal;
+   }
+   delete task.mdtAction;
+ }
+ 
+-function wbsAssignTaskAction(task, lk, actionId, actionText) {
+-  wbsAssignTaskSection(task, lk);
++function wbsAssignTaskAction(task, sgId, dropYear, sgText, lk, actionId, actionText) {
++  wbsAssignTaskSection(task, sgId, dropYear, sgText, lk);
+   if (actionId === null) { delete task.mdtAction; return; }
+-  var year = (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear();
+-  var sgId = task.mdtGoal ? task.mdtGoal.sgId : null;
+-  task.mdtAction = { year: year, sgId: sgId, actionId: actionId, text: actionText || '' };
++  var year = (dropYear != null) ? dropYear
++           : ((typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : new Date().getFullYear());
++  var useSgId = (task.mdtGoal && task.mdtGoal.sgId != null) ? task.mdtGoal.sgId : sgId;
++  task.mdtAction = { year: year, sgId: useSgId, actionId: actionId, text: actionText || '' };
+ }
+ 
+ function wbsHandleTaskDrop(taskId, dropEl, isCopy) {
+@@ -689,6 +793,10 @@ function wbsHandleTaskDrop(taskId, dropEl, isCopy) {
+   if (!task) return;
+   var lkRaw = dropEl.dataset.wbsDropLk;
+   var lk = (lkRaw === '_' || lkRaw === '' || lkRaw === undefined) ? null : parseInt(lkRaw);
++  var sgIdRaw = dropEl.dataset.wbsDropSgid;
++  var sgId = (sgIdRaw && sgIdRaw !== '' && sgIdRaw !== 'null' && sgIdRaw !== '_') ? parseInt(sgIdRaw) : null;
++  var dropYear = dropEl.dataset.wbsDropYear ? parseInt(dropEl.dataset.wbsDropYear) : null;
++  var sgText = dropEl.dataset.wbsDropSgtext ? decodeURIComponent(dropEl.dataset.wbsDropSgtext) : '';
+ 
+   var target = task;
+   if (isCopy) {
+@@ -705,9 +813,9 @@ function wbsHandleTaskDrop(taskId, dropEl, isCopy) {
+     var akRaw = dropEl.dataset.wbsDropAk;
+     var ak = (akRaw === '_' || akRaw === '') ? null : parseInt(akRaw);
+     var akText = dropEl.dataset.wbsDropAkText ? decodeURIComponent(dropEl.dataset.wbsDropAkText) : '';
+-    wbsAssignTaskAction(target, lk, ak, akText);
++    wbsAssignTaskAction(target, sgId, dropYear, sgText, lk, ak, akText);
+   } else {
+-    wbsAssignTaskSection(target, lk);
++    wbsAssignTaskSection(target, sgId, dropYear, sgText, lk);
+   }
+ 
+   if (isCopy) tasks.push(target);
