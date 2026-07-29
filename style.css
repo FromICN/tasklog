@@ -10154,3 +10154,36 @@ body.light-mode .right-panel {
 /* [R8 #6] 습관 실적바: 일간은 클릭 토글 없음(커서 기본, hover outline 제거) */
 .mgt-hb-bar--static { cursor: default; }
 .mgt-hb-bar--static:hover { outline: none; }
+
+/* =========================================================
+   📅 To Do 마감일 타이핑 입력 (Task Due와 동일 방식, 2026-07)
+   ========================================================= */
+.rp-stepdt-row { display: flex; align-items: center; gap: 6px; }
+.rp-stepdt-inp { flex: 1 1 auto; min-width: 0; }
+/* Task Due(.field-input)와 동일한 외형 — .dp-sub-form input[type=text] 규칙보다 우선 */
+.step-date-form input[type="text"].rp-stepdt-inp {
+  background: var(--main-bg);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  color-scheme: normal;
+  cursor: text;
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--fs-base);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+.step-date-form input[type="text"].rp-stepdt-inp:focus { border-color: var(--brand-primary); }
+.rp-stepdt-clear {
+  flex: 0 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  cursor: pointer;
+  padding: 0 9px;
+  height: 30px;
+  line-height: 1;
+}
+.rp-stepdt-clear:hover { color: var(--text-1); background: var(--surface-hover); }

@@ -2271,7 +2271,7 @@ function rpBuildStepsHtml() {
       : '';
     var hasDate = !!s.dueDateTime;
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
-      + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, (hasDate && s.hasTime) ? toTimeInputVal(s.dueDateTime) : null)
+      + buildStepDateInput(s.id, hasDate ? toDateInputVal(s.dueDateTime) : '', (hasDate && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '')
       + '</div>';
     return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
       +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
@@ -2314,7 +2314,45 @@ function rpToggleStepDateForm(stepId) {
   if (!form) return;
   var isOpen = form.style.display !== 'none';
   form.style.display = isOpen ? 'none' : 'block';
-  if (!isOpen) setTimeout(function(){ openPickerCal('rp-step-'+stepId); }, 30);
+  // Task Due와 동일: 달력이 아니라 타이핑 입력창이 드롭다운 → 포커스
+  if (!isOpen) setTimeout(function(){ var i = document.getElementById('rp-stepdt-'+stepId); if (i) { i.focus(); try { i.select(); } catch(e){} } }, 30);
+}
+
+// To Do 마감일 입력: Task Due와 동일한 'YYYY-MM-DD  HH:MM' 타이핑 방식 (HH:MM 선택)
+function buildStepDateInput(stepId, dateStr, timeStr) {
+  var val = '';
+  if (dateStr) { val = dateStr; if (timeStr) val += '  ' + timeStr; }
+  return '<div class="rp-stepdt-row">'
+    + '<input type="text" class="field-input rp-dtinput rp-stepdt-inp" id="rp-stepdt-' + stepId + '"'
+    + ' inputmode="numeric" placeholder="YYYY-MM-DD  HH:MM" value="' + val + '"'
+    + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+    + ' oninput="rpDtInput(this)" onchange="rpSaveStepDate(' + stepId + ')"'
+    + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();rpSaveStepDate(' + stepId + ');rpToggleStepDateForm(' + stepId + ');}">'
+    + '<button class="rp-stepdt-clear" onclick="event.stopPropagation();rpClearStepDate(' + stepId + ')" title="지우기">✕</button>'
+    + '</div>';
+}
+
+function rpSaveStepDate(stepId) {
+  var s = rpState.steps.find(function(x){ return x.id === stepId; });
+  if (!s) return;
+  var pv = parseRpDateTime('rp-stepdt-' + stepId);   // {dateStr, timeStr} — Task Due와 동일 파서
+  if (pv.dateStr) {
+    if (pv.timeStr) { s.dueDateTime = pv.dateStr + 'T' + pv.timeStr + ':00'; s.hasTime = true; }
+    else { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }  // HH:MM 미입력 허용
+  } else { s.dueDateTime = null; s.hasTime = false; }
+  rpState.dirty = true;
+  var btn = document.querySelector('#rp-step-' + stepId + ' .step-cal-btn');
+  if (btn) {
+    btn.classList.toggle('has-date', !!s.dueDateTime);
+    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, s.hasTime) : '📅';
+  }
+}
+
+function rpClearStepDate(stepId) {
+  var inp = document.getElementById('rp-stepdt-' + stepId);
+  if (inp) inp.value = '';
+  rpSaveStepDate(stepId);
+  rpToggleStepDateForm(stepId);
 }
 
 function rpSaveStepFromPicker(id) {

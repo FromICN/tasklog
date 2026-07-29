@@ -441,7 +441,7 @@ index 7aded6c..c046fe0 100644
  }
  
 diff --git a/script.js b/script.js
-index 605c1e2..61128e9 100644
+index 605c1e2..1688b3c 100644
 --- a/script.js
 +++ b/script.js
 @@ -636,19 +636,123 @@ function buildPickerHtml(id, dateStr, timeStr) {
@@ -688,7 +688,63 @@ index 605c1e2..61128e9 100644
      + '</div>'
      + todoHtml
      + eiHtml
-@@ -2396,8 +2545,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
+@@ -2122,7 +2271,7 @@ function rpBuildStepsHtml() {
+       : '';
+     var hasDate = !!s.dueDateTime;
+     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
+-      + buildPickerHtml('rp-step-'+s.id, hasDate ? toDateInputVal(s.dueDateTime) : null, (hasDate && s.hasTime) ? toTimeInputVal(s.dueDateTime) : null)
++      + buildStepDateInput(s.id, hasDate ? toDateInputVal(s.dueDateTime) : '', (hasDate && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '')
+       + '</div>';
+     return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
+       +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
+@@ -2165,7 +2314,45 @@ function rpToggleStepDateForm(stepId) {
+   if (!form) return;
+   var isOpen = form.style.display !== 'none';
+   form.style.display = isOpen ? 'none' : 'block';
+-  if (!isOpen) setTimeout(function(){ openPickerCal('rp-step-'+stepId); }, 30);
++  // Task Due와 동일: 달력이 아니라 타이핑 입력창이 드롭다운 → 포커스
++  if (!isOpen) setTimeout(function(){ var i = document.getElementById('rp-stepdt-'+stepId); if (i) { i.focus(); try { i.select(); } catch(e){} } }, 30);
++}
++
++// To Do 마감일 입력: Task Due와 동일한 'YYYY-MM-DD  HH:MM' 타이핑 방식 (HH:MM 선택)
++function buildStepDateInput(stepId, dateStr, timeStr) {
++  var val = '';
++  if (dateStr) { val = dateStr; if (timeStr) val += '  ' + timeStr; }
++  return '<div class="rp-stepdt-row">'
++    + '<input type="text" class="field-input rp-dtinput rp-stepdt-inp" id="rp-stepdt-' + stepId + '"'
++    + ' inputmode="numeric" placeholder="YYYY-MM-DD  HH:MM" value="' + val + '"'
++    + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
++    + ' oninput="rpDtInput(this)" onchange="rpSaveStepDate(' + stepId + ')"'
++    + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();rpSaveStepDate(' + stepId + ');rpToggleStepDateForm(' + stepId + ');}">'
++    + '<button class="rp-stepdt-clear" onclick="event.stopPropagation();rpClearStepDate(' + stepId + ')" title="지우기">✕</button>'
++    + '</div>';
++}
++
++function rpSaveStepDate(stepId) {
++  var s = rpState.steps.find(function(x){ return x.id === stepId; });
++  if (!s) return;
++  var pv = parseRpDateTime('rp-stepdt-' + stepId);   // {dateStr, timeStr} — Task Due와 동일 파서
++  if (pv.dateStr) {
++    if (pv.timeStr) { s.dueDateTime = pv.dateStr + 'T' + pv.timeStr + ':00'; s.hasTime = true; }
++    else { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }  // HH:MM 미입력 허용
++  } else { s.dueDateTime = null; s.hasTime = false; }
++  rpState.dirty = true;
++  var btn = document.querySelector('#rp-step-' + stepId + ' .step-cal-btn');
++  if (btn) {
++    btn.classList.toggle('has-date', !!s.dueDateTime);
++    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, s.hasTime) : '📅';
++  }
++}
++
++function rpClearStepDate(stepId) {
++  var inp = document.getElementById('rp-stepdt-' + stepId);
++  if (inp) inp.value = '';
++  rpSaveStepDate(stepId);
++  rpToggleStepDateForm(stepId);
+ }
+ 
+ function rpSaveStepFromPicker(id) {
+@@ -2396,8 +2583,22 @@ function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.n
  
  function rpDepSingleOptions(dir) {
    var cur = rpDepIds(dir)[0] || '';
@@ -713,7 +769,7 @@ index 605c1e2..61128e9 100644
      .map(function(t){
        var s = (t.id === cur) ? ' selected' : '';
        return '<option value="'+t.id+'"'+s+'>'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>';
-@@ -2479,12 +2642,13 @@ function saveRightPanel() {
+@@ -2479,12 +2680,13 @@ function saveRightPanel() {
      return;
    }
  
@@ -732,7 +788,7 @@ index 605c1e2..61128e9 100644
    var upstreamDepts = rpState.upstreamDepts.slice();
    var upstreamDeptVal = upstreamDepts.join(', ');
  
-@@ -2635,7 +2799,13 @@ function initSidebarCollapse() {
+@@ -2635,7 +2837,13 @@ function initSidebarCollapse() {
  function initSidebar() {
    var nav = document.getElementById('sidebar-nav');
    if (!nav) return;
@@ -748,7 +804,7 @@ index 605c1e2..61128e9 100644
      var full = MENU_TITLES[m.id] || m.label;
      return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'
 diff --git a/style.css b/style.css
-index 2bfd509..cd13370 100644
+index 2bfd509..ae1f927 100644
 --- a/style.css
 +++ b/style.css
 @@ -6825,22 +6825,22 @@ body.light-mode .year-select option { color: #1a1a1a; }
@@ -780,7 +836,7 @@ index 2bfd509..cd13370 100644
    --brand-primary: #1a1a1a;
    --accent-rgb: 26,26,26;   /* 라이트 모드 강조: 블랙 */
    --scroll-thumb: #c4c7cf;
-@@ -9763,3 +9763,394 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -9763,3 +9763,427 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -1175,6 +1231,39 @@ index 2bfd509..cd13370 100644
 +/* [R8 #6] 습관 실적바: 일간은 클릭 토글 없음(커서 기본, hover outline 제거) */
 +.mgt-hb-bar--static { cursor: default; }
 +.mgt-hb-bar--static:hover { outline: none; }
++
++/* =========================================================
++   📅 To Do 마감일 타이핑 입력 (Task Due와 동일 방식, 2026-07)
++   ========================================================= */
++.rp-stepdt-row { display: flex; align-items: center; gap: 6px; }
++.rp-stepdt-inp { flex: 1 1 auto; min-width: 0; }
++/* Task Due(.field-input)와 동일한 외형 — .dp-sub-form input[type=text] 규칙보다 우선 */
++.step-date-form input[type="text"].rp-stepdt-inp {
++  background: var(--main-bg);
++  border: 0.5px solid var(--border);
++  border-radius: var(--radius-md);
++  color: var(--text-1);
++  color-scheme: normal;
++  cursor: text;
++  padding: var(--space-2) var(--space-1);
++  font-size: var(--fs-base);
++  text-align: center;
++  font-variant-numeric: tabular-nums;
++  letter-spacing: -0.2px;
++}
++.step-date-form input[type="text"].rp-stepdt-inp:focus { border-color: var(--brand-primary); }
++.rp-stepdt-clear {
++  flex: 0 0 auto;
++  background: var(--surface);
++  border: 1px solid var(--border);
++  border-radius: var(--radius-sm);
++  color: var(--text-2);
++  cursor: pointer;
++  padding: 0 9px;
++  height: 30px;
++  line-height: 1;
++}
++.rp-stepdt-clear:hover { color: var(--text-1); background: var(--surface-hover); }
 diff --git a/wbs.js b/wbs.js
 index cb56c19..c01ac51 100644
 --- a/wbs.js
