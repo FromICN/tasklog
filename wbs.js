@@ -135,19 +135,37 @@ function wbsTaskSection(task) {
   return (sgId != null) ? (sgId - 1) : null;
 }
 
-function wbsGoalText(sgId, fallback) {
-  var mdt = wbsLiveMdt();
+// 작업이 배정된 연도 (mdtGoal/mdtAction에 저장) — 이 연도의 만다라트로 이름을 해석해야 정확
+function wbsTaskYear(task) {
+  if (!task) return null;
+  if (task.mdtGoal   && task.mdtGoal.year   != null) return task.mdtGoal.year;
+  if (task.mdtAction && task.mdtAction.year != null) return task.mdtAction.year;
+  return null;
+}
+// 지정 연도 만다라트 우선, 없으면 WBS 선택 연도로 폴백
+function wbsResolveMdt(year) {
+  if (year != null && typeof getMdt === 'function') {
+    var m = getMdt(year);
+    if (m) return m;
+  }
+  return wbsLiveMdt();
+}
+
+function wbsGoalText(sgId, fallback, year) {
+  var mdt = wbsResolveMdt(year);
   if (mdt && sgId) {
     var sg = (mdt.subGoals || []).find(function(s){ return s.id === sgId; });
-    // Mandalart section의 이모지와 동일한 이모지 표시
-    if (sg && sg.text) return (sg.emoji ? sg.emoji + ' ' : '') + sg.text;
+    // 해당 연도 만다라트의 Section 이모지 + 이름
+    if (sg && sg.text)  return (sg.emoji ? sg.emoji + ' ' : '') + sg.text;
     if (sg && sg.emoji) return sg.emoji + ' ' + (fallback || 'Section');
   }
+  // 만다라트에서 못 찾으면 작업에 저장된 텍스트로 폴백
+  if (fallback && String(fallback).trim()) return String(fallback).trim();
   return fallback || 'Section';
 }
 
-function wbsActionText(sgId, actionId, fallback) {
-  var mdt = wbsLiveMdt();
+function wbsActionText(sgId, actionId, fallback, year) {
+  var mdt = wbsResolveMdt(year);
   if (mdt && sgId && actionId) {
     var sg = (mdt.subGoals || []).find(function(s){ return s.id === sgId; });
     if (sg) {
@@ -155,6 +173,8 @@ function wbsActionText(sgId, actionId, fallback) {
       if (act && act.text) return act.text;
     }
   }
+  // 만다라트에서 못 찾으면 작업에 저장된 실행과제 텍스트로 폴백
+  if (fallback && String(fallback).trim()) return String(fallback).trim();
   return fallback || 'Project';
 }
 
@@ -583,7 +603,7 @@ function buildWbsTree() {
     var first = Object.values(groups[sk])[0];
     var firstTask = first ? first[0] : null;
     var stored = (firstTask && firstTask.mdtGoal) ? firstTask.mdtGoal.text : '';
-    html += renderWbsCoreGroup('sg-' + sk, wbsGoalText(sgId, stored), groups[sk], lk, sgId);
+    html += renderWbsCoreGroup('sg-' + sk, wbsGoalText(sgId, stored, wbsTaskYear(firstTask)), groups[sk], lk, sgId);
   });
   if (groups['_']) html += renderWbsCoreGroup('sg-none', '📂 미분류', groups['_'], '_', null);
   return html || '<div class="wbs-empty">✨ 등록된 할 일이 없어요</div>';
@@ -601,7 +621,7 @@ function renderWbsSection(nodeId, label, sgGroups, lk) {
     var first = Object.values(actionGroups)[0];
     var firstTask = first ? first[0] : null;
     var stored = (firstTask && firstTask.mdtGoal) ? firstTask.mdtGoal.text : '';
-    var coreLabel = wbsGoalText(parseInt(sk), stored);   // 라이브 만다라트 목표명
+    var coreLabel = wbsGoalText(parseInt(sk), stored, wbsTaskYear(firstTask));   // 작업 연도 기준 목표명
     inner += renderWbsCoreGroup(nodeId + '-' + sk, coreLabel, actionGroups, lk, parseInt(sk));
   });
   var secTasks = [];
@@ -632,7 +652,7 @@ function renderWbsCoreGroup(nodeId, label, actionGroups, lk, sgId) {
     var taskArr = actionGroups[ak];
     var first = taskArr[0];
     var stored = (first && first.mdtAction) ? first.mdtAction.text : '';
-    var akText = wbsActionText(sgId, parseInt(ak), stored);   // 라이브 만다라트 실행과제명
+    var akText = wbsActionText(sgId, parseInt(ak), stored, wbsTaskYear(first));   // 작업 연도 기준 실행과제명
     inner += renderWbsActionGroup(nodeId + '-' + ak, akText, taskArr, lk, ak, akText);
   });
   var allTasks = [].concat.apply([], Object.values(actionGroups));
