@@ -6229,6 +6229,11 @@ body.light-mode .year-select option { color: #1a1a1a; }
   pointer-events: none;
 }
 .jnl-line-todo { padding-left: 18px; }
+.jnl-line-time {
+  display: inline-block; font-size: var(--fs-2xs); color: var(--text-3);
+  font-variant-numeric: tabular-nums; background: rgba(127,127,127,0.12);
+  border-radius: var(--radius-xs); padding: 0 5px; margin-right: 2px;
+}
 
 /* TASK / ToDo 배지 (이미지의 알약 버튼 스타일) */
 .jnl-badge {
@@ -6323,6 +6328,35 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .jnl-tracker-btn.done { background: var(--success-bg); border-color: var(--success-border); color: var(--success); }
 .jnl-tracker-btn.sel { outline: 1px solid var(--text-1); outline-offset: -1px; }
 .jnl-tracker-btn.future { opacity: 0.3; cursor: default; }
+
+/* ── Work Diary: 월간/주간 탭 + 주간 그리드 ── */
+.jnl-tabbar {
+  display: flex; align-items: center; gap: var(--space-3);
+  flex: 0 0 auto; flex-wrap: wrap;
+}
+.jnl-tabs { display: flex; gap: 6px; }
+.jnl-tab {
+  padding: 6px 16px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-2); border-radius: var(--radius-md); cursor: pointer;
+  font-size: var(--fs-base); font-weight: 600;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.jnl-tab:hover { background: var(--sidebar-hover); color: var(--text-1); }
+.jnl-tab.active { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
+.jnl-week-nav { display: flex; align-items: center; gap: var(--space-2); }
+.jnl-week-nav-label { font-size: var(--fs-base); font-weight: 600; color: var(--text-1); min-width: 210px; text-align: center; }
+.jnl-cal-hint { font-size: var(--fs-2xs); color: var(--text-3); text-align: center; padding-top: var(--space-1); }
+.jnl-cal-cell.clickable { cursor: pointer; transition: background var(--dur-fast); }
+.jnl-cal-cell.clickable:hover { background: color-mix(in srgb, var(--brand-primary) 16%, transparent); }
+
+/* 주간 그리드 래퍼 (우측 넓은 영역) */
+.jnl-week-wrap { display: flex; flex-direction: column; min-height: 0; margin-bottom: var(--space-3); }
+.jnl-week-wrap .calw { max-height: 56vh; }
+.jnl-week-wrap .calw-scroll { max-height: 48vh; }
+/* 주간 그리드 이벤트 칩: 완료 항목이므로 취소선 대신 강조 유지 */
+.jnlw-ev { align-items: center; gap: 3px; padding: 1px 3px; }
+.jnlw-ev .jnl-badge { flex: 0 0 auto; }
+.jnlw-ev .calw-ev-x { flex: 1 1 auto; }
 
 /* =============================================
    ⚙️ 설정 버튼 & 패널

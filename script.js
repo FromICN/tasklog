@@ -2804,7 +2804,6 @@ var _SVG = {
 
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
-  { id:'calendar',  icon:_SVG.calendar,  label:'Cal',          short:'Cal'  },
   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
   { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
   { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
