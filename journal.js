@@ -10,7 +10,6 @@ var _journalWeek = null;   // 현재 선택된 주차 키 'YYYY-WW'
 // 📅 캘린더 탭: 'month'(월간, 기본) | 'weekly'(주간 – 완료 To Do 시간대 그리드)
 var _jnlTab = 'month';
 var JNLW_ROW_H = 40;       // 주간 그리드 시간 행 높이(px)
-var _jnlwDrag = null;      // 드래그 중인 항목 { taskId, stepId }
 
 // ── 주차 유틸 ──────────────────────────────
 
@@ -115,28 +114,34 @@ function renderJournalView() {
 
   var isWeekly = (_jnlTab === 'weekly');
 
-  // 캘린더 영역: 월간=미니 달력 패널 / 주간=완료 To Do 시간대 그리드
-  var calArea = isWeekly
-    ? '<div class="jnl-week-wrap" id="jnl-week-wrap">' + jnlBuildWeekGrid() + '</div>'
-    : jnlMonthCalPanel();
+  // 우측(KA/Upcoming) 영역: 월간=성과/예정 작성 / 주간=완료 To Do 시간 그리드
+  var rightTop = isWeekly
+    ? '<div class="jnl-week-wrap" id="jnl-week-wrap">'
+      +   '<div class="jnl-week-nav">'
+      +     '<button class="jnl-cal-navbtn" onclick="jnlWeekStep(-1)">\u2039</button>'
+      +     '<span class="jnl-week-nav-label" id="jnl-week-nav-label"></span>'
+      +     '<button class="jnl-cal-navbtn" onclick="jnlWeekStep(1)">\u203a</button>'
+      +     '<button class="jnl-today-btn" onclick="jnlGoThisWeek()">오늘</button>'
+      +   '</div>'
+      +   '<div class="jnl-week-grid-host" id="jnl-week-grid-host">' + jnlBuildWeekGrid() + '</div>'
+      + '</div>'
+    : '<div class="jnl-top-row">'
+      +   jnlSection('achievement', 'Key Achievements', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
+            '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">Load Data</button>', true)
+      +   jnlSection('plan', 'Upcoming Tasks', '다음 주에 예정된 일을 기록하세요.',
+            '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">Load Data</button>', true)
+      + '</div>';
 
   content.innerHTML =
     '<div class="jnl-page">'
-    + jnlTabBar()
     + '<div class="jnl-body">'
     +   '<div class="jnl-left">'
-    +     (isWeekly ? '' : calArea)   // 월간: 달력을 좌측 패널에
+    +     jnlMonthCalPanel()          // 캘린더 영역(탭은 이 안 우상단)
     +     jnlTrackerSection()
     +     jnlEvalSection()
     +   '</div>'
     +   '<div class="jnl-right">'
-    +     (isWeekly ? calArea : '')   // 주간: 그리드를 우측(넓은 영역) 상단에
-    +     '<div class="jnl-top-row">'
-    +       jnlSection('achievement', 'Key Achievements', '이번 주에 완료하거나 달성한 것들을 기록하세요.',
-          '<button class="jnl-pull-btn" onclick="jnlPullCompleted()">Load Data</button>', true)
-    +       jnlSection('plan', 'Upcoming Tasks', '다음 주에 예정된 일을 기록하세요.',
-          '<button class="jnl-pull-btn" onclick="jnlPullPlanned()">Load Data</button>', true)
-    +     '</div>'
+    +     rightTop
     +   '</div>'
     + '</div>'
     + jnlSection('issue', 'Retrospective', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
@@ -147,41 +152,27 @@ function renderJournalView() {
   if (slot) slot.innerHTML = '<button class="jnl-save-btn" id="jnl-save-btn" onclick="jnlSave()">저장</button>';
 
   jnlFillEntry(_journalWeek);
-
-  if (isWeekly) {
-    // 오전 7시가 보이도록 스크롤
-    var sc = document.getElementById('jnlw-scroll');
-    if (sc) sc.scrollTop = 7 * JNLW_ROW_H;
-  }
 }
 
-// ── 탭 바 (주간 / 월간) ──────────────────────
-function jnlTabBar() {
+// 캘린더 영역 우상단 탭 (주간 / 월간)
+function jnlCalTabs() {
   var isWeekly = (_jnlTab === 'weekly');
-  var nav = isWeekly
-    ? '<div class="jnl-week-nav">'
-      + '<button class="jnl-cal-navbtn" onclick="jnlWeekStep(-1)">\u2039</button>'
-      + '<span class="jnl-week-nav-label" id="jnl-week-nav-label"></span>'
-      + '<button class="jnl-cal-navbtn" onclick="jnlWeekStep(1)">\u203a</button>'
-      + '<button class="jnl-today-btn" onclick="jnlGoThisWeek()">오늘</button>'
-      + '</div>'
-    : '';
-  return '<div class="jnl-tabbar">'
-    + '<div class="jnl-tabs">'
+  return '<div class="jnl-tabs">'
     +   '<button class="jnl-tab' + (isWeekly ? ' active' : '') + '" onclick="jnlSetTab(\'weekly\')">주간</button>'
     +   '<button class="jnl-tab' + (!isWeekly ? ' active' : '') + '" onclick="jnlSetTab(\'month\')">월간</button>'
-    + '</div>'
-    + nav
     + '</div>';
 }
 
-// 월간 탭: 미니 달력 패널 (일자 클릭 → 주간 탭으로 이동)
+// 캘린더 패널 (월/주 공통) — 탭을 우상단에 배치, 일자 클릭 → 주간 보기
 function jnlMonthCalPanel() {
   return '<div class="jnl-cal-panel">'
-    + '<div class="jnl-cal-head">'
-    +   '<button class="jnl-cal-navbtn" onclick="jnlCalNav(-1)">\u2039</button>'
-    +   '<div class="jnl-cal-title" id="jnl-cal-title"></div>'
-    +   '<button class="jnl-cal-navbtn" onclick="jnlCalNav(1)">\u203a</button>'
+    + '<div class="jnl-cal-toprow">'
+    +   '<div class="jnl-cal-head">'
+    +     '<button class="jnl-cal-navbtn" onclick="jnlCalNav(-1)">\u2039</button>'
+    +     '<div class="jnl-cal-title" id="jnl-cal-title"></div>'
+    +     '<button class="jnl-cal-navbtn" onclick="jnlCalNav(1)">\u203a</button>'
+    +   '</div>'
+    +   jnlCalTabs()
     + '</div>'
     + '<div class="jnl-cal-grid" id="jnl-cal-grid"></div>'
     + '<div class="jnl-cal-hint">일자를 클릭하면 그 주의 주간 보기로 이동합니다.</div>'
@@ -357,7 +348,16 @@ function jnlItemLogInfo(obj) {
   return { date: jnlParseCompletedDate(obj ? obj.text : ''), timed: false };
 }
 
+// 08:00 기준 선형 분(0=08:00 … 1439=07:59 다음날)
+var JNLW_WIN_START = 8;      // 그리드 최상단 시각(08:00)
+var JNLW_SNAP = 10;         // 스냅 단위(분) — 지속시간/이동 10분 단위
+var JNLW_MIN_DUR = 10;      // 최소 지속시간(분)
+function jnlwClockToLin(h, m) { return (((h * 60 + m) - JNLW_WIN_START * 60) % 1440 + 1440) % 1440; }
+function jnlwLinToClock(lin) { var c = (JNLW_WIN_START * 60 + lin) % 1440; return { h: Math.floor(c / 60), m: c % 60 }; }
+function jnlwFmtLin(lin) { var c = jnlwLinToClock(lin); return jnlPad2(c.h) + ':' + jnlPad2(c.m); }
+
 // 선택된 주차에 완료된 Task + To Do 를 그리드 배치정보와 함께 수집
+// (그리드는 To Do만 사용하지만, Load Data용으로 Task도 함께 수집)
 function jnlCollectWeekGridItems(weekKey) {
   var out = [];
   if (typeof tasks === 'undefined' || !Array.isArray(tasks)) return out;
@@ -365,18 +365,25 @@ function jnlCollectWeekGridItems(weekKey) {
   var mondayMid = new Date(r.start); mondayMid.setHours(0, 0, 0, 0);
   var eiColors = (typeof EI_COLORS !== 'undefined') ? EI_COLORS : {};
   function place(obj, type, task) {
-    if (!obj || !obj.completed) return;
+    if (!obj || !obj.completed) return;         // 완료된 항목만 대상
     var info = jnlItemLogInfo(obj);
     if (!info.date) return;
     var day0 = new Date(info.date); day0.setHours(0, 0, 0, 0);
     var di = Math.round((day0 - mondayMid) / 86400000);
     if (di < 0 || di > 6) return;
-    out.push({
+    var rec = {
       type: type, taskId: task.id, stepId: (type === 'todo') ? obj.id : null,
       text: jnlCleanText(obj.text),
+      taskText: (type === 'todo') ? jnlCleanText(task.text) : '',   // 상위 Task명
       color: eiColors[task.eisenhower] || 'var(--brand-primary)',
       day: di, timed: info.timed, hour: info.date.getHours(), min: info.date.getMinutes(), dt: info.date
-    });
+    };
+    if (info.timed) {
+      rec.startLin = jnlwClockToLin(rec.hour, rec.min);
+      rec.durMin = Math.max(JNLW_MIN_DUR, obj.wdDurMin || 60);
+      rec.endLin = Math.min(1440, rec.startLin + rec.durMin);
+    }
+    out.push(rec);
   }
   tasks.forEach(function (t) {
     place(t, 'task', t);
@@ -385,80 +392,129 @@ function jnlCollectWeekGridItems(weekKey) {
   return out;
 }
 
-// 그리드 이벤트 칩
-function jnlWeekEvChip(it) {
-  var timeLbl = it.timed ? (jnlPad2(it.hour) + ':' + jnlPad2(it.min) + ' ') : '';
-  var stepAttr = (it.type === 'todo') ? it.stepId : 'null';
+// 하루치 timed 항목 레인 배치(겹침 나란히)
+function jnlwLayoutDay(dayItems) {
+  dayItems.sort(function (a, b) { return a.startLin - b.startLin || a.endLin - b.endLin; });
+  var clusters = [], cur = [], curMaxEnd = -1;
+  dayItems.forEach(function (it) {
+    if (cur.length && it.startLin >= curMaxEnd) { clusters.push(cur); cur = []; curMaxEnd = -1; }
+    cur.push(it); curMaxEnd = Math.max(curMaxEnd, it.endLin);
+  });
+  if (cur.length) clusters.push(cur);
+  clusters.forEach(function (cl) {
+    var lanesEnd = [];
+    cl.forEach(function (it) {
+      var l = 0;
+      for (; l < lanesEnd.length; l++) { if (it.startLin >= lanesEnd[l]) break; }
+      it.lane = l; lanesEnd[l] = it.endLin;
+    });
+    cl.forEach(function (it) { it.lanes = lanesEnd.length; });
+  });
+}
+
+// timed 블록 HTML
+function jnlwBlockHTML(it, totalH) {
+  var topPx = it.startLin / 1440 * totalH;
+  var hPx = Math.max((it.endLin - it.startLin) / 1440 * totalH, 20);
+  var w = 100 / (it.lanes || 1);
+  var left = (it.lane || 0) * w;
   var safe = jnlEscape(it.text || '');
-  return '<div class="calw-ev jnlw-ev" draggable="true" style="border-left:3px solid ' + it.color + ';" title="' + safe + '"'
-    + ' ondragstart="jnlwDragStart(event,' + it.taskId + ',' + stepAttr + ')"'
-    + ' onclick="event.stopPropagation();jnlwOpen(' + it.taskId + ')">'
-    + jnlBadge(it.type)
-    + '<span class="calw-ev-t">' + timeLbl + '</span><span class="calw-ev-x">' + safe + '</span>'
+  var parent = jnlEscape(it.taskText || '');
+  var timeLbl = jnlwFmtLin(it.startLin) + '–' + jnlwFmtLin(it.endLin);
+  var sid = (it.stepId == null) ? 'null' : it.stepId;
+  var parentLine = parent ? '<span class="jnlw-ev-parent">' + parent + '</span>' : '';
+  var tip = (parent ? parent + ' › ' : '') + safe + '  (' + timeLbl + ')';
+  return '<div class="jnlw-ev" data-task="' + it.taskId + '" data-step="' + sid + '"'
+    + ' style="top:' + topPx.toFixed(1) + 'px;height:' + hPx.toFixed(1) + 'px;left:calc(' + left + '% + 1px);width:calc(' + w + '% - 3px);'
+    + 'border-left:3px solid ' + it.color + ';background:color-mix(in srgb,' + it.color + ' 14%, var(--surface));"'
+    + ' title="' + tip + '"'
+    + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',false)">'
+    + '<div class="jnlw-ev-rz jnlw-ev-rz-top" onpointerdown="jnlwRzDown(event,\'top\',' + it.taskId + ',' + sid + ')"></div>'
+    + '<div class="jnlw-ev-in">'
+    + '<span class="jnlw-ev-head">' + jnlBadge(it.type) + parentLine + '</span>'
+    + '<span class="jnlw-ev-time">' + timeLbl + '</span>'
+    + '<span class="jnlw-ev-txt">' + safe + '</span></div>'
+    + '<div class="jnlw-ev-rz jnlw-ev-rz-bot" onpointerdown="jnlwRzDown(event,\'bot\',' + it.taskId + ',' + sid + ')"></div>'
     + '</div>';
 }
 
-// 주간 그리드 HTML
+// 종일 칩 HTML
+function jnlwAlldayChip(it) {
+  var safe = jnlEscape(it.text || '');
+  var parent = jnlEscape(it.taskText || '');
+  var sid = (it.stepId == null) ? 'null' : it.stepId;
+  var parentLine = parent ? '<span class="jnlw-chip-parent">' + parent + ' ›</span>' : '';
+  var tip = (parent ? parent + ' › ' : '') + safe;
+  return '<div class="jnlw-chip" data-task="' + it.taskId + '" data-step="' + sid + '"'
+    + ' style="border-left:3px solid ' + it.color + ';" title="' + tip + '"'
+    + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',true)">'
+    + jnlBadge(it.type) + parentLine + '<span class="jnlw-chip-x">' + safe + '</span></div>';
+}
+
+// 주간 그리드 HTML (시간 08:00~07:00, 종일은 최하단, 내부 스크롤)
 function jnlBuildWeekGrid() {
   var DAY_KO = ['월', '화', '수', '목', '금', '토', '일'];
   var r = getWeekRange(_journalWeek);
   var start = new Date(r.start); start.setHours(0, 0, 0, 0);
   var todayKey = jnlDayKey(new Date());
+  var totalH = 24 * JNLW_ROW_H;
+  var cols = '52px repeat(7, minmax(0, 1fr))';
 
-  var items = jnlCollectWeekGridItems(_journalWeek);
-  var byCell = [], allday = [];
-  for (var i = 0; i < 7; i++) { byCell.push({}); allday.push([]); }
-  items.forEach(function (it) {
-    if (it.timed) { (byCell[it.day][it.hour] = byCell[it.day][it.hour] || []).push(it); }
-    else { allday[it.day].push(it); }
-  });
+  var items = jnlCollectWeekGridItems(_journalWeek).filter(function (it) { return it.type === 'todo'; });
+  var timedByDay = [], alldayByDay = [];
+  for (var i = 0; i < 7; i++) { timedByDay.push([]); alldayByDay.push([]); }
+  items.forEach(function (it) { (it.timed ? timedByDay[it.day] : alldayByDay[it.day]).push(it); });
+  timedByDay.forEach(jnlwLayoutDay);
 
-  // 헤더 행
-  var head = '<div class="calw-row calw-headrow"><div class="calw-tgutter"></div>';
+  // 헤더
+  var head = '<div class="jnlw-head" style="grid-template-columns:' + cols + ';"><div class="jnlw-gutcell"></div>';
   for (var d = 0; d < 7; d++) {
     var dt = new Date(start.getTime() + d * 86400000);
     var isToday = jnlDayKey(dt) === todayKey;
-    head += '<div class="calw-dayhead' + (isToday ? ' today' : '') + (d === 5 ? ' sat' : d === 6 ? ' sun' : '') + '">'
-      + '<span class="calw-dow">' + DAY_KO[d] + '</span> <span class="calw-dnum">' + dt.getDate() + '</span></div>';
+    head += '<div class="jnlw-dayhead' + (isToday ? ' today' : '') + (d === 5 ? ' sat' : d === 6 ? ' sun' : '') + '">'
+      + '<span class="jnlw-dow">' + DAY_KO[d] + '</span> <span class="jnlw-dnum">' + dt.getDate() + '</span></div>';
   }
   head += '</div>';
 
-  // 종일 행
-  var allRow = '<div class="calw-row calw-alldayrow"><div class="calw-tgutter calw-tlabel">종일</div>';
-  for (var d2 = 0; d2 < 7; d2++) {
-    var chips = allday[d2].map(jnlWeekEvChip).join('');
-    allRow += '<div class="calw-allday-cell" data-day="' + d2 + '"'
-      + ' ondragover="jnlwDragOver(event)" ondragleave="jnlwDragLeave(event)" ondrop="jnlwDrop(event,' + d2 + ',-1)">'
-      + chips + '</div>';
+  // 시간 거터(08:00→07:00)
+  var gutter = '<div class="jnlw-gutter" style="height:' + totalH + 'px;">';
+  for (var r2 = 0; r2 < 24; r2++) {
+    var hh = (JNLW_WIN_START + r2) % 24;
+    gutter += '<div class="jnlw-hlabel" style="height:' + JNLW_ROW_H + 'px;">' + jnlPad2(hh) + ':00</div>';
   }
-  allRow += '</div>';
+  gutter += '</div>';
 
-  // 시간 행 (0~23)
-  var rows = '';
-  for (var h = 0; h < 24; h++) {
-    rows += '<div class="calw-row calw-hourrow" style="height:' + JNLW_ROW_H + 'px;">'
-      + '<div class="calw-tgutter calw-tlabel">' + jnlPad2(h) + ':00</div>';
-    for (var dd = 0; dd < 7; dd++) {
-      var cellEvs = (byCell[dd][h] || []).map(jnlWeekEvChip).join('');
-      rows += '<div class="calw-cell" data-day="' + dd + '" data-hour="' + h + '"'
-        + ' ondragover="jnlwDragOver(event)" ondragleave="jnlwDragLeave(event)" ondrop="jnlwDrop(event,' + dd + ',' + h + ')">'
-        + cellEvs + '</div>';
-    }
-    rows += '</div>';
+  // 요일 컬럼(절대배치 블록)
+  var lineBg = 'repeating-linear-gradient(to bottom, transparent 0, transparent ' + (JNLW_ROW_H - 1) + 'px, var(--border) ' + (JNLW_ROW_H - 1) + 'px, var(--border) ' + JNLW_ROW_H + 'px)';
+  var daycols = '';
+  for (var dd = 0; dd < 7; dd++) {
+    var blocks = timedByDay[dd].map(function (it) { return jnlwBlockHTML(it, totalH); }).join('');
+    daycols += '<div class="jnlw-daycol" data-day="' + dd + '" style="height:' + totalH + 'px;background:' + lineBg + ';">' + blocks + '</div>';
   }
 
-  return '<div class="calw jnlw">' + head + allRow
-    + '<div class="calw-scroll" id="jnlw-scroll">' + rows + '</div>'
+  var canvas = '<div class="jnlw-canvas" style="grid-template-columns:' + cols + ';">' + gutter + daycols + '</div>';
+
+  // 종일(최하단)
+  var allday = '<div class="jnlw-allday" style="grid-template-columns:' + cols + ';"><div class="jnlw-gutcell jnlw-allday-lbl">종일</div>';
+  for (var d3 = 0; d3 < 7; d3++) {
+    allday += '<div class="jnlw-allday-cell" data-day="' + d3 + '">' + alldayByDay[d3].map(jnlwAlldayChip).join('') + '</div>';
+  }
+  allday += '</div>';
+
+  return '<div class="jnlw">'
+    + head
+    + '<div class="jnlw-scroll" id="jnlw-scroll">' + canvas + '</div>'
+    + allday
     + '</div>';
 }
 
-// 그리드만 다시 그리기(입력 중인 성과/회고 내용은 보존) + 주간 네비 라벨 갱신
+// 그리드만 다시 그리기(입력 내용 보존) + 주간 네비 라벨 갱신
 function jnlRefreshWeekGrid() {
-  var wrap = document.getElementById('jnl-week-wrap');
-  if (wrap) {
+  var host = document.getElementById('jnl-week-grid-host');
+  if (host) {
     var prev = document.getElementById('jnlw-scroll');
-    var st = prev ? prev.scrollTop : (7 * JNLW_ROW_H);
-    wrap.innerHTML = jnlBuildWeekGrid();
+    var st = prev ? prev.scrollTop : 0;
+    host.innerHTML = jnlBuildWeekGrid();
     var sc = document.getElementById('jnlw-scroll');
     if (sc) sc.scrollTop = st;
   }
@@ -466,55 +522,150 @@ function jnlRefreshWeekGrid() {
   if (lbl) lbl.textContent = getWeekLabel(_journalWeek);
 }
 
-// ── 드래그 앤 드롭 ──────────────────────────
-function jnlwDragStart(e, taskId, stepId) {
-  _jnlwDrag = { taskId: taskId, stepId: (stepId === null || stepId === undefined || stepId === 'null') ? null : stepId };
-  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'jnlwev'); } catch (err) {} }
-}
-function jnlwDragOver(e) {
-  if (!_jnlwDrag) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-  var c = e.target.closest('.calw-cell, .calw-allday-cell');
-  if (c) c.classList.add('calw-drop-hover');
-}
-function jnlwDragLeave(e) {
-  var c = e.target.closest('.calw-cell, .calw-allday-cell');
-  if (c) c.classList.remove('calw-drop-hover');
-}
-function jnlwDrop(e, dayIdx, hour) {
-  e.preventDefault();
-  var c = e.target.closest('.calw-cell, .calw-allday-cell');
-  if (c) c.classList.remove('calw-drop-hover');
-  if (!_jnlwDrag) return;
-  var drag = _jnlwDrag; _jnlwDrag = null;
-  var obj = jnlFindObj(drag.taskId, drag.stepId);
-  if (!obj) return;
+// ── 포인터 기반 이동 / 리사이즈 엔진 ───────────
+var _jnlwPtr = null;
 
-  var r = getWeekRange(_journalWeek);
-  var base = new Date(r.start); base.setHours(0, 0, 0, 0);
-  base.setDate(base.getDate() + dayIdx);
+function jnlwSnap(v, lo, hi) { v = Math.round(v / JNLW_SNAP) * JNLW_SNAP; return Math.max(lo, Math.min(hi, v)); }
+function jnlwDaycols() { return Array.prototype.slice.call(document.querySelectorAll('#jnl-week-grid-host .jnlw-daycol')); }
+function jnlwLinAt(colRect, clientY) { return (clientY - colRect.top) / colRect.height * 1440; }
 
-  if (hour === -1) {
-    base.setHours(12, 0, 0, 0);           // 종일
-    obj.wdLogAt = base.toISOString(); obj.wdTimed = false;
-  } else {
-    var min = 0;
-    try {
-      var host = e.target.closest('.calw-cell');
-      if (host) { var rc = host.getBoundingClientRect(); min = (e.clientY - rc.top) > (rc.height / 2) ? 30 : 0; }
-    } catch (err) {}
-    base.setHours(hour, min, 0, 0);
-    obj.wdLogAt = base.toISOString(); obj.wdTimed = true;
+// 값이 위치한 요일/종일 판정
+function jnlwHitTest(clientX, clientY) {
+  var acells = document.querySelectorAll('#jnl-week-grid-host .jnlw-allday-cell');
+  for (var i = 0; i < acells.length; i++) {
+    var rc = acells[i].getBoundingClientRect();
+    if (clientX >= rc.left && clientX <= rc.right && clientY >= rc.top && clientY <= rc.bottom)
+      return { kind: 'allday', day: parseInt(acells[i].getAttribute('data-day'), 10) };
   }
-  // 완료일([YYMMDD])을 이동한 일자에 동기화
-  obj.text = jnlSetCompletedDatePrefix(obj.text, base);
+  var cols = jnlwDaycols();
+  for (var j = 0; j < cols.length; j++) {
+    var r = cols[j].getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right) {
+      var lin = jnlwSnap(jnlwLinAt(r, clientY), 0, 1440 - JNLW_SNAP);
+      return { kind: 'timed', day: parseInt(cols[j].getAttribute('data-day'), 10), lin: lin, rect: r };
+    }
+  }
+  return null;
+}
 
+// 값의 그리드 값을 확정하고 완료일(일자/시간)과 동기화
+function jnlwApply(obj, day, timed, startLin, durMin) {
+  var r = getWeekRange(_journalWeek);
+  var base = new Date(r.start); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + day);
+  if (timed) {
+    var c = jnlwLinToClock(startLin);
+    base.setHours(c.h, c.m, 0, 0);
+    obj.wdLogAt = base.toISOString(); obj.wdTimed = true;
+    obj.wdDurMin = Math.max(JNLW_MIN_DUR, durMin || obj.wdDurMin || 60);
+  } else {
+    base.setHours(12, 0, 0, 0);
+    obj.wdLogAt = base.toISOString(); obj.wdTimed = false;
+  }
+  // 그리드에서 세팅한 일자를 완료일([YYMMDD])과 동기화
+  obj.text = jnlSetCompletedDatePrefix(obj.text, base);
   if (typeof saveTasks === 'function') saveTasks();
   jnlRefreshWeekGrid();
 }
 
-// 칩 클릭 → Task 상세
+// 이동 시작 (블록 본문 / 종일 칩 공통)
+function jnlwEvDown(e, taskId, stepId, srcAllday) {
+  if (e.button != null && e.button !== 0) return;
+  var obj = jnlFindObj(taskId, (stepId === 'null') ? null : stepId);
+  if (!obj) return;
+  var el = e.currentTarget;
+  var grabLin = 0, origStartLin = 0;
+  if (!srcAllday) {
+    var col = el.closest('.jnlw-daycol');
+    if (col) { origStartLin = jnlwClockToLin(new Date(obj.wdLogAt).getHours(), new Date(obj.wdLogAt).getMinutes());
+      grabLin = jnlwLinAt(col.getBoundingClientRect(), e.clientY) - origStartLin; }
+  }
+  _jnlwPtr = { mode: 'move', taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj, el: el,
+    x0: e.clientX, y0: e.clientY, moved: false, srcAllday: srcAllday,
+    durMin: (obj.wdTimed ? (obj.wdDurMin || 60) : 60), grabLin: grabLin };
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
+  document.addEventListener('pointermove', jnlwPtrMove);
+  document.addEventListener('pointerup', jnlwPtrUp);
+  e.preventDefault();
+}
+
+// 리사이즈 시작
+function jnlwRzDown(e, edge, taskId, stepId) {
+  e.stopPropagation();
+  if (e.button != null && e.button !== 0) return;
+  var obj = jnlFindObj(taskId, (stepId === 'null') ? null : stepId);
+  if (!obj || !obj.wdTimed) return;
+  var block = e.currentTarget.closest('.jnlw-ev');
+  var col = block ? block.closest('.jnlw-daycol') : null;
+  if (!col) return;
+  var d = new Date(obj.wdLogAt);
+  var startLin = jnlwClockToLin(d.getHours(), d.getMinutes());
+  var endLin = Math.min(1440, startLin + Math.max(JNLW_MIN_DUR, obj.wdDurMin || 60));
+  _jnlwPtr = { mode: 'resize', edge: edge, taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj,
+    el: block, col: col, startLin: startLin, endLin: endLin, day: parseInt(col.getAttribute('data-day'), 10) };
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  document.addEventListener('pointermove', jnlwPtrMove);
+  document.addEventListener('pointerup', jnlwPtrUp);
+  e.preventDefault();
+}
+
+function jnlwPtrMove(e) {
+  if (!_jnlwPtr) return;
+  var p = _jnlwPtr;
+  if (p.mode === 'move') {
+    if (!p.moved && (Math.abs(e.clientX - p.x0) > 4 || Math.abs(e.clientY - p.y0) > 4)) {
+      p.moved = true; if (p.el) p.el.classList.add('jnlw-dragging');
+    }
+    if (!p.moved) return;
+    document.querySelectorAll('.jnlw-drop-hl').forEach(function (n) { n.classList.remove('jnlw-drop-hl'); });
+    var hit = jnlwHitTest(e.clientX, e.clientY);
+    if (hit) {
+      var sel = (hit.kind === 'allday')
+        ? document.querySelector('#jnl-week-grid-host .jnlw-allday-cell[data-day="' + hit.day + '"]')
+        : document.querySelector('#jnl-week-grid-host .jnlw-daycol[data-day="' + hit.day + '"]');
+      if (sel) sel.classList.add('jnlw-drop-hl');
+    }
+  } else if (p.mode === 'resize') {
+    var totalH = 24 * JNLW_ROW_H;
+    var lin = jnlwLinAt(p.col.getBoundingClientRect(), e.clientY);
+    if (p.edge === 'bot') {
+      var ne = jnlwSnap(lin, p.startLin + JNLW_SNAP, 1440);
+      p.newEnd = ne; p.newStart = p.startLin;
+      p.el.style.top = (p.startLin / 1440 * totalH) + 'px';
+      p.el.style.height = Math.max((ne - p.startLin) / 1440 * totalH, 20) + 'px';
+    } else {
+      var ns = jnlwSnap(lin, 0, p.endLin - JNLW_SNAP);
+      p.newStart = ns; p.newEnd = p.endLin;
+      p.el.style.top = (ns / 1440 * totalH) + 'px';
+      p.el.style.height = Math.max((p.endLin - ns) / 1440 * totalH, 20) + 'px';
+    }
+  }
+}
+
+function jnlwPtrUp(e) {
+  document.removeEventListener('pointermove', jnlwPtrMove);
+  document.removeEventListener('pointerup', jnlwPtrUp);
+  var p = _jnlwPtr; _jnlwPtr = null;
+  document.querySelectorAll('.jnlw-drop-hl').forEach(function (n) { n.classList.remove('jnlw-drop-hl'); });
+  if (!p) return;
+
+  if (p.mode === 'move') {
+    if (!p.moved) { jnlwOpen(p.taskId); return; }     // 이동 없으면 상세 열기
+    var hit = jnlwHitTest(e.clientX, e.clientY);
+    if (!hit) { jnlRefreshWeekGrid(); return; }
+    if (hit.kind === 'allday') {
+      jnlwApply(p.obj, hit.day, false);
+    } else {
+      var startLin = jnlwSnap(hit.lin - (p.srcAllday ? 0 : p.grabLin), 0, 1440 - JNLW_SNAP);
+      jnlwApply(p.obj, hit.day, true, startLin, p.durMin);
+    }
+  } else if (p.mode === 'resize') {
+    var start = (p.newStart != null) ? p.newStart : p.startLin;
+    var end = (p.newEnd != null) ? p.newEnd : p.endLin;
+    jnlwApply(p.obj, p.day, true, start, Math.max(JNLW_MIN_DUR, end - start));
+  }
+}
+
+// 칩/블록 클릭 → Task 상세
 function jnlwOpen(taskId) {
   if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
   else if (typeof openTaskPanel === 'function') openTaskPanel(taskId);
