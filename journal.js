@@ -296,13 +296,18 @@ function jnlSetCompletedDatePrefix(text, date) {
 }
 
 // 항목의 그리드 배치 정보 { date, timed }
-//   · wdLogAt(드래그로 조정된 위치)이 있으면 우선, 없으면 완료일([YYMMDD]) 12:00 종일
+//   · 일자(day)는 완료일([YYMMDD] 접두사)이 권위 — Task 편집에서 완료일을 바꾸면 그리드에 반영
+//   · 시간(time)은 그리드에서만 조정하는 wdLogAt 사용(wdTimed일 때)
 function jnlItemLogInfo(obj) {
-  if (obj && obj.wdLogAt) {
-    var d = new Date(obj.wdLogAt);
-    if (!isNaN(d.getTime())) return { date: d, timed: !!obj.wdTimed };
+  var pd = jnlParseCompletedDate(obj ? obj.text : '');
+  if (!pd) return { date: null, timed: false };
+  if (obj && obj.wdTimed && obj.wdLogAt) {
+    var w = new Date(obj.wdLogAt);
+    if (!isNaN(w.getTime())) {
+      return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), w.getHours(), w.getMinutes(), 0, 0), timed: true };
+    }
   }
-  return { date: jnlParseCompletedDate(obj ? obj.text : ''), timed: false };
+  return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), 12, 0, 0, 0), timed: false };
 }
 
 // 08:00 기준 선형 분(0=08:00 … 1439=07:59 다음날)
@@ -377,9 +382,8 @@ function jnlwBlockHTML(it, totalH) {
   var left = (it.lane || 0) * w;
   var safe = jnlEscape(it.text || '');
   var parent = jnlEscape(it.taskText || '');
-  var timeLbl = jnlwFmtLin(it.startLin) + '–' + jnlwFmtLin(it.endLin);
   var sid = (it.stepId == null) ? 'null' : it.stepId;
-  var tip = (parent ? parent + ' › ' : '') + safe + '  (' + timeLbl + ')';
+  var tip = (parent ? parent + ' › ' : '') + safe;
   return '<div class="jnlw-ev" data-task="' + it.taskId + '" data-step="' + sid + '"'
     + ' style="top:' + topPx.toFixed(1) + 'px;height:' + hPx.toFixed(1) + 'px;left:calc(' + left + '% + 1px);width:calc(' + w + '% - 3px);'
     + 'border-left:3px solid ' + it.color + ';background:color-mix(in srgb,' + it.color + ' 14%, var(--surface));"'
@@ -389,7 +393,7 @@ function jnlwBlockHTML(it, totalH) {
     + '<div class="jnlw-ev-in">'
     + '<span class="jnlw-ev-head">' + jnlBadge(it.type) + '<span class="jnlw-ev-txt">' + safe + '</span></span>'
     + (parent ? '<span class="jnlw-ev-parent">' + parent + '</span>' : '')
-    + '<span class="jnlw-ev-time">' + timeLbl + '</span></div>'
+    + '</div>'
     + '<div class="jnlw-ev-rz jnlw-ev-rz-bot" onpointerdown="jnlwRzDown(event,\'bot\',' + it.taskId + ',' + sid + ')"></div>'
     + '</div>';
 }
@@ -461,9 +465,11 @@ function jnlBuildWeekGrid() {
   allday += '</div>';
 
   return '<div class="jnlw">'
-    + head
-    + '<div class="jnlw-scroll" id="jnlw-scroll">' + canvas + '</div>'
-    + allday
+    + '<div class="jnlw-scroll" id="jnlw-scroll">'
+    +   head
+    +   canvas
+    +   allday
+    + '</div>'
     + '</div>';
 }
 
@@ -507,6 +513,43 @@ function jnlwHitTest(clientX, clientY) {
   return null;
 }
 
+// 리사이즈 중 시간 표시 툴팁
+function jnlwTip(show, clientX, clientY, text) {
+  var t = document.getElementById('jnlw-tip');
+  if (!show) { if (t && t.parentNode) t.parentNode.removeChild(t); return; }
+  if (!t) { t = document.createElement('div'); t.id = 'jnlw-tip'; t.className = 'jnlw-tip'; document.body.appendChild(t); }
+  t.textContent = text;
+  t.style.left = clientX + 'px';
+  t.style.top = clientY + 'px';
+}
+
+// 이동 미리보기 고스트 (투명도 80%)
+function jnlwPreview(hit, p) {
+  var g = document.getElementById('jnlw-ghost');
+  if (!hit) { if (g && g.parentNode) g.parentNode.removeChild(g); return; }
+  if (!g) { g = document.createElement('div'); g.id = 'jnlw-ghost'; g.className = 'jnlw-ghost'; document.body.appendChild(g); }
+  g.style.borderColor = p.color;
+  g.style.background = 'color-mix(in srgb, ' + p.color + ' 24%, var(--surface))';
+  var safe = jnlEscape(jnlCleanText(p.obj.text));
+  if (hit.kind === 'timed') {
+    var rect = hit.rect;
+    var startLin = jnlwSnap(hit.lin - (p.srcAllday ? 0 : p.grabLin), 0, 1440 - JNLW_SNAP);
+    var endLin = Math.min(1440, startLin + p.durMin);
+    g.style.left = rect.left + 'px';
+    g.style.width = rect.width + 'px';
+    g.style.top = (rect.top + startLin / 1440 * rect.height) + 'px';
+    g.style.height = Math.max((endLin - startLin) / 1440 * rect.height, 18) + 'px';
+    g.innerHTML = '<span class="jnlw-ghost-t">' + jnlwFmtLin(startLin) + '</span> ' + safe;
+  } else {
+    var cell = document.querySelector('#jnl-week-grid-host .jnlw-allday-cell[data-day="' + hit.day + '"]');
+    if (!cell) { if (g.parentNode) g.parentNode.removeChild(g); return; }
+    var rc = cell.getBoundingClientRect();
+    g.style.left = rc.left + 'px'; g.style.width = rc.width + 'px';
+    g.style.top = rc.top + 'px'; g.style.height = Math.min(rc.height - 2, 24) + 'px';
+    g.innerHTML = '<span class="jnlw-ghost-t">종일</span> ' + safe;
+  }
+}
+
 // 값의 그리드 값을 확정하고 완료일(일자/시간)과 동기화
 function jnlwApply(obj, day, timed, startLin, durMin) {
   var r = getWeekRange(_journalWeek);
@@ -540,7 +583,8 @@ function jnlwEvDown(e, taskId, stepId, srcAllday) {
   }
   _jnlwPtr = { mode: 'move', taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj, el: el,
     x0: e.clientX, y0: e.clientY, moved: false, srcAllday: srcAllday,
-    durMin: (obj.wdTimed ? (obj.wdDurMin || 60) : 60), grabLin: grabLin };
+    durMin: (obj.wdTimed ? (obj.wdDurMin || 60) : 60), grabLin: grabLin,
+    color: (el && el.style && el.style.borderLeftColor) || 'var(--brand-primary)' };
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
   document.addEventListener('pointermove', jnlwPtrMove);
   document.addEventListener('pointerup', jnlwPtrUp);
@@ -583,20 +627,23 @@ function jnlwPtrMove(e) {
         : document.querySelector('#jnl-week-grid-host .jnlw-daycol[data-day="' + hit.day + '"]');
       if (sel) sel.classList.add('jnlw-drop-hl');
     }
+    jnlwPreview(hit, p);          // 이동 후 위치 미리보기(투명도 80%)
   } else if (p.mode === 'resize') {
     var totalH = 24 * JNLW_ROW_H;
     var lin = jnlwLinAt(p.col.getBoundingClientRect(), e.clientY);
+    var edgeLin;
     if (p.edge === 'bot') {
       var ne = jnlwSnap(lin, p.startLin + JNLW_SNAP, 1440);
-      p.newEnd = ne; p.newStart = p.startLin;
+      p.newEnd = ne; p.newStart = p.startLin; edgeLin = ne;
       p.el.style.top = (p.startLin / 1440 * totalH) + 'px';
       p.el.style.height = Math.max((ne - p.startLin) / 1440 * totalH, 20) + 'px';
     } else {
       var ns = jnlwSnap(lin, 0, p.endLin - JNLW_SNAP);
-      p.newStart = ns; p.newEnd = p.endLin;
+      p.newStart = ns; p.newEnd = p.endLin; edgeLin = ns;
       p.el.style.top = (ns / 1440 * totalH) + 'px';
       p.el.style.height = Math.max((p.endLin - ns) / 1440 * totalH, 20) + 'px';
     }
+    jnlwTip(true, e.clientX, e.clientY, jnlwFmtLin(edgeLin));   // 끌고 있는 선의 시간 표시
   }
 }
 
@@ -605,6 +652,8 @@ function jnlwPtrUp(e) {
   document.removeEventListener('pointerup', jnlwPtrUp);
   var p = _jnlwPtr; _jnlwPtr = null;
   document.querySelectorAll('.jnlw-drop-hl').forEach(function (n) { n.classList.remove('jnlw-drop-hl'); });
+  jnlwTip(false);            // 시간 툴팁 제거
+  jnlwPreview(null);        // 미리보기 고스트 제거
   if (!p) return;
 
   if (p.mode === 'move') {
