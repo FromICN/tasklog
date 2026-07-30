@@ -1,5 +1,250 @@
+diff --git a/calpage.js b/calpage.js
+new file mode 100644
+index 0000000..08c3f3f
+--- /dev/null
++++ b/calpage.js
+@@ -0,0 +1,239 @@
++// =============================================================
++//  📅 Calendar 페이지 (사이드바 메뉴)
++//   · 주간 탭(기본): 시간대별 그리드 + To Do 표시/드래그(시간·일자 변경)
++//   · 월간 탭: HOME 캘린더와 연동(동일 상태 재사용)
++// =============================================================
++
++var calPageTab = 'weekly';   // 'weekly' | 'month'  — 주간이 기본 표시 탭
++var _calDrag = null;         // { type:'task'|'step', taskId, stepId }
++
++// 이번 주 일요일 0시
++var calWeekStart = (function () {
++  var d = new Date();
++  d.setHours(0, 0, 0, 0);
++  d.setDate(d.getDate() - d.getDay());
++  return d;
++})();
++
++function _calPad(n) { return String(n).padStart(2, '0'); }
++function _calDateKey(d) { return d.getFullYear() + '-' + _calPad(d.getMonth() + 1) + '-' + _calPad(d.getDate()); }
++
++// ── 메인 렌더 ──
++function renderCalendarView() {
++  var content = document.getElementById('page-content');
++  if (!content) return;
++
++  var tabs = '<div class="cal-tabs">'
++    + '<button class="cal-tab' + (calPageTab === 'weekly' ? ' active' : '') + '" onclick="calSetTab(\'weekly\')">주간</button>'
++    + '<button class="cal-tab' + (calPageTab === 'month' ? ' active' : '') + '" onclick="calSetTab(\'month\')">월간</button>'
++    + '</div>';
++
++  var body;
++  if (calPageTab === 'month') {
++    body = '<div class="cal-page-month"><div id="cal-body"></div></div>';
++  } else {
++    body = buildCalWeekGrid();
++  }
++
++  content.innerHTML = '<div class="cal-page">' + tabs + body + '</div>';
++
++  if (calPageTab === 'month') {
++    if (typeof renderHomeCalendar === 'function') renderHomeCalendar();   // HOME 캘린더와 동일 엔진/상태
++  } else {
++    // 주간: 오전 7시가 보이도록 스크롤
++    var sc = document.getElementById('calw-scroll');
++    if (sc) sc.scrollTop = 7 * (typeof CALW_ROW_H !== 'undefined' ? CALW_ROW_H : 44);
++  }
++}
++
++function calSetTab(tab) { calPageTab = tab; renderCalendarView(); }
++
++// ── 주간 네비 ──
++function calWeekPrev()  { calWeekStart.setDate(calWeekStart.getDate() - 7); renderCalendarView(); }
++function calWeekNext()  { calWeekStart.setDate(calWeekStart.getDate() + 7); renderCalendarView(); }
++function calWeekToday() {
++  var d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay());
++  calWeekStart = d; renderCalendarView();
++}
++
++var CALW_ROW_H = 44;  // 시간 행 높이(px)
++
++// ── 이번 주 이벤트 수집 (Task due + To Do(step) due) ──
++function calCollectWeekEvents() {
++  var start = new Date(calWeekStart); start.setHours(0, 0, 0, 0);
++  var end = new Date(start); end.setDate(end.getDate() + 7);
++  var evs = [];
++  if (typeof tasks === 'undefined') return evs;
++  var eiColors = (typeof EI_COLORS !== 'undefined') ? EI_COLORS : {};
++  tasks.forEach(function (t) {
++    var col = eiColors[t.eisenhower] || 'var(--brand-primary)';
++    if (t.dueDateTime) {
++      var d = new Date(t.dueDateTime);
++      if (d >= start && d < end) evs.push({ type: 'task', taskId: t.id, dt: d, hasTime: !!t.hasTime, text: t.text, color: col, done: !!t.completed });
++    }
++    if (Array.isArray(t.steps)) {
++      t.steps.forEach(function (s) {
++        if (s.dueDateTime) {
++          var sd = new Date(s.dueDateTime);
++          if (sd >= start && sd < end) evs.push({ type: 'step', taskId: t.id, stepId: s.id, dt: sd, hasTime: !!s.hasTime, text: s.text, color: col, done: !!s.completed });
++        }
++      });
++    }
++  });
++  return evs;
++}
++
++function _calEventChip(ev) {
++  var timeLbl = ev.hasTime ? (_calPad(ev.dt.getHours()) + ':' + _calPad(ev.dt.getMinutes()) + ' ') : '';
++  var icon = ev.type === 'task' ? '📌' : '✓';
++  var stepAttr = (ev.type === 'step') ? (',' + ev.stepId) : ',null';
++  var safe = (typeof escapeHtml === 'function') ? escapeHtml(ev.text || '') : (ev.text || '');
++  return '<div class="calw-ev' + (ev.done ? ' done' : '') + '" draggable="true"'
++    + ' style="border-left:3px solid ' + ev.color + ';"'
++    + ' title="' + safe + '"'
++    + ' ondragstart="calDragStart(event,\'' + ev.type + '\',' + ev.taskId + stepAttr + ')"'
++    + ' onclick="event.stopPropagation();calOpenEvent(' + ev.taskId + ')">'
++    + '<span class="calw-ev-t">' + timeLbl + '</span><span class="calw-ev-x">' + icon + ' ' + safe + '</span>'
++    + '</div>';
++}
++
++// ── 주간 그리드 ──
++function buildCalWeekGrid() {
++  var DAY_KO = ['일', '월', '화', '수', '목', '금', '토'];
++  var MON = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
++  var start = new Date(calWeekStart);
++  var end = new Date(start); end.setDate(end.getDate() + 6);
++  var todayKey = _calDateKey(new Date());
++
++  var evs = calCollectWeekEvents();
++  // 버킷: byCell[dayIdx][hour] = [], allday[dayIdx] = []
++  var byCell = [], allday = [];
++  for (var i = 0; i < 7; i++) { byCell.push({}); allday.push([]); }
++  evs.forEach(function (ev) {
++    var di = Math.floor((ev.dt - start) / 86400000);
++    if (di < 0 || di > 6) return;
++    if (ev.hasTime) {
++      var h = ev.dt.getHours();
++      (byCell[di][h] = byCell[di][h] || []).push(ev);
++    } else {
++      allday[di].push(ev);
++    }
++  });
++
++  var label;
++  if (start.getMonth() === end.getMonth()) label = start.getFullYear() + '년 ' + MON[start.getMonth()] + ' ' + start.getDate() + '–' + end.getDate() + '일';
++  else label = (start.getMonth()+1) + '/' + start.getDate() + ' – ' + (end.getMonth()+1) + '/' + end.getDate();
++
++  var nav = '<div class="calw-nav">'
++    + '<button class="cal-arrow" onclick="calWeekPrev()">‹</button>'
++    + '<span class="calw-label">' + label + '</span>'
++    + '<button class="cal-arrow" onclick="calWeekNext()">›</button>'
++    + '<button class="gm-today-btn" onclick="calWeekToday()">오늘</button>'
++    + '</div>';
++
++  // 헤더 행
++  var head = '<div class="calw-row calw-headrow"><div class="calw-tgutter"></div>';
++  for (var d = 0; d < 7; d++) {
++    var dt = new Date(start); dt.setDate(start.getDate() + d);
++    var isToday = _calDateKey(dt) === todayKey;
++    head += '<div class="calw-dayhead' + (isToday ? ' today' : '') + (d===0?' sun':d===6?' sat':'') + '">'
++      + '<span class="calw-dow">' + DAY_KO[d] + '</span> <span class="calw-dnum">' + dt.getDate() + '</span></div>';
++  }
++  head += '</div>';
++
++  // 종일 행
++  var allRow = '<div class="calw-row calw-alldayrow"><div class="calw-tgutter calw-tlabel">종일</div>';
++  for (var d2 = 0; d2 < 7; d2++) {
++    var chips = allday[d2].map(_calEventChip).join('');
++    allRow += '<div class="calw-allday-cell" data-day="' + d2 + '"'
++      + ' ondragover="calDragOver(event)" ondragleave="calDragLeave(event)" ondrop="calDrop(event,' + d2 + ',-1)">'
++      + chips + '</div>';
++  }
++  allRow += '</div>';
++
++  // 시간 행 (0~23)
++  var rows = '';
++  for (var h = 0; h < 24; h++) {
++    rows += '<div class="calw-row calw-hourrow" style="height:' + CALW_ROW_H + 'px;">'
++      + '<div class="calw-tgutter calw-tlabel">' + _calPad(h) + ':00</div>';
++    for (var dd = 0; dd < 7; dd++) {
++      var cellEvs = (byCell[dd][h] || []).map(_calEventChip).join('');
++      rows += '<div class="calw-cell" data-day="' + dd + '" data-hour="' + h + '"'
++        + ' ondragover="calDragOver(event)" ondragleave="calDragLeave(event)" ondrop="calDrop(event,' + dd + ',' + h + ')">'
++        + cellEvs + '</div>';
++    }
++    rows += '</div>';
++  }
++
++  return nav
++    + '<div class="calw">'
++    + head
++    + allRow
++    + '<div class="calw-scroll" id="calw-scroll">' + rows + '</div>'
++    + '</div>';
++}
++
++// ── 드래그 앤 드롭 ──
++function calDragStart(e, type, taskId, stepId) {
++  _calDrag = { type: type, taskId: taskId, stepId: (stepId === null || stepId === undefined) ? null : stepId };
++  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', 'calev'); } catch (err) {} }
++}
++function calDragOver(e) {
++  if (!_calDrag) return;
++  e.preventDefault();
++  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
++  var cell = e.target.closest('.calw-cell, .calw-allday-cell');
++  if (cell) cell.classList.add('calw-drop-hover');
++}
++function calDragLeave(e) {
++  var cell = e.target.closest('.calw-cell, .calw-allday-cell');
++  if (cell) cell.classList.remove('calw-drop-hover');
++}
++
++function _calFindItem(drag) {
++  if (typeof tasks === 'undefined') return null;
++  var t = tasks.find(function (x) { return x.id === drag.taskId; });
++  if (!t) return null;
++  if (drag.type === 'task') return { obj: t, task: t };
++  var s = (t.steps || []).find(function (x) { return x.id === drag.stepId; });
++  return s ? { obj: s, task: t } : null;
++}
++
++function calDrop(e, dayIdx, hour) {
++  e.preventDefault();
++  var cell = e.target.closest('.calw-cell, .calw-allday-cell');
++  if (cell) cell.classList.remove('calw-drop-hover');
++  if (!_calDrag) return;
++  var found = _calFindItem(_calDrag);
++  _calDrag = null;
++  if (!found) return;
++  var obj = found.obj;
++
++  var base = new Date(calWeekStart);
++  base.setDate(base.getDate() + dayIdx);
++
++  if (hour === -1) {
++    // 종일: 날짜만 지정(시간 없음)
++    obj.dueDateTime = _calDateKey(base) + 'T09:00:00';
++    obj.hasTime = false;
++  } else {
++    // 드롭 위치(상/하)로 00/30분 스냅
++    var min = 0;
++    try {
++      var host = e.target.closest('.calw-cell');
++      if (host) { var r = host.getBoundingClientRect(); min = (e.clientY - r.top) > (r.height / 2) ? 30 : 0; }
++    } catch (err) {}
++    obj.dueDateTime = _calDateKey(base) + 'T' + _calPad(hour) + ':' + _calPad(min) + ':00';
++    obj.hasTime = true;
++  }
++
++  if (typeof saveTasks === 'function') saveTasks();
++  if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
++  renderCalendarView();
++}
++
++// 이벤트 클릭 → Task 상세 열기
++function calOpenEvent(taskId) {
++  if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
++  else if (typeof openTaskPanel === 'function') openTaskPanel(taskId);
++}
 diff --git a/index.html b/index.html
-index ea734f2..3a0c08e 100644
+index ea734f2..75086bc 100644
 --- a/index.html
 +++ b/index.html
 @@ -65,18 +65,9 @@
@@ -22,6 +267,14 @@ index ea734f2..3a0c08e 100644
      </div>
    </aside>
  
+@@ -155,6 +146,7 @@
+ <script src="mandalart.js?v=20260722"></script>
+ <script src="lifewheel.js?v=20260722"></script>
+ <script src="home.js?v=20260722"></script>
++<script src="calpage.js?v=20260730"></script>
+ <script src="gantt.js?v=20260722"></script>
+ <script src="notes.js?v=20260722"></script>
+ <script src="journal.js?v=20260722"></script>
 diff --git a/mandalart.js b/mandalart.js
 index 7aded6c..c046fe0 100644
 --- a/mandalart.js
@@ -441,7 +694,7 @@ index 7aded6c..c046fe0 100644
  }
  
 diff --git a/script.js b/script.js
-index 605c1e2..1688b3c 100644
+index 605c1e2..0e5a855 100644
 --- a/script.js
 +++ b/script.js
 @@ -636,19 +636,123 @@ function buildPickerHtml(id, dateStr, timeStr) {
@@ -788,7 +1041,35 @@ index 605c1e2..1688b3c 100644
    var upstreamDepts = rpState.upstreamDepts.slice();
    var upstreamDeptVal = upstreamDepts.join(', ');
  
-@@ -2635,7 +2837,13 @@ function initSidebarCollapse() {
+@@ -2597,10 +2799,12 @@ var _SVG = {
+   project:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M240-280h240v-80H240v80Zm120-160h240v-80H360v80Zm120-160h240v-80H480v80ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>',
+   wbs:       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M176,152h32a16,16,0,0,0,16-16V104a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H88V80h8a16,16,0,0,0,16-16V32A16,16,0,0,0,96,16H64A16,16,0,0,0,48,32V64A16,16,0,0,0,64,80h8V192a24,24,0,0,0,24,24h64v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V192a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H96a8,8,0,0,1-8-8V128h72v8A16,16,0,0,0,176,152ZM64,32H96V64H64ZM176,192h32v32H176Zm0-88h32v32H176Z"/></svg>',
+   journal:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h240v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Z"/></svg>',
++  calendar:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>',
+ };
+ 
+ var MENUS = [
+   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
++  { id:'calendar',  icon:_SVG.calendar,  label:'Cal',          short:'Cal'  },
+   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
+   { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
+   { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
+@@ -2614,12 +2818,12 @@ var MENUS = [
+ 
+ var MENU_TITLES = {
+   home:'Home', todo:'Board', cloud:'Web', mvv:'Mission Vision Value',
+-  wheel:'Life Wheel', mandalart:'Mandalart',
++  wheel:'Life Wheel', mandalart:'Mandalart', calendar:'Calendar',
+   project:'Gantt', wbs:'Work Breakdown Structure', journal:'Work Diary',
+ };
+ 
+ var MENU_EMOJI = {
+-  home:'🏠', todo:'📅', cloud:'☁️', mvv:'🎯',
++  home:'🏠', todo:'📅', cloud:'☁️', mvv:'🎯', calendar:'📅',
+   wheel:'🎡', mandalart:'🔮', project:'📊',
+   wbs:'🌳', journal:'📓',
+ };
+@@ -2635,7 +2839,13 @@ function initSidebarCollapse() {
  function initSidebar() {
    var nav = document.getElementById('sidebar-nav');
    if (!nav) return;
@@ -803,8 +1084,16 @@ index 605c1e2..1688b3c 100644
      if (m.divider) return '<div class="nav-divider"></div>';
      var full = MENU_TITLES[m.id] || m.label;
      return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'
+@@ -2650,6 +2860,7 @@ function initSidebar() {
+ // 메뉴 id → 각 화면 렌더 함수 이름
+ var MENU_RENDERERS = {
+   home:      'renderHomeView',
++  calendar:  'renderCalendarView',
+   todo:      'renderTodoView',
+   cloud:     'renderNotesView',
+   mvv:       'renderMVVPage',
 diff --git a/style.css b/style.css
-index 2bfd509..ae1f927 100644
+index 2bfd509..5d234d3 100644
 --- a/style.css
 +++ b/style.css
 @@ -6825,22 +6825,22 @@ body.light-mode .year-select option { color: #1a1a1a; }
@@ -836,7 +1125,7 @@ index 2bfd509..ae1f927 100644
    --brand-primary: #1a1a1a;
    --accent-rgb: 26,26,26;   /* 라이트 모드 강조: 블랙 */
    --scroll-thumb: #c4c7cf;
-@@ -9763,3 +9763,427 @@ body :is(input, textarea, [contenteditable]):focus-visible {
+@@ -9763,3 +9763,472 @@ body :is(input, textarea, [contenteditable]):focus-visible {
    }
    .todo-table { min-width: 560px; }
  }
@@ -1264,6 +1553,51 @@ index 2bfd509..ae1f927 100644
 +  line-height: 1;
 +}
 +.rp-stepdt-clear:hover { color: var(--text-1); background: var(--surface-hover); }
++
++/* =========================================================
++   📅 Calendar 페이지 (사이드바 메뉴, 2026-07)
++   ========================================================= */
++.cal-page { padding: 12px 16px; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
++.cal-tabs { display: flex; gap: 6px; margin-bottom: 12px; flex: 0 0 auto; }
++.cal-tab {
++  padding: 6px 18px; border: 1px solid var(--border); border-radius: var(--radius-full);
++  background: var(--surface); color: var(--text-2); cursor: pointer; font-size: var(--fs-sm); font-weight: 600;
++}
++.cal-tab.active { background: var(--brand-primary); color: #fff; border-color: var(--brand-primary); }
++
++/* 월간 탭 (HOME 캘린더 확대) */
++.cal-page-month { max-width: 780px; width: 100%; margin: 0 auto; overflow-y: auto; }
++.cal-page-month .cal-cell { min-height: 84px; align-items: flex-start; }
++.cal-page-month .cal-num { font-size: var(--fs-sm); }
++
++/* 주간 탭 */
++.calw-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex: 0 0 auto; }
++.calw-label { font-weight: 700; font-size: var(--fs-base); }
++.calw { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--bg); }
++.calw-row { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); }
++.calw-headrow { border-bottom: 1px solid var(--border); background: var(--bg); flex: 0 0 auto; }
++.calw-dayhead { padding: 7px 4px; text-align: center; font-size: var(--fs-xs); color: var(--text-2); border-left: 1px solid var(--border); }
++.calw-dayhead.today { background: color-mix(in srgb, var(--brand-primary) 12%, transparent); color: var(--text-1); }
++.calw-dayhead.sun .calw-dow { color: var(--danger); }
++.calw-dayhead.sat .calw-dow { color: #3b82f6; }
++.calw-dnum { font-weight: 700; }
++.calw-alldayrow { border-bottom: 1px solid var(--border); min-height: 28px; flex: 0 0 auto; }
++.calw-allday-cell { border-left: 1px solid var(--border); padding: 2px; display: flex; flex-direction: column; gap: 2px; }
++.calw-tgutter { border-right: 1px solid var(--border); }
++.calw-tlabel { font-size: var(--fs-2xs); color: var(--text-3); text-align: right; padding: 2px 6px 0 0; }
++.calw-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; max-height: 62vh; }
++.calw-hourrow { border-bottom: 1px solid var(--border); }
++.calw-cell { border-left: 1px solid var(--border); padding: 1px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
++.calw-cell:hover { background: var(--surface); }
++.calw-drop-hover { background: color-mix(in srgb, var(--brand-primary) 15%, transparent) !important; outline: 1px dashed var(--brand-primary); outline-offset: -1px; }
++.calw-ev {
++  font-size: var(--fs-2xs); background: var(--surface); border-radius: var(--radius-xs);
++  padding: 1px 4px; cursor: grab; overflow: hidden; display: flex; gap: 3px; align-items: baseline;
++}
++.calw-ev:active { cursor: grabbing; }
++.calw-ev.done { opacity: .55; text-decoration: line-through; }
++.calw-ev-t { color: var(--text-3); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
++.calw-ev-x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 diff --git a/wbs.js b/wbs.js
 index cb56c19..9acc6aa 100644
 --- a/wbs.js

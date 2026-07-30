@@ -2799,10 +2799,12 @@ var _SVG = {
   project:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M240-280h240v-80H240v80Zm120-160h240v-80H360v80Zm120-160h240v-80H480v80ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z"/></svg>',
   wbs:       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M176,152h32a16,16,0,0,0,16-16V104a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H88V80h8a16,16,0,0,0,16-16V32A16,16,0,0,0,96,16H64A16,16,0,0,0,48,32V64A16,16,0,0,0,64,80h8V192a24,24,0,0,0,24,24h64v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V192a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H96a8,8,0,0,1-8-8V128h72v8A16,16,0,0,0,176,152ZM64,32H96V64H64ZM176,192h32v32H176Zm0-88h32v32H176Z"/></svg>',
   journal:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h240v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Z"/></svg>',
+  calendar:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>',
 };
 
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
+  { id:'calendar',  icon:_SVG.calendar,  label:'Cal',          short:'Cal'  },
   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
   { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
   { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
@@ -2816,12 +2818,12 @@ var MENUS = [
 
 var MENU_TITLES = {
   home:'Home', todo:'Board', cloud:'Web', mvv:'Mission Vision Value',
-  wheel:'Life Wheel', mandalart:'Mandalart',
+  wheel:'Life Wheel', mandalart:'Mandalart', calendar:'Calendar',
   project:'Gantt', wbs:'Work Breakdown Structure', journal:'Work Diary',
 };
 
 var MENU_EMOJI = {
-  home:'🏠', todo:'📅', cloud:'☁️', mvv:'🎯',
+  home:'🏠', todo:'📅', cloud:'☁️', mvv:'🎯', calendar:'📅',
   wheel:'🎡', mandalart:'🔮', project:'📊',
   wbs:'🌳', journal:'📓',
 };
@@ -2858,6 +2860,7 @@ function initSidebar() {
 // 메뉴 id → 각 화면 렌더 함수 이름
 var MENU_RENDERERS = {
   home:      'renderHomeView',
+  calendar:  'renderCalendarView',
   todo:      'renderTodoView',
   cloud:     'renderNotesView',
   mvv:       'renderMVVPage',
