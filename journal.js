@@ -386,7 +386,7 @@ function jnlwBlockHTML(it, totalH) {
   var tip = (parent ? parent + ' › ' : '') + safe;
   return '<div class="jnlw-ev" data-task="' + it.taskId + '" data-step="' + sid + '"'
     + ' style="top:' + topPx.toFixed(1) + 'px;height:' + hPx.toFixed(1) + 'px;left:calc(' + left + '% + 1px);width:calc(' + w + '% - 3px);'
-    + 'border-left:3px solid ' + it.color + ';background:color-mix(in srgb,' + it.color + ' 14%, var(--surface));"'
+    + 'border-left:3px solid ' + it.color + ';"'
     + ' title="' + tip + '"'
     + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',false)">'
     + '<div class="jnlw-ev-rz jnlw-ev-rz-top" onpointerdown="jnlwRzDown(event,\'top\',' + it.taskId + ',' + sid + ')"></div>'
@@ -398,17 +398,14 @@ function jnlwBlockHTML(it, totalH) {
     + '</div>';
 }
 
-// 종일 칩 HTML (배지+ToDo 텍스트, 아래 상위 Task명 작게)
+// 종일 칩 HTML (배지 + ToDo 텍스트만)
 function jnlwAlldayChip(it) {
   var safe = jnlEscape(it.text || '');
-  var parent = jnlEscape(it.taskText || '');
   var sid = (it.stepId == null) ? 'null' : it.stepId;
-  var tip = (parent ? parent + ' › ' : '') + safe;
   return '<div class="jnlw-chip" data-task="' + it.taskId + '" data-step="' + sid + '"'
-    + ' style="border-left:3px solid ' + it.color + ';" title="' + tip + '"'
+    + ' style="border-left:3px solid ' + it.color + ';" title="' + safe + '"'
     + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',true)">'
     + '<span class="jnlw-chip-head">' + jnlBadge(it.type) + '<span class="jnlw-chip-x">' + safe + '</span></span>'
-    + (parent ? '<span class="jnlw-chip-parent">' + parent + '</span>' : '')
     + '</div>';
 }
 
