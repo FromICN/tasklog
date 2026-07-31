@@ -54,6 +54,20 @@ function highlightText(text, query) {
     '<mark class="search-hl">$1</mark>');
 }
 
+// 완료 접두사([YYMMDD])를 [MMDD]로 축약 표시하고, 마우스를 올리면 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁
+function renderDoneTitle(obj, query) {
+  var text = (obj && obj.text) || '';
+  var m = /^\[(\d{2})(\d{2})(\d{2})\]\s?/.exec(text);
+  if (!m) return highlightText(text, query || '');
+  var yy = m[1], mm = m[2], dd = m[3];
+  var rest = text.slice(m[0].length);
+  var hm = '00:00';
+  if (obj.completedAt) { var c = new Date(obj.completedAt); if (!isNaN(c.getTime())) hm = String(c.getHours()).padStart(2,'0') + ':' + String(c.getMinutes()).padStart(2,'0'); }
+  else if (obj.wdTimed && obj.wdLogAt) { var w = new Date(obj.wdLogAt); if (!isNaN(w.getTime())) hm = String(w.getHours()).padStart(2,'0') + ':' + String(w.getMinutes()).padStart(2,'0'); }
+  var tip = '20' + yy + '-' + mm + '-' + dd + ' ' + hm;
+  return '<span class="done-date" title="' + tip + '">[' + mm + dd + ']</span> ' + highlightText(rest, query || '');
+}
+
 // ============================================
 //  💾 로컬스토리지
 // ============================================
@@ -136,7 +150,7 @@ function toggleComplete(id) {
   task.completed = !task.completed;
 
   if (task.completed) {
-    // 완료 처리: [YYMMDD] 접두사 추가 (중복 방지)
+    // 완료 처리: [YYMMDD] 접두사 추가 (중복 방지) + 완료 시각 기록
     if (!/^\[\d{6}\]/.test(task.text)) {
       const now = new Date();
       const yy = String(now.getFullYear()).slice(2);
@@ -144,9 +158,11 @@ function toggleComplete(id) {
       const dd = String(now.getDate()).padStart(2,'0');
       task.text = '[' + yy + mm + dd + '] ' + task.text;
     }
+    task.completedAt = new Date().toISOString();
   } else {
     // 완료 취소: [YYMMDD] 접두사 제거
     task.text = task.text.replace(/^\[\d{6}\] /, '');
+    delete task.completedAt;
   }
 
   saveTasks(); renderTasks(); updateCategoryCounts();
@@ -285,7 +301,7 @@ function renderTaskItem(task) {
   return '<div class="task-item '+isDone+' '+isSel+'" id="task-item-'+task.id+'">'
     + '<div class="task-check '+isDone+'" onclick="event.stopPropagation();toggleComplete('+task.id+')"></div>'
     + '<div class="task-body" onclick="openDetailPanel('+task.id+')">'
-    + '<span class="task-title">'+highlightText(task.text, searchQuery)+'</span>'
+    + '<span class="task-title">'+renderDoneTitle(task, searchQuery)+'</span>'
     + (badges ? '<div class="task-meta">'+badges+'</div>' : '')
     + '</div>'
     + '<button class="task-star '+(task.starred?'starred':'')+'" onclick="event.stopPropagation();toggleStar('+task.id+')">'
@@ -627,7 +643,79 @@ function formatDateDisplay(dateStr) {
   if (!dateStr) return '';
   var p = dateStr.split('-');
   if (p.length !== 3) return dateStr;
-  return p[0].slice(2) + '. ' + p[1] + '. ' + p[2] + '.';
+  return p[0] + '-' + p[1] + '-' + p[2];   // YYYY-MM-DD
+}
+
+// ── YYYY-MM-DD 세그먼트 날짜 필드 (연/월/일 더블클릭 → 즉시 수정) ──
+//   onCommit: 값 변경 시 호출할 전역 함수명 (fieldId, 'YYYY-MM-DD')
+//   calOnclick: 달력 버튼 클릭 시 실행할 코드(선택)
+function _sdpEsc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function sdpFieldInner(fieldId, dateStr, calOnclick) {
+  var y = 'YYYY', m = 'MM', d = 'DD', has = false;
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) { y = dateStr.slice(0,4); m = dateStr.slice(5,7); d = dateStr.slice(8,10); has = true; }
+  var emp = has ? '' : ' sdp-seg-empty';
+  var seg = function(part, val){
+    return '<span class="sdp-seg sdp-seg-' + part + emp + '" ondblclick="sdpEditSeg(event,\'' + fieldId + '\',\'' + part + '\')" title="더블클릭해 수정">' + val + '</span>';
+  };
+  return seg('y', y) + '<span class="sdp-seg-sep">-</span>'
+    + seg('m', m) + '<span class="sdp-seg-sep">-</span>'
+    + seg('d', d)
+    + (calOnclick ? '<button type="button" class="sdp-df-cal" onclick="' + _sdpEsc(calOnclick) + '" title="달력에서 선택">📅</button>' : '');
+}
+function sdpSegField(fieldId, dateStr, onCommit, calOnclick) {
+  return '<div class="sdp-datefield" id="sdp-df-' + fieldId + '" data-date="' + _sdpEsc(dateStr || '') + '"'
+    + ' data-commit="' + _sdpEsc(onCommit || '') + '" data-cal="' + _sdpEsc(calOnclick || '') + '">'
+    + sdpFieldInner(fieldId, dateStr, calOnclick) + '</div>';
+}
+function sdpEditSeg(e, fieldId, part) {
+  if (e) e.stopPropagation();
+  var field = document.getElementById('sdp-df-' + fieldId); if (!field) return;
+  if (field.querySelector('input')) return;                 // 이미 편집 중
+  var span = field.querySelector('.sdp-seg-' + part); if (!span) return;
+  var cur = field.getAttribute('data-date');
+  var t = new Date();
+  var base = (cur && /^\d{4}-\d{2}-\d{2}$/.test(cur))
+    ? { y: cur.slice(0,4), m: cur.slice(5,7), d: cur.slice(8,10) }
+    : { y: String(t.getFullYear()), m: String(t.getMonth()+1).padStart(2,'0'), d: String(t.getDate()).padStart(2,'0') };
+  var maxlen = (part === 'y') ? 4 : 2;
+  var startVal = /^\d+$/.test(span.textContent) ? span.textContent : base[part];
+  var inp = document.createElement('input');
+  inp.type = 'text'; inp.inputMode = 'numeric'; inp.maxLength = maxlen;
+  inp.className = 'sdp-seg-input sdp-seg-input-' + part; inp.value = startVal;
+  span.replaceWith(inp); inp.focus(); inp.select();
+  var done = false;
+  function finish(ok) {
+    if (done) return; done = true;
+    var res = { y: base.y, m: base.m, d: base.d };
+    var v = inp.value.replace(/\D/g, '');
+    if (ok && v) {
+      if (part === 'y') { var yy = parseInt(v,10); if (v.length <= 2) yy = 2000 + yy; res.y = String(Math.min(2100, Math.max(1900, yy))).padStart(4,'0'); }
+      if (part === 'm') { res.m = String(Math.min(12, Math.max(1, parseInt(v,10) || 1))).padStart(2,'0'); }
+      if (part === 'd') { res.d = String(Math.min(31, Math.max(1, parseInt(v,10) || 1))).padStart(2,'0'); }
+    }
+    var dim = new Date(+res.y, +res.m, 0).getDate();        // 말일 보정
+    if (+res.d > dim) res.d = String(dim).padStart(2,'0');
+    var newDate = res.y + '-' + res.m + '-' + res.d;
+    field.setAttribute('data-date', newDate);
+    field.innerHTML = sdpFieldInner(fieldId, newDate, field.getAttribute('data-cal'));
+    var fn = field.getAttribute('data-commit');
+    if (fn && typeof window[fn] === 'function') window[fn](fieldId, newDate);
+  }
+  inp.addEventListener('blur', function(){ finish(true); });
+  inp.addEventListener('keydown', function(ev){
+    if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+    else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+  });
+}
+// START/DUE 커스텀 피커용 커밋: 상태 반영 + 달력/시계 갱신 + 저장
+function sdpCommitPicker(id, dateStr) {
+  var s = pickerState[id]; if (!s) return;
+  s.dateStr = dateStr; s.calYear = +dateStr.slice(0,4); s.calMonth = +dateStr.slice(5,7) - 1;
+  var w = document.getElementById('sdp-cal-' + id);
+  if (w && w.style.display !== 'none') w.innerHTML = buildPickerCalHtml(id);
+  var cw = document.getElementById('sdp-clockwrap-' + id);
+  if (cw) cw.style.display = 'block';
+  onPickerChanged(id);
 }
 
 function buildPickerHtml(id, dateStr, timeStr) {
@@ -638,6 +726,7 @@ function buildPickerHtml(id, dateStr, timeStr) {
 
   var showClock = (id !== 'dp-reminder');
   return '<div class="sdp-wrap" id="sdp-' + id + '">'
+    + sdpSegField(id, s.dateStr, 'sdpCommitPicker', "togglePickerCal('" + id + "')")
     + '<div class="sdp-cal-wrap" id="sdp-cal-' + id + '" style="display:none;">'
     + buildPickerCalHtml(id)
     + '</div>'
@@ -887,6 +976,8 @@ function pickerPickDate(id, year, month, day) {
   s.calYear = year; s.calMonth = month - 1;
   var textEl = document.getElementById('sdp-text-' + id);
   if (textEl) textEl.value = formatDateDisplay(s.dateStr);
+  var df = document.getElementById('sdp-df-' + id);
+  if (df) { df.setAttribute('data-date', s.dateStr); df.innerHTML = sdpFieldInner(id, s.dateStr, df.getAttribute('data-cal')); }
   updatePickerPreview(id);
   // 일자 선택이 끝나면 캘린더는 감추고 시계를 노출
   closePickerCal(id);
@@ -954,6 +1045,8 @@ function clearPicker(id) {
   s.dateStr = null; s.timeStr = null;
   var textEl = document.getElementById('sdp-text-' + id);
   if (textEl) textEl.value = '';
+  var df = document.getElementById('sdp-df-' + id);
+  if (df) { df.setAttribute('data-date', ''); df.innerHTML = sdpFieldInner(id, '', df.getAttribute('data-cal')); }
   var timeEl = document.getElementById('sdp-time-' + id);
   if (timeEl) timeEl.value = '';
   updatePickerPreview(id);
@@ -1151,7 +1244,8 @@ function buildStepsHtml(task) {
         + formatDueDate(s.dueDateTime, s.hasTime) + '</span>'
       : '';
     const dateForm = '<div class="dp-sub-form step-date-form" id="dp-step-date-form-' + s.id + '" style="display:none;">'
-      + '<input type="date" id="step-date-' + s.id + '" value="' + (hasDate ? toDateInputVal(s.dueDateTime) : '') + '">'
+      + '<input type="hidden" id="step-date-' + s.id + '" value="' + (hasDate ? toDateInputVal(s.dueDateTime) : '') + '">'
+      + sdpSegField('stepf-' + s.id, hasDate ? toDateInputVal(s.dueDateTime) : '', 'sdpCommitStepField', '')
       + '<button class="sub-form-save" onclick="saveStepDate(' + task.id + ',' + s.id + ')">설정</button>'
       + (hasDate ? '<button class="dp-date-clear" onclick="clearStepDate(' + task.id + ',' + s.id + ')">✕ 지우기</button>' : '')
       + '</div>';
@@ -1469,6 +1563,8 @@ function toggleStep(taskId, stepId) {
   if (!step) return;
   step.completed = !step.completed;
   step.text = applyDonePrefix(step.text, step.completed);
+  if (step.completed) step.completedAt = new Date().toISOString();
+  else delete step.completedAt;
   saveTasks(); refreshDpSteps(task); renderTasks();
 }
 
@@ -1500,6 +1596,13 @@ function refreshDpSteps(task) {
 // ============================================
 //  📅 TO DO 기한
 // ============================================
+
+// To Do(단계) 세그먼트 필드 커밋 → 히든 입력에 반영(설정 버튼이 이 값을 저장)
+function sdpCommitStepField(fieldId, dateStr) {
+  var sid = fieldId.replace(/^stepf-/, '');
+  var hid = document.getElementById('step-date-' + sid);
+  if (hid) hid.value = dateStr;
+}
 
 function toggleStepDateForm(stepId) {
   // 다른 단계의 날짜 폼은 모두 닫기
