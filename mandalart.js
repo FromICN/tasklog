@@ -952,7 +952,7 @@ function buildSgDetailHtml(m, sg) {
     + '<th class="mgt-th-drag"></th>'
     + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
     + '<th class="mgt-th-type" data-cr-key="type">유형</th>'
-    + '<th class="mgt-th-goal" data-cr-key="goal">목표(관리지표)</th>'
+    + '<th class="mgt-th-goal" data-cr-key="goal">목표</th>'
     + '<th class="mgt-th-perf" data-cr-key="perf">달성현황</th>'
     + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
     + '</tr></thead><tbody>';
@@ -1156,9 +1156,7 @@ function buildMdtGridRow(m, sg, a) {
     + (a.text ? escMdt(a.text) : '<span style="opacity:0.35;">Project ' + a.id + '</span>') + '</span>'
     + '</td>'
     + '<td class="mgt-td-type">' + typeSel + '</td>'
-    + '<td class="mgt-td-goal"><div class="mgt-goalkpi"><div class="mgt-goalkpi-goal">' + mdtGoalCellHtml(m, sg, a) + '</div>'
-    + '<input type="text" class="mgt-text-inp mgt-kpi-inp" value="' + escMdt(a.evalIndicators || '') + '" placeholder="관리지표"'
-    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'evalIndicators\',this.value);saveMandalarts();"></div></td>'
+    + '<td class="mgt-td-goal">' + mdtGoalCellHtml(m, sg, a) + '</td>'
     + '<td class="mgt-td-perf">' + mdtPerfCellHtml(m, sg, a) + '</td>'
     + '<td class="mgt-td-memo">' + memoCell + '</td>'
     + '</tr>';

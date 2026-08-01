@@ -1,5 +1,5 @@
 diff --git a/index.html b/index.html
-index a24b1de..84af329 100644
+index a24b1de..903e77c 100644
 --- a/index.html
 +++ b/index.html
 @@ -7,7 +7,7 @@
@@ -16,7 +16,7 @@ index a24b1de..84af329 100644
  <script src="auth.js?v=20260722"></script>
  <script src="calendar.js?v=20260731a"></script>
 -<script src="mandalart.js?v=20260722"></script>
-+<script src="mandalart.js?v=20260801c"></script>
++<script src="mandalart.js?v=20260801d"></script>
  <script src="lifewheel.js?v=20260722"></script>
  <script src="home.js?v=20260722"></script>
  <script src="calpage.js?v=20260730"></script>
@@ -64,7 +64,7 @@ index 4697ce0..7346333 100644
    jnlRefreshWeekGrid();
  }
 diff --git a/mandalart.js b/mandalart.js
-index c046fe0..2344fb5 100644
+index c046fe0..96535a4 100644
 --- a/mandalart.js
 +++ b/mandalart.js
 @@ -116,6 +116,7 @@ function loadMandalarts() {
@@ -105,7 +105,7 @@ index c046fe0..2344fb5 100644
      if (!act) return '<div class="mdt-inner-cell"></div>';
      // #1: 동그라미/다이아 아이콘 제거, 텍스트만 표시. 완료 시 테마컬러 명도70% 배경.
      var doneCls = act.completed ? ' mdt-proj-done' : '';
-@@ -928,17 +934,22 @@ function buildSgDetailHtml(m, sg) {
+@@ -928,25 +934,33 @@ function buildSgDetailHtml(m, sg) {
      + '</div>'
      + '</div>'
      // 섹션 헤더 + 연간목표 실적 요약
@@ -133,8 +133,9 @@ index c046fe0..2344fb5 100644
 +    + '<th class="mgt-th-drag"></th>'
      + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
      + '<th class="mgt-th-type" data-cr-key="type">유형</th>'
-     + '<th class="mgt-th-goal" data-cr-key="goal">목표(관리지표)</th>'
-@@ -946,7 +957,10 @@ function buildSgDetailHtml(m, sg) {
+-    + '<th class="mgt-th-goal" data-cr-key="goal">목표(관리지표)</th>'
++    + '<th class="mgt-th-goal" data-cr-key="goal">목표</th>'
+     + '<th class="mgt-th-perf" data-cr-key="perf">달성현황</th>'
      + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
      + '</tr></thead><tbody>';
  
@@ -186,7 +187,18 @@ index c046fe0..2344fb5 100644
      + '<td class="mgt-td-proj">'
      + '<span contenteditable="true" spellcheck="false" class="mdt-act-title-text"'
      + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '"'
-@@ -1803,5 +1827,7 @@ function mdtActDrop(ev, year, sgId, actId) {
+@@ -1132,9 +1156,7 @@ function buildMdtGridRow(m, sg, a) {
+     + (a.text ? escMdt(a.text) : '<span style="opacity:0.35;">Project ' + a.id + '</span>') + '</span>'
+     + '</td>'
+     + '<td class="mgt-td-type">' + typeSel + '</td>'
+-    + '<td class="mgt-td-goal"><div class="mgt-goalkpi"><div class="mgt-goalkpi-goal">' + mdtGoalCellHtml(m, sg, a) + '</div>'
+-    + '<input type="text" class="mgt-text-inp mgt-kpi-inp" value="' + escMdt(a.evalIndicators || '') + '" placeholder="관리지표"'
+-    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'evalIndicators\',this.value);saveMandalarts();"></div></td>'
++    + '<td class="mgt-td-goal">' + mdtGoalCellHtml(m, sg, a) + '</td>'
+     + '<td class="mgt-td-perf">' + mdtPerfCellHtml(m, sg, a) + '</td>'
+     + '<td class="mgt-td-memo">' + memoCell + '</td>'
+     + '</tr>';
+@@ -1803,5 +1825,7 @@ function mdtActDrop(ev, year, sgId, actId) {
    var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
    sg.actionOrder = tlMoveInOrder(tlGetActionOrder(sg), from, actId, after);
    if (typeof saveMandalarts === 'function') saveMandalarts();
