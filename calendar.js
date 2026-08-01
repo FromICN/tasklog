@@ -125,23 +125,16 @@ async function resolveTaskCalendarId() {
     const match = items.find(c => (c.summaryOverride || c.summary || '').trim().toLowerCase() === wantName);
     if (match) {
       taskCalendarId = match.id;
-      console.log("📁 'TaskLog' 캘린더 사용:", match.id);
+      console.log("📁 기존 'TaskLog' 캘린더 사용:", match.id);
       return taskCalendarId;
     }
-    // 'TaskLog' 캘린더가 없으면 생성 시도 (전체 calendar 권한 필요)
-    try {
-      const created = await gapi.client.calendar.calendars.insert({ resource: { summary: TASK_CAL_NAME } });
-      taskCalendarId = created.result.id;
-      console.log("📁 'TaskLog' 캘린더 생성:", taskCalendarId);
-      return taskCalendarId;
-    } catch (e2) {
-      console.warn("'TaskLog' 캘린더 생성 권한이 없어 기본 캘린더(primary)로 저장해요.", e2);
-      taskCalendarId = 'primary';
-      return taskCalendarId;
-    }
+    // 'TaskLog' 캘린더가 없어도 새로 만들지 않는다.
+    //   (연동 캘린더는 설정에서 직접 지정 → getCalTarget) 없으면 null 반환.
+    console.log("ℹ️ 지정된 Task 연동 캘린더가 없어 캘린더 저장을 건너뜁니다. (설정에서 지정 가능)");
+    return null;
   } catch (e) {
-    console.warn('캘린더 목록을 불러오지 못해 기본 캘린더(primary)로 저장해요.', e);
-    return 'primary';   // 캐시하지 않음 → 다음에 재시도
+    console.warn('캘린더 목록을 불러오지 못했어요. 캘린더 저장을 건너뜁니다.', e);
+    return null;   // 캐시하지 않음 → 다음에 재시도
   }
 }
 
@@ -213,6 +206,10 @@ async function addTaskToCalendar(taskId) {
     console.log('📤 캘린더에 일정 추가 중...', event);
 
     const calId = await resolveTaskCalendarId();
+    if (!calId) {
+      alert("연동할 캘린더가 지정되지 않았어요.\n설정 → 캘린더에서 Task 연동 캘린더를 먼저 선택해 주세요. 📅");
+      return;
+    }
 
     // 같은 내용의 일정이 'Tasks' 캘린더에 이미 있으면 → 중복 생성하지 않고 연결만
     const existing = await _listTaskCalendarKeys(calId);
@@ -266,6 +263,12 @@ async function removeTaskFromCalendar(taskId) {
     console.log('🗑️ 캘린더에서 일정 삭제 중...');
 
     const calId = await resolveTaskCalendarId();
+    if (!calId) {                       // 연동 캘린더가 없으면 로컬 연결만 정리
+      delete task.calendarEventId;
+      saveTasks();
+      renderTasks();
+      return;
+    }
     await gapi.client.calendar.events.delete({
       calendarId: calId,
       eventId: task.calendarEventId,
@@ -418,11 +421,14 @@ async function autoPushTasksToCalendar() {
   if (!isSignedIn() || typeof tasks === 'undefined') return 0;
 
   const calId = await resolveTaskCalendarId();
+  const todoTargetEarly = getCalTarget('todo');
+  // 지정된 연동 캘린더가 전혀 없으면 아무것도 생성/등록하지 않는다. (TaskLog 자동 생성 방지)
+  if (!calId && !todoTargetEarly) return 0;
   // 중복 방지: 'Tasks' 캘린더의 기존 이벤트를 한 번만 조회해 (내용+시각) 맵 구성
-  const existing = await _listTaskCalendarKeys(calId);
+  const existing = calId ? await _listTaskCalendarKeys(calId) : new Map();
 
   let pushed = 0, linked = 0;
-  for (const task of tasks) {
+  if (calId) for (const task of tasks) {
     if (task.completed) continue;          // 완료된 항목 제외
     if (!task.dueDateTime) continue;       // 날짜 없는 항목 제외
     if (task.calendarEventId) continue;    // 이미 등록 표시가 있으면 제외 (1차 중복 방지)
