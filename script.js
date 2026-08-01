@@ -718,19 +718,20 @@ function sdpCommitPicker(id, dateStr) {
   onPickerChanged(id);
 }
 
-function buildPickerHtml(id, dateStr, timeStr) {
+function buildPickerHtml(id, dateStr, timeStr, hideClear) {
   initPicker(id, dateStr, timeStr);
   var s = pickerState[id];
 
-  // 날짜 전용: 시간(시계) UI 없음 — 세그먼트 날짜 + 달력 + 지우기
+  // 날짜 전용: 시간(시계) UI 없음 — 세그먼트 날짜 + 달력 (+ 지우기)
   return '<div class="sdp-wrap" id="sdp-' + id + '">'
     + sdpSegField(id, s.dateStr, 'sdpCommitPicker', "togglePickerCal('" + id + "')")
     + '<div class="sdp-cal-wrap" id="sdp-cal-' + id + '" style="display:none;">'
     + buildPickerCalHtml(id)
     + '</div>'
-    + '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
-    +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜 지우기">✕ 지우기</button>'
-    + '</div>'
+    + (hideClear ? '' :
+        '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
+        + '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜 지우기">✕ 지우기</button>'
+        + '</div>')
     + '</div>';
 }
 
@@ -1056,6 +1057,11 @@ function onPickerChanged(id) {
   if (id === 'dp-start')    saveDpStartFromPicker();
   if (id === 'dp-reminder') saveReminderFromPicker();
   if (id.indexOf('rp-step-') === 0) rpSaveStepFromPicker(id);
+  if (id.indexOf('stepf-') === 0) {
+    var sid = id.slice(6);
+    var hid = document.getElementById('step-date-' + sid);
+    if (hid) hid.value = getPickerValue(id).dateStr || '';
+  }
 }
 
 function saveReminderFromPicker() {
@@ -1242,9 +1248,9 @@ function buildStepsHtml(task) {
       : '';
     const dateForm = '<div class="dp-sub-form step-date-form" id="dp-step-date-form-' + s.id + '" style="display:none;">'
       + '<input type="hidden" id="step-date-' + s.id + '" value="' + (hasDate ? toDateInputVal(s.dueDateTime) : '') + '">'
-      + sdpSegField('stepf-' + s.id, hasDate ? toDateInputVal(s.dueDateTime) : '', 'sdpCommitStepField', '')
+      + buildPickerHtml('stepf-' + s.id, hasDate ? toDateInputVal(s.dueDateTime) : '', null, true)
       + '<button class="sub-form-save" onclick="saveStepDate(' + task.id + ',' + s.id + ')">설정</button>'
-      + (hasDate ? '<button class="dp-date-clear" onclick="clearStepDate(' + task.id + ',' + s.id + ')">✕ 지우기</button>' : '')
+      + '<button class="dp-date-clear" onclick="clearStepDate(' + task.id + ',' + s.id + ')">✕ 지우기</button>'
       + '</div>';
     return '<div class="dp-step" id="dp-step-' + s.id + '">'
       + '<div class="task-check step-check ' + (s.completed ? 'is-done' : '') + '" onclick="toggleStep(' + task.id + ',' + s.id + ')"></div>'
@@ -1611,7 +1617,10 @@ function toggleStepDateForm(stepId) {
   const isOpen = form.style.display !== 'none';
   form.style.display = isOpen ? 'none' : 'flex';
   if (!isOpen) {
-    setTimeout(() => form.querySelector('input[type="date"]')?.focus(), 50);
+    // 폼을 열면 달력을 바로 드롭다운
+    if (typeof openPickerCal === 'function') openPickerCal('stepf-' + stepId);
+  } else {
+    if (typeof closePickerCal === 'function') closePickerCal('stepf-' + stepId);
   }
 }
 
@@ -1620,9 +1629,8 @@ function saveStepDate(taskId, stepId) {
   const step = task?.steps?.find(s => s.id === stepId);
   if (!step) return;
   const dateVal = document.getElementById('step-date-' + stepId)?.value;
-  if (!dateVal) return;
-  step.dueDateTime = dateVal + 'T09:00:00';
-  step.hasTime = false;
+  if (!dateVal) { step.dueDateTime = null; step.hasTime = false; }
+  else { step.dueDateTime = dateVal + 'T00:00:00'; step.hasTime = false; }
   saveTasks(); refreshDpSteps(task); renderTasks();
 }
 
