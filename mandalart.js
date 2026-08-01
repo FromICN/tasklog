@@ -1054,18 +1054,9 @@ function mdtGoalCellHtml(m, sg, a) {
       + '</div>';
   }
   if (tv === 'result') {
-    // [개선3] 누적형처럼 목표값 입력 + 단위 + 이상/이하 선택 (월별 달성여부는 달성현황에서 선택)
-    var cmp = (a.resultCompare === 'lte') ? 'lte' : 'gte';
-    return '<div class="mgt-goal-cum">'
-      + '<input type="number" class="mdt-annual-target-inp" value="' + (+a.annualTarget || 0) + '" min="0"'
-      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value);saveMandalarts();" title="목표값">'
-      + '<input type="text" class="mdt-annual-unit-inp" value="' + escMdt(a.annualUnit || '') + '" placeholder="단위"'
-      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value);saveMandalarts();">'
-      + '<select class="mgt-cmp-sel" onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'resultCompare\',this.value);saveMandalarts();" title="달성 기준">'
-      +   '<option value="gte"' + (cmp === 'gte' ? ' selected' : '') + '>이상</option>'
-      +   '<option value="lte"' + (cmp === 'lte' ? ' selected' : '') + '>이하</option>'
-      + '</select>'
-      + '</div>';
+    // 달성형(실적): 목표를 텍스트로 직접 입력 (월별 달성여부는 달성현황에서 선택)
+    return '<input type="text" class="mgt-text-inp" value="' + escMdt(a.goalText || '') + '" placeholder="목표"'
+      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'goalText\',this.value);saveMandalarts();">';
   }
   // 습관형: 목표(윗줄) + 성공기준(아랫줄)
   if (tv === 'weekly') {
