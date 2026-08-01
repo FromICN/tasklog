@@ -1940,7 +1940,7 @@ body {
   font-size: var(--fs-2xs); font-weight: 700; font-variant-numeric: tabular-nums;
   color: var(--text-3); background: rgba(127,127,127,0.16);
   border-radius: var(--radius-xs); padding: 0 5px; margin-right: 4px;
-  cursor: help; white-space: nowrap;
+  cursor: default; white-space: nowrap;
 }
 
 /* 상단 입력 행 */

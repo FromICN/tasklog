@@ -58,15 +58,22 @@ function highlightText(text, query) {
 function doneHM(obj) {
   if (obj && obj.completedAt) { var c = new Date(obj.completedAt); if (!isNaN(c.getTime())) return String(c.getHours()).padStart(2,'0') + ':' + String(c.getMinutes()).padStart(2,'0'); }
   if (obj && obj.wdTimed && obj.wdLogAt) { var w = new Date(obj.wdLogAt); if (!isNaN(w.getTime())) return String(w.getHours()).padStart(2,'0') + ':' + String(w.getMinutes()).padStart(2,'0'); }
-  return '00:00';
+  return null;   // 시간 정보가 없으면 null (과거 '00:00' 오표기 방지)
+}
+// 완료 접두사([YYMMDD]) → 전체 완료일시 'YYYY-MM-DD HH:MM' (시간 미상 시 날짜만). 접두사 없으면 ''.
+function doneFullTip(obj) {
+  var m = /^\[(\d{2})(\d{2})(\d{2})\]\s?/.exec((obj && obj.text) || '');
+  if (!m) return '';
+  var hm = doneHM(obj);
+  return '20' + m[1] + '-' + m[2] + '-' + m[3] + (hm ? (' ' + hm) : '');
 }
 // 완료 접두사([YYMMDD]) → 축약 배지 [MMDD] + 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁 HTML.
 //  접두사가 없으면 null 반환.
 function doneDateBadge(obj) {
   var m = /^\[(\d{2})(\d{2})(\d{2})\]\s?/.exec((obj && obj.text) || '');
   if (!m) return null;
-  var yy = m[1], mm = m[2], dd = m[3];
-  var tip = '20' + yy + '-' + mm + '-' + dd + ' ' + doneHM(obj);
+  var mm = m[2], dd = m[3];
+  var tip = doneFullTip(obj);
   return '<span class="done-date" title="' + tip + '">[' + mm + dd + ']</span>';
 }
 // 완료 접두사([YYMMDD])를 [MMDD]로 축약 표시하고, 마우스를 올리면 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁
@@ -2398,9 +2405,10 @@ function rpBuildStepsHtml() {
       + '<div class="sdp-cal-wrap rp-stepcal" id="sdp-cal-rp-step-'+s.id+'"></div>'
       + '<div class="rp-stepcal-actions"><button class="dp-date-clear" onclick="event.stopPropagation();rpClearStepDate('+s.id+')">✕ 지우기</button></div>'
       + '</div>';
-    // 완료된 To Do는 이름 앞에 [MMDD] 배지(호버 시 YYYY-MM-DD HH:MM), 편집영역엔 순수 텍스트만
-    var badge = s.completed ? doneDateBadge(s) : null;
-    var pureText = (s.text || '').replace(/^\[\d{6}\]\s?/, '');
+    // 완료된 To Do: 완료일([YYMMDD])을 편집영역에 그대로 노출 → Task 완료일처럼 타이핑으로 직접 수정.
+    //  호버 시 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁 표시. 미완료는 순수 텍스트 + 편집 안내.
+    var editText = s.completed ? (s.text || '') : (s.text || '').replace(/^\[\d{6}\]\s?/, '');
+    var stepTip  = s.completed ? (doneFullTip(s) || '완료일 · 이름 수정') : '클릭해 텍스트 수정';
     return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
       +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
       + '<span class="step-drag-handle" draggable="true" title="드래그해 순서 변경"'
@@ -2409,11 +2417,10 @@ function rpBuildStepsHtml() {
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
       + '<div class="step-content">'
       + '<span class="step-line">'
-      + (badge ? badge + ' ' : '')
       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
-      +   ' title="클릭해 텍스트 수정" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+      +   ' title="'+escapeHtml(stepTip)+'" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
       +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
-      +   ' onblur="rpSaveStepText('+s.id+',this)">'+escapeHtml(pureText)+'</span>'
+      +   ' onblur="rpSaveStepText('+s.id+',this)">'+escapeHtml(editText)+'</span>'
       + '</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
@@ -2425,18 +2432,53 @@ function rpBuildStepsHtml() {
   }).join('');
 }
 
-// 완료/미완료 무관하게 TO DO 텍스트 인라인 수정 (rp-form 초안에 반영, 저장 시 확정)
+// 완료/미완료 무관 TO DO 인라인 수정. 완료 스텝은 [YYMMDD] 완료일을 타이핑으로 수정 가능(Task 완료일과 동일 방식).
 function rpSaveStepText(stepId, el) {
   var s = rpState.steps.find(function(x){ return x.id === stepId; });
   if (!s) return;
-  var pm = (s.text || '').match(/^\[\d{6}\]\s?/);          // 완료일 접두사(있으면) 보존
-  var prefix = pm ? pm[0] : '';
-  var pure = (s.text || '').replace(/^\[\d{6}\]\s?/, '');
+  var oldPm = (s.text || '').match(/^\[(\d{6})\]\s?/);     // 기존 완료일 접두사
+  var oldPrefix6 = oldPm ? oldPm[1] : '';
   var v = (el.textContent || '').trim();
-  if (v === '') { el.textContent = pure; return; }         // 빈 값이면 원복(순수 텍스트)
-  if (v === pure) return;
-  s.text = prefix + v;
+
+  // 미완료: 접두사 없이 순수 텍스트만
+  if (!s.completed) {
+    var pureU = v.replace(/^\[\d{6}\]\s?/, '');
+    s.text = pureU;
+    rpState.dirty = true;
+    rpRefreshSteps();
+    return;
+  }
+
+  // 완료: 앞의 [YYMMDD] 를 완료일로 파싱 (사용자가 타이핑으로 수정)
+  var em = v.match(/^\[(\d{6})\]\s?([\s\S]*)$/);
+  var newPrefix6 = oldPrefix6, pure = v;
+  if (em) {
+    var cand = em[1];
+    if (isValidYYMMDD(cand)) { newPrefix6 = cand; pure = em[2].trim(); }
+    else { pure = em[2].trim(); }        // 날짜가 유효하지 않으면 기존 완료일 유지
+  } else {
+    pure = v.replace(/^\[\d{0,6}\]?\s?/, '').trim();   // 접두사 흔적 제거, 기존 완료일 유지
+  }
+  if (pure === '' && oldPm) pure = (s.text || '').slice(oldPm[0].length);  // 이름 통째 삭제 방지
+
+  s.text = '[' + newPrefix6 + '] ' + pure;
+
+  // 완료일(날짜)을 completedAt 에도 반영 — 기존 시각(시:분:초)은 보존해 호버 시간 유지
+  var yy = +newPrefix6.slice(0,2), mo = +newPrefix6.slice(2,4), da = +newPrefix6.slice(4,6);
+  var base = new Date(2000 + yy, mo - 1, da);
+  var prev = s.completedAt ? new Date(s.completedAt) : null;
+  if (prev && !isNaN(prev.getTime())) base.setHours(prev.getHours(), prev.getMinutes(), prev.getSeconds(), 0);
+  s.completedAt = base.toISOString();
+
   rpState.dirty = true;
+  rpRefreshSteps();   // 툴팁(전체 일시)·표시 갱신
+}
+
+// [YYMMDD] 6자리가 유효한 날짜인지 검사
+function isValidYYMMDD(s6) {
+  if (!/^\d{6}$/.test(s6)) return false;
+  var mo = +s6.slice(2,4), da = +s6.slice(4,6);
+  return mo >= 1 && mo <= 12 && da >= 1 && da <= 31;
 }
 
 // ── TO DO 마감일 (rp-form draft) ──
