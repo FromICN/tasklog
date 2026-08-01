@@ -1,0 +1,301 @@
+diff --git a/index.html b/index.html
+index a24b1de..87c9063 100644
+--- a/index.html
++++ b/index.html
+@@ -7,7 +7,7 @@
+   <link rel="icon" type="image/svg+xml" href="tasklog-icon.svg">
+   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+-  <link rel="stylesheet" href="style.css?v=20260731b">
++  <link rel="stylesheet" href="style.css?v=20260801a">
+   <link rel="stylesheet" href="profile-modal.css?v=20260722">
+   <link rel="stylesheet" href="login.css?v=20260720b">
+   <script>
+@@ -149,14 +149,14 @@
+ <script src="calpage.js?v=20260730"></script>
+ <script src="gantt.js?v=20260722"></script>
+ <script src="notes.js?v=20260722"></script>
+-<script src="journal.js?v=20260730g"></script>
++<script src="journal.js?v=20260801a"></script>
+ <script src="wbs.js?v=20260722"></script>
+ <script src="mvv.js?v=20260722"></script>
+ <script src="settings.js?v=20260722"></script>
+ <script src="drive.js?v=20260722"></script>
+ <script src="todo.js?v=20260722"></script>
+ <script src="yearsync.js?v=20260722"></script>
+-<script src="script.js?v=20260731d"></script>
++<script src="script.js?v=20260801b"></script>
+ 
+ </body>
+ </html>
+diff --git a/journal.js b/journal.js
+index 4697ce0..7346333 100644
+--- a/journal.js
++++ b/journal.js
+@@ -307,6 +307,14 @@ function jnlItemLogInfo(obj) {
+       return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), w.getHours(), w.getMinutes(), 0, 0), timed: true };
+     }
+   }
++  // 그리드에서 별도로 옮기지 않았으면 완료 시각(completedAt)을 그대로 사용
++  //  → To Do 완료 즉시 그 시각에 자동 배치(완료 ↔ Work Diary 정보 동기화)
++  if (obj && obj.completedAt) {
++    var ca = new Date(obj.completedAt);
++    if (!isNaN(ca.getTime())) {
++      return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), ca.getHours(), ca.getMinutes(), 0, 0), timed: true };
++    }
++  }
+   return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), 12, 0, 0, 0), timed: false };
+ }
+ 
+@@ -562,6 +570,8 @@ function jnlwApply(obj, day, timed, startLin, durMin) {
+   }
+   // 그리드에서 세팅한 일자를 완료일([YYMMDD])과 동기화
+   obj.text = jnlSetCompletedDatePrefix(obj.text, base);
++  // 그리드 배치 일시를 To Do 완료시각(completedAt)에도 반영 → Task 수정 표시([MMDD]·툴팁)와 상호 동기화
++  obj.completedAt = base.toISOString();
+   if (typeof saveTasks === 'function') saveTasks();
+   jnlRefreshWeekGrid();
+ }
+diff --git a/script.js b/script.js
+index d498fd7..56fdfa3 100644
+--- a/script.js
++++ b/script.js
+@@ -54,18 +54,28 @@ function highlightText(text, query) {
+     '<mark class="search-hl">$1</mark>');
+ }
+ 
++// 완료 항목의 시각(HH:MM)을 completedAt(우선) → wdLogAt 순으로 구함
++function doneHM(obj) {
++  if (obj && obj.completedAt) { var c = new Date(obj.completedAt); if (!isNaN(c.getTime())) return String(c.getHours()).padStart(2,'0') + ':' + String(c.getMinutes()).padStart(2,'0'); }
++  if (obj && obj.wdTimed && obj.wdLogAt) { var w = new Date(obj.wdLogAt); if (!isNaN(w.getTime())) return String(w.getHours()).padStart(2,'0') + ':' + String(w.getMinutes()).padStart(2,'0'); }
++  return '00:00';
++}
++// 완료 접두사([YYMMDD]) → 축약 배지 [MMDD] + 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁 HTML.
++//  접두사가 없으면 null 반환.
++function doneDateBadge(obj) {
++  var m = /^\[(\d{2})(\d{2})(\d{2})\]\s?/.exec((obj && obj.text) || '');
++  if (!m) return null;
++  var yy = m[1], mm = m[2], dd = m[3];
++  var tip = '20' + yy + '-' + mm + '-' + dd + ' ' + doneHM(obj);
++  return '<span class="done-date" title="' + tip + '">[' + mm + dd + ']</span>';
++}
+ // 완료 접두사([YYMMDD])를 [MMDD]로 축약 표시하고, 마우스를 올리면 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁
+ function renderDoneTitle(obj, query) {
+   var text = (obj && obj.text) || '';
+   var m = /^\[(\d{2})(\d{2})(\d{2})\]\s?/.exec(text);
+   if (!m) return highlightText(text, query || '');
+-  var yy = m[1], mm = m[2], dd = m[3];
+   var rest = text.slice(m[0].length);
+-  var hm = '00:00';
+-  if (obj.completedAt) { var c = new Date(obj.completedAt); if (!isNaN(c.getTime())) hm = String(c.getHours()).padStart(2,'0') + ':' + String(c.getMinutes()).padStart(2,'0'); }
+-  else if (obj.wdTimed && obj.wdLogAt) { var w = new Date(obj.wdLogAt); if (!isNaN(w.getTime())) hm = String(w.getHours()).padStart(2,'0') + ':' + String(w.getMinutes()).padStart(2,'0'); }
+-  var tip = '20' + yy + '-' + mm + '-' + dd + ' ' + hm;
+-  return '<span class="done-date" title="' + tip + '">[' + mm + dd + ']</span> ' + highlightText(rest, query || '');
++  return doneDateBadge(obj) + ' ' + highlightText(rest, query || '');
+ }
+ 
+ // ============================================
+@@ -90,7 +100,10 @@ function loadTasks() {
+         normalized.assignees = [normalized.assignee];
+       }
+       normalized.assignee = '';
+-      normalized.steps = normalized.steps.map(s => ({ dueDateTime: null, hasTime: false, ...s }));
++      normalized.steps = normalized.steps.map(s => ({ dueDateTime: null, ...s, hasTime: false }));
++      // start / due / To Do 마감일은 날짜(YYYY-MM-DD)만 사용 — 기존에 저장된 HH:MM 표시는 제거
++      normalized.hasTime = false;
++      normalized.startHasTime = false;
+       // 구 버전 호환: 상태값 보류/지연 → 연기로 통합
+       if (normalized.status === '보류' || normalized.status === '지연') normalized.status = '연기';
+       return normalized;
+@@ -159,10 +172,12 @@ function toggleComplete(id) {
+       task.text = '[' + yy + mm + dd + '] ' + task.text;
+     }
+     task.completedAt = new Date().toISOString();
++    delete task.wdTimed; delete task.wdLogAt;
+   } else {
+     // 완료 취소: [YYMMDD] 접두사 제거
+     task.text = task.text.replace(/^\[\d{6}\] /, '');
+     delete task.completedAt;
++    delete task.wdTimed; delete task.wdLogAt;
+   }
+ 
+   saveTasks(); renderTasks(); updateCategoryCounts();
+@@ -1566,8 +1581,8 @@ function toggleStep(taskId, stepId) {
+   if (!step) return;
+   step.completed = !step.completed;
+   step.text = applyDonePrefix(step.text, step.completed);
+-  if (step.completed) step.completedAt = new Date().toISOString();
+-  else delete step.completedAt;
++  if (step.completed) { step.completedAt = new Date().toISOString(); delete step.wdTimed; delete step.wdLogAt; }
++  else { delete step.completedAt; delete step.wdTimed; delete step.wdLogAt; }
+   saveTasks(); refreshDpSteps(task); renderTasks();
+ }
+ 
+@@ -2198,19 +2213,18 @@ function buildDateSegInput(hiddenId, dateStr) {
+ }
+ // ── Start/Due 통합 입력: YYYY-MM-DD-HH:MM 한 칸에 타이핑 ──
+ function buildDateTimeInput(id, dateStr, timeStr) {
+-  var val = '';
+-  if (dateStr) { val = dateStr; if (timeStr) val += '  ' + timeStr; }
++  // 날짜(YYYY-MM-DD)만 입력 — 시간(HH:MM)은 사용하지 않음
++  var val = dateStr || '';
+   return '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
+-    + ' inputmode="numeric" placeholder="YYYY-MM-DD  HH:MM" value="' + val + '"'
++    + ' inputmode="numeric" placeholder="YYYY-MM-DD" value="' + val + '"'
+     + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">';
+ }
+ function rpDtInput(el) {
+-  var d = el.value.replace(/\D/g, '').slice(0, 12);
++  // 최대 8자리(YYYYMMDD)만 받아 'YYYY-MM-DD'로 포맷 — 시간 입력 제거
++  var d = el.value.replace(/\D/g, '').slice(0, 8);
+   var out = d.slice(0, 4);
+   if (d.length > 4)  out += '-' + d.slice(4, 6);
+   if (d.length > 6)  out += '-' + d.slice(6, 8);
+-  if (d.length > 8)  out += '  ' + d.slice(8, 10);
+-  if (d.length > 10) out += ':' + d.slice(10, 12);
+   el.value = out;
+   if (typeof rpState !== 'undefined') rpState.dirty = true;
+ }
+@@ -2378,9 +2392,15 @@ function rpBuildStepsHtml() {
+       ? '<span class="due-badge" style="cursor:default;">🔗 ' + escapeHtml(linkedTask.text.replace(/^\[\d{6}\] /,'').substring(0,16)) + '</span>'
+       : '';
+     var hasDate = !!s.dueDateTime;
+-    var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form" id="rp-step-date-form-'+s.id+'" style="display:none;">'
+-      + buildStepDateInput(s.id, hasDate ? toDateInputVal(s.dueDateTime) : '', (hasDate && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '')
++    // 마감일: 캘린더 드롭다운(달력에서 클릭 선택, 타이핑 없음). 폼을 열 때 달력을 채운다.
++    var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form rp-stepcal-form" id="rp-step-date-form-'+s.id+'" style="display:none;"'
++      + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();">'
++      + '<div class="sdp-cal-wrap rp-stepcal" id="sdp-cal-rp-step-'+s.id+'"></div>'
++      + '<div class="rp-stepcal-actions"><button class="dp-date-clear" onclick="event.stopPropagation();rpClearStepDate('+s.id+')">✕ 지우기</button></div>'
+       + '</div>';
++    // 완료된 To Do는 이름 앞에 [MMDD] 배지(호버 시 YYYY-MM-DD HH:MM), 편집영역엔 순수 텍스트만
++    var badge = s.completed ? doneDateBadge(s) : null;
++    var pureText = (s.text || '').replace(/^\[\d{6}\]\s?/, '');
+     return '<div class="dp-step rp-dnd-step" id="rp-step-'+s.id+'" data-step-id="'+s.id+'"'
+       +   ' ondragover="rpStepDragOver(event,'+s.id+')" ondragleave="rpStepDragLeave(event)" ondrop="rpStepDrop(event,'+s.id+')">'
+       + '<span class="step-drag-handle" draggable="true" title="드래그해 순서 변경"'
+@@ -2388,10 +2408,13 @@ function rpBuildStepsHtml() {
+       +   ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">\u283F</span>'
+       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
+       + '<div class="step-content">'
++      + '<span class="step-line">'
++      + (badge ? badge + ' ' : '')
+       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
+       +   ' title="클릭해 텍스트 수정" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+       +   ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();this.blur();}"'
+-      +   ' onblur="rpSaveStepText('+s.id+',this)">'+escapeHtml(s.text)+'</span>'
++      +   ' onblur="rpSaveStepText('+s.id+',this)">'+escapeHtml(pureText)+'</span>'
++      + '</span>'
+       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
+       + '</div>'
+       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
+@@ -2406,10 +2429,13 @@ function rpBuildStepsHtml() {
+ function rpSaveStepText(stepId, el) {
+   var s = rpState.steps.find(function(x){ return x.id === stepId; });
+   if (!s) return;
++  var pm = (s.text || '').match(/^\[\d{6}\]\s?/);          // 완료일 접두사(있으면) 보존
++  var prefix = pm ? pm[0] : '';
++  var pure = (s.text || '').replace(/^\[\d{6}\]\s?/, '');
+   var v = (el.textContent || '').trim();
+-  if (v === '') { el.textContent = s.text; return; }   // 빈 값이면 원복
+-  if (v === s.text) return;
+-  s.text = v;
++  if (v === '') { el.textContent = pure; return; }         // 빈 값이면 원복(순수 텍스트)
++  if (v === pure) return;
++  s.text = prefix + v;
+   rpState.dirty = true;
+ }
+ 
+@@ -2421,9 +2447,15 @@ function rpToggleStepDateForm(stepId) {
+   var form = document.getElementById('rp-step-date-form-'+stepId);
+   if (!form) return;
+   var isOpen = form.style.display !== 'none';
+-  form.style.display = isOpen ? 'none' : 'block';
+-  // Task Due와 동일: 달력이 아니라 타이핑 입력창이 드롭다운 → 포커스
+-  if (!isOpen) setTimeout(function(){ var i = document.getElementById('rp-stepdt-'+stepId); if (i) { i.focus(); try { i.select(); } catch(e){} } }, 30);
++  if (isOpen) { form.style.display = 'none'; return; }
++  // 타이핑이 아닌 캘린더 드롭다운: 달력을 채워서 연다(날짜를 클릭해 선택)
++  var s = rpState.steps.find(function(x){ return x.id === stepId; });
++  var pid = 'rp-step-' + stepId;
++  var dateStr = (s && s.dueDateTime) ? toDateInputVal(s.dueDateTime) : '';
++  initPicker(pid, dateStr, null);
++  var host = document.getElementById('sdp-cal-' + pid);
++  if (host) { host.style.display = 'block'; host.innerHTML = buildPickerCalHtml(pid); }
++  form.style.display = 'block';
+ }
+ 
+ // To Do 마감일 입력: Task Due와 동일한 'YYYY-MM-DD  HH:MM' 타이핑 방식 (HH:MM 선택)
+@@ -2457,28 +2489,27 @@ function rpSaveStepDate(stepId) {
+ }
+ 
+ function rpClearStepDate(stepId) {
+-  var inp = document.getElementById('rp-stepdt-' + stepId);
+-  if (inp) inp.value = '';
+-  rpSaveStepDate(stepId);
+-  rpToggleStepDateForm(stepId);
++  var s = rpState.steps.find(function(x){ return x.id === stepId; });
++  if (s) { s.dueDateTime = null; s.hasTime = false; }
++  rpState.dirty = true;
++  var form = document.getElementById('rp-step-date-form-' + stepId);
++  if (form) form.style.display = 'none';
++  rpRefreshSteps();
+ }
+ 
++// 캘린더 드롭다운에서 날짜를 클릭하면 호출됨(onPickerChanged → 여기) — 날짜(YYYY-MM-DD)만 저장
+ function rpSaveStepFromPicker(id) {
+   var stepId = +id.replace('rp-step-', '');
+   var s = rpState.steps.find(function(x){ return x.id === stepId; });
+   if (!s) return;
+   var pv = getPickerValue(id);
+-  if (pv.dateStr) {
+-    if (pv.timeStr) { s.dueDateTime = pv.dateStr + 'T' + pv.timeStr + ':00'; s.hasTime = true; }
+-    else { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }
+-  } else { s.dueDateTime = null; s.hasTime = false; }
++  if (pv.dateStr) { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }  // 시간 없음(날짜만)
++  else { s.dueDateTime = null; s.hasTime = false; }
+   rpState.dirty = true;
+-  // 폼(달력·시간 입력)을 닫지 않고 버튼 라벨만 갱신 → 날짜 후 시간 순차 입력 유지
+-  var btn = document.querySelector('#rp-step-' + stepId + ' .step-cal-btn');
+-  if (btn) {
+-    btn.classList.toggle('has-date', !!s.dueDateTime);
+-    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, false) : '📅';
+-  }
++  // 날짜를 고르면 드롭다운을 닫고 목록을 갱신(버튼 라벨 반영)
++  var form = document.getElementById('rp-step-date-form-' + stepId);
++  if (form) form.style.display = 'none';
++  rpRefreshSteps();
+ }
+ 
+ // 연계 TASK 드롭다운: 완료된 TASK는 목록에서 제외
+@@ -2509,6 +2540,9 @@ function rpToggleStep(stepId) {
+   if (!s) return;
+   s.completed = !s.completed;
+   s.text = applyDonePrefix(s.text, s.completed);
++  // 완료한 '그 순간'의 시각까지 저장(Work Diary 연계) — 취소 시 제거
++  if (s.completed) { s.completedAt = new Date().toISOString(); delete s.wdTimed; delete s.wdLogAt; }
++  else { delete s.completedAt; delete s.wdTimed; delete s.wdLogAt; }
+   rpState.dirty = true;
+   rpRefreshSteps();
+ }
+diff --git a/style.css b/style.css
+index c60f194..377eba8 100644
+--- a/style.css
++++ b/style.css
+@@ -10384,3 +10384,17 @@ body.light-mode .right-panel {
+ .calw-ev.done { opacity: .55; text-decoration: line-through; }
+ .calw-ev-t { color: var(--text-3); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+ .calw-ev-x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++
++/* ── To Do 완료일 배지 & 마감일 캘린더 드롭다운 (2026-08-01) ── */
++.dp-step .step-line { display: block; min-width: 0; }
++.dp-step .step-line .done-date { vertical-align: middle; }
++.dp-step .step-line .step-text { display: inline; }
++/* 마감일: 타이핑이 아닌 달력 클릭 선택 */
++.rp-step-date-form.rp-stepcal-form { flex-direction: column; align-items: stretch; }
++.rp-step-date-form .rp-stepcal.sdp-cal-wrap { width: 100%; margin-top: 0; box-sizing: border-box; }
++.rp-stepcal-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
++.rp-stepcal-actions .dp-date-clear {
++  background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
++  color: var(--text-3); font-size: var(--fs-xs); cursor: pointer; padding: 2px 8px;
++}
++.rp-stepcal-actions .dp-date-clear:hover { color: var(--danger); border-color: var(--danger); }

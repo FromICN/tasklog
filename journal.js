@@ -307,6 +307,14 @@ function jnlItemLogInfo(obj) {
       return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), w.getHours(), w.getMinutes(), 0, 0), timed: true };
     }
   }
+  // 그리드에서 별도로 옮기지 않았으면 완료 시각(completedAt)을 그대로 사용
+  //  → To Do 완료 즉시 그 시각에 자동 배치(완료 ↔ Work Diary 정보 동기화)
+  if (obj && obj.completedAt) {
+    var ca = new Date(obj.completedAt);
+    if (!isNaN(ca.getTime())) {
+      return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), ca.getHours(), ca.getMinutes(), 0, 0), timed: true };
+    }
+  }
   return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), 12, 0, 0, 0), timed: false };
 }
 
@@ -562,6 +570,8 @@ function jnlwApply(obj, day, timed, startLin, durMin) {
   }
   // 그리드에서 세팅한 일자를 완료일([YYMMDD])과 동기화
   obj.text = jnlSetCompletedDatePrefix(obj.text, base);
+  // 그리드 배치 일시를 To Do 완료시각(completedAt)에도 반영 → Task 수정 표시([MMDD]·툴팁)와 상호 동기화
+  obj.completedAt = base.toISOString();
   if (typeof saveTasks === 'function') saveTasks();
   jnlRefreshWeekGrid();
 }

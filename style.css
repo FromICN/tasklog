@@ -10384,3 +10384,17 @@ body.light-mode .right-panel {
 .calw-ev.done { opacity: .55; text-decoration: line-through; }
 .calw-ev-t { color: var(--text-3); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
 .calw-ev-x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── To Do 완료일 배지 & 마감일 캘린더 드롭다운 (2026-08-01) ── */
+.dp-step .step-line { display: block; min-width: 0; }
+.dp-step .step-line .done-date { vertical-align: middle; }
+.dp-step .step-line .step-text { display: inline; }
+/* 마감일: 타이핑이 아닌 달력 클릭 선택 */
+.rp-step-date-form.rp-stepcal-form { flex-direction: column; align-items: stretch; }
+.rp-step-date-form .rp-stepcal.sdp-cal-wrap { width: 100%; margin-top: 0; box-sizing: border-box; }
+.rp-stepcal-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.rp-stepcal-actions .dp-date-clear {
+  background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text-3); font-size: var(--fs-xs); cursor: pointer; padding: 2px 8px;
+}
+.rp-stepcal-actions .dp-date-clear:hover { color: var(--danger); border-color: var(--danger); }
