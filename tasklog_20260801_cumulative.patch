@@ -1,5 +1,5 @@
 diff --git a/index.html b/index.html
-index a24b1de..bbe5e88 100644
+index a24b1de..84af329 100644
 --- a/index.html
 +++ b/index.html
 @@ -7,7 +7,7 @@
@@ -16,7 +16,7 @@ index a24b1de..bbe5e88 100644
  <script src="auth.js?v=20260722"></script>
  <script src="calendar.js?v=20260731a"></script>
 -<script src="mandalart.js?v=20260722"></script>
-+<script src="mandalart.js?v=20260801b"></script>
++<script src="mandalart.js?v=20260801c"></script>
  <script src="lifewheel.js?v=20260722"></script>
  <script src="home.js?v=20260722"></script>
  <script src="calpage.js?v=20260730"></script>
@@ -64,7 +64,7 @@ index 4697ce0..7346333 100644
    jnlRefreshWeekGrid();
  }
 diff --git a/mandalart.js b/mandalart.js
-index c046fe0..03ef307 100644
+index c046fe0..2344fb5 100644
 --- a/mandalart.js
 +++ b/mandalart.js
 @@ -116,6 +116,7 @@ function loadMandalarts() {
@@ -84,7 +84,28 @@ index c046fe0..03ef307 100644
          })
        };
      })
-@@ -928,17 +929,22 @@ function buildSgDetailHtml(m, sg) {
+@@ -345,6 +346,11 @@ function renderSubGoalCard(m, sg) {
+   var total = sg.actions.length;
+   var color = sg.color;
+ 
++  // 실적관리(상세)에서 드래그로 바꾼 Project 순서를 메인 그리드에도 동일 반영
++  var orderedActs = tlGetActionOrder(sg).map(function(id){
++    return sg.actions.find(function(a){ return a.id === id; });
++  });
++
+   var cells = ACT_MAP.map(function(actIdx) {
+     if (actIdx === null) {
+       // 중앙 셀: Section 이름 + section별 최종목표 표시 (#2)
+@@ -354,7 +360,7 @@ function renderSubGoalCard(m, sg) {
+         + (fg ? '<div class="mdt-ic-final mdt-fit-text" data-fit-base="10">'+escMdt(fg)+'</div>' : '')
+         + '</div>';
+     }
+-    var act = sg.actions[actIdx];
++    var act = orderedActs[actIdx];
+     if (!act) return '<div class="mdt-inner-cell"></div>';
+     // #1: 동그라미/다이아 아이콘 제거, 텍스트만 표시. 완료 시 테마컬러 명도70% 배경.
+     var doneCls = act.completed ? ' mdt-proj-done' : '';
+@@ -928,17 +934,22 @@ function buildSgDetailHtml(m, sg) {
      + '</div>'
      + '</div>'
      // 섹션 헤더 + 연간목표 실적 요약
@@ -113,7 +134,7 @@ index c046fe0..03ef307 100644
      + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
      + '<th class="mgt-th-type" data-cr-key="type">유형</th>'
      + '<th class="mgt-th-goal" data-cr-key="goal">목표(관리지표)</th>'
-@@ -946,7 +952,10 @@ function buildSgDetailHtml(m, sg) {
+@@ -946,7 +957,10 @@ function buildSgDetailHtml(m, sg) {
      + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
      + '</tr></thead><tbody>';
  
@@ -125,7 +146,7 @@ index c046fe0..03ef307 100644
      if (!a.trackingType)     a.trackingType = 'task';
      if (!a.achieveType)      a.achieveType = 'cum';
      if (!a.habitFreq)        a.habitFreq = 'daily';
-@@ -1045,7 +1054,8 @@ function mdtGoalCellHtml(m, sg, a) {
+@@ -1045,7 +1059,8 @@ function mdtGoalCellHtml(m, sg, a) {
        + '</div>';
    }
    if (tv === 'result') {
@@ -135,7 +156,7 @@ index c046fe0..03ef307 100644
        + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'goalText\',this.value);saveMandalarts();">';
    }
    // 습관형: 목표(윗줄) + 성공기준(아랫줄)
-@@ -1070,10 +1080,13 @@ function mdtPerfCellHtml(m, sg, a) {
+@@ -1070,10 +1085,13 @@ function mdtPerfCellHtml(m, sg, a) {
    var perf = mdtActPerf(a, yr);
    var badge = '<span class="mgt-perf-badge' + (perf.achieved ? ' on' : '') + '">' + (perf.achieved ? '달성' : '진행중') + '</span>';
    if (tv === 'cum') {
@@ -150,7 +171,7 @@ index c046fe0..03ef307 100644
        + '</div>'
        + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
    }
-@@ -1123,7 +1136,13 @@ function buildMdtGridRow(m, sg, a) {
+@@ -1123,7 +1141,13 @@ function buildMdtGridRow(m, sg, a) {
        + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
        + ' onblur="saveActCE(this);saveMandalarts();">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>';
  
@@ -165,7 +186,7 @@ index c046fe0..03ef307 100644
      + '<td class="mgt-td-proj">'
      + '<span contenteditable="true" spellcheck="false" class="mdt-act-title-text"'
      + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '"'
-@@ -1803,5 +1822,7 @@ function mdtActDrop(ev, year, sgId, actId) {
+@@ -1803,5 +1827,7 @@ function mdtActDrop(ev, year, sgId, actId) {
    var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
    sg.actionOrder = tlMoveInOrder(tlGetActionOrder(sg), from, actId, after);
    if (typeof saveMandalarts === 'function') saveMandalarts();

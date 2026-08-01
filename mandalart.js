@@ -346,6 +346,11 @@ function renderSubGoalCard(m, sg) {
   var total = sg.actions.length;
   var color = sg.color;
 
+  // 실적관리(상세)에서 드래그로 바꾼 Project 순서를 메인 그리드에도 동일 반영
+  var orderedActs = tlGetActionOrder(sg).map(function(id){
+    return sg.actions.find(function(a){ return a.id === id; });
+  });
+
   var cells = ACT_MAP.map(function(actIdx) {
     if (actIdx === null) {
       // 중앙 셀: Section 이름 + section별 최종목표 표시 (#2)
@@ -355,7 +360,7 @@ function renderSubGoalCard(m, sg) {
         + (fg ? '<div class="mdt-ic-final mdt-fit-text" data-fit-base="10">'+escMdt(fg)+'</div>' : '')
         + '</div>';
     }
-    var act = sg.actions[actIdx];
+    var act = orderedActs[actIdx];
     if (!act) return '<div class="mdt-inner-cell"></div>';
     // #1: 동그라미/다이아 아이콘 제거, 텍스트만 표시. 완료 시 테마컬러 명도70% 배경.
     var doneCls = act.completed ? ' mdt-proj-done' : '';
