@@ -276,7 +276,7 @@ function renderTaskItem(task) {
 
   const ds = getDueStatus(task.dueDateTime);
   let badges = '';
-  if (task.dueDateTime) badges += '<span class="due-badge '+ds+'">📅 '+formatDueDate(task.dueDateTime, task.hasTime)+'</span>';
+  if (task.dueDateTime) badges += '<span class="due-badge '+ds+'">📅 '+formatDueDate(task.dueDateTime, false)+'</span>';
   if (task.steps && task.steps.length > 0) {
     const done = task.steps.filter(s=>s.completed).length;
     badges += '<span class="due-badge">📝 '+done+'/'+task.steps.length+'</span>';
@@ -721,19 +721,16 @@ function sdpCommitPicker(id, dateStr) {
 function buildPickerHtml(id, dateStr, timeStr) {
   initPicker(id, dateStr, timeStr);
   var s = pickerState[id];
-  var dateDisp = s.dateStr ? formatDateDisplay(s.dateStr) : '';
-  var timeVal  = s.timeStr || '';
 
-  var showClock = (id !== 'dp-reminder');
+  // 날짜 전용: 시간(시계) UI 없음 — 세그먼트 날짜 + 달력 + 지우기
   return '<div class="sdp-wrap" id="sdp-' + id + '">'
     + sdpSegField(id, s.dateStr, 'sdpCommitPicker', "togglePickerCal('" + id + "')")
     + '<div class="sdp-cal-wrap" id="sdp-cal-' + id + '" style="display:none;">'
     + buildPickerCalHtml(id)
     + '</div>'
-    + (showClock
-        ? '<div class="sdp-clock-wrap" id="sdp-clockwrap-' + id + '" style="display:' + (s.dateStr ? 'block' : 'none') + ';">' + buildClockHtml(id) + '</div>'
-        : '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
-          + '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="초기화">✕ 지우기</button></div>')
+    + '<div class="sdp-time-row" id="sdp-timerow-' + id + '" style="display:' + (s.dateStr ? 'flex' : 'none') + ';">'
+    +   '<button class="sdp-clr-btn" onclick="clearPicker(\'' + id + '\')" title="날짜 지우기">✕ 지우기</button>'
+    + '</div>'
     + '</div>';
 }
 
@@ -1079,8 +1076,8 @@ function saveDpDateTimeFromPicker() {
   if (!pv.dateStr) {
     task.dueDateTime = null; task.hasTime = false;
   } else {
-    task.dueDateTime = pv.timeStr ? pv.dateStr + 'T' + pv.timeStr + ':00' : pv.dateStr + 'T09:00:00';
-    task.hasTime = !!pv.timeStr;
+    task.dueDateTime = pv.dateStr + 'T00:00:00';   // 날짜 전용(시간 제거)
+    task.hasTime = false;
   }
   saveTasks(); renderTasks();
   // 행 레이블 업데이트
@@ -1090,7 +1087,7 @@ function saveDpDateTimeFromPicker() {
     if (prev) {
       var lbl = prev.querySelector('.dp-row-label');
       if (lbl) {
-        lbl.textContent = task.dueDateTime ? formatDueDate(task.dueDateTime, task.hasTime) : '마감일 추가';
+        lbl.textContent = task.dueDateTime ? formatDueDate(task.dueDateTime, false) : '마감일 추가';
         lbl.classList.toggle('is-set', !!task.dueDateTime);
       }
       var rmBtn = prev.querySelector('.dp-row-remove');
@@ -1114,7 +1111,7 @@ function buildDetailPanelHTML(task) {
   task.repeat = task.repeat || null;
 
   const startLabel    = task.startDate   ? formatDueDate(task.startDate, false)          : '시작일 설정';
-  const dueLabel      = task.dueDateTime ? formatDueDate(task.dueDateTime, task.hasTime) : '기한 설정';
+  const dueLabel      = task.dueDateTime ? formatDueDate(task.dueDateTime, false) : '기한 설정';
   const reminderLabel = task.reminder    ? formatDueDate(task.reminder, true)             : '알림 설정';
   const repeatLabel   = task.repeat      ? REPEAT_LABELS[task.repeat]                     : '반복 설정';
   if (!Array.isArray(task.assignees)) task.assignees = task.assignee ? [task.assignee] : [];
@@ -1241,7 +1238,7 @@ function buildStepsHtml(task) {
     const ds = hasDate ? getDueStatus(s.dueDateTime) : '';
     const dateBadge = hasDate
       ? '<span class="due-badge step-date-badge ' + ds + '" onclick="event.stopPropagation();toggleStepDateForm(' + s.id + ')">📅 '
-        + formatDueDate(s.dueDateTime, s.hasTime) + '</span>'
+        + formatDueDate(s.dueDateTime, false) + '</span>'
       : '';
     const dateForm = '<div class="dp-sub-form step-date-form" id="dp-step-date-form-' + s.id + '" style="display:none;">'
       + '<input type="hidden" id="step-date-' + s.id + '" value="' + (hasDate ? toDateInputVal(s.dueDateTime) : '') + '">'
@@ -1259,7 +1256,7 @@ function buildStepsHtml(task) {
       + (dateBadge ? '<div class="step-meta">' + dateBadge + '</div>' : '')
       + '</div>'
       + '<button class="step-cal-btn' + (hasDate ? ' has-date' : '') + '" onclick="event.stopPropagation();toggleStepDateForm(' + s.id + ')" title="기한 설정">'
-      + (hasDate ? '📅 ' + formatDueDate(s.dueDateTime, s.hasTime) : '📅 기한')
+      + (hasDate ? '📅 ' + formatDueDate(s.dueDateTime, false) : '📅 기한')
       + '</button>'
       + '<button class="step-delete" onclick="deleteStep(' + task.id + ',' + s.id + ')">✕</button></div>'
       + dateForm;
@@ -2447,7 +2444,7 @@ function rpSaveStepDate(stepId) {
   var btn = document.querySelector('#rp-step-' + stepId + ' .step-cal-btn');
   if (btn) {
     btn.classList.toggle('has-date', !!s.dueDateTime);
-    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, s.hasTime) : '📅';
+    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, false) : '📅';
   }
 }
 
@@ -2472,7 +2469,7 @@ function rpSaveStepFromPicker(id) {
   var btn = document.querySelector('#rp-step-' + stepId + ' .step-cal-btn');
   if (btn) {
     btn.classList.toggle('has-date', !!s.dueDateTime);
-    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, s.hasTime) : '📅';
+    btn.innerHTML = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, false) : '📅';
   }
 }
 
