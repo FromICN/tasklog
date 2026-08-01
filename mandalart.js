@@ -116,6 +116,7 @@ function loadMandalarts() {
             if (!Array.isArray(a.quarters))   a.quarters = defaultMdtQuarters();
             // 달성형 세분 (누적형 cum / 실적형 result), 습관형 세분 (일간 daily / 주간 weekly)
             if (!a.achieveType) a.achieveType = 'cum';
+            if (!a.resultCompare) a.resultCompare = 'gte';   // 실적형 달성기준: 이상(gte)/이하(lte)
             if (!a.habitFreq)   a.habitFreq = 'daily';
             if (a.goalText === undefined) a.goalText = '';
             if (a.evalIndicators === undefined) a.evalIndicators = '';
@@ -204,7 +205,7 @@ function ensureMdtData(year) {
         smart: { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'' },
         notes: '',
         actions: Array.from({length:8}, function(_, j) {
-          return { id: j+1, text: '', completed: false, trackingType: 'task', achieveType: 'cum', habitFreq: 'daily', successThreshold: 80, habitWeeklyTarget: 1, habitLog: {}, resultMonths: {}, annualTarget: 0, annualUnit: '', cumActual: 0, goalText: '', evalIndicators: '', quarters: defaultMdtQuarters() };
+          return { id: j+1, text: '', completed: false, trackingType: 'task', achieveType: 'cum', resultCompare: 'gte', habitFreq: 'daily', successThreshold: 80, habitWeeklyTarget: 1, habitLog: {}, resultMonths: {}, annualTarget: 0, annualUnit: '', cumActual: 0, goalText: '', evalIndicators: '', quarters: defaultMdtQuarters() };
         })
       };
     })
@@ -928,17 +929,22 @@ function buildSgDetailHtml(m, sg) {
     + '</div>'
     + '</div>'
     // 섹션 헤더 + 연간목표 실적 요약
-    + '<div class="mdt-detail-hero" style="border-left:4px solid '+sg.color+';padding:12px 14px;margin-bottom:12px;background:var(--bg);border-radius:10px;">'
-    +   '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
-    +     '<span style="font-size:22px;">'+sg.emoji+'</span>'
-    +     '<span style="font-size:15px;font-weight:700;color:'+sg.color+';">'+escMdt(sg.text || ('Section '+sg.id))+'</span>'
-    +     '<span style="margin-left:auto;font-size:12px;color:var(--text-1);white-space:nowrap;">'+m.year+' 연간 실적 <b>'+perf.pct+'%</b> ('+perf.done+'/'+perf.total+')</span>'
+    // [개선1] 가로 4등분: 왼쪽 1/4 = 이모지+SECTION명 / 나머지 3/4 = 진행현황 바 · 연간실적 % · 달성현황
+    + '<div class="mdt-detail-hero mdt-detail-hero--split" style="border-left:4px solid '+sg.color+';">'
+    +   '<div class="mdt-hero-title">'
+    +     '<span class="mdt-hero-emoji">'+sg.emoji+'</span>'
+    +     '<span class="mdt-hero-name" style="color:'+sg.color+';">'+escMdt(sg.text || ('Section '+sg.id))+'</span>'
     +   '</div>'
-    +   '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:'+perf.pct+'%;background:'+sg.color+';"></div></div>'
+    +   '<div class="mdt-hero-perf">'
+    +     '<div class="mdt-perf-dash-bar mdt-hero-bar"><div class="mdt-perf-dash-fill" style="width:'+perf.pct+'%;background:'+sg.color+';"></div></div>'
+    +     '<span class="mdt-hero-pct">'+m.year+' 연간 실적 <b>'+perf.pct+'%</b></span>'
+    +     '<span class="mdt-hero-count">달성 '+perf.done+'/'+perf.total+'</span>'
+    +   '</div>'
     + '</div>'
     + '<div class="mdt-grid-table-wrap">'
     + '<table class="mdt-grid-table">'
     + '<thead><tr>'
+    + '<th class="mgt-th-drag"></th>'
     + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
     + '<th class="mgt-th-type" data-cr-key="type">유형</th>'
     + '<th class="mgt-th-goal" data-cr-key="goal">목표(관리지표)</th>'
@@ -946,7 +952,10 @@ function buildSgDetailHtml(m, sg) {
     + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
     + '</tr></thead><tbody>';
 
-  sg.actions.forEach(function(a) {
+  // [개선2] 드래그 순서(actionOrder)대로 Project 행 렌더 — SECTION 내 순서 변경 지원
+  tlGetActionOrder(sg).forEach(function(actId) {
+    var a = sg.actions.find(function(x){ return x.id === actId; });
+    if (!a) return;
     if (!a.trackingType)     a.trackingType = 'task';
     if (!a.achieveType)      a.achieveType = 'cum';
     if (!a.habitFreq)        a.habitFreq = 'daily';
@@ -1045,8 +1054,18 @@ function mdtGoalCellHtml(m, sg, a) {
       + '</div>';
   }
   if (tv === 'result') {
-    return '<input type="text" class="mgt-text-inp" value="' + escMdt(a.goalText || '') + '" placeholder="목표 (12월 달성 여부로 판단)"'
-      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'goalText\',this.value);saveMandalarts();">';
+    // [개선3] 누적형처럼 목표값 입력 + 단위 + 이상/이하 선택 (월별 달성여부는 달성현황에서 선택)
+    var cmp = (a.resultCompare === 'lte') ? 'lte' : 'gte';
+    return '<div class="mgt-goal-cum">'
+      + '<input type="number" class="mdt-annual-target-inp" value="' + (+a.annualTarget || 0) + '" min="0"'
+      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value);saveMandalarts();" title="목표값">'
+      + '<input type="text" class="mdt-annual-unit-inp" value="' + escMdt(a.annualUnit || '') + '" placeholder="단위"'
+      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value);saveMandalarts();">'
+      + '<select class="mgt-cmp-sel" onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'resultCompare\',this.value);saveMandalarts();" title="달성 기준">'
+      +   '<option value="gte"' + (cmp === 'gte' ? ' selected' : '') + '>이상</option>'
+      +   '<option value="lte"' + (cmp === 'lte' ? ' selected' : '') + '>이하</option>'
+      + '</select>'
+      + '</div>';
   }
   // 습관형: 목표(윗줄) + 성공기준(아랫줄)
   if (tv === 'weekly') {
@@ -1070,10 +1089,13 @@ function mdtPerfCellHtml(m, sg, a) {
   var perf = mdtActPerf(a, yr);
   var badge = '<span class="mgt-perf-badge' + (perf.achieved ? ' on' : '') + '">' + (perf.achieved ? '달성' : '진행중') + '</span>';
   if (tv === 'cum') {
+    // [개선5] 횟수 입력 상자 옆 "누적 N회" 문구 제거 — 목표 대비 % 만 간결히 표시
+    var _tgt = +a.annualTarget || 0, _unit = a.annualUnit ? (' ' + escMdt(a.annualUnit)) : '';
+    var cumLabel = _tgt > 0 ? ('목표 ' + _tgt + _unit + ' · ' + perf.pct + '%') : (perf.pct + '%');
     return '<div class="mgt-perf-cum">'
       + '<input type="number" class="mdt-annual-target-inp" value="' + (+a.cumActual || 0) + '" min="0" title="누적 실적"'
       + ' onchange="mdtSaveCum(' + yr + ',' + sgId + ',' + a.id + ',this.value)">'
-      + '<span class="mgt-perf-label">' + escMdt(perf.label) + '</span>'
+      + '<span class="mgt-perf-label">' + cumLabel + '</span>'
       + '</div>'
       + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
   }
@@ -1123,7 +1145,13 @@ function buildMdtGridRow(m, sg, a) {
       + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
       + ' onblur="saveActCE(this);saveMandalarts();">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>';
 
-  var html = '<tr class="mgt-row" id="mdt-grid-row-' + yr + '-' + sgId + '-' + a.id + '">'
+  var html = '<tr class="mgt-row tl-dnd-row" id="mdt-grid-row-' + yr + '-' + sgId + '-' + a.id + '"'
+    + ' ondragover="mdtActDragOver(event,' + a.id + ')" ondragleave="tlDragLeave(event)" ondrop="mdtActDrop(event,' + yr + ',' + sgId + ',' + a.id + ')">'
+    + '<td class="mgt-td-drag">'
+    + '<span class="tl-drag-handle" draggable="true" title="드래그해 Project 순서 변경"'
+    + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
+    + ' ondragstart="mdtActDragStart(event,' + a.id + ')" ondragend="tlDragEnd(event)">\u283F</span>'
+    + '</td>'
     + '<td class="mgt-td-proj">'
     + '<span contenteditable="true" spellcheck="false" class="mdt-act-title-text"'
     + ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '"'
@@ -1803,5 +1831,7 @@ function mdtActDrop(ev, year, sgId, actId) {
   var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
   sg.actionOrder = tlMoveInOrder(tlGetActionOrder(sg), from, actId, after);
   if (typeof saveMandalarts === 'function') saveMandalarts();
-  if (typeof renderMdtPerfPanel === 'function') renderMdtPerfPanel(year);
+  // 세부 실적관리 그리드가 열려 있으면 그리드를 다시 그림, 아니면 실적 패널 갱신
+  if (document.querySelector('.mdt-grid-table')) { if (typeof openSgDetail === 'function') openSgDetail(year, sgId); }
+  else if (typeof renderMdtPerfPanel === 'function') renderMdtPerfPanel(year);
 }
