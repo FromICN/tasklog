@@ -585,8 +585,13 @@ function jnlwEvDown(e, taskId, stepId, srcAllday) {
   var grabLin = 0, origStartLin = 0;
   if (!srcAllday) {
     var col = el.closest('.jnlw-daycol');
-    if (col) { origStartLin = jnlwClockToLin(new Date(obj.wdLogAt).getHours(), new Date(obj.wdLogAt).getMinutes());
-      grabLin = jnlwLinAt(col.getBoundingClientRect(), e.clientY) - origStartLin; }
+    if (col) {
+      // 시작 위치(분)는 실제 배치정보로 계산 — wdLogAt이 없을 수 있음(완료 직후/Task에서 완료일 수정 → completedAt만 존재)
+      var infoD = jnlItemLogInfo(obj);
+      var eff = (infoD && infoD.date) ? infoD.date : (obj.wdLogAt ? new Date(obj.wdLogAt) : null);
+      origStartLin = eff ? jnlwClockToLin(eff.getHours(), eff.getMinutes()) : 0;
+      grabLin = jnlwLinAt(col.getBoundingClientRect(), e.clientY) - origStartLin;
+    }
   }
   _jnlwPtr = { mode: 'move', taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj, el: el,
     x0: e.clientX, y0: e.clientY, moved: false, srcAllday: srcAllday,
@@ -603,11 +608,12 @@ function jnlwRzDown(e, edge, taskId, stepId) {
   e.stopPropagation();
   if (e.button != null && e.button !== 0) return;
   var obj = jnlFindObj(taskId, (stepId === 'null') ? null : stepId);
-  if (!obj || !obj.wdTimed) return;
+  var info = obj ? jnlItemLogInfo(obj) : null;
+  if (!obj || !info || !info.timed || !info.date) return;   // completedAt로 timed인 항목도 리사이즈 허용
   var block = e.currentTarget.closest('.jnlw-ev');
   var col = block ? block.closest('.jnlw-daycol') : null;
   if (!col) return;
-  var d = new Date(obj.wdLogAt);
+  var d = info.date;                                         // wdLogAt이 없어도 실제 배치 시각 사용
   var startLin = jnlwClockToLin(d.getHours(), d.getMinutes());
   var endLin = Math.min(1440, startLin + Math.max(JNLW_MIN_DUR, obj.wdDurMin || 60));
   _jnlwPtr = { mode: 'resize', edge: edge, taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj,

@@ -2470,6 +2470,14 @@ function rpSaveStepText(stepId, el) {
   if (prev && !isNaN(prev.getTime())) base.setHours(prev.getHours(), prev.getMinutes(), prev.getSeconds(), 0);
   s.completedAt = base.toISOString();
 
+  // Work Diary 그리드 배치(wdLogAt)도 같은 날짜로 이동 — 그리드 시각(시:분)은 유지 → 어느 화면에서 수정하든 상호 동기화
+  if (s.wdLogAt) {
+    var wl = new Date(s.wdLogAt);
+    if (!isNaN(wl.getTime())) {
+      s.wdLogAt = new Date(2000 + yy, mo - 1, da, wl.getHours(), wl.getMinutes(), wl.getSeconds(), 0).toISOString();
+    }
+  }
+
   rpState.dirty = true;
   rpRefreshSteps();   // 툴팁(전체 일시)·표시 갱신
 }
