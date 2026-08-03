@@ -114,11 +114,13 @@ function getTaskProgress(task) {
   return Math.round(steps.filter(function(s){ return s.completed; }).length / steps.length * 100);
 }
 
-// ── Gantt: Task별 to-do 펼침 상태 (기본 접힘) ──
+// ── Gantt: Task별 to-do 펼침 상태 (기본 펼침) ──
 var _ganttOpen = {};
+// 기본값은 '펼침'. 명시적으로 false 로 저장된 경우에만 접힘.
+function ganttIsOpen(id) { return _ganttOpen[id] !== false; }
 function ganttToggleTask(id, ev) {
   if (ev) ev.stopPropagation();
-  _ganttOpen[id] = !_ganttOpen[id];
+  _ganttOpen[id] = ganttIsOpen(id) ? false : true;
   if (document.getElementById('gantt-body') && typeof renderHomeGanttMini === 'function') renderHomeGanttMini();
   if (document.querySelector('.gantt-page') && typeof renderGanttView === 'function') renderGanttView();
 }
@@ -278,7 +280,7 @@ function renderGanttView() {
     var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
     if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
 
-    var _open = !!_ganttOpen[task.id];
+    var _open = ganttIsOpen(task.id);
     var _hasSteps = (task.steps || []).length > 0;
     var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel(' + task.id + ')">'
       + '<div class="gm-left">'

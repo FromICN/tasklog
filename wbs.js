@@ -214,7 +214,7 @@ function wbsDueCol(task) {
 }
 
 // ── 컬럼 정렬/필터 상태 ──
-var _wbsSort = { key: null, dir: 'asc' };      // key: 'item' | 'start' | 'due' | 'status'
+var _wbsSort = { key: 'due', dir: 'asc' };      // key: 'item' | 'start' | 'due' | 'status' — 기본: DUE 오름차순
 var _wbsColFilters = {};                        // { key: { '값': true(제외) } }
 var _wbsTitleFilter = {};                        // { sectionKey: true(숨김) } — 제목(Section) 표시 항목 필터
 var _wbsFilterOpen = null;

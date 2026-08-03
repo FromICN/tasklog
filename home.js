@@ -532,11 +532,22 @@ function renderHomeGanttMini() {
     return false;
   });
 
-  // 마감일 임박 순 정렬 (마감일 없음 = 맨 뒤)
+  // 정렬 기준: 완료되지 않은 To Do 중 마감일이 가장 빠른 순.
+  // (미완 To Do 마감일이 없으면 Task 자체 마감일, 그것도 없으면 맨 뒤)
+  function _earliestOpenTodoDue(t) {
+    var steps = t.steps || [];
+    var min = Infinity;
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      if (s.completed || !s.dueDateTime) continue;
+      var ms = new Date(s.dueDateTime).getTime();
+      if (!isNaN(ms) && ms < min) min = ms;
+    }
+    if (min === Infinity) min = t.dueDateTime ? new Date(t.dueDateTime).getTime() : Infinity;
+    return min;
+  }
   vis = vis.slice().sort(function(a, b) {
-    var va = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
-    var vb = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
-    return va - vb;
+    return _earliestOpenTodoDue(a) - _earliestOpenTodoDue(b);
   });
 
   var navHtml = '<div class="gm-nav">'
@@ -595,7 +606,7 @@ function renderHomeGanttMini() {
     var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
     if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
 
-    var _open = !!_ganttOpen[task.id];
+    var _open = (typeof ganttIsOpen === 'function') ? ganttIsOpen(task.id) : (_ganttOpen[task.id] !== false);
     var _hasSteps = (task.steps || []).length > 0;
     var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
       + '<div class="gm-left">'
@@ -637,7 +648,8 @@ function renderHomeGanttMini() {
 function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
   var steps = task.steps || [];
   if (!steps.length) return '';
-  if (typeof _ganttOpen !== 'undefined' && !_ganttOpen[task.id]) return '';   // 기본 접힘
+  if (typeof ganttIsOpen === 'function' ? !ganttIsOpen(task.id)
+      : (typeof _ganttOpen !== 'undefined' && _ganttOpen[task.id] === false)) return '';   // 기본 펼침
   var shown = steps.slice(0, GM_MAX_SUBROWS);
   var html = shown.map(function(step) {
     var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;
@@ -652,7 +664,11 @@ function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
       + '</div>'
       + '<div class="gm-grid">'
       + bgCellsHtml
-      + (hasDot ? '<div class="gm-sub-dot" style="left:'+leftPct.toFixed(3)+'%;background:'+color+';"></div>' : '')
+      + (hasDot
+          ? (step.completed
+              ? '<div class="gm-sub-dot done" style="left:'+leftPct.toFixed(3)+'%;color:'+color+';" title="'+hwEsc(label)+'">✓</div>'
+              : '<div class="gm-sub-dot" style="left:'+leftPct.toFixed(3)+'%;background:'+color+';"></div>')
+          : '')
       + '</div>'
       + '</div>';
   }).join('');

@@ -99,6 +99,110 @@ function nbDueToIso(dueDate, dueTime) {
 }
 
 // ============================================
+//  🔍 Web 검색 · 섹션 필터 (WBS 검색/필터와 동일 방식)
+// ============================================
+var _notesSearch = '';
+var _notesSearchOpen = false;
+var _notesSecFilter = {};   // { sectionKey: true(숨김) }
+
+function notesMatchesSearch(text) {
+  if (!_notesSearch) return true;
+  return String(text || '').toLowerCase().indexOf(_notesSearch.toLowerCase()) !== -1;
+}
+function notesTaskSectionKey(task) {
+  if (typeof wbsTaskSectionKey === 'function') return wbsTaskSectionKey(task);
+  var sg = (task.mdtGoal && task.mdtGoal.sgId) || (task.mdtAction && task.mdtAction.sgId) || null;
+  return (sg != null) ? String(sg) : '_';
+}
+function notesSectionLabel(task) {
+  var sg = (task.mdtGoal && task.mdtGoal.sgId) || (task.mdtAction && task.mdtAction.sgId) || null;
+  var yr = (task.mdtGoal && task.mdtGoal.year) || (task.mdtAction && task.mdtAction.year) || null;
+  if (sg != null && typeof wbsGoalText === 'function') return wbsGoalText(sg, task.lwSectionName || 'Section', yr);
+  return task.lwSectionName || '📂 미분류';
+}
+function notesTaskPassesSecFilter(task) { return !_notesSecFilter[notesTaskSectionKey(task)]; }
+
+// 현재 Web 화면(미완료 Task/To Do)에 존재하는 섹션 목록
+function notesDistinctSections() {
+  var present = {};
+  var pushT = function(t){ present[notesTaskSectionKey(t)] = notesSectionLabel(t); };
+  getActiveTasks().forEach(pushT);
+  getActiveSteps().forEach(function(e){ pushT(e.task); });
+  var keys = Object.keys(present);
+  keys.sort(function(a, b){
+    if (a === '_') return 1; if (b === '_') return -1;
+    return (+a) - (+b);
+  });
+  return keys.map(function(k){ return { key: k, label: (k === '_') ? '📂 미분류' : present[k] }; });
+}
+
+function notesSetSearch(val) { _notesSearch = (val || '').trim(); renderNoteBoard(); }
+function notesToggleSearch(ev) {
+  if (ev) ev.stopPropagation();
+  _notesSearchOpen = !_notesSearchOpen;
+  renderNotesTools();
+  if (_notesSearchOpen) setTimeout(function(){ var i = document.getElementById('notes-search-inp'); if (i) i.focus(); }, 30);
+}
+function notesToggleSecFilterVal(key, ev) {
+  if (ev) ev.stopPropagation();
+  if (_notesSecFilter[key]) delete _notesSecFilter[key];
+  else _notesSecFilter[key] = true;
+  renderNoteBoard();
+  renderNotesTools();
+}
+function notesSecFilterAll(on, ev) {
+  if (ev) ev.stopPropagation();
+  _notesSecFilter = {};
+  if (!on) notesDistinctSections().forEach(function(s){ _notesSecFilter[s.key] = true; });
+  renderNoteBoard();
+  renderNotesTools();
+}
+function notesSecFilterPanelHtml() {
+  var secs = notesDistinctSections();
+  if (!secs.length) return '';
+  var items = secs.map(function(s){
+    var checked = _notesSecFilter[s.key] ? '' : ' checked';
+    return '<label class="todo-colpick-item"><input type="checkbox"' + checked
+      + ' onclick="event.stopPropagation();" onchange="notesToggleSecFilterVal(\'' + s.key + '\',event)">'
+      + '<span>' + escNb(s.label) + '</span></label>';
+  }).join('');
+  return '<div class="wbs-titlefilter">'
+    + '<div class="wbs-titlefilter-head"><span>표시 항목(Section)</span>'
+    +   '<span class="wbs-tf-actions">'
+    +     '<button onclick="notesSecFilterAll(true,event)">전체</button>'
+    +     '<button onclick="notesSecFilterAll(false,event)">해제</button>'
+    +   '</span></div>'
+    + '<div class="wbs-titlefilter-list">' + items + '</div>'
+    + '</div>';
+}
+function renderNotesTools() {
+  var slot = document.getElementById('topbar-mdt-year-slot');
+  if (!slot) return;
+  var _icon = (typeof BD_FILTER_ICON !== 'undefined') ? BD_FILTER_ICON : '🔍';
+  var _active = _notesSearchOpen || _notesSearch || Object.keys(_notesSecFilter).length > 0;
+  var _sval = escNb(_notesSearch).replace(/"/g, '&quot;');
+  slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
+    + '<button class="bd-colpick-btn' + (_active ? ' on' : '') + '" id="notes-search-btn" title="검색 · 필터" onclick="notesToggleSearch(event)">'
+    + _icon + '</button>'
+    + (_notesSearchOpen
+        ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+          + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="notes-search-inp" placeholder="Memo · Task · To Do 검색"'
+          + ' value="' + _sval + '" oninput="notesSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
+          + notesSecFilterPanelHtml()
+          + '</div>'
+        : '')
+    + '</div>';
+}
+document.addEventListener('click', function(e) {
+  if (!_notesSearchOpen) return;
+  var btn = document.getElementById('notes-search-btn');
+  var pnl = document.querySelector('#topbar-mdt-year-slot .bd-colpick-panel');
+  if ((btn && btn.contains(e.target)) || (pnl && pnl.contains(e.target))) return;
+  _notesSearchOpen = false;
+  renderNotesTools();
+});
+
+// ============================================
 //  화면 렌더
 // ============================================
 function renderNotesView() {
@@ -118,6 +222,7 @@ function renderNotesView() {
     + buildNbColumn('step', 'To Do', '미완료 To Do가 모두 표시돼요')
     + '</div>'
     + '</div>';
+  renderNotesTools();
   renderNoteBoard();
   setTimeout(function(){ var ta=document.getElementById('nb-input'); if(ta) ta.focus(); }, 50);
 }
@@ -133,14 +238,18 @@ function buildNbColumn(type, title, hint) {
 
 function renderNoteBoard() {
   removeStepPickers();
-  // Archiving (메모)
-  var memos = getArchivingNotes();
+  // Archiving (메모) — 검색 적용
+  var memos = getArchivingNotes().filter(function(n){ return notesMatchesSearch(n.text); });
   _nbFillColumn('memo', memos.length, memos.map(function(n){ return buildMemoCard(n); }).join(''));
-  // TASK
-  var actTasks = getActiveTasks();
+  // TASK — 섹션 필터 + 검색 적용
+  var actTasks = getActiveTasks().filter(function(t){
+    return notesTaskPassesSecFilter(t) && notesMatchesSearch(t.text);
+  });
   _nbFillColumn('task', actTasks.length, actTasks.map(function(t){ return buildTaskCard(t); }).join(''));
-  // TO DO
-  var actSteps = getActiveSteps();
+  // TO DO — 상위 Task 섹션 필터 + 검색(To Do 또는 상위 Task명) 적용
+  var actSteps = getActiveSteps().filter(function(e){
+    return notesTaskPassesSecFilter(e.task) && (notesMatchesSearch(e.step.text) || notesMatchesSearch(e.task.text));
+  });
   _nbFillColumn('step', actSteps.length, actSteps.map(function(e){ return buildStepCard(e.task, e.step); }).join(''));
 }
 

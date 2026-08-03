@@ -492,26 +492,17 @@ function buildBoardTable() {
       + '</table></div>';
   }
 
-  var isDoneEntry = function(e){ return e.step ? e.step.completed : e.task.completed; };
-  var active    = visible.filter(function(e){ return !isDoneEntry(e); });
-  var completed = visible.filter(isDoneEntry);
-
+  // 완료 항목 별도 구분 없이 미완 항목들과 함께 표시
   // 기본 정렬: 마감일 임박 순 (마감일 없음 = 맨 뒤)
-  var activeSorted = _boardSort.key
-    ? boardApplySort(active)
-    : active.slice().sort(function(a, b) {
+  var allSorted = _boardSort.key
+    ? boardApplySort(visible)
+    : visible.slice().sort(function(a, b) {
         var va = boardEntryDue(a) ? new Date(boardEntryDue(a)).getTime() : Infinity;
         var vb = boardEntryDue(b) ? new Date(boardEntryDue(b)).getTime() : Infinity;
         return va - vb;
       });
 
-  var body = activeSorted.map(buildBoardRow).join('');
-
-  // 완료 항목: 하단 "완료됨" 그룹 (기본 접힘)
-  if (completed.length > 0) {
-    var cs = _boardSort.key ? boardApplySort(completed) : completed;
-    body += buildTodoGroupRows('board-completed', '완료됨', 'var(--text-2)', cs, true, boardVisibleCols().length, buildBoardRow);
-  }
+  var body = allSorted.map(buildBoardRow).join('');
 
   return '<div class="todo-table-wrap">'
     + '<table class="todo-table bd-table">' + head

@@ -345,7 +345,10 @@ function jnlCollectWeekGridItems(weekKey) {
       type: type, taskId: task.id, stepId: (type === 'todo') ? obj.id : null,
       text: jnlCleanText(obj.text),
       taskText: (type === 'todo') ? jnlCleanText(task.text) : '',   // 상위 Task명
-      color: eiColors[task.eisenhower] || 'var(--brand-primary)',
+      // 왼쪽 컬러: task 우선순위 색이 아니라, 상위 project 의 section 테마 색
+      color: (typeof getGanttColor === 'function')
+        ? getGanttColor(task)
+        : (eiColors[task.eisenhower] || 'var(--brand-primary)'),
       day: di, timed: info.timed, hour: info.date.getHours(), min: info.date.getMinutes(), dt: info.date
     };
     if (info.timed) {

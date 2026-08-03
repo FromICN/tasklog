@@ -1,0 +1,417 @@
+diff --git a/gantt.js b/gantt.js
+index 5266e81..51109bf 100644
+--- a/gantt.js
++++ b/gantt.js
+@@ -114,11 +114,13 @@ function getTaskProgress(task) {
+   return Math.round(steps.filter(function(s){ return s.completed; }).length / steps.length * 100);
+ }
+ 
+-// ── Gantt: Task별 to-do 펼침 상태 (기본 접힘) ──
++// ── Gantt: Task별 to-do 펼침 상태 (기본 펼침) ──
+ var _ganttOpen = {};
++// 기본값은 '펼침'. 명시적으로 false 로 저장된 경우에만 접힘.
++function ganttIsOpen(id) { return _ganttOpen[id] !== false; }
+ function ganttToggleTask(id, ev) {
+   if (ev) ev.stopPropagation();
+-  _ganttOpen[id] = !_ganttOpen[id];
++  _ganttOpen[id] = ganttIsOpen(id) ? false : true;
+   if (document.getElementById('gantt-body') && typeof renderHomeGanttMini === 'function') renderHomeGanttMini();
+   if (document.querySelector('.gantt-page') && typeof renderGanttView === 'function') renderGanttView();
+ }
+@@ -278,7 +280,7 @@ function renderGanttView() {
+     var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
+     if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
+ 
+-    var _open = !!_ganttOpen[task.id];
++    var _open = ganttIsOpen(task.id);
+     var _hasSteps = (task.steps || []).length > 0;
+     var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel(' + task.id + ')">'
+       + '<div class="gm-left">'
+diff --git a/home.js b/home.js
+index bff947a..7c9d3ad 100644
+--- a/home.js
++++ b/home.js
+@@ -532,11 +532,22 @@ function renderHomeGanttMini() {
+     return false;
+   });
+ 
+-  // 마감일 임박 순 정렬 (마감일 없음 = 맨 뒤)
++  // 정렬 기준: 완료되지 않은 To Do 중 마감일이 가장 빠른 순.
++  // (미완 To Do 마감일이 없으면 Task 자체 마감일, 그것도 없으면 맨 뒤)
++  function _earliestOpenTodoDue(t) {
++    var steps = t.steps || [];
++    var min = Infinity;
++    for (var i = 0; i < steps.length; i++) {
++      var s = steps[i];
++      if (s.completed || !s.dueDateTime) continue;
++      var ms = new Date(s.dueDateTime).getTime();
++      if (!isNaN(ms) && ms < min) min = ms;
++    }
++    if (min === Infinity) min = t.dueDateTime ? new Date(t.dueDateTime).getTime() : Infinity;
++    return min;
++  }
+   vis = vis.slice().sort(function(a, b) {
+-    var va = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity;
+-    var vb = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity;
+-    return va - vb;
++    return _earliestOpenTodoDue(a) - _earliestOpenTodoDue(b);
+   });
+ 
+   var navHtml = '<div class="gm-nav">'
+@@ -595,7 +606,7 @@ function renderHomeGanttMini() {
+     var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
+     if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
+ 
+-    var _open = !!_ganttOpen[task.id];
++    var _open = (typeof ganttIsOpen === 'function') ? ganttIsOpen(task.id) : (_ganttOpen[task.id] !== false);
+     var _hasSteps = (task.steps || []).length > 0;
+     var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
+       + '<div class="gm-left">'
+@@ -637,7 +648,8 @@ function renderHomeGanttMini() {
+ function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
+   var steps = task.steps || [];
+   if (!steps.length) return '';
+-  if (typeof _ganttOpen !== 'undefined' && !_ganttOpen[task.id]) return '';   // 기본 접힘
++  if (typeof ganttIsOpen === 'function' ? !ganttIsOpen(task.id)
++      : (typeof _ganttOpen !== 'undefined' && _ganttOpen[task.id] === false)) return '';   // 기본 펼침
+   var shown = steps.slice(0, GM_MAX_SUBROWS);
+   var html = shown.map(function(step) {
+     var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;
+@@ -652,7 +664,11 @@ function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
+       + '</div>'
+       + '<div class="gm-grid">'
+       + bgCellsHtml
+-      + (hasDot ? '<div class="gm-sub-dot" style="left:'+leftPct.toFixed(3)+'%;background:'+color+';"></div>' : '')
++      + (hasDot
++          ? (step.completed
++              ? '<div class="gm-sub-dot done" style="left:'+leftPct.toFixed(3)+'%;color:'+color+';" title="'+hwEsc(label)+'">✓</div>'
++              : '<div class="gm-sub-dot" style="left:'+leftPct.toFixed(3)+'%;background:'+color+';"></div>')
++          : '')
+       + '</div>'
+       + '</div>';
+   }).join('');
+diff --git a/index.html b/index.html
+index d5d8766..ed9156d 100644
+--- a/index.html
++++ b/index.html
+@@ -7,7 +7,7 @@
+   <link rel="icon" type="image/svg+xml" href="tasklog-icon.svg">
+   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+-  <link rel="stylesheet" href="style.css?v=20260801c">
++  <link rel="stylesheet" href="style.css?v=20260803a">
+   <link rel="stylesheet" href="profile-modal.css?v=20260722">
+   <link rel="stylesheet" href="login.css?v=20260720b">
+   <script>
+@@ -143,20 +143,20 @@
+ <script src="backup-xlsx.js?v=20260722"></script>
+ <script src="auth.js?v=20260722"></script>
+ <script src="calendar.js?v=20260731a"></script>
+-<script src="mandalart.js?v=20260801d"></script>
++<script src="mandalart.js?v=20260803a"></script>
+ <script src="lifewheel.js?v=20260722"></script>
+-<script src="home.js?v=20260722"></script>
++<script src="home.js?v=20260803a"></script>
+ <script src="calpage.js?v=20260730"></script>
+-<script src="gantt.js?v=20260722"></script>
+-<script src="notes.js?v=20260722"></script>
+-<script src="journal.js?v=20260801b"></script>
+-<script src="wbs.js?v=20260722"></script>
++<script src="gantt.js?v=20260803a"></script>
++<script src="notes.js?v=20260803a"></script>
++<script src="journal.js?v=20260803a"></script>
++<script src="wbs.js?v=20260803a"></script>
+ <script src="mvv.js?v=20260722"></script>
+ <script src="settings.js?v=20260722"></script>
+ <script src="drive.js?v=20260722"></script>
+-<script src="todo.js?v=20260722"></script>
++<script src="todo.js?v=20260803a"></script>
+ <script src="yearsync.js?v=20260722"></script>
+-<script src="script.js?v=20260801d"></script>
++<script src="script.js?v=20260803a"></script>
+ 
+ </body>
+ </html>
+diff --git a/journal.js b/journal.js
+index 952b730..d382677 100644
+--- a/journal.js
++++ b/journal.js
+@@ -345,7 +345,10 @@ function jnlCollectWeekGridItems(weekKey) {
+       type: type, taskId: task.id, stepId: (type === 'todo') ? obj.id : null,
+       text: jnlCleanText(obj.text),
+       taskText: (type === 'todo') ? jnlCleanText(task.text) : '',   // 상위 Task명
+-      color: eiColors[task.eisenhower] || 'var(--brand-primary)',
++      // 왼쪽 컬러: task 우선순위 색이 아니라, 상위 project 의 section 테마 색
++      color: (typeof getGanttColor === 'function')
++        ? getGanttColor(task)
++        : (eiColors[task.eisenhower] || 'var(--brand-primary)'),
+       day: di, timed: info.timed, hour: info.date.getHours(), min: info.date.getMinutes(), dt: info.date
+     };
+     if (info.timed) {
+diff --git a/mandalart.js b/mandalart.js
+index 96535a4..255b0c1 100644
+--- a/mandalart.js
++++ b/mandalart.js
+@@ -1108,12 +1108,10 @@ function mdtPerfCellHtml(m, sg, a) {
+       +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
+       + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
+   }
+-  // 주간: 실적바 클릭 시 캘린더 드롭다운(열림 상태 유지)
+-  var calOpen = !!_mdtHabitCalOpen[yr + '-' + sgId + '-' + a.id];
+-  return '<div class="mdt-perf-dash-bar mgt-hb-bar" title="' + barTitle + '"'
+-    +   ' onclick="mdtToggleHabitCal(' + yr + ',' + sgId + ',' + a.id + ')">'
++  // 주간: 캘린더 항상 표시 (일간과 동일하게 토글 없이 상시 노출)
++  return '<div class="mdt-perf-dash-bar mgt-hb-bar mgt-hb-bar--static" title="' + barTitle + '">'
+     +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
+-    + '<div class="mgt-perf-cal' + (calOpen ? '' : ' is-collapsed') + '" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
++    + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
+ }
+ 
+ // 습관형 달성현황: 실적바 클릭 시 캘린더 드롭다운(열림 상태 유지)
+@@ -1295,7 +1293,8 @@ function buildHabitCalendar(year, sgId, a) {
+   // 공용 셀 스타일
+   var S_GRID = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:4px;';
+   var S_DOW  = 'font-size:9px;text-align:center;color:var(--text-3);padding:1px 0;';
+-  var S_CELL_BASE = 'aspect-ratio:1/1;border-radius:4px;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;color:var(--text-2);background:var(--surface);';
++  // 세로 높이를 기존(정사각형)의 50%로 축소: aspect-ratio 2/1 (너비:높이 = 2:1)
++  var S_CELL_BASE = 'aspect-ratio:2/1;border-radius:4px;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;color:var(--text-2);background:var(--surface);';
+   var S_DONE   = 'background:rgba(139,92,246,0.3);color:#a78bfa;font-weight:700;';
+   var S_TODAY  = 'outline:1.5px solid rgba(139,92,246,0.65);';
+   var S_FUTURE = 'opacity:0.25;pointer-events:none;';
+diff --git a/notes.js b/notes.js
+index 8857d41..0ca1c78 100644
+--- a/notes.js
++++ b/notes.js
+@@ -98,6 +98,110 @@ function nbDueToIso(dueDate, dueTime) {
+   return dueTime ? (dueDate + 'T' + dueTime + ':00') : (dueDate + 'T09:00:00');
+ }
+ 
++// ============================================
++//  🔍 Web 검색 · 섹션 필터 (WBS 검색/필터와 동일 방식)
++// ============================================
++var _notesSearch = '';
++var _notesSearchOpen = false;
++var _notesSecFilter = {};   // { sectionKey: true(숨김) }
++
++function notesMatchesSearch(text) {
++  if (!_notesSearch) return true;
++  return String(text || '').toLowerCase().indexOf(_notesSearch.toLowerCase()) !== -1;
++}
++function notesTaskSectionKey(task) {
++  if (typeof wbsTaskSectionKey === 'function') return wbsTaskSectionKey(task);
++  var sg = (task.mdtGoal && task.mdtGoal.sgId) || (task.mdtAction && task.mdtAction.sgId) || null;
++  return (sg != null) ? String(sg) : '_';
++}
++function notesSectionLabel(task) {
++  var sg = (task.mdtGoal && task.mdtGoal.sgId) || (task.mdtAction && task.mdtAction.sgId) || null;
++  var yr = (task.mdtGoal && task.mdtGoal.year) || (task.mdtAction && task.mdtAction.year) || null;
++  if (sg != null && typeof wbsGoalText === 'function') return wbsGoalText(sg, task.lwSectionName || 'Section', yr);
++  return task.lwSectionName || '📂 미분류';
++}
++function notesTaskPassesSecFilter(task) { return !_notesSecFilter[notesTaskSectionKey(task)]; }
++
++// 현재 Web 화면(미완료 Task/To Do)에 존재하는 섹션 목록
++function notesDistinctSections() {
++  var present = {};
++  var pushT = function(t){ present[notesTaskSectionKey(t)] = notesSectionLabel(t); };
++  getActiveTasks().forEach(pushT);
++  getActiveSteps().forEach(function(e){ pushT(e.task); });
++  var keys = Object.keys(present);
++  keys.sort(function(a, b){
++    if (a === '_') return 1; if (b === '_') return -1;
++    return (+a) - (+b);
++  });
++  return keys.map(function(k){ return { key: k, label: (k === '_') ? '📂 미분류' : present[k] }; });
++}
++
++function notesSetSearch(val) { _notesSearch = (val || '').trim(); renderNoteBoard(); }
++function notesToggleSearch(ev) {
++  if (ev) ev.stopPropagation();
++  _notesSearchOpen = !_notesSearchOpen;
++  renderNotesTools();
++  if (_notesSearchOpen) setTimeout(function(){ var i = document.getElementById('notes-search-inp'); if (i) i.focus(); }, 30);
++}
++function notesToggleSecFilterVal(key, ev) {
++  if (ev) ev.stopPropagation();
++  if (_notesSecFilter[key]) delete _notesSecFilter[key];
++  else _notesSecFilter[key] = true;
++  renderNoteBoard();
++  renderNotesTools();
++}
++function notesSecFilterAll(on, ev) {
++  if (ev) ev.stopPropagation();
++  _notesSecFilter = {};
++  if (!on) notesDistinctSections().forEach(function(s){ _notesSecFilter[s.key] = true; });
++  renderNoteBoard();
++  renderNotesTools();
++}
++function notesSecFilterPanelHtml() {
++  var secs = notesDistinctSections();
++  if (!secs.length) return '';
++  var items = secs.map(function(s){
++    var checked = _notesSecFilter[s.key] ? '' : ' checked';
++    return '<label class="todo-colpick-item"><input type="checkbox"' + checked
++      + ' onclick="event.stopPropagation();" onchange="notesToggleSecFilterVal(\'' + s.key + '\',event)">'
++      + '<span>' + escNb(s.label) + '</span></label>';
++  }).join('');
++  return '<div class="wbs-titlefilter">'
++    + '<div class="wbs-titlefilter-head"><span>표시 항목(Section)</span>'
++    +   '<span class="wbs-tf-actions">'
++    +     '<button onclick="notesSecFilterAll(true,event)">전체</button>'
++    +     '<button onclick="notesSecFilterAll(false,event)">해제</button>'
++    +   '</span></div>'
++    + '<div class="wbs-titlefilter-list">' + items + '</div>'
++    + '</div>';
++}
++function renderNotesTools() {
++  var slot = document.getElementById('topbar-mdt-year-slot');
++  if (!slot) return;
++  var _icon = (typeof BD_FILTER_ICON !== 'undefined') ? BD_FILTER_ICON : '🔍';
++  var _active = _notesSearchOpen || _notesSearch || Object.keys(_notesSecFilter).length > 0;
++  var _sval = escNb(_notesSearch).replace(/"/g, '&quot;');
++  slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
++    + '<button class="bd-colpick-btn' + (_active ? ' on' : '') + '" id="notes-search-btn" title="검색 · 필터" onclick="notesToggleSearch(event)">'
++    + _icon + '</button>'
++    + (_notesSearchOpen
++        ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
++          + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="notes-search-inp" placeholder="Memo · Task · To Do 검색"'
++          + ' value="' + _sval + '" oninput="notesSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
++          + notesSecFilterPanelHtml()
++          + '</div>'
++        : '')
++    + '</div>';
++}
++document.addEventListener('click', function(e) {
++  if (!_notesSearchOpen) return;
++  var btn = document.getElementById('notes-search-btn');
++  var pnl = document.querySelector('#topbar-mdt-year-slot .bd-colpick-panel');
++  if ((btn && btn.contains(e.target)) || (pnl && pnl.contains(e.target))) return;
++  _notesSearchOpen = false;
++  renderNotesTools();
++});
++
+ // ============================================
+ //  화면 렌더
+ // ============================================
+@@ -118,6 +222,7 @@ function renderNotesView() {
+     + buildNbColumn('step', 'To Do', '미완료 To Do가 모두 표시돼요')
+     + '</div>'
+     + '</div>';
++  renderNotesTools();
+   renderNoteBoard();
+   setTimeout(function(){ var ta=document.getElementById('nb-input'); if(ta) ta.focus(); }, 50);
+ }
+@@ -133,14 +238,18 @@ function buildNbColumn(type, title, hint) {
+ 
+ function renderNoteBoard() {
+   removeStepPickers();
+-  // Archiving (메모)
+-  var memos = getArchivingNotes();
++  // Archiving (메모) — 검색 적용
++  var memos = getArchivingNotes().filter(function(n){ return notesMatchesSearch(n.text); });
+   _nbFillColumn('memo', memos.length, memos.map(function(n){ return buildMemoCard(n); }).join(''));
+-  // TASK
+-  var actTasks = getActiveTasks();
++  // TASK — 섹션 필터 + 검색 적용
++  var actTasks = getActiveTasks().filter(function(t){
++    return notesTaskPassesSecFilter(t) && notesMatchesSearch(t.text);
++  });
+   _nbFillColumn('task', actTasks.length, actTasks.map(function(t){ return buildTaskCard(t); }).join(''));
+-  // TO DO
+-  var actSteps = getActiveSteps();
++  // TO DO — 상위 Task 섹션 필터 + 검색(To Do 또는 상위 Task명) 적용
++  var actSteps = getActiveSteps().filter(function(e){
++    return notesTaskPassesSecFilter(e.task) && (notesMatchesSearch(e.step.text) || notesMatchesSearch(e.task.text));
++  });
+   _nbFillColumn('step', actSteps.length, actSteps.map(function(e){ return buildStepCard(e.task, e.step); }).join(''));
+ }
+ 
+diff --git a/script.js b/script.js
+index e00a704..fc51036 100644
+--- a/script.js
++++ b/script.js
+@@ -2997,12 +2997,12 @@ var _SVG = {
+ var MENUS = [
+   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
+   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
+-  { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
+   { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
+   { divider:true },
+   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
+   { id:'wheel',     icon:_SVG.wheel,     label:'LW',           short:'LW'   },
+   { id:'mandalart', icon:_SVG.mandalart, label:'M',            short:'M'    },
++  { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
+   { id:'project',   icon:_SVG.project,   label:'Gantt',        short:'Gantt'},
+   { id:'wbs',       icon:_SVG.wbs,       label:'WBS',          short:'WBS'  },
+ ];
+diff --git a/style.css b/style.css
+index 4ea18db..31bfb84 100644
+--- a/style.css
++++ b/style.css
+@@ -5428,6 +5428,17 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
+   transform: translate(-50%, -50%);
+   pointer-events: none;
+ }
++/* 완료된 to-do 는 점 대신 체크 표시 */
++.gm-sub-dot.done {
++  width: auto;
++  height: auto;
++  border-radius: 0;
++  background: none;
++  font-size: 11px;
++  font-weight: 700;
++  line-height: 1;
++  z-index: 2;
++}
+ .gm-subrow-more .gm-sub-more { font-size: var(--fs-2xs); color: var(--text-3); }
+ 
+ .gm-bar {
+diff --git a/todo.js b/todo.js
+index b27b7db..9270af8 100644
+--- a/todo.js
++++ b/todo.js
+@@ -492,26 +492,17 @@ function buildBoardTable() {
+       + '</table></div>';
+   }
+ 
+-  var isDoneEntry = function(e){ return e.step ? e.step.completed : e.task.completed; };
+-  var active    = visible.filter(function(e){ return !isDoneEntry(e); });
+-  var completed = visible.filter(isDoneEntry);
+-
++  // 완료 항목 별도 구분 없이 미완 항목들과 함께 표시
+   // 기본 정렬: 마감일 임박 순 (마감일 없음 = 맨 뒤)
+-  var activeSorted = _boardSort.key
+-    ? boardApplySort(active)
+-    : active.slice().sort(function(a, b) {
++  var allSorted = _boardSort.key
++    ? boardApplySort(visible)
++    : visible.slice().sort(function(a, b) {
+         var va = boardEntryDue(a) ? new Date(boardEntryDue(a)).getTime() : Infinity;
+         var vb = boardEntryDue(b) ? new Date(boardEntryDue(b)).getTime() : Infinity;
+         return va - vb;
+       });
+ 
+-  var body = activeSorted.map(buildBoardRow).join('');
+-
+-  // 완료 항목: 하단 "완료됨" 그룹 (기본 접힘)
+-  if (completed.length > 0) {
+-    var cs = _boardSort.key ? boardApplySort(completed) : completed;
+-    body += buildTodoGroupRows('board-completed', '완료됨', 'var(--text-2)', cs, true, boardVisibleCols().length, buildBoardRow);
+-  }
++  var body = allSorted.map(buildBoardRow).join('');
+ 
+   return '<div class="todo-table-wrap">'
+     + '<table class="todo-table bd-table">' + head
+diff --git a/wbs.js b/wbs.js
+index 9acc6aa..8fd7e7a 100644
+--- a/wbs.js
++++ b/wbs.js
+@@ -214,7 +214,7 @@ function wbsDueCol(task) {
+ }
+ 
+ // ── 컬럼 정렬/필터 상태 ──
+-var _wbsSort = { key: null, dir: 'asc' };      // key: 'item' | 'start' | 'due' | 'status'
++var _wbsSort = { key: 'due', dir: 'asc' };      // key: 'item' | 'start' | 'due' | 'status' — 기본: DUE 오름차순
+ var _wbsColFilters = {};                        // { key: { '값': true(제외) } }
+ var _wbsTitleFilter = {};                        // { sectionKey: true(숨김) } — 제목(Section) 표시 항목 필터
+ var _wbsFilterOpen = null;

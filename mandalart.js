@@ -1108,12 +1108,10 @@ function mdtPerfCellHtml(m, sg, a) {
       +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
       + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
   }
-  // 주간: 실적바 클릭 시 캘린더 드롭다운(열림 상태 유지)
-  var calOpen = !!_mdtHabitCalOpen[yr + '-' + sgId + '-' + a.id];
-  return '<div class="mdt-perf-dash-bar mgt-hb-bar" title="' + barTitle + '"'
-    +   ' onclick="mdtToggleHabitCal(' + yr + ',' + sgId + ',' + a.id + ')">'
+  // 주간: 캘린더 항상 표시 (일간과 동일하게 토글 없이 상시 노출)
+  return '<div class="mdt-perf-dash-bar mgt-hb-bar mgt-hb-bar--static" title="' + barTitle + '">'
     +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
-    + '<div class="mgt-perf-cal' + (calOpen ? '' : ' is-collapsed') + '" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
+    + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
 }
 
 // 습관형 달성현황: 실적바 클릭 시 캘린더 드롭다운(열림 상태 유지)
@@ -1295,7 +1293,8 @@ function buildHabitCalendar(year, sgId, a) {
   // 공용 셀 스타일
   var S_GRID = 'display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-top:4px;';
   var S_DOW  = 'font-size:9px;text-align:center;color:var(--text-3);padding:1px 0;';
-  var S_CELL_BASE = 'aspect-ratio:1/1;border-radius:4px;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;color:var(--text-2);background:var(--surface);';
+  // 세로 높이를 기존(정사각형)의 50%로 축소: aspect-ratio 2/1 (너비:높이 = 2:1)
+  var S_CELL_BASE = 'aspect-ratio:2/1;border-radius:4px;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none;color:var(--text-2);background:var(--surface);';
   var S_DONE   = 'background:rgba(139,92,246,0.3);color:#a78bfa;font-weight:700;';
   var S_TODAY  = 'outline:1.5px solid rgba(139,92,246,0.65);';
   var S_FUTURE = 'opacity:0.25;pointer-events:none;';
