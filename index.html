@@ -2,14 +2,38 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>TaskLog</title>
+  <meta name="description" content="Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱">
+
+  <!-- ===== 📱 PWA ===== -->
+  <link rel="manifest" href="manifest.json?v=20260806a">
+  <meta name="theme-color" content="#1a1a1a">
+  <meta name="color-scheme" content="dark light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="TaskLog">
+  <!-- iOS: 홈 화면 추가 시 앱처럼 실행 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="TaskLog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- 전화번호 자동 링크 방지 (표 안 숫자가 링크로 변하는 문제) -->
+  <meta name="format-detection" content="telephone=no,date=no,address=no,email=no">
+
   <link rel="icon" type="image/svg+xml" href="tasklog-icon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+
+  <!-- 외부 도메인 사전 연결 (모바일 첫 로딩 단축) -->
+  <link rel="preconnect" href="https://apis.google.com" crossorigin>
+  <link rel="preconnect" href="https://accounts.google.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+
   <link rel="stylesheet" href="style.css?v=20260803a">
   <link rel="stylesheet" href="profile-modal.css?v=20260722">
   <link rel="stylesheet" href="login.css?v=20260720b">
+  <link rel="stylesheet" href="mobile.css?v=20260806a">
   <script>
     // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
     // 페인트 전에 미리 숨긴다. (자동 로그인이 실패하면 auth.js가 다시 보여줌)
@@ -157,6 +181,9 @@
 <script src="todo.js?v=20260803a"></script>
 <script src="yearsync.js?v=20260722"></script>
 <script src="script.js?v=20260803a"></script>
+
+<!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
+<script src="pwa.js?v=20260806a"></script>
 
 </body>
 </html>

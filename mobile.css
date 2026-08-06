@@ -1,0 +1,365 @@
+/* ============================================================
+   TaskLog — 모바일 / PWA 최적화
+   style.css 다음에 로드 (마지막 CSS)
+   ------------------------------------------------------------
+   1. 뷰포트 높이(iOS 주소창) 보정
+   2. 안전영역(노치·홈 인디케이터) 여백
+   3. 터치 반응 개선 (탭 하이라이트 · 300ms 지연 · 스크롤)
+   4. 터치 타깃 크기 확대
+   5. iOS 입력 시 자동 확대 방지
+   6. 좁은 화면(≤480px) 레이아웃 보정
+   7. PWA 설치 버튼 · 토스트
+   ============================================================ */
+
+/* =========================================================
+   1. 뷰포트 높이 — 100dvh 우선, 미지원 시 JS의 --app-vh 사용
+   ========================================================= */
+body,
+.app {
+  height: 100vh;                      /* 최종 폴백 */
+  height: calc(var(--app-vh, 1vh) * 100);
+}
+@supports (height: 100dvh) {
+  body,
+  .app { height: 100dvh; }
+}
+
+/* =========================================================
+   2. 안전영역 (viewport-fit=cover + 노치/홈바)
+   ========================================================= */
+@media (max-width: 768px) {
+  /* 탑바: 상태표시줄 아래로 */
+  .topbar {
+    padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+    min-height: calc(52px + env(safe-area-inset-top, 0px));
+  }
+
+  /* 사이드바 드로어(position:fixed) */
+  .sidebar {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    width: calc(244px + env(safe-area-inset-left, 0px));
+  }
+
+  /* 본문 좌우/하단 여백 */
+  .main-content {
+    padding-left: calc(var(--space-3) + env(safe-area-inset-left, 0px));
+    padding-right: calc(var(--space-3) + env(safe-area-inset-right, 0px));
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* 오른쪽 상세 패널(전체화면 오버레이) */
+  .right-panel .rp-header {
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+  }
+  .right-panel .rp-footer {
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  }
+  .right-panel .rp-body {
+    padding-left: calc(var(--space-4) + env(safe-area-inset-left, 0px));
+    padding-right: calc(var(--space-4) + env(safe-area-inset-right, 0px));
+  }
+
+  /* 로그인 게이트 */
+  .login-gate {
+    padding: calc(env(safe-area-inset-top, 0px) + 16px)
+             calc(env(safe-area-inset-right, 0px) + 16px)
+             calc(env(safe-area-inset-bottom, 0px) + 16px)
+             calc(env(safe-area-inset-left, 0px) + 16px);
+    box-sizing: border-box;
+  }
+}
+
+/* 설치된 앱(standalone)에서는 상단 여백을 조금 더 확보 */
+html.pwa-standalone .topbar {
+  padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+}
+/* 설치된 앱에서 당겨서 새로고침 / 고무줄 스크롤 방지 */
+html.pwa-standalone,
+html.pwa-standalone body {
+  overscroll-behavior: none;
+}
+
+/* =========================================================
+   3. 터치 반응
+   ========================================================= */
+@media (hover: none) and (pointer: coarse) {
+  * { -webkit-tap-highlight-color: transparent; }
+
+  button,
+  .nav-item,
+  .cal-tab,
+  .task-check,
+  .step-check,
+  .mgt-month-badge,
+  .rp-ei-btn,
+  .rp-status-btn,
+  [role="button"] {
+    touch-action: manipulation;   /* 더블탭 확대로 인한 300ms 지연 제거 */
+  }
+
+  /* hover 잔상 제거 — 터치 기기에선 hover 스타일이 눌린 채로 남는다 */
+  .nav-item:hover { background: inherit; }
+
+  /* 스크롤 영역: 관성 스크롤 + 부모로 스크롤 전파 차단 */
+  #page-content,
+  .rp-body,
+  .sidebar-nav,
+  .todo-table-wrap,
+  .wbs-table-wrap,
+  .gantt-wrap,
+  .gantt-scroll,
+  .calw-scroll,
+  .mdt-act-cards,
+  .wbs-titlefilter-list,
+  .cal-page-month {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* 드래그 핸들: 길게 눌러도 텍스트 선택/복사 메뉴가 뜨지 않도록 */
+  .tl-drag-handle,
+  .step-drag-handle,
+  .drag-handle {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+  }
+}
+
+/* =========================================================
+   4. 터치 타깃 최소 크기 (Apple HIG 44pt / Material 48dp)
+   ========================================================= */
+@media (max-width: 768px) {
+  .btn-primary,
+  .btn-secondary {
+    min-height: 44px;
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+    font-size: var(--fs-base);
+  }
+
+  .rp-footer {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .rp-footer .btn-primary,
+  .rp-footer .btn-secondary { flex: 1 1 0; }
+
+  .rp-close,
+  .mobile-menu-btn,
+  .tswitch {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* 체크박스 계열: 시각 크기는 유지하고 탭 영역만 넓힘 */
+  .task-check,
+  .step-check {
+    position: relative;
+  }
+  .task-check::after,
+  .step-check::after {
+    content: '';
+    position: absolute;
+    inset: -11px;
+  }
+
+  /* 캘린더 셀 · 탭 */
+  .cal-tab { min-height: 40px; padding: 0 16px; display: inline-flex; align-items: center; }
+  .cal-cell { min-height: 44px; }
+
+  /* 탑바 버튼 줄바꿈 방지 */
+  .topbar-right { gap: var(--space-2); flex-wrap: nowrap; }
+}
+
+/* =========================================================
+   5. iOS 입력 자동 확대 방지 (16px 미만이면 확대됨)
+   주로 타이핑하는 영역에만 적용해 표 밀도는 유지
+   ========================================================= */
+@media (max-width: 768px) {
+  .rp-body input[type="text"],
+  .rp-body input[type="search"],
+  .rp-body input[type="number"],
+  .rp-body input[type="date"],
+  .rp-body input[type="time"],
+  .rp-body input:not([type]),
+  .rp-body textarea,
+  .rp-body select,
+  .rp-body [contenteditable="true"],
+  #rp-task-name,
+  .mvv-textarea,
+  .mvv-rta,
+  .notes-editor,
+  .journal-editor,
+  .login-gate input {
+    font-size: 16px;
+  }
+
+  /* 16px로 커진 만큼 통합 날짜/시간 칸 폭 보정 */
+  .rp-dt-row .rp-time-inp { flex-basis: 62px; width: 62px; }
+}
+
+/* =========================================================
+   6. 좁은 화면 (≤480px)
+   ========================================================= */
+@media (max-width: 480px) {
+  .topbar-title {
+    font-size: var(--fs-lg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .main-content { padding-top: var(--space-3); }
+
+  /* 2열 그리드 → 1열 */
+  .mvv-2col,
+  .home-grid,
+  .mdt-2col { grid-template-columns: 1fr !important; }
+
+  /* 상세 패널 여백 축소 */
+  .right-panel .rp-body { padding-left: var(--space-3); padding-right: var(--space-3); }
+  .rp-dt-cols { flex-direction: column; gap: var(--space-2); }
+
+  /* 만다라트 · 시계 · 캘린더 팝업: 화면 밖으로 나가지 않게 */
+  .sdp-clock-face { width: 180px; height: 180px; }
+  .step-date-form .sdp-cal-wrap,
+  .step-date-form .sdp-clock { zoom: 0.72; }
+
+  .cal-popup {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%);
+    width: min(92vw, 360px);
+    max-height: 80vh;
+    overflow-y: auto;
+    z-index: 1200;
+  }
+
+  /* 넓은 표: 최소 폭 완화 + 가로 스크롤 힌트 */
+  .todo-table { min-width: 520px; }
+  .todo-table-wrap,
+  .wbs-table-wrap { scrollbar-width: none; }
+  .todo-table-wrap::-webkit-scrollbar,
+  .wbs-table-wrap::-webkit-scrollbar { height: 0; }
+
+  /* 주간 캘린더: 시간 거터 축소 */
+  .calw-row { grid-template-columns: 38px repeat(7, minmax(0, 1fr)); }
+  .calw-tlabel { font-size: 9px; }
+}
+
+/* 가로 모드에서 세로 공간이 짧을 때 */
+@media (max-height: 480px) and (orientation: landscape) {
+  .topbar { min-height: 44px; }
+  .calw-scroll { max-height: 52vh; }
+}
+
+/* =========================================================
+   7. PWA 설치 버튼
+   ========================================================= */
+.pwa-install-btn {
+  position: fixed;
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 2000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--brand-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  -webkit-tap-highlight-color: transparent;
+  animation: pwa-rise var(--dur-base, 200ms) ease both;
+  transition: padding 200ms ease, gap 200ms ease;
+}
+.pwa-install-btn:active { transform: scale(0.97); }
+.pwa-install-btn.mini { padding: 0 14px; gap: 0; }
+.pwa-install-btn.mini span { display: none; }
+
+@keyframes pwa-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* =========================================================
+   8. 토스트 (업데이트 · 오프라인 알림)
+   ========================================================= */
+.pwa-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 16px);
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 460px);
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel-bg);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.pwa-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.pwa-toast-msg { flex: 1 1 auto; min-width: 0; }
+.pwa-toast-btn {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--brand-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  cursor: pointer;
+}
+.pwa-toast-x {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.pwa-toast-x:hover { color: var(--text-1); background: var(--surface-hover); }
+
+/* 설치 버튼과 토스트가 겹치지 않게 */
+.pwa-toast.show ~ .pwa-install-btn,
+.pwa-install-btn:has(~ .pwa-toast.show) {
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 모션 최소화 설정 존중 */
+@media (prefers-reduced-motion: reduce) {
+  .pwa-toast,
+  .pwa-install-btn,
+  .sidebar,
+  .right-panel { transition: none !important; animation: none !important; }
+}
