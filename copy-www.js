@@ -19,6 +19,7 @@ const OUT  = path.join(ROOT, 'www');
 /* index.html이 참조하지는 않지만 앱 실행에 필요한 자원 */
 const ALWAYS = [
   'manifest.json',
+  'mobile-ui.js',
   'icon-192.png', 'icon-512.png', 'icon-1024.png',
   'apple-touch-icon.png', 'favicon-32.png', 'tasklog-icon.svg',
 ];
@@ -75,7 +76,7 @@ if (missing.length) {
 /* 루트에 있지만 아무도 불러오지 않는 파일 알려주기 */
 const SKIP_UNUSED = new Set([
   'copy-www.js', 'build-sw.js', 'package.json', 'package-lock.json',
-  'capacitor.config.json', 'firestore.rules', 'sw.js', '.build-hashes.json',
+  'capacitor.config.json', 'firestore.rules', 'sw.js', 'build-hashes.json',
   'index.html',
 ]);
 const unused = fs.readdirSync(ROOT)

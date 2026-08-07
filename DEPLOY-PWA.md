@@ -27,8 +27,13 @@
 | `build-sw.js` | 신규 | 캐시 버전 자동화 |
 | `copy-www.js` | 덮어쓰기 | `index.html` 참조 기준으로만 번들 |
 | `package.json` | 덮어쓰기 | 스크립트 정리 |
-| `.gitignore` | 신규 | `www/`, `android/`, `node_modules/` 제외 |
-| `.build-hashes.json` | 신규 | ?v= 자동 갱신의 기준선 — **커밋할 것** |
+| `.gitignore` | 신규 | `www/`, `android/`, `node_modules/` 제외. 웹 업로드로는 안 올라가니 건너뛰어도 무방 |
+| `build-hashes.json` | 신규 | ?v= 자동 갱신의 기준선 — **반드시 커밋할 것** |
+
+> **점(.)으로 시작하는 파일은 GitHub 웹 업로더가 걸러냅니다.**
+> 그래서 해시 파일 이름을 `.build-hashes.json` → `build-hashes.json` 으로 바꿨습니다.
+> `.gitignore` 는 웹 업로드만 쓰는 동안에는 없어도 문제가 없습니다.
+> 꼭 넣고 싶다면 GitHub에서 **Add file → Create new file** 로 이름과 내용을 직접 입력하면 됩니다.
 | `screenshot-*.png` (4) | 신규 | 설치 화면용 |
 | `splash/` (16) | 신규 | iOS 실행화면. **폴더째** 올릴 것 |
 
@@ -63,7 +68,7 @@ node build-sw.js      # 또는  npm run build
 3. `sw.js`의 `CACHE_VERSION` (같은 날 재배포하면 `a → b → c`)
 4. `pwa.js`의 `SW_URL`
 
-그다음 **출력에 나온 파일 + `index.html` + `sw.js` + `pwa.js` + `.build-hashes.json`** 을 커밋·푸시하고,
+그다음 **출력에 나온 파일 + `index.html` + `sw.js` + `pwa.js` + `build-hashes.json`** 을 커밋·푸시하고,
 브라우저에서 `Ctrl+Shift+R` 로 확인합니다.
 
 ### 배포 직전 점검

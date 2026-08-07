@@ -11,7 +11,7 @@
         → 새 버전이 사용자에게 영원히 도달하지 않음
 
    어떻게
-     · 각 자원의 내용 해시를 .build-hashes.json 에 기록해 둔다.
+     · 각 자원의 내용 해시를 build-hashes.json 에 기록해 둔다.
      · 내용이 바뀐 파일만 골라 index.html의 ?v= 를 자동으로 올린다.
      · 그 결과를 그대로 sw.js의 PRECACHE_URLS 로 복사하고 CACHE_VERSION 도 올린다.
      · pwa.js의 SW_URL 도 같은 버전으로 맞춘다.
@@ -35,7 +35,10 @@ const ROOT       = __dirname;
 const INDEX_HTML = path.join(ROOT, 'index.html');
 const SW_JS      = path.join(ROOT, 'sw.js');
 const PWA_JS     = path.join(ROOT, 'pwa.js');
-const HASH_FILE  = path.join(ROOT, '.build-hashes.json');
+/* 점으로 시작하면 GitHub 웹 업로더가 걸러내므로 일반 파일명을 쓴다.
+   예전 이름(.build-hashes.json)이 남아 있으면 그것도 읽어준다. */
+const HASH_FILE     = path.join(ROOT, 'build-hashes.json');
+const HASH_FILE_OLD = path.join(ROOT, '.build-hashes.json');
 
 const argv    = process.argv.slice(2);
 const CHECK   = argv.includes('--check');
@@ -93,7 +96,9 @@ if (!verMatch) die("sw.js에 '/* @@BUILD:VERSION */' 표시가 없습니다.");
 const curVersion = verMatch[1].replace(/^v/, '');
 const version    = CHECK ? curVersion : nextVersion(curVersion);
 
-const prevHashes = fs.existsSync(HASH_FILE) ? JSON.parse(read(HASH_FILE)) : null;
+const hashSrc    = fs.existsSync(HASH_FILE) ? HASH_FILE
+                 : (fs.existsSync(HASH_FILE_OLD) ? HASH_FILE_OLD : null);
+const prevHashes = hashSrc ? JSON.parse(read(hashSrc)) : null;
 const firstRun   = prevHashes === null;
 const hashes     = {};
 
@@ -207,12 +212,14 @@ fs.writeFileSync(INDEX_HTML, html, 'utf8');
 fs.writeFileSync(SW_JS, sw, 'utf8');
 if (pwa !== null) fs.writeFileSync(PWA_JS, pwa, 'utf8');
 fs.writeFileSync(HASH_FILE, JSON.stringify(hashes, null, 2) + '\n', 'utf8');
+/* 예전 이름이 남아 있으면 정리 (두 벌이 어긋나는 걸 막는다) */
+if (fs.existsSync(HASH_FILE_OLD)) { try { fs.unlinkSync(HASH_FILE_OLD); } catch (e) {} }
 
 console.log('✅ 캐시 버전 갱신 완료');
 console.log(`   CACHE_VERSION : v${curVersion} → v${version}`);
 console.log(`   프리캐시 자원  : ${list.length}개`);
 if (firstRun) {
-  console.log('   ℹ️  첫 실행 — 해시 기준선(.build-hashes.json)을 만들었습니다.');
+  console.log('   ℹ️  첫 실행 — 해시 기준선(build-hashes.json)을 만들었습니다.');
   console.log('      다음 실행부터 내용이 바뀐 파일의 ?v= 를 자동으로 올립니다.');
 } else if (changed.length) {
   console.log(`   ?v= 갱신 (${changed.length}개)`);
@@ -220,4 +227,4 @@ if (firstRun) {
 } else {
   console.log('   ?v= 갱신 대상 없음 (내용이 바뀐 파일이 없습니다)');
 }
-console.log('\n   배포할 파일: index.html, sw.js, pwa.js, .build-hashes.json + 내용을 고친 파일');
+console.log('\n   배포할 파일: index.html, sw.js, pwa.js, build-hashes.json + 내용을 고친 파일');
