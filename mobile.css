@@ -215,11 +215,6 @@ html.pwa-standalone body {
 
   .main-content { padding-top: var(--space-3); }
 
-  /* 2열 그리드 → 1열 */
-  .mvv-2col,
-  .home-grid,
-  .mdt-2col { grid-template-columns: 1fr !important; }
-
   /* 상세 패널 여백 축소 */
   .right-panel .rp-body { padding-left: var(--space-3); padding-right: var(--space-3); }
   .rp-dt-cols { flex-direction: column; gap: var(--space-2); }
@@ -240,15 +235,7 @@ html.pwa-standalone body {
     z-index: 1200;
   }
 
-  /* 넓은 표: 최소 폭 완화 + 가로 스크롤 힌트 */
-  .todo-table { min-width: 520px; }
-  .todo-table-wrap,
-  .wbs-table-wrap { scrollbar-width: none; }
-  .todo-table-wrap::-webkit-scrollbar,
-  .wbs-table-wrap::-webkit-scrollbar { height: 0; }
-
   /* 주간 캘린더: 시간 거터 축소 */
-  .calw-row { grid-template-columns: 38px repeat(7, minmax(0, 1fr)); }
   .calw-tlabel { font-size: 9px; }
 }
 
@@ -256,6 +243,267 @@ html.pwa-standalone body {
 @media (max-height: 480px) and (orientation: landscape) {
   .topbar { min-height: 44px; }
   .calw-scroll { max-height: 52vh; }
+}
+
+/* =========================================================
+   6-B. 화면별 레이아웃 재배치 (≤768px)
+   ---------------------------------------------------------
+   사이드바가 드로어로 바뀌는 폭과 동일한 768px을 기준으로 삼는다.
+   데스크톱의 다열 배치를 세로 스택으로 풀고, 표는 가로 스크롤 +
+   첫 열 고정으로 처리한다. (열을 숨기지 않는다 — 정보 손실 방지)
+   ========================================================= */
+@media (max-width: 768px) {
+
+  /* ── 공통 ─────────────────────────────────────────────── */
+  #page-content {
+    padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+  /* 데스크톱용 컬럼 폭 드래그 핸들은 터치에서 오작동만 일으킨다 */
+  .hw-resize-x,
+  .hw-resize-y,
+  .tl-col-resizer { display: none !important; }
+
+  /* 가로 스크롤 되는 표: 스크롤바를 감춰 세로 공간 확보 */
+  .todo-table-wrap,
+  .wbs-table-wrap,
+  .lw-table-wrap,
+  .gm-wrap,
+  .calw-scroll {
+    scrollbar-width: none;
+  }
+  .todo-table-wrap::-webkit-scrollbar,
+  .wbs-table-wrap::-webkit-scrollbar,
+  .lw-table-wrap::-webkit-scrollbar,
+  .gm-wrap::-webkit-scrollbar { height: 0; }
+
+  /* ── 1. Home ─────────────────────────────────────────────
+     데스크톱: [캘린더 | 간트] / [습관 | 만다라트 | 라이프휠]
+     모바일  : 캘린더 → 간트 → 습관 → [만다라트 | 라이프휠]     */
+  .home-page { overflow-y: auto; }
+
+  .home-grid-row1 {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .home-grid-row2 {
+    grid-template-columns: 1fr 1fr;
+    height: auto;
+  }
+  /* 습관 트래커는 가로로 긴 막대라 전체 폭을 준다 */
+  #habit-widget { grid-column: 1 / -1; }
+
+  .home-grid-row1 > .card { height: auto; min-height: 300px; }
+  .home-grid-row2 > .card { height: auto; min-height: 190px; }
+  #habit-widget { min-height: 150px; }
+
+  /* ── 2. Board (Task · To Do) ─────────────────────────────
+     12개 열을 숨기지 않고 가로 스크롤 + 첫 열(To Do) 고정      */
+  .todo-table { min-width: 680px; }
+
+  .todo-table thead th:first-child,
+  .todo-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--main-bg);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  .todo-table thead th:first-child { z-index: 3; background: var(--surface); }
+  /* 완료·선택 행에서도 고정 열 배경이 본문과 어긋나지 않게 */
+  .todo-table tbody tr.is-selected td:first-child { background: var(--surface-hover, var(--main-bg)); }
+
+  /* ── 3. Work Diary ───────────────────────────────────────
+     좌(달력·트래커·평가) + 우(주간 그리드) → 주간 그리드를 위로 */
+  .jnl-body { flex-direction: column; }
+  .jnl-left  { width: 100%; flex-shrink: 1; order: 2; }
+  .jnl-right { order: 1; min-height: 340px; }
+  .jnl-top-row { flex-direction: column; }
+
+  /* 주간 그리드: 5일이 보이는 최소 폭 + 가로 스크롤 */
+  .jnlw-scroll { overflow-x: auto; }
+  .jnlw-head, .jnlw-body { min-width: 560px; }
+
+  /* 월 달력 패널은 mobile-ui.js가 접기 버튼을 붙인다 */
+  .jnl-cal-panel.tlm-collapsed .jnl-cal-grid,
+  .jnl-cal-panel.tlm-collapsed .jnl-cal-hint { display: none; }
+
+  /* ── 4. Web (메모 보드) ──────────────────────────────────
+     3컬럼 칸반 → 상단 세그먼트 탭 + 단일 컬럼 (mobile-ui.js)   */
+  .nb-write-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .nb-board { grid-template-columns: 1fr; }
+  /* 탭이 붙은 뒤에는 선택된 컬럼만 보인다 */
+  .nb-board.tlm-tabbed > .nb-col { display: none; }
+  .nb-board.tlm-tabbed > .nb-col.tlm-active { display: flex; }
+
+  /* ── 5. Mandalart ────────────────────────────────────────
+     9×9(81칸)은 폰에서 읽을 수 없다.
+     핵심 카드(= 8개 Section + 중앙 핵심목표)만 3×3으로 보여주고
+     칸을 누르면 기존 Section 상세 페이지로 들어간다.
+     '전체 그리드' 토글은 mobile-ui.js가 붙인다.                */
+  .mdt-body { flex-direction: column; overflow: visible; }
+  .mdt-main-grid-wrap { width: 100%; padding: 0; }
+  .mdt-perf-panel { min-width: 0; padding-left: 0; }
+
+  .mdt-grid { width: 100%; height: auto; }
+
+  .mdt-page:not(.tlm-mdt-full) .mdt-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    aspect-ratio: 1 / 1;
+  }
+  .mdt-page:not(.tlm-mdt-full) .mdt-grid > .mdt-outer-card { display: none; }
+  .mdt-page:not(.tlm-mdt-full) .mdt-grid > .mdt-core-outer { display: block; }
+
+  /* 전체 보기로 전환하면 9칸을 모두 보여주되 가로 스크롤 허용 */
+  .mdt-page.tlm-mdt-full .mdt-main-grid-wrap { overflow-x: auto; }
+  .mdt-page.tlm-mdt-full .mdt-grid { min-width: 720px; aspect-ratio: 1 / 1; }
+
+  /* ── 6. MVV ──────────────────────────────────────────────  */
+  .mvv-2col { grid-template-columns: 1fr; }
+  .mvv-col { min-height: 0; }
+
+  /* ── 7. Life Wheel ───────────────────────────────────────
+     (설계 단계에서는 레이더 차트로 가정했으나 실제 화면은 표다.
+      Board와 같은 방식 — 가로 스크롤 + Section 열 고정)        */
+  .lw-table { min-width: 720px; }
+  .lw-table thead th:first-child,
+  .lw-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--main-bg);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  .lw-table thead th:first-child { z-index: 3; background: var(--surface); }
+
+  /* ── 8. WBS ──────────────────────────────────────────────
+     행이 flex라서 START·DUE·STATUS(264px)가 이름을 밀어내
+     한 글자씩 세로로 접히는 문제가 있다.
+     → 행에 최소 폭을 주고 컨테이너를 가로 스크롤시킨다.
+       (이름은 줄이지 않고 말줄임으로 처리)                    */
+  .wbs-children {
+    margin-left: var(--space-2);
+    padding-left: var(--space-2);
+  }
+  .wbs-wrap {
+    padding-left: var(--space-1);
+    padding-right: var(--space-1);
+    overflow-x: auto;
+  }
+  .wbs-row { min-width: 600px; }
+
+  .wbs-sec-label,
+  .wbs-sg-label,
+  .wbs-task-label,
+  .wbs-step-label {
+    min-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* 헤더의 Section 셀도 동일하게 */
+  .wbs-header-row .wbs-head-label { min-width: 140px; }
+
+  /* ── 9. Gantt ────────────────────────────────────────────
+     Task 이름 열 고정 + 날짜 트랙만 가로 스크롤               */
+  .gantt-wrap, .gm-wrap { overflow: auto; }
+  .gm-header, .gm-row { min-width: 640px; }
+
+  .gm-left, .gm-left-spacer {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    width: var(--gm-left, 104px);
+    background: var(--main-bg);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  .gm-header .gm-left-spacer { background: var(--surface); z-index: 3; }
+  .gm-name { font-size: var(--fs-sm); }
+
+  /* ── 10. Calendar ────────────────────────────────────────  */
+  .cal-page { padding: 10px 0; }
+  .calw-scroll { overflow-x: auto; }
+  .calw { min-width: 620px; }
+  .calw-row { grid-template-columns: 38px repeat(7, minmax(0, 1fr)); }
+  .cal-tab { flex: 1 1 0; justify-content: center; }
+  .cal-tabs { gap: 0; }
+
+  /* ── 11. 로그인 게이트 ───────────────────────────────────  */
+  .login-card { width: 100%; max-width: 360px; }
+}
+
+/* =========================================================
+   6-C. mobile-ui.js가 삽입하는 요소
+   ========================================================= */
+/* 세그먼트 탭 (Web 보드 등) */
+.tlm-tabs {
+  display: flex;
+  gap: 0;
+  flex: 0 0 auto;
+  margin-bottom: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+.tlm-tab {
+  flex: 1 1 0;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tlm-tab + .tlm-tab { border-left: 1px solid var(--border); }
+.tlm-tab.tlm-active { background: var(--brand-primary); color: #fff; }
+.tlm-tab-count {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: var(--fs-xs);
+  opacity: 0.75;
+}
+
+/* 접기/펼치기 버튼 */
+.tlm-toggle {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tlm-toggle:active { background: var(--surface-hover, var(--surface)); }
+
+.tlm-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-2);
+}
+
+/* 가로 스크롤 안내 (한 번만 표시) */
+.tlm-scroll-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  padding: 2px 0 6px;
+}
+
+@media (min-width: 769px) {
+  /* 데스크톱에서는 모바일 전용 요소를 완전히 숨긴다 */
+  .tlm-tabs,
+  .tlm-toggle-row,
+  .tlm-scroll-hint { display: none !important; }
 }
 
 /* =========================================================
