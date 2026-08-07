@@ -7,8 +7,11 @@
   <meta name="description" content="Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱">
 
   <!-- ===== 📱 PWA ===== -->
-  <link rel="manifest" href="manifest.json?v=20260806a">
-  <meta name="theme-color" content="#1a1a1a">
+  <link rel="manifest" href="manifest.json?v=20260807a">
+  <!-- 최초 페인트용 theme-color (OS 다크/라이트 기준).
+       앱 자체 테마 토글이 동작하기 시작하면 pwa.js가 이 두 개를 제거하고 직접 관리한다. -->
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#1a1a1a">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF1F5">
   <meta name="color-scheme" content="dark light">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="TaskLog">
@@ -24,6 +27,26 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
   <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
+
+  <!-- ===== 🍎 iOS 실행 화면(스플래시) =====
+       iOS는 설치 앱 실행 시 아래 media 조건이 정확히 일치하는 이미지만 사용한다.
+       일치하는 것이 없으면 흰 화면이 보인다. (splash/ 폴더도 함께 배포할 것) -->
+  <link rel="apple-touch-startup-image" href="splash/splash-750x1334.png"   media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-828x1792.png"   media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1242x2208.png"  media="(device-width:414px) and (device-height:736px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1125x2436.png"  media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1242x2688.png"  media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1170x2532.png"  media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1284x2778.png"  media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1179x2556.png"  media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1290x2796.png"  media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1206x2622.png"  media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1320x2868.png"  media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1536x2048.png"  media="(device-width:768px)  and (device-height:1024px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1620x2160.png"  media="(device-width:810px)  and (device-height:1080px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1668x2224.png"  media="(device-width:834px)  and (device-height:1112px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-1668x2388.png"  media="(device-width:834px)  and (device-height:1194px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
+  <link rel="apple-touch-startup-image" href="splash/splash-2048x2732.png"  media="(device-width:1024px) and (device-height:1366px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)">
 
   <!-- 외부 도메인 사전 연결 (모바일 첫 로딩 단축) -->
   <link rel="preconnect" href="https://apis.google.com" crossorigin>
@@ -183,7 +206,7 @@
 <script src="script.js?v=20260803a"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20260806a"></script>
+<script src="pwa.js?v=20260807a"></script>
 
 </body>
 </html>

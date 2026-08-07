@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var SW_URL  = './sw.js?v=20260806a';
+  var SW_URL  = './sw.js?v=20260807a';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
   var isHttps = location.protocol === 'https:';
   var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var isNative = /^(capacitor|ionic|file):$/.test(location.protocol);
@@ -41,7 +41,13 @@
 
   /* ── 2. theme-color 동기화 ───────────────────────────────── */
   function syncThemeColor() {
-    var meta = document.querySelector('meta[name="theme-color"]');
+    // index.html의 prefers-color-scheme 메타는 "최초 페인트" 전용이다.
+    // 앱 자체 테마 토글(.light-mode)이 OS 설정과 다를 수 있으므로,
+    // JS가 제어권을 잡는 순간 media 조건부 메타를 걷어내고 하나만 남긴다.
+    var pre = document.querySelectorAll('meta[name="theme-color"][media]');
+    for (var i = 0; i < pre.length; i++) pre[i].parentNode.removeChild(pre[i]);
+
+    var meta = document.querySelector('meta[name="theme-color"]:not([media])');
     if (!meta) {
       meta = document.createElement('meta');
       meta.name = 'theme-color';
@@ -129,9 +135,13 @@
         console.warn('[PWA] 서비스워커 등록 실패:', e);
       });
 
-      // 새 워커가 제어권을 잡으면 1회만 새로고침
+      // 새 워커가 제어권을 잡으면 1회만 새로고침.
+      // 단, "최초 설치"는 제외한다 — 이미 최신 내용을 받은 상태라 새로고침이 불필요하고,
+      // 화면이 한 번 깜빡이는 데다 ?page= 바로가기로 들어온 경우 목적지를 잃어버린다.
+      var hadController = !!navigator.serviceWorker.controller;
       var reloading = false;
       navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (!hadController) return;
         if (reloading) return;
         reloading = true;
         location.reload();
@@ -231,20 +241,32 @@
 
   /* ── 6. 매니페스트 바로가기 (?page=todo 등) ─────────────── */
   window.addEventListener('load', function () {
-    var page;
-    try { page = new URLSearchParams(location.search).get('page'); } catch (e) { return; }
-    if (!page) return;
+    var params;
+    try { params = new URLSearchParams(location.search); } catch (e) { return; }
+
+    var page = params.get('page');
+
+    // start_url의 ?source=pwa 등 부가 파라미터는 항상 주소창에서 정리
+    function cleanUrl() {
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    }
+    if (!page) { if (params.toString()) cleanUrl(); return; }
 
     var tries = 0;
     (function apply() {
-      if (typeof window.navToMenu === 'function' &&
-          document.getElementById('nav-' + page)) {
+      // 사이드바 버튼이 없는 화면(calendar 등)도 열 수 있도록
+      // nav 버튼 대신 렌더러 등록 여부로 판정한다.
+      var known = (typeof window.MENU_RENDERERS === 'object' && window.MENU_RENDERERS &&
+                   window.MENU_RENDERERS[page]) || document.getElementById('nav-' + page);
+      if (typeof window.navToMenu === 'function' && known) {
         window.navToMenu(page);
-        // 주소창 정리
-        try { history.replaceState(null, '', location.pathname); } catch (e) {}
+        cleanUrl();
         return;
       }
-      if (++tries < 60) setTimeout(apply, 250);
+      if (++tries < 60) { setTimeout(apply, 250); return; }
+      // 15초 안에 못 열면 조용히 포기하지 말고 알려준다
+      console.warn('[PWA] 바로가기 대상을 찾지 못했습니다: ?page=' + page);
+      cleanUrl();
     })();
   });
 

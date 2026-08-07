@@ -1,10 +1,14 @@
 {
   "name": "tasklog",
   "private": true,
-  "version": "1.0.0",
-  "description": "TaskLog — Firebase 실시간 동기화 + Capacitor APK",
+  "version": "1.1.0",
+  "description": "TaskLog — Task · WBS · 간트 · 만다라트 · 업무일지 (PWA + Capacitor APK)",
   "scripts": {
-    "build:www": "node copy-www.js",
+    "build": "node build-sw.js",
+    "check": "node build-sw.js --check",
+    "build:all": "node build-sw.js --all",
+    "build:www": "node build-sw.js --check && node copy-www.js",
+    "build:www:web": "node build-sw.js --check && node copy-www.js --web",
     "android": "npm run build:www && npx cap sync android && npx cap open android"
   },
   "dependencies": {

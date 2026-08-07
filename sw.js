@@ -7,27 +7,26 @@
    · CDN(cdnjs)        : Cache First (오프라인에서도 xlsx 동작)
    · 인증/API          : 절대 캐시하지 않음 (완전 통과)
 
-   ⚠️ 파일을 수정해 배포할 때는 아래 CACHE_VERSION 값을 반드시 올릴 것.
+   ⚠️ 아래 CACHE_VERSION / PRECACHE_URLS 블록은 손으로 고치지 말 것.
+      index.html을 수정한 뒤 `npm run build:sw` 를 실행하면 자동으로 갱신된다.
+      (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20260806a';
+const CACHE_VERSION = 'v20260807a'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
 /* index.html이 실제로 요청하는 URL과 동일하게(쿼리 포함) 유지해야 적중률이 높음 */
 const PRECACHE_URLS = [
+  /* @@BUILD:PRECACHE-START — build-sw.js가 생성합니다 (직접 수정 금지) */
   './',
   './index.html',
   './manifest.json',
-  './manifest.json?v=20260806a',
-
-  // 스타일
+  './manifest.json?v=20260807a',
   './style.css?v=20260803a',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
   './mobile.css?v=20260806a',
-
-  // 스크립트 (index.html 로드 순서와 동일)
   './config.js?v=20260722',
   './colresize.js?v=20260722',
   './backup-core.js?v=20260722',
@@ -48,14 +47,13 @@ const PRECACHE_URLS = [
   './todo.js?v=20260803a',
   './yearsync.js?v=20260722',
   './script.js?v=20260803a',
-  './pwa.js?v=20260806a',
-
-  // 아이콘
+  './pwa.js?v=20260807a',
   './tasklog-icon.svg',
   './favicon-32.png',
   './apple-touch-icon.png',
   './icon-192.png',
   './icon-512.png',
+  /* @@BUILD:PRECACHE-END */
 ];
 
 /* 캐시 금지 — 인증·실시간 데이터 (요청을 그대로 네트워크로 흘려보냄) */
@@ -75,6 +73,30 @@ const BYPASS_HOSTS = [
 
 /* Cache First 로 다뤄도 되는 CDN */
 const CDN_HOSTS = ['cdnjs.cloudflare.com'];
+
+/* 첫 방문에 오프라인이라 캐시조차 없을 때 보여줄 최소 화면.
+   앱과 동일한 theme-color(#1a1a1a / #EEF1F5)를 쓰고 OS 테마를 따라간다. */
+const OFFLINE_HTML = `<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a1a">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF1F5">
+<title>TaskLog — 오프라인</title><style>
+:root{color-scheme:dark light}
+body{margin:0;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+     font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic",sans-serif;
+     background:#1a1a1a;color:#eee;text-align:center;padding:24px}
+h2{margin:0 0 8px;font-size:18px}
+p{margin:0 0 20px;color:#999;font-size:13px;line-height:1.6}
+button{min-height:44px;padding:0 20px;border-radius:8px;border:1px solid #666;
+       background:transparent;color:inherit;font-size:14px;cursor:pointer}
+@media (prefers-color-scheme: light){body{background:#EEF1F5;color:#222}p{color:#666}button{border-color:#bbb}}
+</style></head><body><div>
+<h2>오프라인입니다</h2>
+<p>네트워크에 연결되면 자동으로 다시 불러옵니다.<br>저장된 내용은 그대로 남아 있습니다.</p>
+<button onclick="location.reload()">다시 시도</button>
+</div>
+<script>addEventListener('online',function(){location.reload()})<\/script>
+</body></html>`;
 
 // ── 설치: 프리캐시 ───────────────────────────────────────────
 self.addEventListener('install', (event) => {
@@ -148,12 +170,7 @@ self.addEventListener('fetch', (event) => {
         return fresh;
       } catch (_) {
         const cached = (await caches.match('./index.html')) || (await caches.match('./'));
-        return cached || new Response(
-          '<!doctype html><meta charset="utf-8"><title>오프라인</title>' +
-          '<body style="font-family:-apple-system,sans-serif;background:#1c1c1c;color:#eee;' +
-          'display:flex;align-items:center;justify-content:center;height:100vh;margin:0">' +
-          '<div style="text-align:center"><h2>오프라인입니다</h2>' +
-          '<p style="color:#999">네트워크에 연결되면 자동으로 다시 불러옵니다.</p></div>',
+        return cached || new Response(OFFLINE_HTML,
           { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 503 }
         );
       }
