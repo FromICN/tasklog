@@ -3,7 +3,7 @@
   "style.css": "17eef63dbeca",
   "profile-modal.css": "6199d432a913",
   "login.css": "e4d2a0107b36",
-  "mobile.css": "6991b4c59a6f",
+  "mobile.css": "3ba72978cb67",
   "config.js": "6388e025cad1",
   "colresize.js": "5b4907a5ad5b",
   "backup-core.js": "6b37de481580",
@@ -24,6 +24,6 @@
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "64b9480551f7",
-  "pwa.js": "63f402143a0e",
-  "mobile-ui.js": "3c78d560f4af"
+  "pwa.js": "fc4d01e23193",
+  "mobile-ui.js": "ff2c7494ef27"
 }

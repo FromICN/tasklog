@@ -258,6 +258,19 @@ html.pwa-standalone body {
   #page-content {
     padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
   }
+
+  /* 고정(sticky) 열 배경은 반드시 불투명해야 한다.
+     --surface 는 다크 테마에서 rgba(255,255,255,0.05) 라 반투명이어서,
+     그대로 쓰면 스크롤된 내용이 비쳐 글자가 겹쳐 보인다. */
+  .tlm-sticky-cell,
+  .todo-table thead th:first-child,
+  .todo-table tbody td:first-child,
+  .lw-table thead th:first-child,
+  .lw-table tbody td:first-child,
+  .gm-left,
+  .gm-left-spacer {
+    background-color: var(--main-bg);
+  }
   /* 데스크톱용 컬럼 폭 드래그 핸들은 터치에서 오작동만 일으킨다 */
   .hw-resize-x,
   .hw-resize-y,
@@ -279,45 +292,84 @@ html.pwa-standalone body {
   /* ── 1. Home ─────────────────────────────────────────────
      데스크톱: [캘린더 | 간트] / [습관 | 만다라트 | 라이프휠]
      모바일  : 캘린더 → 간트 → 습관 → [만다라트 | 라이프휠]     */
+     ⚠️ hwInitLayout()이 데스크톱에서 저장한 열 너비·높이를 인라인 style로
+        덮어쓴다(예: grid-template-columns: 330px 990px).
+        인라인이 미디어쿼리를 이기므로 !important 로 무력화하고,
+        mobile-ui.js가 인라인 값 자체도 지운다.                  */
   .home-page { overflow-y: auto; }
 
+  /* flex:1 1 auto 인 채로 두면 내용(카드 600px)이 배정된 높이(≈257px)를
+     넘쳐 다음 행이 위에 겹쳐 그려진다. 내용만큼 늘어나게 바꾼다. */
+  .home-grid-row1,
+  .home-grid-row2 {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    overflow: visible;
+  }
   .home-grid-row1 {
-    grid-template-columns: 1fr;
-    min-height: 0;
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
   }
   .home-grid-row2 {
-    grid-template-columns: 1fr 1fr;
-    height: auto;
+    grid-template-columns: 1fr 1fr !important;
   }
   /* 습관 트래커는 가로로 긴 막대라 전체 폭을 준다 */
   #habit-widget { grid-column: 1 / -1; }
 
-  .home-grid-row1 > .card { height: auto; min-height: 300px; }
-  .home-grid-row2 > .card { height: auto; min-height: 190px; }
+  /* 높이 제한을 아예 없애면 간트 위젯이 Task 수만큼(2000px+) 늘어난다.
+     카드마다 상한을 두고 내부에서 스크롤하게 한다. */
+  .home-grid-row1 > .card,
+  .home-grid-row2 > .card {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .home-grid-row1 > .card { min-height: 300px; max-height: 62vh; }
+  .home-grid-row2 > .card { min-height: 190px; max-height: 50vh; }
   #habit-widget { min-height: 150px; }
+
+  .home-grid-row1 > .card > *:last-child,
+  .home-grid-row2 > .card > *:last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
   /* ── 2. Board (Task · To Do) ─────────────────────────────
      12개 열을 숨기지 않고 가로 스크롤 + 첫 열(To Do) 고정      */
-  .todo-table { min-width: 680px; }
+     ⚠️ TLColResize가 데스크톱에서 저장한 열 너비를 <colgroup>과
+        인라인 width(예: 1510px)로 강제한다. 그 값이 모바일에 그대로 오면
+        첫 열이 40px로 눌려 글자가 옆 열로 넘쳐 겹친다.
+        → mobile-ui.js가 colgroup과 인라인 width를 걷어내고,
+          아래 규칙으로 자연스러운 열 너비 + 가로 스크롤을 쓴다.       */
+  .todo-table {
+    table-layout: auto !important;
+    width: 100% !important;
+    min-width: 680px;
+  }
+  .todo-table colgroup.cr-cg { display: none; }
 
   .todo-table thead th:first-child,
   .todo-table tbody td:first-child {
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--main-bg);
+    min-width: 150px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     box-shadow: 1px 0 0 var(--border);
   }
-  .todo-table thead th:first-child { z-index: 3; background: var(--surface); }
-  /* 완료·선택 행에서도 고정 열 배경이 본문과 어긋나지 않게 */
-  .todo-table tbody tr.is-selected td:first-child { background: var(--surface-hover, var(--main-bg)); }
+  .todo-table thead th:first-child { z-index: 3; }
 
   /* ── 3. Work Diary ───────────────────────────────────────
      좌(달력·트래커·평가) + 우(주간 그리드) → 주간 그리드를 위로 */
-  .jnl-body { flex-direction: column; }
-  .jnl-left  { width: 100%; flex-shrink: 1; order: 2; }
-  .jnl-right { order: 1; min-height: 340px; }
+  .jnl-page { overflow-y: auto; }
+  .jnl-body { flex-direction: column; height: auto; min-height: 0; }
+  .jnl-left  { width: 100%; order: 2; flex: 0 0 auto; height: auto; }
+  .jnl-right { order: 1; flex: 0 0 auto; min-height: 340px; }
+  .jnl-left .jnl-sec-eval { flex: 0 0 auto; height: auto; }
   .jnl-top-row { flex-direction: column; }
+
+  /* 13주 트래커는 폰에서 한 칸이 20px도 안 된다 → 7칸씩 줄바꿈 */
+  .jnl-tracker-grid { grid-template-columns: repeat(7, 1fr); }
 
   /* 주간 그리드: 5일이 보이는 최소 폭 + 가로 스크롤 */
   .jnlw-scroll { overflow-x: auto; }
@@ -361,6 +413,12 @@ html.pwa-standalone body {
   .mdt-page.tlm-mdt-full .mdt-main-grid-wrap { overflow-x: auto; }
   .mdt-page.tlm-mdt-full .mdt-grid { min-width: 720px; aspect-ratio: 1 / 1; }
 
+  /* Section 상세(실적관리) 표 — width:100%라 눌려서 글자가 세로로 접혔다 */
+  .mdt-grid-table-wrap { overflow-x: auto; }
+  .mdt-grid-table { min-width: 760px; }
+  .mdt-grid-table td,
+  .mdt-grid-table th { word-break: keep-all; }
+
   /* ── 6. MVV ──────────────────────────────────────────────  */
   .mvv-2col { grid-template-columns: 1fr; }
   .mvv-col { min-height: 0; }
@@ -368,16 +426,21 @@ html.pwa-standalone body {
   /* ── 7. Life Wheel ───────────────────────────────────────
      (설계 단계에서는 레이더 차트로 가정했으나 실제 화면은 표다.
       Board와 같은 방식 — 가로 스크롤 + Section 열 고정)        */
-  .lw-table { min-width: 720px; }
+  .lw-table {
+    table-layout: auto !important;
+    width: 100% !important;
+    min-width: 720px;
+  }
+  .lw-table colgroup.cr-cg { display: none; }
   .lw-table thead th:first-child,
   .lw-table tbody td:first-child {
     position: sticky;
     left: 0;
     z-index: 2;
-    background: var(--main-bg);
+    min-width: 130px;
     box-shadow: 1px 0 0 var(--border);
   }
-  .lw-table thead th:first-child { z-index: 3; background: var(--surface); }
+  .lw-table thead th:first-child { z-index: 3; }
 
   /* ── 8. WBS ──────────────────────────────────────────────
      행이 flex라서 START·DUE·STATUS(264px)가 이름을 밀어내
@@ -410,17 +473,25 @@ html.pwa-standalone body {
   /* ── 9. Gantt ────────────────────────────────────────────
      Task 이름 열 고정 + 날짜 트랙만 가로 스크롤               */
   .gantt-wrap, .gm-wrap { overflow: auto; }
-  .gm-header, .gm-row { min-width: 640px; }
+  /* 헤더와 본문 행의 총 폭이 반드시 같아야 날짜와 막대가 어긋나지 않는다.
+     → 좌측 열 폭(--gm-left)을 고정하고, 날짜 영역에만 같은 min-width를 준다. */
+  .gm-wrap { --gm-left: 120px !important; }
+  .gm-hcells, .gm-grid { min-width: 480px; }
+  /* 헤더·행 모두 같은 총 폭을 갖게 해 스크롤 중에도 어긋나지 않도록 */
+  .gm-header, .gm-row { min-width: calc(var(--gm-left) + 480px); }
 
   .gm-left, .gm-left-spacer {
     position: sticky;
     left: 0;
-    z-index: 2;
-    width: var(--gm-left, 104px);
-    background: var(--main-bg);
+    z-index: 3;
+    flex: 0 0 auto;
+    width: var(--gm-left) !important;
+    min-width: var(--gm-left);
+    max-width: var(--gm-left);
+    overflow: hidden;
     box-shadow: 1px 0 0 var(--border);
   }
-  .gm-header .gm-left-spacer { background: var(--surface); z-index: 3; }
+  .gm-info, .gm-name { min-width: 0; }
   .gm-name { font-size: var(--fs-sm); }
 
   /* ── 10. Calendar ────────────────────────────────────────  */

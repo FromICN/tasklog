@@ -178,7 +178,46 @@
   }
 
   // ══════════════════════════════════════════════════════════
-  //  4. 넓은 표 — 가로 스크롤 안내
+  //  4. 데스크톱에서 저장된 크기 무력화  ★ 겹침의 주원인
+  //     · home.js  hwInitLayout()   → 행에 인라인 grid-template-columns/height
+  //     · colresize.js TLColResize  → 표에 <colgroup> + 인라인 width, CSS 변수
+  //     이 값들이 폰에도 그대로 적용돼 카드/열이 데스크톱 크기로 고정되고,
+  //     내용이 넘쳐 아래 요소와 겹쳐 보인다. 모바일에서는 걷어낸다.
+  // ══════════════════════════════════════════════════════════
+  function neutralizeDesktopSizing() {
+    // (1) Home 행 — 인라인 열 너비/높이 제거
+    ['.home-grid-row1', '.home-grid-row2'].forEach(function (sel) {
+      var el = document.querySelector(sel);
+      if (!el) return;
+      if (el.style.gridTemplateColumns) el.style.removeProperty('grid-template-columns');
+      if (el.style.height) el.style.removeProperty('height');
+    });
+
+    // (2) 표 — 저장된 열 너비(colgroup + 인라인 width) 제거
+    ['.todo-table', '.lw-table'].forEach(function (sel) {
+      var tbl = document.querySelector(sel);
+      if (!tbl) return;
+      var cg = tbl.querySelector('colgroup.cr-cg');
+      if (cg) cg.parentNode.removeChild(cg);
+      if (tbl.style.width) tbl.style.removeProperty('width');
+      if (tbl.style.tableLayout) tbl.style.removeProperty('table-layout');
+    });
+
+    // (3) WBS 열 너비 CSS 변수 제거 (CSS 기본값으로 되돌림)
+    var wbsRoot = document.getElementById('wbs-root');
+    if (wbsRoot) {
+      ['--wbs-w-start', '--wbs-w-due', '--wbs-w-status'].forEach(function (v) {
+        if (wbsRoot.style.getPropertyValue(v)) wbsRoot.style.removeProperty(v);
+      });
+    }
+
+    // (4) 드래그 리사이즈 핸들 — 터치에서는 쓸 수 없고 오작동만 한다
+    var handles = document.querySelectorAll('#page-content .cr-handle, .hw-resize-x, .hw-resize-y');
+    for (var i = 0; i < handles.length; i++) handles[i].parentNode.removeChild(handles[i]);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  5. 넓은 표 — 가로 스크롤 안내
   // ══════════════════════════════════════════════════════════
   var HINT_TARGETS = ['.todo-table-wrap', '.lw-table-wrap', '.gm-wrap', '.wbs-wrap'];
 
@@ -208,6 +247,8 @@
     queued = false;
     if (!isMobile()) return;
     mutate(function () {
+      // 크기 무력화가 먼저 — 이후 계산(스크롤 여부 등)이 올바른 값을 보게 한다
+      try { neutralizeDesktopSizing(); } catch (e) { console.warn('[mobile-ui] 크기 보정:', e); }
       try { enhanceNotes(); }        catch (e) { console.warn('[mobile-ui] Web 탭:', e); }
       try { enhanceJournal(); }      catch (e) { console.warn('[mobile-ui] WD 달력:', e); }
       try { enhanceMandalart(); }    catch (e) { console.warn('[mobile-ui] 만다라트:', e); }
