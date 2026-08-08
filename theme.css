@@ -418,6 +418,16 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
 
 /* ── 9. 보드 표 ──────────────────────────────────────────── */
 
+/* 표가 놓이는 판은 카드와 같은 흰 도면이어야 한다.
+   원본은 var(--main-bg)를 썼는데, 이 테마에서 --main-bg가 제도 매트색으로
+   바뀌면서 표 영역만 매트 위에 얹힌 것처럼 보였다. */
+.todo-table-wrap,
+.wbs-table-wrap,
+.lw-table-wrap {
+  background: var(--tl-sheet);
+  border-color: var(--tl-rule);
+}
+
 .todo-table th {
   font-size: 10px;
   font-weight: 600;
