@@ -1,5 +1,5 @@
 {
-  "manifest.json": "8e3cb271bff3",
+  "manifest.json": "7197cca5c533",
   "style.css": "17eef63dbeca",
   "profile-modal.css": "6199d432a913",
   "login.css": "e4d2a0107b36",
@@ -26,6 +26,6 @@
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "64b9480551f7",
-  "pwa.js": "a44cfe5dbc31",
+  "pwa.js": "6f2c337c2647",
   "mobile-ui.js": "ff2c7494ef27"
 }
