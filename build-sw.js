@@ -52,10 +52,19 @@ const EXTRA_ASSETS = [
   './apple-touch-icon.png',
   './icon-192.png',
   './icon-512.png',
+  /* 고정폭(숫자·눈금용) — 라틴만이라 둘이 합쳐 30KB. 첫 오프라인 실행에서도
+     날짜/퍼센트가 제 글꼴로 나오도록 프리캐시에 넣는다. */
+  './fonts/IBMPlexMono-Regular.woff2',
+  './fonts/IBMPlexMono-SemiBold.woff2',
 ];
 
-/* 프리캐시 제외 — 용량이 크고 최초 1회만 쓰이므로 런타임 캐시로 충분 */
-const PRECACHE_EXCLUDE = [/^\.\/splash\//, /^\.\/screenshot-/, /^\.\/icon-1024\.png$/];
+/* 프리캐시 제외 — 용량이 크고 최초 1회만 쓰이므로 런타임 캐시로 충분
+   · fonts/pretendard/ : 동적 서브셋 92개(2.8MB). 브라우저가 실제 쓰는
+     글자 범위만 30KB씩 가져가고, sw.js의 SWR 규칙이 그때 캐시한다. */
+const PRECACHE_EXCLUDE = [
+  /^\.\/splash\//, /^\.\/screenshot-/, /^\.\/icon-1024\.png$/,
+  /^\.\/fonts\/pretendard\//,
+];
 
 // ── 유틸 ────────────────────────────────────────────────────
 const read     = (p) => fs.readFileSync(p, 'utf8');

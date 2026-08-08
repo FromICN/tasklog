@@ -24,6 +24,18 @@ const ALWAYS = [
   'apple-touch-icon.png', 'favicon-32.png', 'tasklog-icon.svg',
 ];
 
+/* index.html이 아니라 CSS가 참조하는 자원 — 폴더째 넣는다.
+   fonts/pretendard.css 안의 @font-face가 이 92개를 가리킨다. */
+const ALWAYS_DIRS = ['fonts/pretendard'];
+
+function filesUnder(dir) {
+  const abs = path.join(ROOT, dir);
+  if (!fs.existsSync(abs)) return [];
+  return fs.readdirSync(abs, { withFileTypes: true }).flatMap((e) => (
+    e.isDirectory() ? filesUnder(path.join(dir, e.name)) : [path.join(dir, e.name).replace(/\\/g, '/')]
+  ));
+}
+
 /* 네이티브 앱(Capacitor)에는 넣지 않는다
    · sw.js       — 앱 번들이 이미 로컬이라 서비스워커가 불필요
    · splash/*    — iOS 실행화면은 네이티브 스플래시가 담당 (약 600KB 절약) */
@@ -45,6 +57,7 @@ while ((m = re.exec(html)) !== null) {
 }
 refs.add('index.html');                  // 진입점 자신
 ALWAYS.forEach((f) => refs.add(f));
+ALWAYS_DIRS.forEach((d) => filesUnder(d).forEach((f) => refs.add(f)));
 
 // ── 복사 ────────────────────────────────────────────────────
 fs.rmSync(OUT, { recursive: true, force: true });

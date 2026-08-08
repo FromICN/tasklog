@@ -1,0 +1,500 @@
+/* ============================================================
+   TaskLog — 제도(製圖) 테마  ·  Drafting Log skin
+   ------------------------------------------------------------
+   원칙
+   1) 이 앱의 모든 화면은 자(尺)다. 달력·간트·보드·WBS·만다라트
+      전부 시간 또는 구조로 눈금이 매겨진 격자다. 그래서 SaaS
+      대시보드가 아니라 제도판(drafting table)처럼 보이게 한다.
+   2) 색은 잉크그린 한 계열 + 주홍(朱) 하나.
+      주홍은 오직 "지금"에만 쓴다 — 오늘 날짜, 현재 시각선, 마감 지남.
+      다른 곳에 주홍이 보이면 그건 버그다.
+   3) 숫자와 라벨은 전부 고정폭(IBM Plex Mono). 읽는 글은 Pretendard.
+      눈금은 눈금처럼, 문장은 문장처럼 보이게 하는 유일한 규칙.
+
+   style.css / mobile.css 뒤에 로드할 것. DOM은 건드리지 않는다.
+   ============================================================ */
+
+/* ── 0. 글꼴 (자체 호스팅) ───────────────────────────────────
+   CDN을 쓰지 않는 이유: sw.js의 CDN_HOSTS에 cdnjs만 있어서 구글/jsdelivr
+   폰트는 서비스워커가 캐시하지 않는다. 오프라인이나 APK(로컬 오리진)에서
+   글꼴이 통째로 빠진다. 같은 오리진으로 두면 4번 규칙(Stale While
+   Revalidate)이 알아서 캐시한다.
+
+   Pretendard는 fonts/pretendard.css(동적 서브셋 92개)가 담당한다 —
+   브라우저가 실제로 쓰는 글자 범위만 30KB씩 받아간다.
+   여기 있는 고정폭은 라틴 영역만 받으므로 30KB면 끝이고,
+   unicode-range로 한글이 절대 이 글꼴로 떨어지지 않게 막아둔다. */
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/IBMPlexMono-Regular.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/IBMPlexMono-SemiBold.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+                 U+02DA, U+02DC, U+2000-206F, U+2122, U+2212, U+FEFF, U+FFFD;
+}
+
+/* ── 1. 토큰 ─────────────────────────────────────────────── */
+
+:root {
+  /* 다크 = 먹빛 그린블랙 (중성 회색 대신 색을 준다) */
+  --bg:   #131815;
+  --bg-1: #1A211D;
+  --bg-2: rgba(255,255,255,0.05);
+  --bg-3: rgba(255,255,255,0.09);
+  --sidebar-bg: #0F1411;
+  --sidebar-hover: rgba(255,255,255,0.06);
+  --sidebar-active: rgba(255,255,255,0.10);
+  --main-bg: #131815;
+  --topbar-bg: #131815;
+  --surface: rgba(255,255,255,0.04);
+  --surface-hover: rgba(255,255,255,0.08);
+  --border: rgba(255,255,255,0.10);
+  --text-1: #E6EBE6;
+  --text-2: #9AA79F;
+  --text-3: #6B776F;
+  --panel-bg: #1A211D;
+  --card-bg: #1A211D;
+
+  --brand-primary: #6FA893;
+  --accent-rgb: 111,168,147;
+
+  /* 의미색 — 한 계열로 눌러 담는다 */
+  --success:        #6FA893;
+  --success-bg:     rgba(111,168,147,0.14);
+  --success-border: rgba(111,168,147,0.38);
+  --danger:         #FF6B4F;
+  --danger-bg:      rgba(255,107,79,0.14);
+  --danger-border:  rgba(255,107,79,0.40);
+  --warning:        #E0A458;
+  --warning-bg:     rgba(224,164,88,0.14);
+  --warning-border: rgba(224,164,88,0.38);
+  --info:           #8FB6C9;
+  --info-bg:        rgba(143,182,201,0.14);
+  --info-border:    rgba(143,182,201,0.38);
+  --accent-teal:    #6FA893;
+
+  --scroll-thumb: #2E3A34;
+  --scroll-thumb-hover: #3E4C44;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.45);
+  --shadow-md: 0 6px 18px rgba(0,0,0,0.50);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,0.60);
+
+  /* 제도 테마 고유 토큰 */
+  --tl-seal:      #FF6B4F;   /* 주홍 = 지금. 오직 지금. */
+  --tl-seal-wash: rgba(255,107,79,0.10);
+  --tl-pine:      #6FA893;   /* 진행·측정된 값 */
+  --tl-pine-wash: rgba(111,168,147,0.16);
+  --tl-rule:      rgba(255,255,255,0.10);   /* 눈금선 */
+  --tl-rule-soft: rgba(255,255,255,0.05);
+  --tl-weekend:   rgba(255,255,255,0.022);  /* 주말 열 음영 */
+  --tl-mat:       rgba(255,255,255,0.028);  /* 모눈 */
+  --tl-sheet:     #1A211D;
+
+  /* 눈금 글꼴 / 읽는 글꼴 */
+  --tl-mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+  --tl-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+             "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", "Malgun Gothic", sans-serif;
+
+  /* 각진 제도지 — 알약형 라운드는 쓰지 않는다 */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 5px;
+  --radius-xl: 6px;
+
+  --focus-ring: 0 0 0 2px var(--main-bg), 0 0 0 4px var(--tl-seal);
+}
+
+body.light-mode {
+  /* 라이트 = 제도판 매트 위의 흰 도면 */
+  --bg:   #FFFFFF;
+  --bg-1: #F4F6F2;
+  --bg-2: rgba(23,33,28,0.04);
+  --bg-3: rgba(23,33,28,0.07);
+  --sidebar-bg: #E6EAE3;
+  --sidebar-hover: rgba(23,33,28,0.06);
+  --sidebar-active: #FFFFFF;
+  --main-bg: #EDF0EA;
+  --topbar-bg: #EDF0EA;
+  --surface: #F4F6F2;
+  --surface-hover: rgba(23,33,28,0.06);
+  --border: rgba(23,33,28,0.13);
+  --text-1: #17211C;
+  --text-2: #56635C;
+  --text-3: #93A099;
+  --panel-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+
+  --brand-primary: #24473C;
+  --accent-rgb: 36,71,60;
+
+  --success:        #2E5B4E;
+  --success-bg:     rgba(46,91,78,0.10);
+  --success-border: rgba(46,91,78,0.32);
+  --danger:         #C8452F;
+  --danger-bg:      rgba(200,69,47,0.09);
+  --danger-border:  rgba(200,69,47,0.32);
+  --warning:        #9A6B21;
+  --warning-bg:     rgba(154,107,33,0.10);
+  --warning-border: rgba(154,107,33,0.32);
+  --info:           #3D6478;
+  --info-bg:        rgba(61,100,120,0.09);
+  --info-border:    rgba(61,100,120,0.32);
+  --accent-teal:    #2E5B4E;
+
+  --scroll-thumb: #C2CBC3;
+  --scroll-thumb-hover: #A5B0A7;
+
+  --shadow-sm: 0 1px 2px rgba(23,33,28,0.06);
+  --shadow-md: 0 4px 14px rgba(23,33,28,0.09);
+  --shadow-lg: 0 14px 36px rgba(23,33,28,0.14);
+
+  --tl-seal:      #C8452F;
+  --tl-seal-wash: rgba(200,69,47,0.08);
+  --tl-pine:      #2E5B4E;
+  --tl-pine-wash: rgba(46,91,78,0.14);
+  --tl-rule:      rgba(23,33,28,0.13);
+  --tl-rule-soft: rgba(23,33,28,0.07);
+  --tl-weekend:   rgba(23,33,28,0.035);
+  --tl-mat:       rgba(23,33,28,0.035);
+  --tl-sheet:     #FFFFFF;
+}
+
+/* ── 2. 글꼴: 읽는 글 / 눈금 글 ──────────────────────────── */
+
+body,
+input, textarea, select, button {
+  font-family: var(--tl-sans);
+  font-feature-settings: "tnum" 1, "case" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 눈금 목소리 — 숫자와 구조 라벨은 고정폭.
+   한글 문장에는 쓰지 않는다(고정폭 한글은 자간이 뜬다). */
+.card-title,
+.gm-hcell,
+.cal-dh, .cal-num,
+.cal-detail-badge,
+.mda-pct,
+.todo-table th, .todo-table-start, .todo-table-due,
+.todo-table-priority,
+.done-date, .nav-item-label {
+  font-family: var(--tl-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* 날짜 문장은 읽는 글꼴 + 자릿수 정렬 숫자 */
+.topbar-date, .gm-month-label, .cal-detail-header {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 3. 판(板): 제도 매트 위의 모눈 ──────────────────────── */
+
+.main-content,
+.content-wrapper {
+  background-color: var(--main-bg);
+}
+
+#page-content {
+  background-color: var(--main-bg);
+  background-image:
+    linear-gradient(to right,  var(--tl-mat) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--tl-mat) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+/* ── 4. 도면 한 장 = 카드 ────────────────────────────────── */
+
+.card {
+  background: var(--tl-sheet);
+  border: 1px solid var(--tl-rule);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+}
+
+/* 카드 제목: 고정폭 대문자 라벨 + 아래 눈금선 한 줄.
+   선은 장식이 아니라 "여기부터 한 구획"이라는 표시다. */
+.card-header {
+  border-bottom: 1px solid var(--tl-rule-soft);
+  padding-bottom: var(--space-15);
+}
+.card-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.card-title-link:hover { color: var(--text-1); }
+
+/* ── 5. 사이드바: 도구 레일 ──────────────────────────────── */
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--tl-rule);
+}
+.nav-item {
+  border-radius: var(--radius-sm);
+  color: var(--text-2);
+  position: relative;
+}
+.nav-item:hover { color: var(--text-1); background: var(--sidebar-hover); }
+.nav-item.active {
+  background: var(--sidebar-active);
+  color: var(--text-1);
+}
+/* 활성 표시는 왼쪽 눈금 하나. 주홍이 아니라 잉크색 —
+   주홍은 "지금"에만 쓴다는 규칙을 사이드바에서도 지킨다. */
+.sidebar .nav-item.active {
+  box-shadow: inset 2px 0 0 var(--text-1);
+}
+.nav-divider { background: var(--tl-rule-soft); }
+.avatar-circle {
+  border-radius: var(--radius-sm);
+  font-family: var(--tl-mono);
+  font-weight: 600;
+}
+
+/* ── 6. 탑바: 지금이 찍히는 자리 ─────────────────────────── */
+
+.topbar {
+  background: var(--topbar-bg);
+  border-bottom: 1px solid var(--tl-rule);
+}
+.topbar-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--text-1);
+}
+.topbar-date {
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+/* 주홍 눈금 = 지금. 앱 전체에서 같은 뜻으로만 쓰인다.
+   (날짜가 없는 페이지에서는 눈금도 찍지 않는다) */
+.topbar-date:not(:empty)::before {
+  content: "";
+  width: 6px; height: 6px;
+  background: var(--tl-seal);
+}
+
+/* ── 7. 달력 ─────────────────────────────────────────────── */
+
+.cal-dh {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  text-transform: uppercase;
+}
+.cal-cell {
+  border-radius: var(--radius-xs);
+  font-size: 12px;
+}
+.cal-cell.dim { opacity: 0.35; }
+.cal-num { font-size: 11.5px; }
+
+/* 주말은 한국 달력 관습대로 색을 유지하되, 주홍(=지금)과는 확실히 다른
+   벽돌빛·청석빛으로 내린다. 주홍이 두 가지 뜻을 갖게 두지 않는다. */
+.cal-cell.sun .cal-num { color: #B4574A; }
+.cal-cell.sat .cal-num { color: #7A93A8; }
+body.light-mode .cal-cell.sun .cal-num { color: #A0503C; }
+body.light-mode .cal-cell.sat .cal-num { color: #4E7288; }
+
+/* 오늘 = 주홍 사각 도장. 동그란 알약 대신 각진 눈금으로. */
+body .cal-cell.today .cal-num,
+body.light-mode .cal-cell.today .cal-num,
+body.light-mode .cal-cell.today.sun .cal-num,
+body.light-mode .cal-cell.today.sat .cal-num {
+  background: var(--tl-seal);
+  color: #fff;
+  border-radius: 2px;
+  width: 19px;
+  height: 19px;
+  font-weight: 600;
+}
+.cal-cell.today { background: transparent; }
+.cal-cell.selected:not(.today) {
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--tl-rule);
+}
+.cal-cell.today.selected { box-shadow: none; }
+.cal-dot { border-radius: 0; width: 3px; height: 3px; }
+
+.cal-detail-header {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+.cal-detail-item { border-radius: var(--radius-xs); }
+.cal-detail-badge {
+  background: var(--tl-pine-wash);
+  color: var(--tl-pine);
+  border-radius: 2px;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── 8. 간트: 이 앱의 주인공 ─────────────────────────────── */
+
+/* 날짜 눈금 — 읽히는 자로 만든다 */
+.gm-hcell {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--text-3);
+  letter-spacing: 0;
+}
+/* 간트 눈금자에서는 주말도 회색으로 둔다. 자 위에서 붉은 것은
+   오직 오늘 하나여야 눈이 바로 찾는다. 주말은 열 배경 음영으로 구분. */
+body .gm-hcell.gm-sun,
+body .gm-hcell.gm-sat { color: var(--text-3); }
+body .gm-hcell.gm-today {
+  color: var(--tl-seal);
+  font-weight: 600;
+}
+
+.gm-grid, .gm-bgcell { border-color: var(--tl-rule-soft); }
+body .gm-bgcell.gm-weekend-col { background: var(--tl-weekend); }
+
+/* ★ 서명: 오늘 자리를 관통하는 주홍 눈금.
+   기본 스타일은 이 선을 아예 꺼두고 있었다(display:none). 다시 켠다. */
+body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
+
+.gm-wrap { position: relative; }
+.gm-today-line {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1.5px solid var(--tl-seal);
+  pointer-events: none;
+  z-index: 3;
+}
+/* 눈금 머리 — 자에 찍힌 표시 */
+.gm-today-line::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 5px;
+  height: 5px;
+  background: var(--tl-seal);
+}
+
+/* 막대: 알약형 파란 막대 → 측정값처럼 보이는 각진 눈금 막대.
+   색 자체는 만다라트 섹션 색을 그대로 쓴다(JS 인라인) — 형태만 바꾼다. */
+.gm-bar {
+  height: 10px;
+  border-radius: 1px;
+  border-width: 1px;
+  border-left-width: 2px;
+}
+.gm-bar-fill { border-radius: 0; }
+.gm-name, .gm-sub-name { font-size: 12px; }
+.gm-sub-name { color: var(--text-2); }
+.gm-left, .gm-sub-left { border-right: 1px solid var(--tl-rule); }
+.gm-month-label { font-size: 12px; letter-spacing: 0.02em; }
+
+/* ── 9. 보드 표 ──────────────────────────────────────────── */
+
+.todo-table th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--tl-rule);
+  background: var(--tl-sheet);
+}
+.todo-table td {
+  font-size: 12px;
+  border-bottom: 1px solid var(--tl-rule-soft);
+}
+.todo-table tbody tr:hover td { background: var(--surface); }
+
+/* 빈 칸의 '-'는 정보가 아니다. 있는 값만 읽히게 눌러둔다. */
+.todo-table-empty { color: var(--tl-rule); }
+.todo-table-start, .todo-table-due { color: var(--text-2); font-size: 11.5px; }
+.todo-table-priority { font-size: 11px; letter-spacing: 0.04em; }
+
+/* ── 10. 만다라트 · 라이프휠 ─────────────────────────────── */
+
+.mda-track { border-radius: 1px; background: var(--bg-2); }
+.mda-track > * { border-radius: 1px; background: var(--tl-pine); }
+.mda-pct { font-size: 11px; color: var(--text-2); }
+.mda-name { font-size: 12px; }
+
+/* 라이프휠 라벨이 카드 위쪽에서 잘리던 문제 */
+.wheel-wrap {
+  overflow: visible;
+  padding: 10px 8px 4px;
+}
+.wheel-wrap svg { overflow: visible; }
+
+/* 축 이름 8개가 저마다 다른 색이라 차트보다 라벨이 먼저 보였다.
+   라벨은 라벨로 내리고, 색은 값을 그린 도형만 갖는다. */
+.wheel-wrap svg text { fill: var(--text-2); }
+
+/* ── 11. 버튼 · 입력 ─────────────────────────────────────── */
+
+.btn-primary {
+  background: var(--brand-primary);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.btn-secondary { border-radius: var(--radius-sm); }
+
+/* 설치 버튼: 콘텐츠를 덮는 검은 알약 → 조용한 도구 태그 */
+.pwa-install-btn {
+  border-radius: var(--radius-sm);
+  background: var(--tl-sheet);
+  color: var(--text-1);
+  border: 1px solid var(--tl-rule);
+  box-shadow: var(--shadow-md);
+  font-family: var(--tl-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  height: 34px;
+}
+
+/* 테마 스위치: 사이드바에서 가장 밝은 물체가 되지 않게 */
+.tswitch { background: var(--surface); border: 1px solid var(--tl-rule); }
+.tswitch > span { background: var(--text-2); }
+
+/* ── 12. 바닥 품질 ───────────────────────────────────────── */
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
