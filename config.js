@@ -19,6 +19,21 @@ const GOOGLE_CONFIG = {
   ]
 };
 
+// ============================================
+//  🔥 Firebase 설정 (Firestore 실시간 동기화용)
+// --------------------------------------------
+//  Firebase Console(console.firebase.google.com) → 프로젝트 설정 →
+//  '내 앱'의 firebaseConfig 값을 그대로 붙여넣으세요. (FIREBASE-SETUP.md 1단계)
+// ============================================
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyCsel2skjTQN7A8e2Z3FfUduSCITKEc1ss',
+  authDomain: 'tasklog-601bb.firebaseapp.com',
+  projectId: 'tasklog-601bb',
+  storageBucket: 'tasklog-601bb.firebasestorage.app',
+  messagingSenderId: '1005717689565',
+  appId: '1:1005717689565:web:e6c95bec2e0ea680b3b734'
+};
+
 
 
 

@@ -29,6 +29,25 @@ function _escHtml(str) {
 }
 
 // ============================================
+//  🔥 Firebase 로그인 연동 (Firestore 실시간 동기화)
+// --------------------------------------------
+//  Google 로그인으로 받은 access_token을 그대로 Firebase Auth 자격증명으로
+//  재사용합니다 (firebase-init.js 가 FIREBASE_CONFIG 로 초기화에 성공했을 때만 동작).
+//  config.js 에 FIREBASE_CONFIG 를 채우지 않았다면 firebaseReady 가 false라
+//  아무 일도 하지 않고 기존 Drive 백업만 동작합니다.
+// ============================================
+function _syncFirebaseAuth(accessToken) {
+  if (typeof firebaseReady === 'undefined' || !firebaseReady || !window.firebase) return;
+  var credential = firebase.auth.GoogleAuthProvider.credential(null, accessToken);
+  firebase.auth().signInWithCredential(credential).then(function (result) {
+    console.log('🔥 Firebase 로그인 성공:', result.user.uid);
+    if (typeof startFirestoreSync === 'function') startFirestoreSync(result.user.uid);
+  }).catch(function (err) {
+    console.error('🔥 Firebase 로그인 실패 — Firestore 동기화 없이 계속 진행:', err);
+  });
+}
+
+// ============================================
 //  🚀 라이브러리 초기화
 // ============================================
 
@@ -179,6 +198,7 @@ function _silentSignIn() {
     _silentRetry = 0;
     _saveSessionToken(response);   // 토큰 보관(새로고침 후 재사용)
     await fetchUserInfo(response.access_token);
+    _syncFirebaseAuth(response.access_token);
     updateAuthUI();
     _hideLoginGate();              // 로그인 확인됨 → 앱으로 진입
     console.log('✅ 자동 로그인 성공!');
@@ -227,6 +247,7 @@ function handleSignIn() {
     console.log('✅ 로그인 성공!');
     _saveSessionToken(response);   // 토큰 보관(새로고침 후 재사용 → 팝업 반복 방지)
     await fetchUserInfo(response.access_token);
+    _syncFirebaseAuth(response.access_token);
     updateAuthUI();
     _applyKeepLoginPref();         // '로그인 상태 유지' 설정 반영
     _hideLoginGate();              // 로그인 완료 → 앱(home)으로 진입
@@ -248,6 +269,10 @@ function handleSignOut() {
   if (token !== null) {
     google.accounts.oauth2.revoke(token.access_token);
     gapi.client.setToken('');
+  }
+  if (typeof stopFirestoreSync === 'function') stopFirestoreSync();
+  if (window.firebase && firebase.auth && firebase.auth().currentUser) {
+    firebase.auth().signOut().catch(function () {});
   }
   currentUser = null;
   localStorage.removeItem(AUTH_STORAGE_KEY);   // 저장 정보 삭제

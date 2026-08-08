@@ -7,7 +7,7 @@
   <meta name="description" content="Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱">
 
   <!-- ===== 📱 PWA ===== -->
-  <link rel="manifest" href="manifest.json?v=20260808a">
+  <link rel="manifest" href="manifest.json?v=20260807a">
   <!-- 최초 페인트용 theme-color (OS 다크/라이트 기준).
        앱 자체 테마 토글이 동작하기 시작하면 pwa.js가 이 두 개를 제거하고 직접 관리한다. -->
   <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#1a1a1a">
@@ -184,11 +184,16 @@
 <div class="cal-popup" id="cal-popup" style="display:none;"></div>
 
 <!-- 스크립트 로드 순서 -->
-<script src="config.js?v=20260722"></script>
+<script src="config.js?v=20260808b"></script>
+<!-- 🔥 Firebase (Firestore 실시간 동기화) — config.js의 FIREBASE_CONFIG를 채워야 동작함 -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="firebase-init.js?v=20260808a"></script>
 <script src="colresize.js?v=20260722"></script>
 <script src="backup-core.js?v=20260722"></script>
 <script src="backup-xlsx.js?v=20260722"></script>
-<script src="auth.js?v=20260722"></script>
+<script src="auth.js?v=20260808a"></script>
 <script src="calendar.js?v=20260731a"></script>
 <script src="mandalart.js?v=20260803a"></script>
 <script src="lifewheel.js?v=20260722"></script>
@@ -201,12 +206,16 @@
 <script src="mvv.js?v=20260722"></script>
 <script src="settings.js?v=20260722"></script>
 <script src="drive.js?v=20260722"></script>
+<!-- firestore-sync.js가 scheduleAutoBackup/updateBackupStatus/initAutoBackup을 같은 이름으로
+     재정의해 drive.js의 자동 백업을 대체한다 — 반드시 drive.js보다 뒤에 로드할 것.
+     (파일로 복원 등 drive.js의 나머지 기능은 그대로 유지) -->
+<script src="firestore-sync.js?v=20260808a"></script>
 <script src="todo.js?v=20260803a"></script>
 <script src="yearsync.js?v=20260722"></script>
 <script src="script.js?v=20260803a"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20260808a"></script>
+<script src="pwa.js?v=20260808b"></script>
 
 <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
 <script src="mobile-ui.js?v=20260807c"></script>

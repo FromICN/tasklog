@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var SW_URL  = './sw.js?v=20260808a';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
+  var SW_URL  = './sw.js?v=20260808b';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
   var isHttps = location.protocol === 'https:';
   var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var isNative = /^(capacitor|ionic|file):$/.test(location.protocol);
@@ -239,63 +239,18 @@
     else toast('브라우저 메뉴에서 "앱 설치 / 홈 화면에 추가"를 선택하세요.', null, null, 5000);
   };
 
-  /* ── 6. 매니페스트 바로가기 (?page=todo&focus=today 등) ── */
-
-  /* focus 동작 — 페이지가 그려진 뒤 실행된다.
-     true를 돌려주면 완료, false면 아직 DOM이 준비되지 않은 것으로 보고 재시도한다. */
-  var FOCUS_ACTIONS = {
-    /* 오늘 할 일 — 홈 캘린더에서 오늘을 선택해 하단 상세 목록에 오늘 항목을 띄운다 */
-    today: function () {
-      if (typeof window.selectCalDate !== 'function') return false;
-      if (!document.getElementById('cal-detail')) return false;
-      var n = new Date();
-      window.selectCalDate(n.getFullYear(), n.getMonth(), n.getDate());
-      var el = document.getElementById('cal-detail');
-      if (el) {
-        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
-      }
-      return true;
-    },
-    /* 빠른 메모 — 메모 페이지 입력창에 커서를 놓는다 */
-    memo: function () {
-      var el = document.getElementById('nb-input');
-      if (!el) return false;
-      try { el.scrollIntoView({ block: 'center' }); } catch (e) {}
-      // 모바일 키보드는 렌더 직후 focus가 무시되는 경우가 있어 한 프레임 뒤에 준다
-      requestAnimationFrame(function () { try { el.focus(); } catch (e) {} });
-      return true;
-    }
-  };
-
-  function runFocus(focus) {
-    var fn = FOCUS_ACTIONS[focus];
-    if (!fn) return;
-    var n = 0;
-    (function tick() {
-      var ok = false;
-      try { ok = fn(); } catch (e) { ok = true; }   // 예외는 재시도해도 같으므로 중단
-      if (ok) return;
-      if (++n < 40) setTimeout(tick, 150);          // 최대 6초
-      else console.warn('[PWA] 바로가기 focus 대상을 찾지 못했습니다: ?focus=' + focus);
-    })();
-  }
-
+  /* ── 6. 매니페스트 바로가기 (?page=todo 등) ─────────────── */
   window.addEventListener('load', function () {
     var params;
     try { params = new URLSearchParams(location.search); } catch (e) { return; }
 
-    var page  = params.get('page');
-    var focus = params.get('focus');
+    var page = params.get('page');
 
     // start_url의 ?source=pwa 등 부가 파라미터는 항상 주소창에서 정리
     function cleanUrl() {
       try { history.replaceState(null, '', location.pathname); } catch (e) {}
     }
-    if (!page) {
-      if (focus) runFocus(focus);          // ?focus= 만 온 경우(현재 화면에서 실행)
-      if (params.toString()) cleanUrl();
-      return;
-    }
+    if (!page) { if (params.toString()) cleanUrl(); return; }
 
     var tries = 0;
     (function apply() {
@@ -305,7 +260,6 @@
                    window.MENU_RENDERERS[page]) || document.getElementById('nav-' + page);
       if (typeof window.navToMenu === 'function' && known) {
         window.navToMenu(page);
-        if (focus) runFocus(focus);
         cleanUrl();
         return;
       }
