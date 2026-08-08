@@ -1,0 +1,247 @@
+diff --git a/index.html b/index.html
+index ef567d9..e6169b4 100644
+--- a/index.html
++++ b/index.html
+@@ -7,7 +7,7 @@
+   <meta name="description" content="Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱">
+ 
+   <!-- ===== 📱 PWA ===== -->
+-  <link rel="manifest" href="manifest.json?v=20260807a">
++  <link rel="manifest" href="manifest.json?v=20260808a">
+   <!-- 최초 페인트용 theme-color (OS 다크/라이트 기준).
+        앱 자체 테마 토글이 동작하기 시작하면 pwa.js가 이 두 개를 제거하고 직접 관리한다. -->
+   <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#1a1a1a">
+@@ -206,7 +206,7 @@
+ <script src="script.js?v=20260803a"></script>
+ 
+ <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
+-<script src="pwa.js?v=20260807c"></script>
++<script src="pwa.js?v=20260808a"></script>
+ 
+ <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
+ <script src="mobile-ui.js?v=20260807c"></script>
+diff --git a/manifest.json b/manifest.json
+index 9213779..b790ff5 100644
+--- a/manifest.json
++++ b/manifest.json
+@@ -8,11 +8,19 @@
+   "scope": "./",
+   "id": "/tasklog/",
+   "display": "standalone",
+-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
++  "display_override": [
++    "window-controls-overlay",
++    "standalone",
++    "minimal-ui"
++  ],
+   "orientation": "any",
+   "background_color": "#1a1a1a",
+   "theme_color": "#1a1a1a",
+-  "categories": ["productivity", "business", "utilities"],
++  "categories": [
++    "productivity",
++    "business",
++    "utilities"
++  ],
+   "prefer_related_applications": false,
+   "launch_handler": {
+     "client_mode": "focus-existing"
+@@ -85,32 +93,60 @@
+   ],
+   "shortcuts": [
+     {
+-      "name": "보드 (Task · To Do)",
+-      "short_name": "Board",
+-      "description": "Task와 To Do를 표로 확인합니다",
+-      "url": "./?page=todo",
+-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
++      "name": "오늘 할 일",
++      "short_name": "오늘",
++      "description": "오늘 마감인 Task · To Do · 일정을 바로 봅니다",
++      "url": "./?page=home&focus=today",
++      "icons": [
++        {
++          "src": "./shortcut-today.png",
++          "sizes": "192x192",
++          "type": "image/png",
++          "purpose": "any"
++        }
++      ]
+     },
+     {
+-      "name": "업무일지",
+-      "short_name": "Work Diary",
+-      "description": "이번 주 시간 그리드를 엽니다",
+-      "url": "./?page=journal",
+-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
++      "name": "빠른 메모",
++      "short_name": "메모",
++      "description": "메모 입력창을 열고 바로 적습니다",
++      "url": "./?page=cloud&focus=memo",
++      "icons": [
++        {
++          "src": "./shortcut-memo.png",
++          "sizes": "192x192",
++          "type": "image/png",
++          "purpose": "any"
++        }
++      ]
+     },
+     {
+-      "name": "만다라트",
+-      "short_name": "Mandalart",
+-      "description": "연간 목표 그리드를 엽니다",
++      "name": "만다라트 달성률",
++      "short_name": "만다라트",
++      "description": "연간 목표 그리드와 달성 현황을 엽니다",
+       "url": "./?page=mandalart",
+-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
++      "icons": [
++        {
++          "src": "./shortcut-mandalart.png",
++          "sizes": "192x192",
++          "type": "image/png",
++          "purpose": "any"
++        }
++      ]
+     },
+     {
+-      "name": "WBS",
+-      "short_name": "WBS",
+-      "description": "섹션 · 프로젝트 · To Do 계층을 엽니다",
+-      "url": "./?page=wbs",
+-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
++      "name": "보드 (Task · To Do)",
++      "short_name": "보드",
++      "description": "Task와 To Do를 표로 확인합니다",
++      "url": "./?page=todo",
++      "icons": [
++        {
++          "src": "./shortcut-board.png",
++          "sizes": "192x192",
++          "type": "image/png",
++          "purpose": "any"
++        }
++      ]
+     }
+   ]
+ }
+diff --git a/pwa.js b/pwa.js
+index ff337a5..3121ab9 100644
+--- a/pwa.js
++++ b/pwa.js
+@@ -10,7 +10,7 @@
+ (function () {
+   'use strict';
+ 
+-  var SW_URL  = './sw.js?v=20260807c';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
++  var SW_URL  = './sw.js?v=20260808a';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
+   var isHttps = location.protocol === 'https:';
+   var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+   var isNative = /^(capacitor|ionic|file):$/.test(location.protocol);
+@@ -239,18 +239,63 @@
+     else toast('브라우저 메뉴에서 "앱 설치 / 홈 화면에 추가"를 선택하세요.', null, null, 5000);
+   };
+ 
+-  /* ── 6. 매니페스트 바로가기 (?page=todo 등) ─────────────── */
++  /* ── 6. 매니페스트 바로가기 (?page=todo&focus=today 등) ── */
++
++  /* focus 동작 — 페이지가 그려진 뒤 실행된다.
++     true를 돌려주면 완료, false면 아직 DOM이 준비되지 않은 것으로 보고 재시도한다. */
++  var FOCUS_ACTIONS = {
++    /* 오늘 할 일 — 홈 캘린더에서 오늘을 선택해 하단 상세 목록에 오늘 항목을 띄운다 */
++    today: function () {
++      if (typeof window.selectCalDate !== 'function') return false;
++      if (!document.getElementById('cal-detail')) return false;
++      var n = new Date();
++      window.selectCalDate(n.getFullYear(), n.getMonth(), n.getDate());
++      var el = document.getElementById('cal-detail');
++      if (el) {
++        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
++      }
++      return true;
++    },
++    /* 빠른 메모 — 메모 페이지 입력창에 커서를 놓는다 */
++    memo: function () {
++      var el = document.getElementById('nb-input');
++      if (!el) return false;
++      try { el.scrollIntoView({ block: 'center' }); } catch (e) {}
++      // 모바일 키보드는 렌더 직후 focus가 무시되는 경우가 있어 한 프레임 뒤에 준다
++      requestAnimationFrame(function () { try { el.focus(); } catch (e) {} });
++      return true;
++    }
++  };
++
++  function runFocus(focus) {
++    var fn = FOCUS_ACTIONS[focus];
++    if (!fn) return;
++    var n = 0;
++    (function tick() {
++      var ok = false;
++      try { ok = fn(); } catch (e) { ok = true; }   // 예외는 재시도해도 같으므로 중단
++      if (ok) return;
++      if (++n < 40) setTimeout(tick, 150);          // 최대 6초
++      else console.warn('[PWA] 바로가기 focus 대상을 찾지 못했습니다: ?focus=' + focus);
++    })();
++  }
++
+   window.addEventListener('load', function () {
+     var params;
+     try { params = new URLSearchParams(location.search); } catch (e) { return; }
+ 
+-    var page = params.get('page');
++    var page  = params.get('page');
++    var focus = params.get('focus');
+ 
+     // start_url의 ?source=pwa 등 부가 파라미터는 항상 주소창에서 정리
+     function cleanUrl() {
+       try { history.replaceState(null, '', location.pathname); } catch (e) {}
+     }
+-    if (!page) { if (params.toString()) cleanUrl(); return; }
++    if (!page) {
++      if (focus) runFocus(focus);          // ?focus= 만 온 경우(현재 화면에서 실행)
++      if (params.toString()) cleanUrl();
++      return;
++    }
+ 
+     var tries = 0;
+     (function apply() {
+@@ -260,6 +305,7 @@
+                    window.MENU_RENDERERS[page]) || document.getElementById('nav-' + page);
+       if (typeof window.navToMenu === 'function' && known) {
+         window.navToMenu(page);
++        if (focus) runFocus(focus);
+         cleanUrl();
+         return;
+       }
+diff --git a/sw.js b/sw.js
+index 470f8a2..a7f7329 100644
+--- a/sw.js
++++ b/sw.js
+@@ -12,7 +12,7 @@
+       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
+    ============================================================ */
+ 
+-const CACHE_VERSION = 'v20260807c'; /* @@BUILD:VERSION */
++const CACHE_VERSION = 'v20260808a'; /* @@BUILD:VERSION */
+ const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
+ const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
+ 
+@@ -22,7 +22,7 @@ const PRECACHE_URLS = [
+   './',
+   './index.html',
+   './manifest.json',
+-  './manifest.json?v=20260807a',
++  './manifest.json?v=20260808a',
+   './style.css?v=20260803a',
+   './profile-modal.css?v=20260722',
+   './login.css?v=20260720b',
+@@ -47,7 +47,7 @@ const PRECACHE_URLS = [
+   './todo.js?v=20260803a',
+   './yearsync.js?v=20260722',
+   './script.js?v=20260803a',
+-  './pwa.js?v=20260807c',
++  './pwa.js?v=20260808a',
+   './mobile-ui.js?v=20260807c',
+   './tasklog-icon.svg',
+   './favicon-32.png',
