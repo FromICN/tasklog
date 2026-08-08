@@ -1,116 +1,144 @@
 {
-  "name": "TaskLog — 개인 업무 기록",
-  "short_name": "TaskLog",
-  "description": "Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱",
-  "lang": "ko",
-  "dir": "ltr",
-  "start_url": "./?source=pwa",
-  "scope": "./",
-  "id": "/tasklog/",
-  "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
-  "orientation": "any",
-  "background_color": "#1a1a1a",
-  "theme_color": "#1a1a1a",
-  "categories": ["productivity", "business", "utilities"],
-  "prefer_related_applications": false,
-  "launch_handler": {
-    "client_mode": "focus-existing"
-  },
-  "handle_links": "preferred",
-  "edge_side_panel": {
-    "preferred_width": 420
-  },
-  "icons": [
-    {
-      "src": "./icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+    "name": "TaskLog — 개인 업무 기록",
+    "short_name": "TaskLog",
+    "description": "Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱",
+    "lang": "ko",
+    "dir": "ltr",
+    "start_url": "./?source=pwa",
+    "scope": "./",
+    "id": "/tasklog/",
+    "display": "standalone",
+    "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+    "orientation": "any",
+    "background_color": "#1a1a1a",
+    "theme_color": "#1a1a1a",
+    "categories": ["productivity", "business", "utilities"],
+    "prefer_related_applications": false,
+    "launch_handler": {
+          "client_mode": "focus-existing"
     },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+    "handle_links": "preferred",
+    "edge_side_panel": {
+          "preferred_width": 420
     },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./icon-1024.png",
-      "sizes": "1024x1024",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "./tasklog-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "./screenshot-home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "홈 — 캘린더 · 간트 · 습관 · 만다라트 위젯"
-    },
-    {
-      "src": "./screenshot-board.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "보드 — Task와 To Do를 한 표에서 관리"
-    },
-    {
-      "src": "./screenshot-workdiary.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "업무일지 — 주간 시간 그리드와 회고"
-    },
-    {
-      "src": "./screenshot-wide.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "데스크톱 홈 대시보드"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "보드 (Task · To Do)",
-      "short_name": "Board",
-      "description": "Task와 To Do를 표로 확인합니다",
-      "url": "./?page=todo",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "업무일지",
-      "short_name": "Work Diary",
-      "description": "이번 주 시간 그리드를 엽니다",
-      "url": "./?page=journal",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "만다라트",
-      "short_name": "Mandalart",
-      "description": "연간 목표 그리드를 엽니다",
-      "url": "./?page=mandalart",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "WBS",
-      "short_name": "WBS",
-      "description": "섹션 · 프로젝트 · To Do 계층을 엽니다",
-      "url": "./?page=wbs",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    }
-  ]
+    "icons": [
+          {
+                  "src": "./icon-192.png",
+                  "sizes": "192x192",
+                  "type": "image/png",
+                  "purpose": "any"
+          },
+          {
+                  "src": "./icon-512.png",
+                  "sizes": "512x512",
+                  "type": "image/png",
+                  "purpose": "any"
+          },
+          {
+                  "src": "./icon-512.png",
+                  "sizes": "512x512",
+                  "type": "image/png",
+                  "purpose": "maskable"
+          },
+          {
+                  "src": "./icon-1024.png",
+                  "sizes": "1024x1024",
+                  "type": "image/png",
+                  "purpose": "any"
+          },
+          {
+                  "src": "./tasklog-icon.svg",
+                  "sizes": "any",
+                  "type": "image/svg+xml",
+                  "purpose": "any"
+          }
+    ],
+    "screenshots": [
+          {
+                  "src": "./screenshot-home.png",
+                  "sizes": "390x844",
+                  "type": "image/png",
+                  "form_factor": "narrow",
+                  "label": "홈 — 캘린더 · 간트 · 습관 · 만다라트 위젯"
+          },
+          {
+                  "src": "./screenshot-board.png",
+                  "sizes": "390x844",
+                  "type": "image/png",
+                  "form_factor": "narrow",
+                  "label": "보드 — Task와 To Do를 한 표에서 관리"
+          },
+          {
+                  "src": "./screenshot-workdiary.png",
+                  "sizes": "390x844",
+                  "type": "image/png",
+                  "form_factor": "narrow",
+                  "label": "업무일지 — 주간 시간 그리드와 회고"
+          },
+          {
+                  "src": "./screenshot-wide.png",
+                  "sizes": "1280x800",
+                  "type": "image/png",
+                  "form_factor": "wide",
+                  "label": "데스크톱 홈 대시보드"
+          }
+    ],
+    "shortcuts": [
+          {
+                  "name": "오늘 할 일",
+                  "short_name": "오늘",
+                  "description": "오늘 마감인 Task · To Do · 일정을 바로 봅니다",
+                  "url": "./?page=home&focus=today",
+                  "icons": [
+                            {
+                                        "src": "./shortcut-today.png",
+                                        "sizes": "192x192",
+                                        "type": "image/png",
+                                        "purpose": "any"
+                            }
+                  ]
+          },
+          {
+                  "name": "빠른 메모",
+                  "short_name": "메모",
+                  "description": "메모 입력창을 열고 바로 적습니다",
+                  "url": "./?page=cloud&focus=memo",
+                  "icons": [
+                            {
+                                        "src": "./shortcut-memo.png",
+                                        "sizes": "192x192",
+                                        "type": "image/png",
+                                        "purpose": "any"
+                            }
+                  ]
+          },
+          {
+                  "name": "만다라트 달성률",
+                  "short_name": "만다라트",
+                  "description": "연간 목표 그리드와 달성 현황을 엽니다",
+                  "url": "./?page=mandalart",
+                  "icons": [
+                            {
+                                        "src": "./shortcut-mandalart.png",
+                                        "sizes": "192x192",
+                                        "type": "image/png",
+                                        "purpose": "any"
+                            }
+                  ]
+          },
+          {
+                  "name": "보드 (Task · To Do)",
+                  "short_name": "보드",
+                  "description": "Task와 To Do를 표로 확인합니다",
+                  "url": "./?page=todo",
+                  "icons": [
+                            {
+                                        "src": "./shortcut-board.png",
+                                        "sizes": "192x192",
+                                        "type": "image/png",
+                                        "purpose": "any"
+                            }
+                  ]
+          }
+    ]
 }
