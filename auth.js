@@ -155,6 +155,13 @@ function maybeAutoSignIn() {
     var saved0 = localStorage.getItem(AUTH_STORAGE_KEY);
     if (saved0) { try { currentUser = JSON.parse(saved0); } catch (e) {} }
     try { if (gapi.client) gapi.client.setToken({ access_token: sessToken }); } catch (e) {}
+    // ⚠️ 이 줄이 빠져 있었다.
+    //  handleSignIn() 과 _silentSignIn() 은 Firebase 로그인을 하는데
+    //  이 '세션 토큰 재사용' 경로만 건너뛰고 있었다. 새로고침 때는 거의 항상
+    //  이 경로를 타므로, 웹은 사실상 Firestore에 연결되지 않은 채
+    //  localStorage + 드라이브 백업으로만 돌고 있었다.
+    //  (설치형 앱은 Firestore를 보므로 서로 다른 데이터를 보여줬다)
+    _syncFirebaseAuth(sessToken);
     updateAuthUI();
     _hideLoginGate();
     console.log('🎟️ 세션 토큰 재사용 → 자동 로그인 (팝업 없음)');
