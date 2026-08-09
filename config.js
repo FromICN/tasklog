@@ -13,9 +13,12 @@ const GOOGLE_CONFIG = {
   //     이 값은 tasklog-601bb(=1005717689565)의 웹 클라이언트다.
   CLIENT_ID: '1005717689565-0vlidkn3hv1v78eus52q3v0b8b25nle2.apps.googleusercontent.com',
 
-  // 브라우저 API 키 — 이것도 같은 프로젝트(tasklog-601bb) 것이어야
-  // gapi 의 Drive/Calendar 디스커버리가 통과한다.
-  API_KEY: 'AIzaSyB3c11ji4m_2Lsoh0U_MP95znsqvX9A5yY',
+  // 브라우저 API 키 — 같은 프로젝트(tasklog-601bb)의 '웹' 키여야 한다.
+  //  ⚠️ google-services.json 의 api_key 는 안드로이드용이라 패키지명+SHA-1로
+  //     제한돼 있다. 브라우저에서 쓰면 디스커버리가 403 Forbidden 으로 막히고
+  //     gapi.client.init 이 실패해 로그인 흐름 전체가 시작되지 않는다.
+  //     아래 값은 Firebase 웹 앱 구성(FIREBASE_CONFIG.apiKey)과 같은 웹 키다.
+  API_KEY: 'AIzaSyCsel2skjTQN7A8e2Z3FfUduSCITKEc1ss',
   
   // 권한 (캘린더 + 드라이브)
  SCOPES: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file profile email', 
