@@ -1,4 +1,39 @@
-# 배포 체크리스트 — 제도(製圖) 테마
+# 배포 체크리스트 — 제도(製圖) 테마 + 동기화 버그 수정
+
+## 0. ⚠️ auth.js — 순서를 지켜야 하는 수정
+
+`maybeAutoSignIn()` 의 **세션 토큰 재사용 경로에만** `_syncFirebaseAuth()` 호출이
+빠져 있었습니다. 새로고침 때는 거의 항상 이 경로를 타므로, 웹은 사실상
+Firestore에 연결되지 않은 채 localStorage + 드라이브 백업으로만 돌고 있었습니다.
+Firestore에는 마지막 수동 로그인 시점의 스냅샷만 남아 뒤처졌고, 설치형 앱이
+그걸 읽으면서 두 기기가 다른 데이터를 보여줬습니다.
+
+```js
+// maybeAutoSignIn() 세션 토큰 분기, updateAuthUI() 바로 위
+_syncFirebaseAuth(sessToken);
+```
+
+**이 파일을 올리기 전에 Firestore의 아래 컬렉션을 반드시 비워야 합니다.**
+
+```
+users/{uid}/tasks · notes · logs · docs      ← docs 안의 _meta 포함
+```
+
+`firestore-sync.js` 의 스냅샷 핸들러(246~253행)는 원격과 로컬이 다르면 **병합 없이
+통째로 덮어씁니다.** 비우지 않고 배포하면, 웹이 Firestore에 연결되는 순간 옛 스냅샷이
+최신 데이터를 밀어버립니다. 비워두면 `_migrateIfNeeded()` 가 리스너를 붙이기 **전에**
+로컬 데이터를 클라우드로 올리므로 안전합니다.
+
+배포 후 웹 콘솔에서 확인:
+
+```
+🔥 Firebase 로그인 성공: <uid>
+🚚 첫 로그인 — 로컬 데이터를 Firestore로 마이그레이션...
+```
+
+---
+
+# 그 외 — 제도 테마
 
 이 폴더의 파일을 저장소 **루트**에 그대로 덮어쓰면 됩니다. 폴더 구조 그대로입니다.
 
@@ -16,6 +51,7 @@
 
 | 파일 | 바뀐 곳 |
 |---|---|
+| **`auth.js`** | **동기화 버그 수정 — 아래 0절을 반드시 먼저 읽으세요.** |
 | `index.html` | `mobile.css` 링크 뒤에 `fonts/pretendard.css`, `theme.css` 두 줄 추가. 그 외 변경 없음. |
 | `mobile.css` | 모바일 레이아웃 버그 수정 — 아래 6절 참고. |
 | `build-sw.js` | `EXTRA_ASSETS`에 Plex Mono 2개 추가, `PRECACHE_EXCLUDE`에 `fonts/pretendard/` 추가. |

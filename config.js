@@ -4,10 +4,18 @@
 
 const GOOGLE_CONFIG = {
   // OAuth 클라이언트 ID
-  CLIENT_ID: '420758769250-jejahpe499ofc9q1nurh68ln45ph3p3m.apps.googleusercontent.com',
-  
-  // ⚠️ 아래 'AIza...' 부분을 본인의 실제 API 키로 바꾸세요!
-  API_KEY: 'AIzaSyBZDPLYXqAJzbqr9DmO9oyhV3V7X6Wzs3M',
+  //  ⚠️ 반드시 아래 FIREBASE_CONFIG 와 '같은 프로젝트'의 클라이언트여야 한다.
+  //     예전 값(420758769250-…)은 다른 프로젝트 소속이라, 그 토큰으로
+  //     Firebase 로그인을 시도하면 서버가 거부했다:
+  //       auth/invalid-credential — access_token audience is not for this project
+  //     그 결과 웹은 Firestore에 접속하지 못한 채 localStorage 로만 돌았고,
+  //     설치형 앱과 서로 다른 데이터를 보여줬다.
+  //     이 값은 tasklog-601bb(=1005717689565)의 웹 클라이언트다.
+  CLIENT_ID: '1005717689565-0vlidkn3hv1v78eus52q3v0b8b25nle2.apps.googleusercontent.com',
+
+  // 브라우저 API 키 — 이것도 같은 프로젝트(tasklog-601bb) 것이어야
+  // gapi 의 Drive/Calendar 디스커버리가 통과한다.
+  API_KEY: 'AIzaSyB3c11ji4m_2Lsoh0U_MP95znsqvX9A5yY',
   
   // 권한 (캘린더 + 드라이브)
  SCOPES: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file profile email', 
