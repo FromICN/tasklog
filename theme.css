@@ -99,7 +99,6 @@
   --tl-rule:      rgba(255,255,255,0.10);   /* 눈금선 */
   --tl-rule-soft: rgba(255,255,255,0.05);
   --tl-weekend:   rgba(255,255,255,0.022);  /* 주말 열 음영 */
-  --tl-mat:       rgba(255,255,255,0.028);  /* 모눈 */
   --tl-sheet:     #1A211D;
 
   /* 눈금 글꼴 / 읽는 글꼴 */
@@ -170,7 +169,6 @@ body.light-mode {
   --tl-rule:      rgba(23,33,28,0.13);
   --tl-rule-soft: rgba(23,33,28,0.07);
   --tl-weekend:   rgba(23,33,28,0.035);
-  --tl-mat:       rgba(23,33,28,0.035);
   --tl-sheet:     #FFFFFF;
 }
 
@@ -210,13 +208,12 @@ input, textarea, select, button {
   background-color: var(--main-bg);
 }
 
+/* 배경은 단색으로 둔다.
+   모눈(제도지) 무늬를 깔았다가 뺐다 — 카드 사이 빈 자리마다 격자가 드러나
+   화면이 시끄러웠다. 눈금은 달력·간트 같은 '자'가 이미 충분히 갖고 있다. */
 #page-content {
   background-color: var(--main-bg);
-  background-image:
-    linear-gradient(to right,  var(--tl-mat) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--tl-mat) 1px, transparent 1px);
-  background-size: 24px 24px;
-  background-position: -1px -1px;
+  background-image: none;
 }
 
 /* ── 4. 도면 한 장 = 카드 ────────────────────────────────── */
