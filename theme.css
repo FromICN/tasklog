@@ -505,6 +505,47 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
 .tswitch { background: var(--surface); border: 1px solid var(--tl-rule); }
 .tswitch > span { background: var(--text-2); }
 
+/* ── 11-B. Work Diary 레이아웃 (데스크톱) ────────────────────
+   원래는 왼쪽(달력·트래커·리뷰) + 오른쪽(주간 그리드) 아래에
+   Retrospective 가 화면 전체 폭으로 깔려 있었다. 그래서
+     · Retrospective 는 쓸데없이 넓고
+     · 주간 그리드는 그 위에서 잘려 세로가 모자랐다.
+   → Retrospective 를 달력과 같은 폭으로 왼쪽 아래에 붙이고,
+     비는 오른쪽을 주간 그리드가 아래까지 내려와 채우게 한다. */
+@media (min-width: 769px) {
+  .jnl-page {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    gap: var(--space-3);
+    align-content: start;
+  }
+  /* .jnl-body 상자를 없애 자식(좌·우)을 그대로 그리드 항목으로 올린다 */
+  .jnl-body { display: contents; }
+
+  .jnl-left            { grid-column: 1; grid-row: 1; }
+  .jnl-sec-issue       { grid-column: 1; grid-row: 2; align-self: start; }
+  .jnl-right           { grid-column: 2; grid-row: 1 / span 2; min-height: 0; }
+  .jnl-footer          { grid-column: 1 / -1; grid-row: 3; }
+
+  /* 주간 그리드가 늘어난 높이를 실제로 쓰도록 */
+  .jnl-right,
+  .jnl-week-wrap,
+  .jnl-week-grid-host { height: 100%; min-height: 0; }
+}
+
+/* Weekly Review 가 넘쳐 아래 카드와 겹치던 문제.
+   .jnl-sec-eval 이 flex:1 1 0% 라 30px까지 눌리는데 내용은 148px이라
+   그대로 흘러넘쳤다. 내용만큼 차지하게 두고 줄간격을 줄여 스크롤을 없앤다. */
+.jnl-section.jnl-sec-eval {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+.jnl-eval { gap: 6px; }
+.jnl-eval-block { gap: 6px; }
+
 /* ── 12. 바닥 품질 ───────────────────────────────────────── */
 
 :focus-visible {

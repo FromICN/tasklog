@@ -7,7 +7,7 @@
   <meta name="description" content="Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱">
 
   <!-- ===== 📱 PWA ===== -->
-  <link rel="manifest" href="manifest.json?v=20260808c">
+  <link rel="manifest" href="manifest.json?v=20260810a">
   <!-- 최초 페인트용 theme-color (OS 다크/라이트 기준).
        앱 자체 테마 토글이 동작하기 시작하면 pwa.js가 이 두 개를 제거하고 직접 관리한다. -->
   <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#1a1a1a">
@@ -56,11 +56,11 @@
   <link rel="stylesheet" href="style.css?v=20260803a">
   <link rel="stylesheet" href="profile-modal.css?v=20260722">
   <link rel="stylesheet" href="login.css?v=20260720b">
-  <link rel="stylesheet" href="mobile.css?v=20260807c">
+  <link rel="stylesheet" href="mobile.css?v=20260810a">
   <!-- 🎨 제도(製圖) 테마 — 토큰·타이포·컴포넌트 스킨. 반드시 마지막에 로드할 것.
        글꼴은 자체 호스팅이라 CDN을 타지 않는다(오프라인·APK에서도 그대로 나온다). -->
   <link rel="stylesheet" href="fonts/pretendard.css?v=20260809a">
-  <link rel="stylesheet" href="theme.css?v=20260809a">
+  <link rel="stylesheet" href="theme.css?v=20260810a">
   <script>
     // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
     // 페인트 전에 미리 숨긴다. (자동 로그인이 실패하면 auth.js가 다시 보여줌)
@@ -188,7 +188,7 @@
 <div class="cal-popup" id="cal-popup" style="display:none;"></div>
 
 <!-- 스크립트 로드 순서 -->
-<script src="config.js?v=20260809a"></script>
+<script src="config.js?v=20260810a"></script>
 <!-- 🔥 Firebase (Firestore 실시간 동기화) — config.js의 FIREBASE_CONFIG를 채워야 동작함 -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -197,7 +197,7 @@
 <script src="colresize.js?v=20260722"></script>
 <script src="backup-core.js?v=20260722"></script>
 <script src="backup-xlsx.js?v=20260722"></script>
-<script src="auth.js?v=20260809a"></script>
+<script src="auth.js?v=20260810a"></script>
 <script src="calendar.js?v=20260731a"></script>
 <script src="mandalart.js?v=20260803a"></script>
 <script src="lifewheel.js?v=20260722"></script>
@@ -219,7 +219,7 @@
 <script src="script.js?v=20260803a"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20260808c"></script>
+<script src="pwa.js?v=20260810a"></script>
 
 <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
 <script src="mobile-ui.js?v=20260807c"></script>
