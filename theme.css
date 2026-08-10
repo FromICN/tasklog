@@ -114,7 +114,9 @@
   --radius-lg: 5px;
   --radius-xl: 6px;
 
-  --focus-ring: 0 0 0 2px var(--main-bg), 0 0 0 4px var(--tl-seal);
+  /* 포커스 링은 잉크색. 주홍은 '지금'에만 쓴다는 규칙이 여기에도 적용된다 —
+     입력창에 포커스가 갔다는 사실은 '지금'과 아무 관계가 없다. */
+  --focus-ring: 0 0 0 2px var(--main-bg), 0 0 0 4px var(--text-1);
 }
 
 body.light-mode {
@@ -499,6 +501,24 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
   outline: none;
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-xs);
+}
+
+/* 입력창은 테두리로도 포커스를 알린다 — 링이 카드의 overflow:hidden 에
+   잘리는 자리가 있어서, 두 신호를 함께 준다. */
+input:focus,
+textarea:focus,
+select:focus,
+[contenteditable="true"]:focus {
+  outline: none;
+  border-color: var(--text-1);
+}
+
+/* 체크박스·라디오·슬라이더의 기본색은 브라우저 파랑이다 → 잉크색으로 */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress {
+  accent-color: var(--text-1);
 }
 
 @media (prefers-reduced-motion: reduce) {
