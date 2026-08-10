@@ -270,6 +270,19 @@ input, textarea, select, button {
   border-radius: var(--radius-sm);
   font-family: var(--tl-mono);
   font-weight: 600;
+  overflow: hidden;
+}
+/* 프로필 사진이 들어간 경우.
+   auth.js 가 <img> 에 인라인으로 border-radius:50% 를 박는데, 이 테마는
+   아바타를 각진 사각으로 바꿨다. 원 안쪽만 사진이라 네 모서리에 배경색이
+   초록으로 남았다 → 배경을 지우고 이미지 모서리를 컨테이너에 맞춘다. */
+.avatar-circle:has(img) {
+  background: transparent;
+  border: none;
+}
+.avatar-circle img {
+  border-radius: inherit !important;
+  display: block;
 }
 
 /* ── 6. 탑바: 지금이 찍히는 자리 ─────────────────────────── */
