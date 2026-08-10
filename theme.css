@@ -513,20 +513,41 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
    → Retrospective 를 달력과 같은 폭으로 왼쪽 아래에 붙이고,
      비는 오른쪽을 주간 그리드가 아래까지 내려와 채우게 한다. */
 @media (min-width: 769px) {
+  /* 페이지 자체는 화면 높이에 딱 맞춘다 — 세로 스크롤바가 생기지 않게.
+     남는 높이는 Retrospective 가 받아서 채우고(2행 = minmax(0,1fr)),
+     내용이 길면 그 안의 입력창만 스크롤한다. */
   .jnl-page {
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     gap: var(--space-3);
-    align-content: start;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
   /* .jnl-body 상자를 없애 자식(좌·우)을 그대로 그리드 항목으로 올린다 */
   .jnl-body { display: contents; }
 
   .jnl-left            { grid-column: 1; grid-row: 1; }
-  .jnl-sec-issue       { grid-column: 1; grid-row: 2; align-self: start; }
   .jnl-right           { grid-column: 2; grid-row: 1 / span 2; min-height: 0; }
   .jnl-footer          { grid-column: 1 / -1; grid-row: 3; }
+
+  /* Retrospective 는 '남은 높이'를 받아 늘어난다. 고정 높이를 주면
+     화면이 짧을 때 페이지 전체가 스크롤되고, 길 때는 빈 공간이 남는다. */
+  .jnl-sec-issue {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: stretch;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* 칸이 좁아지면 입력창만 스크롤한다 (페이지가 아니라) */
+  .jnl-sec-issue .jnl-ta {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    resize: none;
+  }
 
   /* 주간 그리드가 늘어난 높이를 실제로 쓰도록 */
   .jnl-right,

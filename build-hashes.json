@@ -5,7 +5,7 @@
   "login.css": "e4d2a0107b36",
   "mobile.css": "1bb7cda1b522",
   "fonts/pretendard.css": "c0e7f4fe547d",
-  "theme.css": "37eea1d52c47",
+  "theme.css": "58c89bca59c7",
   "config.js": "b8afca6fcda1",
   "firebase-init.js": "230b871dea67",
   "colresize.js": "5b4907a5ad5b",
@@ -28,6 +28,6 @@
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "64b9480551f7",
-  "pwa.js": "43e153c4ef00",
+  "pwa.js": "d2cfac5e9926",
   "mobile-ui.js": "ff2c7494ef27"
 }
