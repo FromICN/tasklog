@@ -435,8 +435,11 @@ html.pwa-standalone body {
         grid-template-columns 를 인라인으로 넣으므로, 폭 강제를 걷어내면
         둘이 저절로 맞는다. 시간 거터만 좁혀 7일 자리를 만든다. */
   .jnlw-scroll { overflow-x: hidden; }
+  /* ⚠️ 종일(.jnlw-allday) 도 머리글·본문과 '같은' 열 정의를 써야 한다.
+     여기서 빠뜨리면 종일 행만 52px 거터로 남아 세로줄이 어긋난다. */
   .jnlw-head,
-  .jnlw-canvas {
+  .jnlw-canvas,
+  .jnlw-allday {
     min-width: 0;
     grid-template-columns: 38px repeat(7, minmax(0, 1fr)) !important;
   }
