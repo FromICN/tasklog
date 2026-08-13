@@ -348,10 +348,9 @@ async function _measureClockOffset(force) {
         localStorage.setItem(FS_CLOCK_KEY,
           JSON.stringify({ offset: offset, rtt: rtt, at: _fsClockAt }));
       } catch (e) {}
-      if (Math.abs(offset) > 5000) {
-        console.log('⏱️ 이 기기 시계가 서버와 ' + Math.round(offset / 1000)
-          + '초 차이납니다 — 동기화 충돌 판정에 보정해서 씁니다 (왕복 ' + rtt + 'ms)');
-      }
+      // 측정이 실제로 됐는지는 이 한 줄로만 알 수 있다(실패해도 조용히 넘어가므로).
+      console.log('⏱️ 서버와 시계 차 ' + Math.round(offset) + 'ms (왕복 ' + rtt + 'ms)'
+        + (Math.abs(offset) > 5000 ? ' — 충돌 판정에 보정해서 씁니다' : ''));
       _logSync('시계 보정 ' + Math.round(offset) + 'ms (왕복 ' + rtt + 'ms)');
     }
   } catch (e) {
