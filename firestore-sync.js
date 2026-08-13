@@ -323,18 +323,34 @@ function _loadClockOffset() {
 
 async function _measureClockOffset(force) {
   if (!db || !_fsUid) return;
-  if (!force && _fsClockAt && (Date.now() - _fsClockAt) < FS_CLOCK_TTL_MS) return;
+  if (!force && _fsClockAt && (Date.now() - _fsClockAt) < FS_CLOCK_TTL_MS) {
+    // 아무 말도 안 하면 "측정이 실패한 것"과 구별이 안 된다 — 재사용도 드러낸다
+    console.log('⏱️ 시계 보정 재사용: ' + Math.round(_fsClockOffset) + 'ms ('
+      + Math.round((Date.now() - _fsClockAt) / 60000) + '분 전 측정)');
+    return;
+  }
+  // 오프라인이면 set() 이 서버 확인까지 영원히 안 끝난다 → 매달려 있지 않도록 시간을 끊는다
+  function _withTimeout(p, ms, what) {
+    return Promise.race([p, new Promise(function (_, rej) {
+      setTimeout(function () { rej(new Error('시간 초과(' + what + ', ' + ms + 'ms)')); }, ms);
+    })]);
+  }
+
   try {
     var ref = _docRef('_clock');
     var t0 = Date.now();
-    await ref.set({
+    await _withTimeout(ref.set({
       key: '_clock',                      // FS_DOC_KEYS 에 없으므로 docs 리스너가 무시한다
       at: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    var snap = await ref.get({ source: 'server' });
+    }), 15000, 'set');
+    var snap = await _withTimeout(ref.get({ source: 'server' }), 15000, 'get');
     var t1 = Date.now();
     var ts = snap && snap.get ? snap.get('at') : null;
-    if (!ts || typeof ts.toMillis !== 'function') return;
+    if (!ts || typeof ts.toMillis !== 'function') {
+      console.warn('⏱️ 시계 측정: 서버 시각을 읽지 못했습니다', ts);
+      _logSync('시계 측정 실패(서버 시각 없음)');
+      return;
+    }
 
     var rtt = t1 - t0;
     if (rtt > FS_CLOCK_MAX_RTT) { _logSync('시계 측정 무시(왕복 ' + rtt + 'ms)'); return; }
@@ -354,8 +370,10 @@ async function _measureClockOffset(force) {
       _logSync('시계 보정 ' + Math.round(offset) + 'ms (왕복 ' + rtt + 'ms)');
     }
   } catch (e) {
-    // 오프라인이면 실패한다 — 저장해 둔 값으로 계속 간다
-    _logSync('시계 측정 실패: ' + (e && e.code ? e.code : e));
+    // 오프라인이면 실패하는 게 정상이다 — 저장해 둔 값(없으면 0)으로 계속 간다.
+    // 다만 조용히 삼키면 "보정이 되고 있다"고 착각하게 되므로 남긴다.
+    console.warn('⏱️ 시계 측정 실패 — 보정 없이 진행합니다:', (e && (e.code || e.message)) || e);
+    _logSync('시계 측정 실패: ' + ((e && (e.code || e.message)) || e));
   }
 }
 
