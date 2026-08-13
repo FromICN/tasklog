@@ -300,14 +300,6 @@ input, textarea, select, button {
   color: var(--text-2);
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-}
-/* 주홍 눈금 = 지금. 앱 전체에서 같은 뜻으로만 쓰인다.
-   (날짜가 없는 페이지에서는 눈금도 찍지 않는다) */
-.topbar-date:not(:empty)::before {
-  content: "";
-  width: 6px; height: 6px;
-  background: var(--tl-seal);
 }
 
 /* ── 7. 달력 ─────────────────────────────────────────────── */
@@ -432,12 +424,36 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
 
 /* 표가 놓이는 판은 카드와 같은 흰 도면이어야 한다.
    원본은 var(--main-bg)를 썼는데, 이 테마에서 --main-bg가 제도 매트색으로
-   바뀌면서 표 영역만 매트 위에 얹힌 것처럼 보였다. */
+   바뀌면서 표 영역만 매트 위에 얹힌 것처럼 보였다.
+   --tl-sheet 는 라이트에서 흰색, 다크에서 먹빛 판(#1A211D)이라 두 테마가 함께 맞는다. */
 .todo-table-wrap,
 .wbs-table-wrap,
-.lw-table-wrap {
+.lw-table-wrap,
+/* Web */
+.nb-write-panel,
+.nb-col,
+/* Work Diary */
+.jnl-section,
+.jnl-cal-panel,
+.jnl-tracker,
+/* MVV */
+.mvv-card,
+/* Mandalart */
+.mdt-outer-card,
+.mdt-perf-summary-box,
+/* Gantt */
+.gantt-page .gm-wrap,
+/* WBS */
+.wbs-page-wrap,
+.wbs-wrap {
   background: var(--tl-sheet);
   border-color: var(--tl-rule);
+}
+
+/* 고정 헤더도 같은 흰 판이어야 한다 — 다른 색이면 스크롤할 때 회색 띠가 떠 보인다 */
+.wbs-header-row,
+.wbs-header-row:hover {
+  background: var(--tl-sheet);
 }
 
 .todo-table th {

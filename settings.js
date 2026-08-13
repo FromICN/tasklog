@@ -321,11 +321,9 @@ function buildTabMenus() {
 
   var rows = MENUS.filter(function(m) { return !m.divider; }).map(function(m) {
     var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
-    var emoji = (typeof MENU_EMOJI !== 'undefined' && MENU_EMOJI[m.id]) || '';
     var on = vis[m.id] !== false;
     return '<div class="settings-row">'
-      + '<div><div class="settings-row-label">' + (emoji ? emoji + ' ' : '') + sEsc(full) + '</div>'
-      +   '<div class="settings-row-desc">' + sEsc(m.label) + '</div></div>'
+      + '<div><div class="settings-row-label">' + sEsc(full) + '</div></div>'
       + buildToggle('menuvis-' + m.id, on, "settingsToggleMenu('" + m.id + "')")
       + '</div>';
   }).join('');

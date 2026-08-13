@@ -149,8 +149,7 @@ html.pwa-standalone body {
   .rp-footer .btn-secondary { flex: 1 1 0; }
 
   .rp-close,
-  .mobile-menu-btn,
-  .tswitch {
+  .mobile-menu-btn {
     min-width: 44px;
     min-height: 44px;
   }
@@ -165,6 +164,17 @@ html.pwa-standalone body {
     content: '';
     position: absolute;
     inset: -11px;
+  }
+
+  /* 테마 토글도 같은 방식으로.
+     min-width/height 로 44px 를 주면 40×18 가로 바가 44×44 덩어리로 부풀어
+     웹과 생김새가 달라졌다. 보이는 크기는 그대로 두고 탭 영역만 넓힌다.
+     (세로 18 → 44 이므로 위아래 13px, 가로 40 → 44 이므로 좌우 2px) */
+  .tswitch { position: relative; }
+  .tswitch::after {
+    content: '';
+    position: absolute;
+    inset: -13px -2px;
   }
 
   /* 캘린더 셀 · 탭 */

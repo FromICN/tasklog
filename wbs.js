@@ -903,3 +903,165 @@ document.addEventListener('dragend', function() {
   document.querySelectorAll('.wbs-dragging').forEach(function(el){ el.classList.remove('wbs-dragging'); });
   _wbsDrag = null;
 });
+
+// ============================================
+//  🖱 우클릭 → 하위 항목 추가
+// --------------------------------------------
+//  SECTION 위에서  → Project 추가
+//  PROJECT 위에서  → TASK 추가
+//  TASK 위에서     → To Do 추가
+//
+//  배정 필드(mdtGoal · mdtAction · lwSection…)는 드래그 앤 드롭이 쓰는
+//  wbsAssignTaskAction/Section 을 그대로 재사용한다. 여기서 따로 조립하면
+//  드롭으로 옮긴 항목과 미세하게 다른 데이터가 만들어진다.
+// ============================================
+var _wbsCtxEl = null;
+
+function wbsCloseCtx() {
+  if (_wbsCtxEl) { _wbsCtxEl.remove(); _wbsCtxEl = null; }
+}
+
+function wbsOpenCtx(x, y, items) {
+  wbsCloseCtx();
+  var el = document.createElement('div');
+  el.className = 'wbs-ctx';
+  el.innerHTML = items.map(function(it, i) {
+    return '<button type="button" class="wbs-ctx-item" data-i="' + i + '">' + wbsEsc(it.label) + '</button>';
+  }).join('');
+  document.body.appendChild(el);
+  // 화면 밖으로 나가지 않게 붙인다
+  var r = el.getBoundingClientRect();
+  el.style.left = Math.max(6, Math.min(x, window.innerWidth  - r.width  - 6)) + 'px';
+  el.style.top  = Math.max(6, Math.min(y, window.innerHeight - r.height - 6)) + 'px';
+  el.addEventListener('mousedown', function(ev) { ev.stopPropagation(); });
+  el.addEventListener('click', function(ev) {
+    var b = ev.target.closest('.wbs-ctx-item');
+    if (!b) return;
+    var it = items[+b.dataset.i];
+    wbsCloseCtx();
+    if (it && it.run) it.run();
+  });
+  _wbsCtxEl = el;
+}
+
+// 행에서 배정 정보를 읽는다 (드롭 핸들러와 같은 규칙)
+function wbsCtxTargetInfo(row) {
+  var lkRaw = row.dataset.wbsDropLk;
+  var sgIdRaw = row.dataset.wbsDropSgid;
+  return {
+    lk: (lkRaw === '_' || lkRaw === '' || lkRaw === undefined) ? null : parseInt(lkRaw),
+    sgId: (sgIdRaw && sgIdRaw !== '' && sgIdRaw !== 'null' && sgIdRaw !== '_') ? parseInt(sgIdRaw) : null,
+    year: row.dataset.wbsDropYear ? parseInt(row.dataset.wbsDropYear) : null,
+    sgText: row.dataset.wbsDropSgtext ? decodeURIComponent(row.dataset.wbsDropSgtext) : ''
+  };
+}
+
+// SECTION 밑에 Project(만다라트 실행항목) 추가
+function wbsCtxAddProject(row) {
+  var info = wbsCtxTargetInfo(row);
+  if (info.sgId == null) { alert('Mandalart 에 연결된 Section 에서만 Project 를 추가할 수 있어요.'); return; }
+  var name = prompt('추가할 Project 이름');
+  if (name == null) return;
+  name = name.trim();
+  if (!name) return;
+
+  if (typeof loadMandalarts === 'function') loadMandalarts();
+  var year = info.year || ((typeof lwCurrentYear !== 'undefined' && lwCurrentYear) || new Date().getFullYear());
+  var m = (typeof getMdt === 'function') ? getMdt(year) : null;
+  var sg = m ? (m.subGoals || []).find(function(s){ return s.id === info.sgId; }) : null;
+  if (!sg) { alert(year + '년 Mandalart 에서 이 Section 을 찾지 못했어요.'); return; }
+
+  var slot = (sg.actions || []).find(function(a){ return !a.text || !a.text.trim(); });
+  if (!slot) {
+    alert('이 Section 의 실행항목 8칸이 모두 차 있어요.\nMandalart 에서 정리한 뒤 다시 시도해 주세요.');
+    return;
+  }
+  slot.text = name;
+  if (typeof saveMandalarts === 'function') saveMandalarts();
+
+  // WBS 트리는 'TASK 가 달린 가지'만 보여 준다. 첫 TASK 를 같이 만들지 않으면
+  // 방금 만든 Project 가 화면에 나타나지 않아 실패한 것처럼 보인다.
+  var first = prompt('"' + name + '" 의 첫 TASK 이름\n(비워 두면 Mandalart 에만 추가되고, TASK 를 넣을 때 트리에 나타납니다)');
+  if (first != null && first.trim()) {
+    wbsCtxCreateTask(first.trim(), info, slot.id, name);
+  } else {
+    renderWbsView();
+  }
+}
+
+// PROJECT 밑에 TASK 추가
+function wbsCtxAddTask(row) {
+  var info = wbsCtxTargetInfo(row);
+  var akRaw = row.dataset.wbsDropAk;
+  var ak = (akRaw === '_' || akRaw === '' || akRaw === undefined) ? null : parseInt(akRaw);
+  var akText = row.dataset.wbsDropAkText ? decodeURIComponent(row.dataset.wbsDropAkText) : '';
+  var name = prompt('추가할 TASK 이름');
+  if (name == null) return;
+  name = name.trim();
+  if (!name) return;
+  wbsCtxCreateTask(name, info, ak, akText);
+}
+
+function wbsCtxCreateTask(text, info, actionId, actionText) {
+  if (typeof tasks === 'undefined') return;
+  var task = {
+    id: Date.now(), text: text, completed: false, starred: false,
+    createdAt: new Date().toISOString(), dueDateTime: null, hasTime: false,
+    steps: [], reminder: null, assignee: '', assignees: [], repeat: null,
+    startDate: null, prevTaskIds: [], nextTaskIds: []
+  };
+  if (actionId === null || actionId === undefined) {
+    wbsAssignTaskSection(task, info.sgId, info.year, info.sgText, info.lk);
+  } else {
+    wbsAssignTaskAction(task, info.sgId, info.year, info.sgText, info.lk, actionId, actionText);
+  }
+  tasks.push(task);
+  if (typeof saveTasks === 'function') saveTasks();
+  renderWbsView();
+}
+
+// TASK 밑에 To Do 추가
+function wbsCtxAddStep(taskId) {
+  if (typeof tasks === 'undefined') return;
+  var task = tasks.find(function(t){ return t.id === taskId; });
+  if (!task) return;
+  var text = prompt('추가할 To Do 이름');
+  if (text == null) return;
+  text = text.trim();
+  if (!text) return;
+  if (!Array.isArray(task.steps)) task.steps = [];
+  task.steps.push({ id: Date.now(), text: text, completed: false, dueDateTime: null, hasTime: false });
+  _wbsOpen['wbs-t-' + task.id] = true;   // 방금 넣은 항목이 바로 보이도록 펼친다
+  if (typeof saveTasks === 'function') saveTasks();
+  renderWbsView();
+}
+
+document.addEventListener('contextmenu', function(e) {
+  var root = document.getElementById('wbs-root');
+  if (!root || !root.contains(e.target)) return;
+  // 제목 글자 위에서만 연다 — 행 아무 데서나 열리면 실수로 뜬다
+  var label = e.target.closest('.wbs-sg-label, .wbs-task-text');
+  if (!label) return;
+  var row = label.closest('.wbs-row');
+  if (!row) return;
+
+  var items = null;
+  if (row.classList.contains('wbs-core-row')) {
+    items = [{ label: '+ Project 추가', run: function(){ wbsCtxAddProject(row); } }];
+  } else if (row.classList.contains('wbs-action-row')) {
+    items = [{ label: '+ TASK 추가', run: function(){ wbsCtxAddTask(row); } }];
+  } else if (row.classList.contains('wbs-task-row')) {
+    var tid = parseInt(row.dataset.wbsDropTask, 10);
+    if (!isNaN(tid)) items = [{ label: '+ To Do 추가', run: function(){ wbsCtxAddStep(tid); } }];
+  }
+  if (!items) return;
+
+  e.preventDefault();
+  wbsOpenCtx(e.clientX, e.clientY, items);
+});
+
+document.addEventListener('mousedown', function(e) {
+  if (_wbsCtxEl && !_wbsCtxEl.contains(e.target)) wbsCloseCtx();
+});
+document.addEventListener('scroll', wbsCloseCtx, true);
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') wbsCloseCtx(); });

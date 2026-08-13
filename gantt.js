@@ -153,47 +153,129 @@ function progressCircleSvg(pct, color) {
     + '</svg>';
 }
 
-// ── 타이틀 영역 연도 선택 ──
-function handleGanttYearSelect(val) {
-  if (val === '__new__') { promptNewGanttYear(); return; }
-  if (val === '__delete__') {
-    if (typeof appDeleteCurrentYear === 'function') appDeleteCurrentYear();
-    else renderGanttView();
-    return;
-  }
-  var y = parseInt(val, 10);
-  if (typeof appSetYear === 'function') appSetYear(y);
-  else renderGanttView();
+// (연도 드롭박스는 제거했다 — 연도 이동은 월 화살표가 겸한다.
+//  그 자리에는 아래의 검색·섹션 필터가 들어간다.)
+
+// ============================================
+//  🔍 Gantt 검색 · 섹션 필터 (Web · WBS 와 같은 방식)
+// --------------------------------------------
+//  연도 드롭박스는 없앴다. 간트는 어차피 '월'을 좌우 화살표로 넘겨 보는 화면이라
+//  연도 선택이 따로 있으면 이동 수단이 둘로 갈렸다. 연도는 월을 넘기면 따라간다.
+// ============================================
+var _ganttSearch = '';
+var _ganttSearchOpen = false;
+var _ganttSecFilter = {};   // { sectionKey: true(숨김) }
+
+function ganttMatchesSearch(text) {
+  if (!_ganttSearch) return true;
+  return String(text || '').toLowerCase().indexOf(_ganttSearch.toLowerCase()) !== -1;
+}
+function ganttTaskSectionKey(task) {
+  if (typeof wbsTaskSectionKey === 'function') return wbsTaskSectionKey(task);
+  var sg = (task.mdtGoal && task.mdtGoal.sgId) || (task.mdtAction && task.mdtAction.sgId) || null;
+  return (sg != null) ? String(sg) : '_';
+}
+function ganttSectionLabel(task) {
+  var sg = (task.mdtGoal && task.mdtGoal.sgId) || (task.mdtAction && task.mdtAction.sgId) || null;
+  var yr = (task.mdtGoal && task.mdtGoal.year) || (task.mdtAction && task.mdtAction.year) || null;
+  if (sg != null && typeof wbsGoalText === 'function') return wbsGoalText(sg, task.lwSectionName || 'Section', yr);
+  return task.lwSectionName || '📂 미분류';
+}
+function ganttTaskPassesSecFilter(task) { return !_ganttSecFilter[ganttTaskSectionKey(task)]; }
+
+// Task 본체 또는 하위 To Do 중 하나라도 검색어에 걸리면 표시한다
+function ganttTaskPassesSearch(task) {
+  if (!_ganttSearch) return true;
+  if (ganttMatchesSearch(task.text)) return true;
+  return (task.steps || []).some(function(s){ return ganttMatchesSearch(s.text); });
 }
 
-function promptNewGanttYear() {
-  var def = ganttYearVal() + 1;
-  var input = prompt('추가할 연도를 입력하세요', def);
-  if (input == null) return;
-  var y = parseInt(input, 10);
-  if (isNaN(y) || y < 2000 || y > 2100) { alert('2000~2100 사이의 연도를 입력하세요.'); return; }
-  if (typeof appSetYear === 'function') appSetYear(y);
+// 지금 이 달에 걸치는 Task 들이 속한 섹션 목록
+function ganttDistinctSections(baseTasks) {
+  var present = {};
+  (baseTasks || []).forEach(function(t){ present[ganttTaskSectionKey(t)] = ganttSectionLabel(t); });
+  var keys = Object.keys(present);
+  keys.sort(function(a, b){
+    if (a === '_') return 1; if (b === '_') return -1;
+    return (+a) - (+b);
+  });
+  return keys.map(function(k){ return { key: k, label: (k === '_') ? '📂 미분류' : present[k] }; });
 }
 
-function renderGanttTitleYear() {
+function ganttSetSearch(val) { _ganttSearch = (val || '').trim(); renderGanttView(); }
+function ganttToggleSearch(ev) {
+  if (ev) ev.stopPropagation();
+  _ganttSearchOpen = !_ganttSearchOpen;
+  renderGanttTools();
+  if (_ganttSearchOpen) setTimeout(function(){ var i = document.getElementById('gantt-search-inp'); if (i) i.focus(); }, 30);
+}
+function ganttToggleSecFilterVal(key, ev) {
+  if (ev) ev.stopPropagation();
+  if (_ganttSecFilter[key]) delete _ganttSecFilter[key];
+  else _ganttSecFilter[key] = true;
+  renderGanttView();
+}
+function ganttSecFilterAll(on, ev) {
+  if (ev) ev.stopPropagation();
+  _ganttSecFilter = {};
+  if (!on) ganttDistinctSections(_ganttMonthTasks).forEach(function(s){ _ganttSecFilter[s.key] = true; });
+  renderGanttView();
+}
+
+// 이번 달에 걸치는 Task (필터 적용 전) — 섹션 목록을 만들 때 쓴다
+var _ganttMonthTasks = [];
+
+function ganttSecFilterPanelHtml() {
+  var secs = ganttDistinctSections(_ganttMonthTasks);
+  if (!secs.length) return '';
+  var esc = (typeof escNb === 'function') ? escNb : function(s){ return String(s == null ? '' : s); };
+  var items = secs.map(function(s){
+    var checked = _ganttSecFilter[s.key] ? '' : ' checked';
+    return '<label class="todo-colpick-item"><input type="checkbox"' + checked
+      + ' onclick="event.stopPropagation();" onchange="ganttToggleSecFilterVal(\'' + s.key + '\',event)">'
+      + '<span>' + esc(s.label) + '</span></label>';
+  }).join('');
+  return '<div class="wbs-titlefilter">'
+    + '<div class="wbs-titlefilter-head"><span>표시 항목(Section)</span>'
+    +   '<span class="wbs-tf-actions">'
+    +     '<button onclick="ganttSecFilterAll(true,event)">전체</button>'
+    +     '<button onclick="ganttSecFilterAll(false,event)">해제</button>'
+    +   '</span></div>'
+    + '<div class="wbs-titlefilter-list">' + items + '</div>'
+    + '</div>';
+}
+
+function renderGanttTools() {
   var slot = document.getElementById('topbar-mdt-year-slot');
   if (!slot) return;
-  var cur = ganttYearVal();
-  var years = (typeof appAllSavedYears === 'function') ? appAllSavedYears().slice() : [];
-  if (years.indexOf(cur) === -1) years.push(cur);
-  years.sort(function(a, b){ return b - a; });
-  var opts = years.map(function(y){
-    return '<option value="' + y + '"' + (y === cur ? ' selected' : '') + '>' + y + '년</option>';
-  }).join('');
-  opts += '<option value="__new__">+ 새 연도 추가</option>';
-  opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  slot.innerHTML = '<select class="year-select" onchange="handleGanttYearSelect(this.value)">' + opts + '</select>';
+  var esc = (typeof escNb === 'function') ? escNb : function(s){ return String(s == null ? '' : s); };
+  var _icon = (typeof BD_FILTER_ICON !== 'undefined') ? BD_FILTER_ICON : '🔍';
+  var _active = _ganttSearchOpen || _ganttSearch || Object.keys(_ganttSecFilter).length > 0;
+  var _sval = esc(_ganttSearch).replace(/"/g, '&quot;');
+  slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
+    + '<button class="bd-colpick-btn' + (_active ? ' on' : '') + '" id="gantt-search-btn" title="검색 · 필터" onclick="ganttToggleSearch(event)">'
+    + _icon + '</button>'
+    + (_ganttSearchOpen
+        ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+          + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="gantt-search-inp" placeholder="Task · To Do 검색"'
+          + ' value="' + _sval + '" oninput="ganttSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
+          + ganttSecFilterPanelHtml()
+          + '</div>'
+        : '')
+    + '</div>';
 }
+
+document.addEventListener('click', function(e) {
+  if (!_ganttSearchOpen) return;
+  var btn = document.getElementById('gantt-search-btn');
+  var pnl = document.querySelector('#topbar-mdt-year-slot .bd-colpick-panel');
+  if ((btn && btn.contains(e.target)) || (pnl && pnl.contains(e.target))) return;
+  _ganttSearchOpen = false;
+  renderGanttTools();
+});
 
 // ── 본문 렌더 (홈 Gantt 미니와 동일 엔진, 전체보기) ──
 function renderGanttView() {
-  renderGanttTitleYear();
-
   var content = document.getElementById('page-content');
   if (!content) return;
 
@@ -211,7 +293,7 @@ function renderGanttView() {
   var todayIdx = (today.getFullYear() === year && today.getMonth() === month) ? today.getDate() - 1 : null;
 
   // 이번 달에 걸치는 진행 중 TASK (홈과 동일: 완료 항목 제외)
-  var vis = tasks.filter(function(t) {
+  var monthTasks = tasks.filter(function(t) {
     if (t.completed) return false;
     var s = t.startDate   ? new Date(t.startDate)   : null;
     var e = t.dueDateTime ? new Date(t.dueDateTime) : null;
@@ -219,6 +301,13 @@ function renderGanttView() {
     if (s)      return s >= mS && s <= mE;
     if (e)      return e >= mS && e <= mE;
     return false;
+  });
+  // 섹션 필터 목록은 '이번 달에 있는 것' 기준으로 만든다 (필터로 가려진 것도 계속 보이게)
+  _ganttMonthTasks = monthTasks;
+  renderGanttTools();
+
+  var vis = monthTasks.filter(function(t) {
+    return ganttTaskPassesSecFilter(t) && ganttTaskPassesSearch(t);
   });
 
   var navHtml = '<div class="gm-nav">'

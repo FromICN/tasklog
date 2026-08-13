@@ -44,7 +44,7 @@ function buildHomeLayout() {
     + buildCardShell('gantt-widget', 'Gantt', 'project', 'gantt-body')
     + '</div>'
     + '<div class="home-grid-row2">'
-    + buildCardShell('habit-widget', 'Habit Tracker', 'mandalart', 'habit-body')
+    + buildCardShell('habit-widget', 'Habit Tracker', 'habit', 'habit-body')
     + buildCardShell('mandalart-widget', 'Mandalart', 'mandalart', 'mandalart-body')
     + buildCardShell('wheel-widget', 'Life Wheel', 'wheel', 'wheel-body')
     + '</div>'

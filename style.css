@@ -5476,9 +5476,16 @@ body.cr-resizing { cursor: col-resize; user-select: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--main-bg);
-  padding: var(--space-1) var(--space-3) var(--space-2);
+  /* ⚠️ 위쪽 여백을 여기 두면 안 된다.
+     sticky 헤더는 padding 안쪽(콘텐츠 상자 위)에 붙으므로, 그 여백만큼
+     헤더보다 위에 틈이 생기고 스크롤되는 막대가 그 틈으로 지나가 보인다.
+     위 여백은 헤더가 직접 갖게 해서 헤더 배경이 그 자리를 덮게 한다. */
+  padding: 0 var(--space-3) var(--space-2);
 }
-.gantt-page .gm-header { background: var(--main-bg); }
+.gantt-page .gm-header {
+  background: var(--main-bg);
+  padding-top: var(--space-1);
+}
 body.light-mode .gantt-page .gm-header { background: #ffffff; }
 
 /* 라이트 모드에서의 음영(흰색 오버레이는 보이지 않으므로 검정 기반으로 보정) */
@@ -6532,8 +6539,13 @@ body.light-mode .year-select option { color: #1a1a1a; }
   background: rgba(0,0,0,0.5);
   z-index: var(--z-panel);
   display: flex;
-  align-items: center;
+  /* 위를 기준으로 붙인다. 가운데 정렬이면 탭마다 내용 높이가 달라질 때
+     창이 위아래로 같이 움직여서, 탭을 옮길 때마다 제목이 흔들려 보인다.
+     위가 고정되면 길이가 짧아진 만큼 아래 선만 올라온다. */
+  align-items: flex-start;
   justify-content: center;
+  padding: 6vh 0;
+  box-sizing: border-box;
   opacity: 0;
   transition: opacity var(--dur-base);
 }
@@ -6545,6 +6557,7 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .settings-modal {
   width: 500px;
   max-width: 96vw;
+  /* 내용만큼만 높아진다. 넘칠 때만 아래가 잘리고 안쪽이 스크롤된다. */
   max-height: 88vh;
   background: var(--main-bg);
   border-radius: var(--radius-lg);
@@ -6554,6 +6567,9 @@ body.light-mode .year-select option { color: #1a1a1a; }
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   transform: scale(0.96);
+  /* 확대/축소 기준을 위로. 기본값(가운데)이면 탭마다 높이가 달라질 때
+     위아래로 같이 벌어져서 창 상단이 흔들린다. */
+  transform-origin: top center;
   transition: transform var(--dur-base);
 }
 .settings-overlay.open .settings-modal { transform: scale(1); }
@@ -6593,10 +6609,14 @@ body.light-mode .year-select option { color: #1a1a1a; }
   padding: 0 var(--space-4);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  overflow-x: auto;
+  /* 스크롤 금지 — 탭이 넘치면 스크롤바가 생기면서 탭 줄 높이까지 흔들렸다.
+     네 개는 어차피 들어가므로 각 탭이 조금씩 줄어드는 편이 낫다. */
+  overflow: visible;
 }
 .settings-tab {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
   padding: var(--space-25) var(--space-35);
   background: transparent;
   border: none;
@@ -6612,11 +6632,12 @@ body.light-mode .year-select option { color: #1a1a1a; }
 .settings-tab:hover { color: var(--text-1); }
 .settings-tab.active { color: var(--brand-primary); border-bottom-color: var(--brand-primary); }
 
-/* 탭 콘텐츠 */
+/* 탭 콘텐츠
+   높이를 440px로 못박아 두면 짧은 탭에서도 빈 공간이 남고 스크롤바가 생겼다.
+   내용만큼만 차지하게 두고, 화면(88vh)을 넘길 때만 안쪽이 스크롤된다. */
 .settings-content {
-  flex: 1;
-  height: 440px;
-  min-height: 440px;
+  flex: 0 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-4) var(--space-5) var(--space-5);
 }
@@ -7311,7 +7332,10 @@ body.light-mode .nav-item:hover {
    🗂 WBS 트리 뷰
    ============================================= */
 .cat-wbs { overflow-y: auto !important; }
-.wbs-wrap { padding: var(--space-1) var(--space-25) var(--space-05); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--main-bg); }
+/* ⚠️ 위쪽 여백은 헤더가 갖는다.
+   여기에 두면 sticky 헤더가 그 여백만큼 아래에서 시작했다가, 스크롤하는 순간
+   컨테이너 맨 위로 튀어 올라 "구분선이 살짝 밀려 올라가는" 것처럼 보인다. */
+.wbs-wrap { padding: 0 var(--space-25) var(--space-05); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--main-bg); }
 .wbs-empty { color: var(--text-2); text-align: center; padding: 48px; font-size: var(--fs-md); }
 
 /* 필터 툴바 */
@@ -7482,6 +7506,8 @@ body.light-mode .nav-item:hover {
   top: 0;
   z-index: var(--z-sticky);
   background: var(--main-bg);
+  /* .wbs-wrap 에서 걷어낸 위 여백. 헤더가 직접 들고 있어야 스크롤해도 자리가 안 바뀐다. */
+  padding-top: calc(5px + var(--space-1));
 }
 .wbs-header-row:hover { background: var(--main-bg); }
 .wbs-head-label { color: var(--text-1); font-weight: 700; font-size: var(--fs-md); letter-spacing: 0.06em; }
@@ -10759,3 +10785,30 @@ body.light-mode .right-panel {
 }
 .menuvis-seg:hover  { color: var(--text-1); }
 .menuvis-seg.active { background: var(--brand-primary); color: #fff; }
+
+/* ── WBS 우클릭 메뉴 (하위 항목 추가) ───────────────────────── */
+.wbs-ctx {
+  position: fixed;
+  z-index: var(--z-top);
+  min-width: 148px;
+  padding: var(--space-1);
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.wbs-ctx-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-25);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wbs-ctx-item:hover { background: var(--surface-hover); }

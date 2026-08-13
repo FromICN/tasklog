@@ -1099,28 +1099,12 @@ function mdtPerfCellHtml(m, sg, a) {
     var resBadge = perf.achieved ? '<span class="mgt-perf-badge mgt-perf-badge-sq on">달성</span>' : '';
     return '<div class="mgt-perf-result">' + mdtResultMonthsHtml(yr, sgId, a) + resBadge + '</div>';
   }
-  // 습관형(일간/주간): 진행중 배지 제거, 진행현황은 실적바 hover(title)로 표시
-  var isDaily = (tv === 'daily');
+  // 습관형(일간/주간): 달성률 막대만 둔다. 진행현황은 막대 hover(title)로 표시.
+  //  날짜별 체크는 Habit Tracker 페이지가 1~12월을 한눈에 보여주므로,
+  //  실적관리 그리드에서는 한 달짜리 캘린더를 걷어내 표를 읽기 쉽게 둔다.
   var barTitle = escMdt(perf.label);
-  if (isDaily) {
-    // 일간: 캘린더 항상 표시 (토글 없음)
-    return '<div class="mdt-perf-dash-bar mgt-hb-bar mgt-hb-bar--static" title="' + barTitle + '">'
-      +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
-      + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
-  }
-  // 주간: 캘린더 항상 표시 (일간과 동일하게 토글 없이 상시 노출)
   return '<div class="mdt-perf-dash-bar mgt-hb-bar mgt-hb-bar--static" title="' + barTitle + '">'
-    +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
-    + '<div class="mgt-perf-cal" id="mdt-act-card-' + yr + '-' + sgId + '-' + a.id + '">' + buildHabitCalendar(yr, sgId, a) + '</div>';
-}
-
-// 습관형 달성현황: 실적바 클릭 시 캘린더 드롭다운(열림 상태 유지)
-var _mdtHabitCalOpen = {};
-function mdtToggleHabitCal(year, sgId, actId) {
-  var k = year + '-' + sgId + '-' + actId;
-  _mdtHabitCalOpen[k] = !_mdtHabitCalOpen[k];
-  var el = document.getElementById('mdt-act-card-' + year + '-' + sgId + '-' + actId);
-  if (el) el.classList.toggle('is-collapsed', !_mdtHabitCalOpen[k]);
+    +   '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
 }
 
 // 그리드 행 (습관형은 아래에 월간 캘린더 행 추가: 캘린더 왼쪽 · 메모 오른쪽)
