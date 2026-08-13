@@ -281,6 +281,85 @@ function _unwrapItem(data) {
   };
 })();
 
+// ============================================
+//  ⏱️ 서버 시계 맞추기
+// --------------------------------------------
+//  충돌은 _ua(마지막 수정 시각) 비교로 정하는데, 이 값을 각 기기가 자기
+//  Date.now() 로 찍었다. 폰과 PC 시계가 몇 분만 어긋나도 "나중에 고친 쪽"이
+//  아니라 "시계가 빠른 쪽"이 이겨서, 방금 한 수정이 옛 값에 덮였다.
+//
+//  ⚠️ _ua 에 serverTimestamp() 를 그대로 넣지는 않는다.
+//     구버전 클라이언트가 `d._ua || 0` 으로 읽어 숫자처럼 비교하기 때문에,
+//     거기에 Timestamp 객체가 들어가면 비교가 전부 무너진다(= 지금 고치려는
+//     유실을 오히려 만든다). 대신 서버와의 시계 차를 실측해 보정한 '숫자'를
+//     넣는다 — 값의 형태는 그대로라 구버전과 섞여 있어도 안전하다.
+//
+//  로컬에 남기는 시각(_lastLocalWrite·_pendingUa)은 일부러 로컬 시계 그대로 둔다.
+//  비교하는 순간에 오프셋을 더하므로, 나중에 오차 추정이 정확해지면 이미 쌓인
+//  값들도 자동으로 같이 보정된다.
+// ============================================
+var FS_CLOCK_KEY      = 'tasklog-sync-clock';
+var FS_CLOCK_TTL_MS   = 6 * 60 * 60 * 1000;   // 이 시간이 지나면 다시 잰다
+var FS_CLOCK_MAX_RTT  = 10000;                // 왕복이 이보다 느리면 추정을 믿지 않는다
+
+var _fsClockOffset = 0;          // 서버시각 ≈ Date.now() + _fsClockOffset
+var _fsClockRtt    = Infinity;   // 그 추정을 만든 왕복 시간(작을수록 정확)
+var _fsClockAt     = 0;          // 마지막으로 잰 시각(로컬)
+
+function _serverNow() { return Date.now() + _fsClockOffset; }
+// 로컬 시계로 찍힌 시각을 서버 기준으로 환산. 0(모름)은 그대로 둔다.
+function _toServerTime(localMs) { return localMs ? localMs + _fsClockOffset : 0; }
+
+function _loadClockOffset() {
+  try {
+    var o = JSON.parse(localStorage.getItem(FS_CLOCK_KEY) || 'null');
+    if (o && typeof o.offset === 'number' && isFinite(o.offset)) {
+      _fsClockOffset = o.offset;
+      _fsClockRtt    = (typeof o.rtt === 'number') ? o.rtt : Infinity;
+      _fsClockAt     = o.at || 0;
+    }
+  } catch (e) {}
+}
+
+async function _measureClockOffset(force) {
+  if (!db || !_fsUid) return;
+  if (!force && _fsClockAt && (Date.now() - _fsClockAt) < FS_CLOCK_TTL_MS) return;
+  try {
+    var ref = _docRef('_clock');
+    var t0 = Date.now();
+    await ref.set({
+      key: '_clock',                      // FS_DOC_KEYS 에 없으므로 docs 리스너가 무시한다
+      at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    var snap = await ref.get({ source: 'server' });
+    var t1 = Date.now();
+    var ts = snap && snap.get ? snap.get('at') : null;
+    if (!ts || typeof ts.toMillis !== 'function') return;
+
+    var rtt = t1 - t0;
+    if (rtt > FS_CLOCK_MAX_RTT) { _logSync('시계 측정 무시(왕복 ' + rtt + 'ms)'); return; }
+    // 서버가 쓰기를 처리한 시점은 t0~t1 사이 어딘가 → 가운데로 잡는다
+    var offset = ts.toMillis() - (t0 + rtt / 2);
+
+    // 이번 왕복이 더 빠를 때만 갈아끼운다 (느린 왕복 = 부정확한 추정)
+    if (rtt <= _fsClockRtt || (Date.now() - _fsClockAt) >= FS_CLOCK_TTL_MS) {
+      _fsClockOffset = offset; _fsClockRtt = rtt; _fsClockAt = Date.now();
+      try {
+        localStorage.setItem(FS_CLOCK_KEY,
+          JSON.stringify({ offset: offset, rtt: rtt, at: _fsClockAt }));
+      } catch (e) {}
+      if (Math.abs(offset) > 5000) {
+        console.log('⏱️ 이 기기 시계가 서버와 ' + Math.round(offset / 1000)
+          + '초 차이납니다 — 동기화 충돌 판정에 보정해서 씁니다 (왕복 ' + rtt + 'ms)');
+      }
+      _logSync('시계 보정 ' + Math.round(offset) + 'ms (왕복 ' + rtt + 'ms)');
+    }
+  } catch (e) {
+    // 오프라인이면 실패한다 — 저장해 둔 값으로 계속 간다
+    _logSync('시계 측정 실패: ' + (e && e.code ? e.code : e));
+  }
+}
+
 function _logSync(msg) {
   _syncLog.push(new Date().toISOString().slice(11, 19) + ' ' + msg);
   if (_syncLog.length > 60) _syncLog.shift();
@@ -533,8 +612,10 @@ function _mergeMap(map) {
     conflicts++;
     if (l === undefined) { if (s !== undefined) { out[id] = s; restored++; } return; }  // 삭제 vs 편집 → 편집
     if (s === undefined) { out[id] = l; push[id] = l; pushCount++; return; }            // 편집 vs 삭제 → 편집
+    // 서버의 _ua 는 이미 서버 기준(쓴 기기가 보정해 넣었다).
+    // 로컬 시각은 로컬 시계로 찍혀 있으므로 여기서 서버 기준으로 환산해 비교한다.
     var sua = (sEntry && sEntry.ua) || 0;
-    var lua = (_pendingUa[lsKey] && _pendingUa[lsKey][id]) || _lastLocalWrite[lsKey] || 0;
+    var lua = _toServerTime((_pendingUa[lsKey] && _pendingUa[lsKey][id]) || _lastLocalWrite[lsKey] || 0);
 
     // 필드 단위 병합 — 문서 하나를 통째로 고르지 않는다.
     //  기준값(mBaseVal)이 있어야 "저쪽이 추가"와 "이쪽이 삭제"를 구분할 수 있다.
@@ -574,7 +655,7 @@ function _applyMerged(map, r) {
 function _queueItemOps(map, pushSet, addOp) {
   var mir = _mirrorItems(map.lsKey), mua = _mirrorItemUa(map.lsKey);
   var mbase = _mirrorBase(map.lsKey);
-  var now = Date.now();
+  var now = _serverNow();   // 다른 기기와 견줄 값이라 서버 기준으로 찍는다
   Object.keys(pushSet).forEach(function (id) {
     var item = pushSet[id];
     if (item === null) {
@@ -608,7 +689,8 @@ function _applyDocValue(key, raw) {
 
 function _syncDocKeys(addOp) {
   var touched = [];
-  var now = Date.now();
+  var now      = _serverNow();   // 문서에 찍는 _ua — 다른 기기와 견주는 값
+  var localNow = Date.now();     // 로컬 기록용 — 비교할 때 서버 기준으로 환산한다
   var server = _lastServerDocs;              // null = 아직 모름
 
   FS_DOC_KEYS.forEach(function (key) {
@@ -633,7 +715,7 @@ function _syncDocKeys(addOp) {
         _fsMirror.docs[key] = lh;
       }
       _fsMirror.docUa[key] = now;
-      _pendingDocUa[key] = now;
+      _pendingDocUa[key] = localNow;
     }
 
     // 항목 컬렉션과 같은 이유로, 서버 상태를 보기 전에는 아무것도 올리지 않는다
@@ -657,9 +739,9 @@ function _syncDocKeys(addOp) {
     }
     if (localChanged && !serverChanged) { pushLocal(); return; }
 
-    // 충돌 → 최신 우선
+    // 충돌 → 최신 우선 (로컬 시각은 서버 기준으로 환산해서 견준다)
     var sua = (sEntry && sEntry.ua) || 0;
-    var lua = _pendingDocUa[key] || _lastLocalWrite[key] || 0;
+    var lua = _toServerTime(_pendingDocUa[key] || _lastLocalWrite[key] || 0);
     if (sua > lua) {
       _applyDocValue(key, sRaw === undefined ? null : sRaw);
       _fsMirror.docs[key] = sh; _fsMirror.docUa[key] = sua;
@@ -820,7 +902,7 @@ function _attachListeners() {
     //    v1 은 이게 없어서, 미확정 구간에 도착한 남의 변경이 영영 반영되지 않았다.
     var unsub = _collRef(map.coll).onSnapshot({ includeMetadataChanges: true }, function (snap) {
       var server = {}, pend = {}, tombs = [];
-      var cutoff = Date.now() - FS_TOMB_TTL_MS;
+      var cutoff = _serverNow() - FS_TOMB_TTL_MS;   // _ua 가 서버 기준이라 여기도 맞춘다
       snap.forEach(function (doc) {
         // 통째로 버리지 않는다 — 미확정인 '그 문서'만 이번 판단에서 뺀다
         if (doc.metadata.hasPendingWrites) { pend[doc.id] = true; return; }
@@ -892,7 +974,7 @@ async function _splitMandalartDoc() {
     var id = _docIdForKey(String(m.year));
     if (existing[id] !== undefined && existing[id] >= legacyUa) return;
     var data = _sanitizeItem(m);
-    data._ua = legacyUa || Date.now();
+    data._ua = legacyUa || _serverNow();
     batch.set(_collRef('mandalart').doc(id), data);
     n++;
   });
@@ -949,9 +1031,14 @@ async function startFirestoreSync(uid) {
   _fsUid = uid;
   _fsStarted = true;
   var reused = _loadMirror(uid);
+  _loadClockOffset();     // 저장해 둔 시계 보정값을 먼저 쓴다 (측정은 아래에서 비동기로)
   console.log('🔄 Firestore 동기화 시작:', uid, reused ? '(이전 기준 상태 이어받음)' : '(기준 상태 새로 만듦)');
 
   await _migrateIfNeeded();
+
+  // 시계 측정은 네트워크를 타므로 기다리지 않는다 — 오프라인이면 저장값으로 간다.
+  // 끝나면 다음 병합부터 새 보정값이 적용된다.
+  _measureClockOffset().then(function () { if (_fsStarted) _syncSoon(); });
 
   _attachListeners();
   window.__backupReady = true;    // 이후부터 사용자 저장을 '변경'으로 감지 → 자동 동기화
@@ -1006,7 +1093,12 @@ function tasklogSyncStatus() {
       필드병합: map.deep ? (Object.keys(_mirrorBase(map.lsKey)).length + '건 기준 보유') : '미사용'
     };
   });
-  return { uid: _fsUid, 동작중: _fsStarted, 항목수: counts, 최근기록: _syncLog.slice(-20) };
+  return {
+    uid: _fsUid, 동작중: _fsStarted, 항목수: counts,
+    시계보정: { 오프셋ms: Math.round(_fsClockOffset), 왕복ms: _fsClockRtt,
+              잰시각: _fsClockAt ? new Date(_fsClockAt).toLocaleString('ko-KR') : '아직 못 잼' },
+    최근기록: _syncLog.slice(-20)
+  };
 }
 
 // JSON 백업 파일 가져오기(applyBackupData) 후 자동으로 Firestore에 반영
