@@ -16,6 +16,7 @@ var settingsState = {
   calDirection: 'one',
   calItems: 'deadline',
   syncStatus: null,
+  menuProfile: null,   // '메뉴' 탭에서 편집 중인 프로파일 (null = 현재 기기)
 };
 
 function initTheme() {
@@ -140,6 +141,7 @@ function buildSettingsModal() {
     + '<div class="settings-tabs" id="settings-tabs">'
     + buildSettingsTabBtn('general',  '일반')
     + buildSettingsTabBtn('display',  '화면')
+    + buildSettingsTabBtn('menus',    '메뉴')
     + buildSettingsTabBtn('backup',   '백업 & 복원')
     + '</div>'
     + '<div class="settings-content" id="settings-content"></div>'
@@ -157,7 +159,7 @@ function buildSettingsTabBtn(id, label) {
 
 function setSettingsTab(tabId) {
   settingsState.tab = tabId;
-  ['general','display','backup'].forEach(function(t) {
+  ['general','display','menus','backup'].forEach(function(t) {
     var el = document.getElementById('stab-' + t);
     if (el) el.classList.toggle('active', t === tabId);
   });
@@ -165,6 +167,7 @@ function setSettingsTab(tabId) {
   if (!content) return;
   if (tabId === 'general')  content.innerHTML = buildTabGeneral() + buildCalendarLinkGeneral();
   if (tabId === 'display')  content.innerHTML = buildTabDisplay();
+  if (tabId === 'menus')    content.innerHTML = buildTabMenus();
   if (tabId === 'backup')   content.innerHTML = buildTabBackup();
   content.scrollTop = 0;   // 탭 이동 시 상단 고정
   if (tabId === 'general' && settingsState.calSync && typeof isSignedIn === 'function' && isSignedIn()) setTimeout(settingsLoadCalendarList, 0);
@@ -295,6 +298,75 @@ function buildFontSizeBtn(val, label) {
   var active = settingsState.fontSize === val;
   var sz = val === 'small' ? 11 : val === 'large' ? 15 : 13;
   return '<button class="font-size-btn' + (active ? ' active' : '') + '" style="font-size:' + sz + 'px;" onclick="settingsSetFontSize(\'' + val + '\')">' + label + '</button>';
+}
+
+// ── Menus tab ─────────────────────────────
+//  사이드바에 어떤 메뉴를 보일지 고른다. 데스크탑과 모바일을 따로 저장하므로
+//  큰 화면에서는 전부 쓰고 폰에서는 몇 개만 쓰는 구성이 가능하다.
+//  (프로파일은 화면 폭으로 정해지므로, 데스크탑에 설치한 PWA도 데스크탑과 같다)
+function buildTabMenus() {
+  if (typeof MENUS === 'undefined' || typeof getMenuVis !== 'function') {
+    return '<div class="settings-row-desc" style="padding:12px 0;">메뉴 정보를 불러오지 못했습니다.</div>';
+  }
+  var here = (typeof appMenuProfile === 'function') ? appMenuProfile() : 'desktop';
+  var prof = (settingsState.menuProfile === 'mobile' || settingsState.menuProfile === 'desktop')
+    ? settingsState.menuProfile : here;
+  var vis = getMenuVis(prof);
+
+  var segs = ['desktop','mobile'].map(function(p) {
+    var label = (p === 'desktop' ? '데스크탑' : '모바일') + (p === here ? ' (현재 기기)' : '');
+    return '<button class="menuvis-seg' + (p === prof ? ' active' : '') + '"'
+      + ' onclick="settingsSetMenuProfile(\'' + p + '\')">' + label + '</button>';
+  }).join('');
+
+  var rows = MENUS.filter(function(m) { return !m.divider; }).map(function(m) {
+    var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
+    var emoji = (typeof MENU_EMOJI !== 'undefined' && MENU_EMOJI[m.id]) || '';
+    var on = vis[m.id] !== false;
+    return '<div class="settings-row">'
+      + '<div><div class="settings-row-label">' + (emoji ? emoji + ' ' : '') + sEsc(full) + '</div>'
+      +   '<div class="settings-row-desc">' + sEsc(m.label) + '</div></div>'
+      + buildToggle('menuvis-' + m.id, on, "settingsToggleMenu('" + m.id + "')")
+      + '</div>';
+  }).join('');
+
+  return '<div class="settings-section-head" style="margin-top:8px;">메뉴 표시</div>'
+    + '<div class="settings-row-desc" style="margin-bottom:10px;">'
+    + '사이드바에 보일 메뉴를 고릅니다. 데스크탑과 모바일 구성을 따로 저장하며,'
+    + ' 접속한 화면 크기에 맞는 구성이 적용됩니다.</div>'
+    + '<div class="menuvis-segs">' + segs + '</div>'
+    + rows
+    + '<div class="settings-row-desc" style="margin-top:12px;">'
+    + '설정(⚙)은 항상 표시되며, 메뉴를 모두 끌 수는 없습니다.</div>'
+    + '<div style="margin-top:14px;">'
+    + '<button class="btn-secondary" style="width:100%;height:36px;"'
+    + ' onclick="settingsResetMenus()">' + (prof === 'mobile' ? '모바일' : '데스크탑') + ' 기본값으로 되돌리기</button>'
+    + '</div>';
+}
+
+function settingsSetMenuProfile(p) {
+  settingsState.menuProfile = (p === 'mobile') ? 'mobile' : 'desktop';
+  setSettingsTab('menus');
+}
+
+function settingsToggleMenu(id) {
+  var here = (typeof appMenuProfile === 'function') ? appMenuProfile() : 'desktop';
+  var prof = settingsState.menuProfile || here;
+  var vis = getMenuVis(prof);
+  var ok = setMenuVis(prof, id, vis[id] === false);
+  if (!ok) { alert('메뉴를 모두 숨길 수는 없습니다.'); return; }
+  setSettingsTab('menus');
+}
+
+function settingsResetMenus() {
+  var here = (typeof appMenuProfile === 'function') ? appMenuProfile() : 'desktop';
+  var prof = settingsState.menuProfile || here;
+  try { localStorage.removeItem(MENU_VIS_KEY[prof]); } catch (e) {}
+  if (prof === here && typeof initSidebar === 'function') {
+    initSidebar();
+    if (typeof isMenuVisible === 'function' && !isMenuVisible(currentMenu)) navToMenu(appDefaultMenu());
+  }
+  setSettingsTab('menus');
 }
 
 // ── Calendar tab ──────────────────────────

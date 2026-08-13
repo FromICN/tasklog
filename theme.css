@@ -358,13 +358,13 @@ body.light-mode .cal-cell.today.sat .cal-num {
   color: var(--text-2);
 }
 .cal-detail-item { border-radius: var(--radius-xs); }
+/* 배지 글자는 home.js가 넘긴 그대로 둔다 — uppercase 를 걸면 'ToDo'가 'TODO'로 보인다 */
 .cal-detail-badge {
   background: var(--tl-pine-wash);
   color: var(--tl-pine);
   border-radius: 2px;
   font-size: 9px;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 /* ── 8. 간트: 이 앱의 주인공 ─────────────────────────────── */

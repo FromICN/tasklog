@@ -2992,6 +2992,7 @@ var _SVG = {
   wbs:       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M176,152h32a16,16,0,0,0,16-16V104a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H88V80h8a16,16,0,0,0,16-16V32A16,16,0,0,0,96,16H64A16,16,0,0,0,48,32V64A16,16,0,0,0,64,80h8V192a24,24,0,0,0,24,24h64v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V192a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H96a8,8,0,0,1-8-8V128h72v8A16,16,0,0,0,176,152ZM64,32H96V64H64ZM176,192h32v32H176Zm0-88h32v32H176Z"/></svg>',
   journal:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h240v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Z"/></svg>',
   calendar:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>',
+  habit:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm238 400L296-382l56-56 86 86 172-172 56 57-228 227Z"/></svg>',
 };
 
 var MENUS = [
@@ -3002,6 +3003,7 @@ var MENUS = [
   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
   { id:'wheel',     icon:_SVG.wheel,     label:'LW',           short:'LW'   },
   { id:'mandalart', icon:_SVG.mandalart, label:'M',            short:'M'    },
+  { id:'habit',     icon:_SVG.habit,     label:'HT',           short:'HT'   },
   { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
   { id:'project',   icon:_SVG.project,   label:'Gantt',        short:'Gantt'},
   { id:'wbs',       icon:_SVG.wbs,       label:'WBS',          short:'WBS'  },
@@ -3011,13 +3013,84 @@ var MENU_TITLES = {
   home:'Home', todo:'Board', cloud:'Web', mvv:'Mission Vision Value',
   wheel:'Life Wheel', mandalart:'Mandalart', calendar:'Calendar',
   project:'Gantt', wbs:'Work Breakdown Structure', journal:'Work Diary',
+  habit:'Habit Tracker',
 };
 
 var MENU_EMOJI = {
   home:'🏠', todo:'📅', cloud:'☁️', mvv:'🎯', calendar:'📅',
   wheel:'🎡', mandalart:'🔮', project:'📊',
-  wbs:'🌳', journal:'📓',
+  wbs:'🌳', journal:'📓', habit:'🌱',
 };
+
+// ============================================
+//  👁 메뉴 표시 여부 — 데스크탑 / 모바일 프로파일 분리
+//  --------------------------------------------
+//  같은 계정이라도 큰 화면과 폰에서 쓰는 메뉴가 다르다. 그래서 표시 여부를
+//  두 벌(desktop · mobile)로 나눠 저장하고, 접속한 화면 폭으로 어느 쪽을
+//  쓸지 고른다. 화면 폭만 보므로 데스크탑에 설치한 PWA도 데스크탑과 같다.
+// ============================================
+var MENU_VIS_KEY = { desktop: 'app-menu-visible-desktop', mobile: 'app-menu-visible-mobile' };
+
+// 기본값 — 저장된 값이 없을 때 쓰인다.
+//  · 데스크탑: Board 만 숨김
+//  · 모바일  : Web · Habit Tracker · Mandalart · WBS 만 표시
+var MENU_VIS_DEFAULTS = {
+  desktop: { home:true,  cloud:true, journal:true,  mvv:true,  wheel:true,  mandalart:true, habit:true, todo:false, project:true,  wbs:true },
+  mobile:  { home:false, cloud:true, journal:false, mvv:false, wheel:false, mandalart:true, habit:true, todo:false, project:false, wbs:true },
+};
+
+// mobile-ui.js 와 같은 기준(768px)을 쓴다 — 두 곳이 어긋나면 폰에서
+// 메뉴는 데스크탑용인데 화면 보정만 모바일용으로 도는 상태가 된다.
+function appIsMobileLayout() {
+  try { if (window.matchMedia) return window.matchMedia('(max-width: 768px)').matches; } catch (e) {}
+  return window.innerWidth <= 768;
+}
+function appMenuProfile() { return appIsMobileLayout() ? 'mobile' : 'desktop'; }
+
+function getMenuVis(profile) {
+  profile = (profile === 'mobile') ? 'mobile' : 'desktop';
+  var def = MENU_VIS_DEFAULTS[profile], out = {};
+  Object.keys(def).forEach(function(k) { out[k] = def[k]; });
+  try {
+    var raw = localStorage.getItem(MENU_VIS_KEY[profile]);
+    if (raw) {
+      var saved = JSON.parse(raw);
+      Object.keys(out).forEach(function(k) { if (typeof saved[k] === 'boolean') out[k] = saved[k]; });
+    }
+  } catch (e) {}
+  return out;
+}
+
+function setMenuVis(profile, id, on) {
+  profile = (profile === 'mobile') ? 'mobile' : 'desktop';
+  var vis = getMenuVis(profile);
+  vis[id] = !!on;
+  // 전부 끄면 갈 곳이 없어진다 — 마지막 하나는 남긴다
+  if (!Object.keys(vis).some(function(k) { return vis[k]; })) return false;
+  try { localStorage.setItem(MENU_VIS_KEY[profile], JSON.stringify(vis)); } catch (e) {}
+  if (profile === appMenuProfile()) {
+    initSidebar();
+    if (!isMenuVisible(currentMenu)) navToMenu(appDefaultMenu());
+  }
+  return true;
+}
+
+// 기본값에 없는(새로 추가된) 메뉴는 표시로 본다
+function isMenuVisible(id) { return getMenuVis(appMenuProfile())[id] !== false; }
+
+// 표시 중인 메뉴 id 목록 (사이드바 순서)
+function visibleMenuIds() {
+  var vis = getMenuVis(appMenuProfile());
+  return MENUS.filter(function(m) { return !m.divider && vis[m.id] !== false; })
+              .map(function(m) { return m.id; });
+}
+
+// 시작 화면 — Home 이 꺼져 있으면 표시 중인 첫 메뉴로
+function appDefaultMenu() {
+  var ids = visibleMenuIds();
+  if (!ids.length) return 'home';
+  return ids.indexOf('home') >= 0 ? 'home' : ids[0];
+}
 
 // 📐 사이드바 고정(접힘) — 열고 닫는 기능 제거
 function initSidebarCollapse() {
@@ -3036,7 +3109,20 @@ function initSidebar() {
     + '<span class="nav-item-label">Setting</span>'
     + '</button>'
     + '<div class="nav-divider"></div>';
-  nav.innerHTML = settingsBtn + MENUS.map(function(m) {
+  // 숨긴 메뉴를 빼면 구분선이 맨 앞·맨 뒤에 남거나 두 줄로 겹친다 → 먼저 정리
+  var vis = getMenuVis(appMenuProfile());
+  var items = [];
+  MENUS.forEach(function(m) {
+    if (m.divider) {
+      if (items.length && !items[items.length - 1].divider) items.push({ divider:true });
+      return;
+    }
+    if (vis[m.id] === false) return;
+    items.push(m);
+  });
+  while (items.length && items[items.length - 1].divider) items.pop();
+
+  nav.innerHTML = settingsBtn + items.map(function(m) {
     if (m.divider) return '<div class="nav-divider"></div>';
     var full = MENU_TITLES[m.id] || m.label;
     return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'
@@ -3047,6 +3133,35 @@ function initSidebar() {
   var act = document.getElementById('nav-'+currentMenu);
   if (act) act.classList.add('active');
 }
+
+// 화면 폭이 데스크탑 ↔ 모바일 경계를 넘으면 쓰는 프로파일이 바뀐다.
+// 사이드바를 다시 그리고, 보고 있던 메뉴가 숨겨졌으면 갈 수 있는 곳으로 옮긴다.
+//
+// matchMedia 의 change 만으로는 놓치는 경우가 있어(개발자도구 기기 모드 등)
+// resize 도 함께 듣는다. 프로파일이 실제로 바뀐 때만 다시 그리므로 중복은 없다.
+(function watchMenuProfile() {
+  var last = null;
+  function sync() {
+    if (!document.getElementById('sidebar-nav')) return;
+    var now = appMenuProfile();
+    if (now === last) return;
+    last = now;
+    initSidebar();
+    if (!isMenuVisible(currentMenu)) navToMenu(appDefaultMenu());
+  }
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(max-width: 768px)');
+    try { mq.addEventListener('change', sync); }
+    catch (e) { if (mq.addListener) mq.addListener(sync); }
+  }
+  var t = null;
+  window.addEventListener('resize', function() {
+    if (t) clearTimeout(t);
+    t = setTimeout(sync, 150);
+  });
+  // 부팅 직후의 프로파일을 기준값으로 잡아 둔다 (첫 resize 에서 헛돌지 않도록)
+  window.addEventListener('load', function() { last = appMenuProfile(); });
+})();
 
 // 메뉴 id → 각 화면 렌더 함수 이름
 var MENU_RENDERERS = {
@@ -3060,6 +3175,7 @@ var MENU_RENDERERS = {
   project:   'renderGanttView',
   wbs:       'renderWbsView',
   journal:   'renderJournalView',
+  habit:     'renderHabitView',
 };
 
 // 📱 모바일 사이드바 드로어 토글
@@ -3119,6 +3235,8 @@ function navToMenu(id) {
   // 4.5) 만다라트 연도 슬롯 초기화 (다른 메뉴로 이동 시 비움)
   var mdtYearSlot = document.getElementById('topbar-mdt-year-slot');
   if (mdtYearSlot) mdtYearSlot.innerHTML = '';
+  var habitYearSlot = document.getElementById('topbar-habit-year-slot');
+  if (habitYearSlot) habitYearSlot.innerHTML = '';
   var boardSlot0 = document.getElementById('topbar-board-slot');
   if (boardSlot0) boardSlot0.innerHTML = '';
   var jnlSlot0 = document.getElementById('topbar-journal-slot');
@@ -3144,7 +3262,7 @@ function bootApp() {
   if (typeof appBootYearSync === 'function') appBootYearSync();
   initSidebar();
   initSidebarCollapse();
-  navToMenu('home');
+  navToMenu(appDefaultMenu());
   if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
   if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
   if (typeof scheduleAllReminders === 'function') scheduleAllReminders();

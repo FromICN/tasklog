@@ -10468,3 +10468,294 @@ body.light-mode .right-panel {
   font-family: inherit;
   cursor: pointer;
 }
+
+/* ============================================================
+   🌱 Habit Tracker 페이지
+   왼쪽 습관 목록 + 오른쪽 1~12월 캘린더 12개.
+   만다라트의 습관 캘린더를 한 해 통째로 펼쳐 놓은 화면이다.
+   ============================================================ */
+.ht-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* 좌우 여백: Web 페이지 기준(.main-content 공통 여백만 사용) */
+  padding: var(--space-2) 0;
+  box-sizing: border-box;
+  min-height: 0;
+}
+.ht-body {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--space-35);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── 왼쪽: 습관 목록 ── */
+.ht-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.ht-list-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+  padding: var(--space-25) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.ht-list-count {
+  font-size: var(--fs-3xs);
+  color: var(--text-3);
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  padding: 1px var(--space-15);
+}
+.ht-list-body { overflow-y: auto; flex: 1; min-height: 0; }
+
+.ht-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.ht-item:hover  { background: var(--surface-hover); }
+.ht-item.active { background: var(--sidebar-active); }
+/* 왼쪽 색 띠 = 그 습관이 속한 Section 색 */
+.ht-item-bar {
+  width: 3px;
+  align-self: stretch;
+  min-height: 30px;
+  border-radius: 0 2px 2px 0;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+.ht-item.active .ht-item-bar { opacity: 1; }
+.ht-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ht-item-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ht-item-sub {
+  font-size: var(--fs-3xs);
+  color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ht-item-right { display: flex; align-items: center; gap: var(--space-15); flex-shrink: 0; }
+.ht-item-rate {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.ht-item-today {
+  width: 16px; height: 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-3xs);
+  color: var(--text-3);
+}
+.ht-item-today.on {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success);
+  font-weight: 700;
+}
+
+/* ── 오른쪽: 12개월 캘린더 ── */
+.ht-cal-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+}
+.ht-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-25);
+  margin-bottom: var(--space-25);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ht-cal-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.ht-cal-dot { width: 8px; height: 8px; border-radius: var(--radius-full); flex-shrink: 0; }
+.ht-cal-name {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text-1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ht-cal-sec { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+.ht-cal-stats { display: flex; align-items: center; gap: var(--space-15); flex-wrap: wrap; }
+.ht-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px var(--space-2);
+}
+.ht-chip-label { font-size: var(--fs-3xs); color: var(--text-3); }
+.ht-chip-value {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.ht-chip.ok { background: var(--success-bg); border-color: var(--success-border); }
+.ht-chip.ok .ht-chip-value { color: var(--success); }
+
+.ht-months {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-25);
+}
+.ht-month {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  min-width: 0;
+}
+.ht-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-15);
+}
+.ht-month-name { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); }
+/* 그 달에 기록된 일수 — 한눈에 밀도를 본다 */
+.ht-month-count {
+  font-size: var(--fs-3xs);
+  font-weight: 700;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.ht-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.ht-dow {
+  font-size: var(--fs-3xs);
+  text-align: center;
+  color: var(--text-3);
+  padding-bottom: 1px;
+}
+.ht-dow.sun { color: var(--danger); }
+.ht-dow.sat { color: var(--info); }
+.ht-cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: var(--fs-3xs);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--dur-fast);
+}
+.ht-cell:hover { background: var(--surface-hover); }
+.ht-cell.is-blank { background: transparent; pointer-events: none; }
+.ht-cell.is-done {
+  background: var(--success-bg);
+  color: var(--success);
+  font-weight: 700;
+}
+.ht-cell.is-today { outline: 1.5px solid var(--brand-primary); outline-offset: -1px; }
+.ht-cell.is-future { opacity: 0.25; pointer-events: none; }
+
+/* ── 빈 상태 ── */
+.ht-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+}
+.ht-empty-icon  { font-size: 34px; }
+.ht-empty-title { font-size: var(--fs-lg); font-weight: 700; color: var(--text-1); }
+.ht-empty-desc  { font-size: var(--fs-sm); color: var(--text-2); line-height: 1.7; }
+.ht-empty-btn {
+  margin-top: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--brand-primary);
+  color: #fff;
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* 좁은 화면: 캘린더 열을 줄이고, 폰에서는 목록을 위로 올린다 */
+@media (max-width: 1100px) {
+  .ht-months { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 768px) {
+  .ht-body { grid-template-columns: 1fr; }
+  .ht-list { max-height: 190px; }
+  .ht-months { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ht-cal-area { overflow-y: visible; }
+}
+@media (max-width: 420px) {
+  .ht-months { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   ⚙ 설정 > 메뉴 탭 — 데스크탑/모바일 프로파일 전환
+   ============================================================ */
+.menuvis-segs {
+  display: flex;
+  gap: var(--space-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  margin-bottom: var(--space-3);
+}
+.menuvis-seg {
+  flex: 1;
+  height: 30px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.menuvis-seg:hover  { color: var(--text-1); }
+.menuvis-seg.active { background: var(--brand-primary); color: #fff; }
