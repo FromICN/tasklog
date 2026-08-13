@@ -11,7 +11,7 @@
   "colresize.js": "5b4907a5ad5b",
   "backup-core.js": "6b37de481580",
   "backup-xlsx.js": "12c91b645e8b",
-  "auth.js": "f974cc9ef77e",
+  "auth.js": "1e04979bbcd7",
   "calendar.js": "684254c2eb91",
   "mandalart.js": "b534c8870893",
   "lifewheel.js": "8930a17f3dd3",
@@ -25,10 +25,10 @@
   "mvv.js": "ef0bad111302",
   "settings.js": "392dbeb8673a",
   "drive.js": "3d1a9d575670",
-  "firestore-sync.js": "387de845d081",
+  "firestore-sync.js": "12af7c5a5fd6",
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "6c8101bd480d",
-  "pwa.js": "a573224ec4c2",
+  "pwa.js": "2c7424964fa1",
   "mobile-ui.js": "ff2c7494ef27"
 }

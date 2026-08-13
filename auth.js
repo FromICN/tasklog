@@ -141,6 +141,60 @@ function _getValidSessionToken() {
 }
 
 // ============================================
+//  🔥 Firebase 세션으로 버티기
+// --------------------------------------------
+//  Google 액세스 토큰(GIS 암묵적 플로우)은 1시간짜리이고 refresh token 이 없다.
+//  반면 Firebase 세션은 자체 refresh token 으로 훨씬 오래 산다.
+//  데이터 동기화에 필요한 건 Firebase uid 뿐이므로, 구글 토큰이 만료됐다고
+//  앱을 잠글 이유가 없다. 드라이브·캘린더만 다음 로그인 때 되살아나면 된다.
+//
+//  ⚠️ 예전에는 토큰이 없으면 곧바로 로그인 화면을 띄웠다. 그래서 두 기기를 오갈 때
+//     한 시간만 지나면 "다른 기기에서 로그인해서 로그아웃됐다"처럼 보였다.
+// ============================================
+var _needsGoogleReauth = false;
+
+// Firebase 세션 복원은 비동기다 — 첫 통지를 한 번만 기다린다
+function _firebaseUserOnce(timeoutMs) {
+  return new Promise(function (resolve) {
+    if (typeof firebaseReady === 'undefined' || !firebaseReady || !window.firebase) { resolve(null); return; }
+    var done = false, unsub = null;
+    function finish(u) {
+      if (done) return;
+      done = true;
+      if (unsub) { try { unsub(); } catch (e) {} }
+      resolve(u || null);
+    }
+    try {
+      unsub = firebase.auth().onAuthStateChanged(function (u) { finish(u); }, function () { finish(null); });
+    } catch (e) { finish(null); return; }
+    setTimeout(function () {
+      var cur = null;
+      try { cur = firebase.auth().currentUser; } catch (e) {}
+      finish(cur);
+    }, timeoutMs || 4000);
+  });
+}
+
+// 구글 토큰이 없을 때: Firebase 세션이 살아 있으면 앱으로 들여보내고, 아니면 로그인 화면.
+async function _enterWithFirebaseSessionOrGate() {
+  // 사용자가 직접 로그아웃했다면 세션이 남아 있어도 게이트를 띄운다
+  if (localStorage.getItem(AUTO_LOGIN_KEY) !== 'true') { _showLoginGate(); return; }
+
+  var u = await _firebaseUserOnce(4000);
+  if (!u) { _showLoginGate(); return; }
+
+  var saved = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (saved) { try { currentUser = JSON.parse(saved); } catch (e) {} }
+  _needsGoogleReauth = true;
+  if (typeof startFirestoreSync === 'function') {
+    try { startFirestoreSync(u.uid); } catch (e) { console.warn('동기화 시작 실패:', e); }
+  }
+  updateAuthUI();
+  _hideLoginGate();
+  console.log('🔓 구글 토큰 만료 — Firebase 세션으로 계속 사용합니다 (드라이브·캘린더는 재연결 필요)');
+}
+
+// ============================================
 //  🔄 자동 로그인 시도
 // ============================================
 
@@ -162,6 +216,7 @@ function maybeAutoSignIn() {
     //  localStorage + 드라이브 백업으로만 돌고 있었다.
     //  (설치형 앱은 Firestore를 보므로 서로 다른 데이터를 보여줬다)
     _syncFirebaseAuth(sessToken);
+    _needsGoogleReauth = false;
     updateAuthUI();
     _hideLoginGate();
     console.log('🎟️ 세션 토큰 재사용 → 자동 로그인 (팝업 없음)');
@@ -196,9 +251,9 @@ function _silentSignIn() {
         setTimeout(_silentSignIn, 1200);   // 잠깐 후 한 번 더 조용히 시도
         return;
       }
-      // 그래도 실패(구글 세션 자체 만료 등) → 로그인 화면만 표시(설정은 보존).
-      // 사용자가 '구글로 로그인'을 한 번 누르면 다시 자동 로그인 상태가 됨.
-      _showLoginGate();
+      // 그래도 실패(구글 세션 자체 만료 등) → Firebase 세션이 살아 있으면 앱은 계속 쓴다.
+      // 설정은 보존하므로, '구글로 로그인'을 한 번 누르면 드라이브·캘린더도 되살아난다.
+      _enterWithFirebaseSessionOrGate();
       return;
     }
     // 토큰 갱신 성공 → 프로필도 최신화
@@ -271,10 +326,17 @@ function handleSignIn() {
   }
 }
 
+// 이 기기에서만 로그아웃한다.
+//
+// ⚠️ 예전에는 google.accounts.oauth2.revoke() 를 불렀다. 그런데 이 API 는 토큰 하나가
+//    아니라 "사용자가 이 앱에 부여한 모든 스코프"를 취소한다 — 계정↔앱 단위라
+//    기기를 가리지 않는다. 그래서 PC 웹에서 로그아웃하면 폰 앱의 토큰까지 죽어서
+//    폰이 멋대로 로그아웃된 것처럼 보였다. (네이티브 native-auth.js 는 원래
+//    로컬 로그아웃만 해서, 폰→웹 방향은 멀쩡한 비대칭 상태였다.)
+//    계정 연결을 진짜로 끊고 싶으면 구글 계정 설정에서 하면 된다.
 function handleSignOut() {
   const token = gapi.client.getToken();
   if (token !== null) {
-    google.accounts.oauth2.revoke(token.access_token);
     gapi.client.setToken('');
   }
   if (typeof stopFirestoreSync === 'function') stopFirestoreSync();
@@ -418,8 +480,14 @@ function openProfilePanel() {
       + '<div class="pm-account-row">'
       + '<span class="g-icon" aria-hidden="true" style="margin-right:8px;display:inline-flex;width:16px;height:16px;">' + GOOGLE_G_SVG + '</span>'
       + '<span style="font-size:13px;color:var(--text-1);">Google 계정</span>'
-      + '<span class="pm-badge-connected">연결됨</span>'
+      // 구글 토큰은 1시간이면 만료된다. 데이터 동기화는 Firebase 세션으로 계속되지만
+      // 드라이브·캘린더는 토큰이 있어야 하므로, 상태를 솔직히 보여주고 재연결 길을 준다.
+      + (_getValidSessionToken()
+          ? '<span class="pm-badge-connected">연결됨</span>'
+          : '<button class="pm-badge-connected" style="background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning-border);cursor:pointer;font-family:inherit;" onclick="handleSignIn();closeProfilePanel()">재연결</button>')
       + '</div>'
+      + (_getValidSessionToken() ? ''
+          : '<div class="pm-input-hint" style="margin-top:6px;">데이터 동기화는 정상입니다. 드라이브 백업·캘린더 불러오기만 재연결이 필요해요.</div>')
       + '</div>'
 
       // 로그아웃 버튼

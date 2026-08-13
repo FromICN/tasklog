@@ -37,15 +37,21 @@ var FS_TOMB_TTL_MS       = 30 * 24 * 60 * 60 * 1000; // 툼스톤 보관 기간
 //    다른 기기의 변경을 일부러 되돌리는 경우만 이 시간 동안 막힌다.
 var FS_RESTORE_WINDOW_MS = 20 * 1000;
 var FS_MIRROR_KEY        = 'tasklog-sync-mirror';
+// 미러 자체의 형식 버전. 서버 스키마(FS_SCHEMA)와 별개다 — 미러는 로컬 캐시라
+// 형식이 바뀌면 그냥 버리고 다시 만들면 된다(첫 스냅샷에서 즉시 복원된다).
+var FS_MIRROR_VER        = 2;
 
 // ── 매핑 정의 ────────────────────────────────
 // 항목 단위 컬렉션 (배열/객체의 원소 1개 = 문서 1개)
 //  idField : 문서 ID 로 쓸 필드. 만다라트는 연도가 자연스러운 키다.
+//  deep : 충돌 시 문서를 통째로 고르지 않고 필드 단위로 병합한다.
+//         이걸 켜면 미러에 해시뿐 아니라 '기준 내용'도 함께 보관한다(_fsMirror.base).
+//         기준이 없으면 "저쪽이 추가한 것"과 "이쪽이 지운 것"을 구별할 수 없다.
 var FS_ITEM_MAPS = [
-  { lsKey: 'my-tasklog-data',      coll: 'tasks',     kind: 'array',  idField: 'id'   },
-  { lsKey: 'my-tasklog-notes',     coll: 'notes',     kind: 'array',  idField: 'id'   },
-  { lsKey: 'my-tasklog-journal',   coll: 'logs',      kind: 'object'                  },
-  { lsKey: 'my-tasklog-mandalart', coll: 'mandalart', kind: 'array',  idField: 'year' },
+  { lsKey: 'my-tasklog-data',      coll: 'tasks',     kind: 'array',  idField: 'id',   deep: true },
+  { lsKey: 'my-tasklog-notes',     coll: 'notes',     kind: 'array',  idField: 'id'               },
+  { lsKey: 'my-tasklog-journal',   coll: 'logs',      kind: 'object',                  deep: true },
+  { lsKey: 'my-tasklog-mandalart', coll: 'mandalart', kind: 'array',  idField: 'year', deep: true },
 ];
 
 // 단일 문서 키 (users/{uid}/docs/{docId} 에 원문 문자열 그대로 저장 — 무손실)
@@ -83,10 +89,13 @@ var _fsPushTimer  = null;   // 디바운스 타이머
 var _syncing      = false;  // _syncNow 재진입 방지
 var _syncAgain    = false;
 
-// 미러 = "서버가 갖고 있다고 내가 아는 상태". 내용 비교만 필요하므로 해시로 갖는다.
+// 미러 = "서버가 갖고 있다고 내가 아는 상태".
 //   items[lsKey][docId] = 해시 · itemUa[lsKey][docId] = 서버 _ua
 //   docs[key] = 해시      · docUa[key] = 서버 _ua
-var _fsMirror = { items: {}, itemUa: {}, docs: {}, docUa: {} };
+//   base[lsKey][docId]  = 기준 내용 (deep:true 인 맵만) — 필드 단위 병합의 기준점
+// 해시만으로는 "같은가/다른가"밖에 모른다. 필드 단위로 병합하려면 그때 무엇이
+// 들어 있었는지를 알아야 해서, deep 맵에 한해 내용도 함께 보관한다.
+var _fsMirror = { items: {}, itemUa: {}, docs: {}, docUa: {}, base: {} };
 
 var _lastServer     = {};    // { lsKey: {docId: {item?, ua, deleted?}} }  null 이면 '아직 모름'
 var _lastServerDocs = null;  // { key: {raw, ua} }                          null 이면 '아직 모름'
@@ -123,6 +132,116 @@ function _hash(str) {
   return h1.toString(36) + '.' + h2.toString(36);
 }
 function _hashItem(item) { return _hash(_stableStringify(item)); }
+
+function _eqVal(a, b) {
+  if (a === undefined && b === undefined) return true;
+  if (a === undefined || b === undefined) return false;
+  return _stableStringify(a) === _stableStringify(b);
+}
+function _isPlainObj(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+// 원소가 모두 안정적인 고유 id 를 가진 객체 배열인가 (subGoals · actions · steps)
+function _idKeyOf(arr) {
+  if (!Array.isArray(arr) || !arr.length) return null;
+  var keys = ['id', 'year'];
+  for (var k = 0; k < keys.length; k++) {
+    var key = keys[k], seen = {}, ok = true;
+    for (var i = 0; i < arr.length; i++) {
+      var e = arr[i];
+      if (!_isPlainObj(e) || e[key] === undefined || e[key] === null || e[key] === '') { ok = false; break; }
+      var s = String(e[key]);
+      if (seen[s]) { ok = false; break; }
+      seen[s] = 1;
+    }
+    if (ok) return key;
+  }
+  return null;
+}
+
+// ============================================
+//  🧬 재귀 3-way 병합
+// --------------------------------------------
+//  문서 하나가 통째로 이기고 지는 대신, 안쪽으로 들어가며 필드별로 판단한다.
+//  이게 없으면 두 기기가 같은 문서의 서로 다른 곳을 고쳐도 한쪽이 통째로 사라진다.
+//   · mandalart/{year} 는 그 해 전체(Section 8 × 실행항목 8 × habitLog)가 문서 하나다.
+//     서로 다른 습관을 체크해도 같은 문서라 충돌로 잡혔다.
+//   · habitLog 는 {날짜:true} 라서, 아래 객체 규칙이 그대로 '합집합'이 된다.
+//     한쪽만 지웠으면 지워지고, 한쪽만 넣었으면 들어온다.
+//
+//  base   = 마지막으로 서버와 같다고 아는 값 (undefined = 그때 없던 것)
+//  local  = 지금 로컬 값                     (undefined = 로컬에서 지워짐)
+//  server = 지금 서버 값                     (undefined = 서버에서 지워짐)
+//  serverWins = 더 못 쪼개는 값이 양쪽 다 바뀌었을 때 누구를 택할지(_ua 비교 결과)
+function _deepMerge3(base, local, server, serverWins) {
+  if (_eqVal(local, server)) return local;
+  if (_eqVal(base, local))   return server;   // 로컬 그대로 → 서버 변경 수용
+  if (_eqVal(base, server))  return local;    // 서버 그대로 → 로컬 변경 채택
+
+  // 양쪽 다 바뀌었다. 한쪽이 통째로 사라졌으면 편집을 살린다
+  // (항목 단위 정책과 같다 — 유실보다 되살아나는 편이 낫다)
+  if (local === undefined)  return server;
+  if (server === undefined) return local;
+
+  if (_isPlainObj(local) && _isPlainObj(server)) {
+    var b = _isPlainObj(base) ? base : {};
+    var out = {}, keys = {};
+    Object.keys(b).forEach(function (k) { keys[k] = 1; });
+    Object.keys(local).forEach(function (k) { keys[k] = 1; });
+    Object.keys(server).forEach(function (k) { keys[k] = 1; });
+    Object.keys(keys).forEach(function (k) {
+      var r = _deepMerge3(b[k], local[k], server[k], serverWins);
+      if (r !== undefined) out[k] = r;
+    });
+    return out;
+  }
+
+  if (Array.isArray(local) && Array.isArray(server)) {
+    var ba = Array.isArray(base) ? base : [];
+
+    // (1) id 로 짝지을 수 있으면 id 기준 — 순서 변경·삽입·삭제에 강하다
+    var idKey = _idKeyOf(local) || _idKeyOf(server) || _idKeyOf(ba);
+    if (idKey) {
+      var byId = function (arr) {
+        var m = {};
+        (arr || []).forEach(function (e) {
+          if (_isPlainObj(e) && e[idKey] !== undefined && e[idKey] !== null) m[String(e[idKey])] = e;
+        });
+        return m;
+      };
+      var mb = byId(ba), ml = byId(local), ms = byId(server);
+      var order = [];
+      local.forEach(function (e) {
+        if (_isPlainObj(e) && e[idKey] != null) order.push(String(e[idKey]));
+      });
+      server.forEach(function (e) {
+        if (!_isPlainObj(e) || e[idKey] == null) return;
+        var id = String(e[idKey]);
+        if (order.indexOf(id) === -1) order.push(id);   // 저쪽이 새로 만든 것은 뒤에
+      });
+      var arrOut = [];
+      order.forEach(function (id) {
+        var r = _deepMerge3(mb[id], ml[id], ms[id], serverWins);
+        if (r !== undefined) arrOut.push(r);
+      });
+      return arrOut;
+    }
+
+    // (2) 길이가 같은 고정 슬롯 배열(quarters · connections)은 인덱스가 곧 정체성이다
+    if (local.length === server.length && (!ba.length || ba.length === local.length)) {
+      var res = [];
+      for (var i = 0; i < local.length; i++) {
+        var rv = _deepMerge3(ba.length ? ba[i] : undefined, local[i], server[i], serverWins);
+        res.push(rv === undefined ? null : rv);
+      }
+      return res;
+    }
+
+    // (3) 그 밖의 배열은 안전하게 쪼갤 수 없다 → 최신 우선
+    return serverWins ? server : local;
+  }
+
+  return serverWins ? server : local;         // 스칼라거나 타입이 다르다
+}
 
 // Firestore에 넣을 수 있게 정리 (undefined 제거). 객체가 아니면 __raw 로 감싼다.
 function _sanitizeItem(v) {
@@ -249,6 +368,11 @@ function _mirrorItemUa(lsKey) {
   if (!_fsMirror.itemUa[lsKey]) _fsMirror.itemUa[lsKey] = {};
   return _fsMirror.itemUa[lsKey];
 }
+function _mirrorBase(lsKey) {
+  if (!_fsMirror.base) _fsMirror.base = {};
+  if (!_fsMirror.base[lsKey]) _fsMirror.base[lsKey] = {};
+  return _fsMirror.base[lsKey];
+}
 
 var _mirrorSaveTimer = null;
 function _saveMirrorSoon() {
@@ -256,25 +380,44 @@ function _saveMirrorSoon() {
   _mirrorSaveTimer = setTimeout(function () {
     _mirrorSaveTimer = null;
     if (!_fsUid) return;
+    // ⚠️ FS_MIRROR_KEY 는 BACKUP_REGISTRY 에 없다 → setItem 훅이 푸시를 예약하지 않는다.
+    var envelope = {
+      uid: _fsUid, schema: FS_SCHEMA, mv: FS_MIRROR_VER, m: _fsMirror,
+      // 아직 서버에 못 올린 로컬 변경의 시각. 이게 없으면 앱을 껐다 켠 뒤
+      // 충돌이 났을 때 로컬 시각이 0 이라 서버가 무조건 이긴다 → 방금 한 수정이 사라진다.
+      llw: _lastLocalWrite, pua: _pendingUa, pdua: _pendingDocUa
+    };
     try {
-      // ⚠️ FS_MIRROR_KEY 는 BACKUP_REGISTRY 에 없다 → setItem 훅이 푸시를 예약하지 않는다.
-      localStorage.setItem(FS_MIRROR_KEY,
-        JSON.stringify({ uid: _fsUid, schema: FS_SCHEMA, m: _fsMirror }));
+      localStorage.setItem(FS_MIRROR_KEY, JSON.stringify(envelope));
     } catch (e) {
-      console.warn('☁️ 동기화 기준 상태 저장 실패(용량?):', e);
+      // 용량 초과 — 기준 내용(base)을 버리고 해시만이라도 남긴다.
+      // 그러면 필드 단위 병합은 못 하지만 문서 단위 병합은 계속 동작한다(예전 동작).
+      try {
+        envelope.m = { items: _fsMirror.items, itemUa: _fsMirror.itemUa,
+                       docs: _fsMirror.docs, docUa: _fsMirror.docUa, base: {} };
+        localStorage.setItem(FS_MIRROR_KEY, JSON.stringify(envelope));
+        console.warn('☁️ 저장 공간이 모자라 필드 병합 기준을 비웠습니다(동기화는 계속됩니다):', e);
+      } catch (e2) {
+        console.warn('☁️ 동기화 기준 상태 저장 실패:', e2);
+      }
     }
   }, 800);
 }
 
 function _loadMirror(uid) {
-  _fsMirror = { items: {}, itemUa: {}, docs: {}, docUa: {} };
+  _fsMirror = { items: {}, itemUa: {}, docs: {}, docUa: {}, base: {} };
   try {
     var o = JSON.parse(localStorage.getItem(FS_MIRROR_KEY) || 'null');
-    if (o && o.uid === uid && o.schema === FS_SCHEMA && o.m && o.m.items) {
+    if (o && o.uid === uid && o.schema === FS_SCHEMA && o.mv === FS_MIRROR_VER && o.m && o.m.items) {
       _fsMirror = {
         items:  o.m.items  || {}, itemUa: o.m.itemUa || {},
-        docs:   o.m.docs   || {}, docUa:  o.m.docUa  || {}
+        docs:   o.m.docs   || {}, docUa:  o.m.docUa  || {},
+        base:   o.m.base   || {}
       };
+      // 미푸시 로컬 변경의 시각을 되살린다 (앱 재시작 후에도 충돌 판정이 공정하도록)
+      _lastLocalWrite = o.llw  || {};
+      _pendingUa      = o.pua  || {};
+      _pendingDocUa   = o.pdua || {};
       return true;
     }
   } catch (e) {}
@@ -316,7 +459,8 @@ function _mergeMap(map) {
   var pend   = _pendingIds[lsKey] || {};
   var mir    = _mirrorItems(lsKey);
   var mua    = _mirrorItemUa(lsKey);
-  var out = {}, push = {}, restored = 0, conflicts = 0, pushCount = 0;
+  var mbase  = _mirrorBase(lsKey);
+  var out = {}, push = {}, restored = 0, conflicts = 0, pushCount = 0, merged3 = 0;
 
   // ⚠️ 서버 상태를 한 번도 못 본 동안에는 아무것도 올리지 않는다.
   //    미러가 비어 있으면 "새 항목"과 "그냥 아직 모름"을 구분할 수 없어서,
@@ -343,11 +487,17 @@ function _mergeMap(map) {
     var lh = (l !== undefined) ? _hashItem(l) : null;
     var sh = (s !== undefined) ? _hashItem(s) : null;
     var mh = (mir[id] !== undefined) ? mir[id] : null;
+    // 병합 기준값은 미러를 갱신하기 '전' 값이어야 한다 — 아래에서 덮어쓰기 때문에 먼저 집어둔다
+    var mBaseVal = map.deep ? mbase[id] : undefined;
 
     // 미러 = "서버가 지금 갖고 있다고 아는 상태" 로 갱신한다.
     // (푸시하는 항목은 _queueItemOps 가 방금 올린 값으로 다시 덮어쓴다)
-    if (sh !== null) { mir[id] = sh; mua[id] = (sEntry && sEntry.ua) || 0; }
-    else { delete mir[id]; delete mua[id]; }
+    if (sh !== null) {
+      mir[id] = sh; mua[id] = (sEntry && sEntry.ua) || 0;
+      if (map.deep) mbase[id] = s;
+    } else {
+      delete mir[id]; delete mua[id]; delete mbase[id];
+    }
 
     if (lh === sh) {                       // 이미 같음
       if (l !== undefined) out[id] = l;
@@ -385,12 +535,27 @@ function _mergeMap(map) {
     if (s === undefined) { out[id] = l; push[id] = l; pushCount++; return; }            // 편집 vs 삭제 → 편집
     var sua = (sEntry && sEntry.ua) || 0;
     var lua = (_pendingUa[lsKey] && _pendingUa[lsKey][id]) || _lastLocalWrite[lsKey] || 0;
+
+    // 필드 단위 병합 — 문서 하나를 통째로 고르지 않는다.
+    //  기준값(mBaseVal)이 있어야 "저쪽이 추가"와 "이쪽이 삭제"를 구분할 수 있다.
+    //  기준이 없으면(미러가 갓 만들어졌거나 용량 때문에 비웠으면) 예전처럼 최신 우선.
+    if (map.deep && mBaseVal !== undefined) {
+      var m = _deepMerge3(mBaseVal, l, s, sua > lua);
+      out[id] = m;
+      merged3++;
+      if (!_eqVal(m, s)) { push[id] = m; pushCount++; _touchPending(lsKey, id); }
+      else _clearPending(lsKey, id);
+      // 병합 결과가 로컬과 다르면 화면 모듈이 들고 있는 낡은 사본이 되돌릴 수 있다
+      if (!_eqVal(m, l)) _markPreRemote(lsKey, id, lh);
+      return;
+    }
+
     if (sua > lua) { out[id] = s; _markPreRemote(lsKey, id, lh); _clearPending(lsKey, id); }
     else { out[id] = l; push[id] = l; pushCount++; }
   });
 
   return { out: out, order: repr.order, push: push, pushCount: pushCount,
-           restored: restored, conflicts: conflicts, exists: repr.exists };
+           restored: restored, conflicts: conflicts, merged3: merged3, exists: repr.exists };
 }
 
 // 병합 결과를 localStorage 에 반영 (바뀐 게 있으면 true)
@@ -408,19 +573,23 @@ function _applyMerged(map, r) {
 // 푸시할 것들을 배치에 싣는다
 function _queueItemOps(map, pushSet, addOp) {
   var mir = _mirrorItems(map.lsKey), mua = _mirrorItemUa(map.lsKey);
+  var mbase = _mirrorBase(map.lsKey);
   var now = Date.now();
   Object.keys(pushSet).forEach(function (id) {
     var item = pushSet[id];
     if (item === null) {
       // 물리 삭제 대신 툼스톤 — 다른 기기가 "내가 모르는 새 항목"으로 되살리지 않도록
       addOp(function (b) { b.set(_collRef(map.coll).doc(id), { __deleted: true, _ua: now }); });
-      delete mir[id]; delete mua[id];
+      delete mir[id]; delete mua[id]; delete mbase[id];
       _logSync('삭제 ' + map.coll + '/' + id);
     } else {
       var data = _sanitizeItem(item);
       data._ua = now;
       addOp(function (b) { b.set(_collRef(map.coll).doc(id), data); });
       mir[id] = _hashItem(item); mua[id] = now;
+      // 방금 올린 값이 곧 새 기준점이다. _sanitizeItem 을 거친 형태로 저장해야
+      // 다음번에 서버에서 돌아온 값과 정확히 같은 모양이 된다(undefined 제거 등).
+      if (map.deep) mbase[id] = _unwrapItem(data);
     }
   });
 }
@@ -531,7 +700,10 @@ function _syncNow() {
         console.warn('🛟 낡은 사본이 지울 뻔한 ' + map.coll + ' 항목 ' + r.restored + '건을 되살렸습니다');
         _logSync('복구 ' + map.coll + ' ' + r.restored + '건');
       }
-      if (r.conflicts) _logSync('충돌 ' + map.coll + ' ' + r.conflicts + '건');
+      if (r.conflicts) {
+        _logSync('충돌 ' + map.coll + ' ' + r.conflicts + '건'
+          + (r.merged3 ? ' (필드 병합 ' + r.merged3 + '건)' : ''));
+      }
     });
     touched = touched.concat(_syncDocKeys(addOp));
   } catch (e) {
@@ -792,7 +964,7 @@ function stopFirestoreSync() {
   if (_syncSoonTimer)  { clearTimeout(_syncSoonTimer);  _syncSoonTimer = null; }
   if (_mirrorSaveTimer){ clearTimeout(_mirrorSaveTimer);_mirrorSaveTimer = null; }
   if (_rerenderTimer)  { clearTimeout(_rerenderTimer);  _rerenderTimer = null; }
-  _fsMirror = { items: {}, itemUa: {}, docs: {}, docUa: {} };
+  _fsMirror = { items: {}, itemUa: {}, docs: {}, docUa: {}, base: {} };
   _lastServer = {}; _lastServerDocs = null;
   _pendingIds = {}; _pendingDocIds = {};
   _pendingUa = {};  _pendingDocUa = {};
@@ -830,7 +1002,8 @@ function tasklogSyncStatus() {
       로컬: Object.keys(_localRepr(map).byId).length,
       서버: _lastServer[map.lsKey] ? Object.keys(_lastServer[map.lsKey]).length : '모름',
       미러: Object.keys(_mirrorItems(map.lsKey)).length,
-      미확정: Object.keys(_pendingIds[map.lsKey] || {}).length
+      미확정: Object.keys(_pendingIds[map.lsKey] || {}).length,
+      필드병합: map.deep ? (Object.keys(_mirrorBase(map.lsKey)).length + '건 기준 보유') : '미사용'
     };
   });
   return { uid: _fsUid, 동작중: _fsStarted, 항목수: counts, 최근기록: _syncLog.slice(-20) };
