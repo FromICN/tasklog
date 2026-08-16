@@ -1,10 +1,67 @@
 // ============================================
 //  📊 Gantt 차트 뷰
-//  홈 페이지의 Gantt 미니 위젯과 동일한 렌더링 엔진(gm-* 클래스) 사용.
-//  - 진행률 원 / 일자 바 / 하위 to-do 서브로우 / 오늘 세로선 동일
-//  - 차이점: 전체보기(행 제한 없음)
+//  gm-* 클래스 기반 렌더링 엔진.
+//  - 진행률 원 / 일자 바 / 하위 to-do 서브로우 / 오늘 세로선
 //  - 연도 선택은 타이틀 영역(전역 연도, appSetYear)으로 이동
+//
+//  아래 gm* 상수·헬퍼는 예전에 home.js 의 Gantt 미니 위젯이 갖고 있었다.
+//  홈이 Web 위젯으로 바뀌면서 쓰는 곳이 여기뿐이라 이리로 옮겼다.
 // ============================================
+
+var GM_LEFT = 136;
+var GM_LEFT_MAX = 400;
+var GM_MAX_ROWS = 14;
+var GM_MAX_SUBROWS = 4;
+
+// 좌측 라벨 영역 폭: 사용자가 드래그로 조정한 값(저장) 우선, 없으면 이름 길이 기반 자동
+function gmLeftWidth(taskList) {
+  var saved = parseInt(localStorage.getItem('homeGanttLeftW') || '', 10);
+  if (saved && saved >= 80) return Math.min(GM_LEFT_MAX, saved);
+  var maxLen = 0;
+  (taskList || []).forEach(function(t) {
+    var l = (t.text || '').replace(/^\[\d{6}\] /, '').length;
+    if (l > maxLen) maxLen = l;
+  });
+  var w = GM_LEFT + Math.max(0, maxLen - 13) * 8;
+  return Math.round(Math.min(204, Math.max(GM_LEFT, w)));
+}
+
+// 하위 to-do(task.steps)를 GANTT 미니 그리드에 서브로우로 표시
+function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
+  var steps = task.steps || [];
+  if (!steps.length) return '';
+  if (typeof ganttIsOpen === 'function' ? !ganttIsOpen(task.id)
+      : (typeof _ganttOpen !== 'undefined' && _ganttOpen[task.id] === false)) return '';   // 기본 펼침
+  var shown = steps.slice(0, GM_MAX_SUBROWS);
+  var html = shown.map(function(step) {
+    var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;
+    var hasDot = !!(sd && sd >= mS && sd <= mE);
+    var leftPct = hasDot ? ((sd.getDate()-1+0.5) / daysInMonth * 100) : 0;
+    var label = step.text || '';
+    var shortLabel = label.length > 16 ? label.substring(0,16) + '…' : label;
+    return '<div class="gm-row gm-subrow" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
+      + '<div class="gm-left gm-sub-left">'
+      + '<span class="gm-sub-check'+(step.completed?' done':'')+'">'+(step.completed?'✓':'')+'</span>'
+      + '<div class="gm-info"><div class="gm-name gm-sub-name'+(step.completed?' done':'')+'" title="'+hwEsc(label)+'">'+hwEsc(shortLabel)+'</div></div>'
+      + '</div>'
+      + '<div class="gm-grid">'
+      + bgCellsHtml
+      + (hasDot
+          ? (step.completed
+              ? '<div class="gm-sub-dot done" style="left:'+leftPct.toFixed(3)+'%;color:'+color+';" title="'+hwEsc(label)+'">✓</div>'
+              : '<div class="gm-sub-dot" style="left:'+leftPct.toFixed(3)+'%;background:'+color+';"></div>')
+          : '')
+      + '</div>'
+      + '</div>';
+  }).join('');
+  if (steps.length > GM_MAX_SUBROWS) {
+    html += '<div class="gm-row gm-subrow gm-subrow-more">'
+      + '<div class="gm-left gm-sub-left"><span class="gm-sub-more">+'+(steps.length-GM_MAX_SUBROWS)+'개 항목 더</span></div>'
+      + '<div class="gm-grid">'+bgCellsHtml+'</div>'
+      + '</div>';
+  }
+  return html;
+}
 
 var ganttMonth = new Date().getMonth();
 

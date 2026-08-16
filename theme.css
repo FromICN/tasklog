@@ -116,6 +116,23 @@
   /* 포커스 링은 잉크색. 주홍은 '지금'에만 쓴다는 규칙이 여기에도 적용된다 —
      입력창에 포커스가 갔다는 사실은 '지금'과 아무 관계가 없다. */
   --focus-ring: 0 0 0 2px var(--main-bg), 0 0 0 4px var(--text-1);
+
+  /* 작업 상태색 — 대기 회색 · 진행 초록 · 완료 파랑 · 중단 빨강.
+     의미(성공/경고)가 아니라 '상태 구분'이 목적이라, --success/--info 같은
+     의미색을 빌려 쓰지 않고 네 값을 따로 둔다. 서로 확실히 구별돼야 한다. */
+  --st-wait:   #98A5A0;
+  --st-run:    #4CAF7D;
+  --st-done:   #5B9BE0;
+  --st-stop:   #E5594A;
+  --st-cancel: var(--text-3);
+
+  /* 아래 네 값의 '원본'. 본문 영역에서 --surface 등을 transparent 로 덮어쓰기
+     때문에, 배경을 되살려야 하는 곳(홈 위젯 · 버튼 · 드롭다운)이 참조할
+     사본을 따로 둔다. 두 벌을 같이 고쳐야 색이 어긋나지 않는다. */
+  --surface-solid: rgba(255,255,255,0.04);
+  --card-solid:    #1A211D;
+  --panel-solid:   #1A211D;
+  --bg1-solid:     #1A211D;
 }
 
 body.light-mode {
@@ -170,6 +187,18 @@ body.light-mode {
   --tl-rule-soft: rgba(23,33,28,0.07);
   --tl-weekend:   rgba(23,33,28,0.035);
   --tl-sheet:     #FFFFFF;
+
+  /* 상태색 — 흰 바탕에서 읽히도록 어둡게 */
+  --st-wait:   #7A867F;
+  --st-run:    #1E7A4C;
+  --st-done:   #2A62A8;
+  --st-stop:   #C13B2C;
+  --st-cancel: var(--text-3);
+
+  --surface-solid: #F4F6F2;
+  --card-solid:    #FFFFFF;
+  --panel-solid:   #FFFFFF;
+  --bg1-solid:     #F4F6F2;
 }
 
 /* ── 2. 글꼴: 읽는 글 / 눈금 글 ──────────────────────────── */
@@ -615,4 +644,59 @@ progress {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* ============================================================
+   본문 영역 배경 투명화
+   ------------------------------------------------------------
+   메인 컨텐츠(#page-content) 안의 판·카드·표 배경을 걷어내,
+   화면 바탕색(--main-bg)이 그대로 비쳐 보이게 한다.
+
+   개별 규칙을 하나씩 고치는 대신 토큰 네 개를 이 영역에서만
+   transparent 로 덮어쓴다. 배경을 쓰는 곳이 100군데가 넘어서,
+   앞으로 규칙이 늘어도 따로 손볼 일이 없어야 하기 때문이다.
+
+   되살려야 하는 곳은 아래 세 갈래뿐이다.
+     · 홈 위젯      — 카드 모양이 곧 위젯의 경계다
+     · 기능 버튼    — 눌리는 것은 눌리게 보여야 한다
+     · 뜨는 것 / 고정 머리글 — 비치면 뒤 글자와 겹쳐 못 읽는다
+   ============================================================ */
+#page-content {
+  --tl-sheet: transparent;   /* 도면 한 장 = 이 테마에서 판을 칠하는 값 */
+  --surface:  transparent;
+  --card-bg:  transparent;
+  --panel-bg: transparent;
+  --bg-1:     transparent;
+}
+
+/* 되살릴 때 쓰는 묶음 — 세 예외가 같은 값을 쓰도록 한 자리에 모아 둔다 */
+#page-content .home-page,
+#page-content button,
+#page-content .bd-colpick-panel,
+#page-content .todo-colpick-panel,
+#page-content .bd-filter-panel,
+#page-content .nb-step-picker,
+.wbs-ctx {
+  --tl-sheet: var(--card-solid);
+  --surface:  var(--surface-solid);
+  --card-bg:  var(--card-solid);
+  --panel-bg: var(--panel-solid);
+  --bg-1:     var(--bg1-solid);
+}
+/*  · .home-page                     — 카드 모양이 곧 위젯의 경계다
+ *  · button                         — +Archiving · 저장 · 취소 등 기능 버튼
+ *  · *-panel / .nb-step-picker / .wbs-ctx — 떠서 본문 위에 겹치는 것들
+ */
+
+/* ── 스크롤에 고정되는 머리글/바닥글 ──
+   비치면 아래로 지나가는 행이 글자에 겹쳐 읽을 수 없다.
+   토큰을 되돌리는 대신 바탕색으로 확실히 덮는다. */
+#page-content .jnlw-head,
+#page-content .jnlw-allday,
+#page-content .gm-header,
+#page-content .mdt-grid-table thead th,
+#page-content .wbs-header-row,
+#page-content .wbs-header-row:hover,
+#page-content .todo-table thead th {
+  background: var(--main-bg);
 }

@@ -4683,9 +4683,10 @@ body.light-mode .lw-cv-tag {
   flex: 1 1 auto;
   min-height: 330px;
 }
+/* 2행: 집중 카운트 · Habit Tracker · Mandalart · Life Wheel */
 .home-grid-row2 {
   display: grid;
-  grid-template-columns: 1.7fr 1.2fr 1fr;
+  grid-template-columns: 1fr 1.5fr 1.1fr 1fr;
   gap: var(--space-3);
   height: 272px;
   flex-shrink: 0;
@@ -5091,11 +5092,8 @@ body.hw-resizing { user-select: none; }
 .habit-dot.future { opacity: 0.35; cursor: default; }
 .habit-dot.today { box-shadow: 0 0 0 0.5px var(--text-3); }
 
-/* ── Gantt Mini (일자/진행률 상세) ── */
-#gantt-body { display: flex; flex-direction: column; }
-#gantt-body .gm-header { background: var(--bg-1); z-index: 6; }
-body.light-mode #gantt-body .gm-header { background: #ffffff; }
-#gantt-body .gm-body { position: relative; z-index: 0; }
+/* ── Gantt 그리드 (Gantt 페이지) ──
+   홈의 Gantt 미니 위젯은 Web 위젯으로 교체돼 #gantt-body 규칙은 걷어냈다. */
 .gm-nav {
   display: flex;
   align-items: center;
@@ -10812,3 +10810,300 @@ body.light-mode .right-panel {
   cursor: pointer;
 }
 .wbs-ctx-item:hover { background: var(--surface-hover); }
+
+/* ── 설정 > 메뉴: 드래그로 순서 변경 ─────────────────────────── */
+/* .settings-row 는 space-between 이라, 손잡이 + 이름 묶음이 왼쪽에
+   붙어 있도록 이름 칸이 남는 폭을 먹게 한다. */
+.menuord-row { gap: var(--space-2); }
+.menuord-row .menuord-name { flex: 1; min-width: 0; }
+.menuord-handle {
+  flex: 0 0 auto;
+  width: 16px;
+  font-size: 13px;
+  cursor: grab;
+}
+.menuord-row.tl-drop-before { box-shadow: inset 0 2px 0 0 var(--brand-primary); }
+.menuord-row.tl-drop-after  { box-shadow: inset 0 -2px 0 0 var(--brand-primary); }
+
+/* ── Habit Tracker: 캘린더 아래 남는 여백 제거 ──────────────────
+   12개월 카드는 4열 × 3행이라, 화면이 세로로 길면 마지막 행 아래가
+   그대로 비어 보였다. 남는 높이를 달력 세로로 돌려준다.
+   (월 카드 → 날짜 격자 → 날짜 칸 순으로 늘어난다) */
+.ht-months {
+  flex: 1;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+}
+.ht-month {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ht-month-head { flex: 0 0 auto; }
+.ht-grid {
+  flex: 1;
+  min-height: 0;
+  /* 첫 줄(요일)은 글자 높이만, 나머지 날짜 줄이 남는 높이를 나눠 가진다 */
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(0, 1fr);
+}
+/* 정사각형 고정을 풀어야 세로로 늘어난다 — 대신 최소 높이로 눌림을 막는다 */
+.ht-cell { aspect-ratio: auto; min-height: 15px; }
+
+/* 폰에서는 세로 스크롤이 자연스러우므로 기존(정사각형) 동작을 유지 */
+@media (max-width: 768px) {
+  .ht-months { flex: 0 0 auto; grid-auto-rows: auto; }
+  .ht-month { display: block; }
+  .ht-grid { display: grid; grid-template-rows: none; grid-auto-rows: auto; }
+  .ht-cell { aspect-ratio: 1 / 1; }
+}
+
+/* ── WBS: Linked Task 컬럼 (연계 TASK 선행 ← / 후행 →) ──────────
+   이름이 길 수 있어 다른 컬럼보다 넓게 두고, 넘치면 말줄임 처리한다.
+   (전체 내용은 title 툴팁으로 본다) */
+.wbs-col-linked {
+  width: var(--wbs-w-linked, 150px) !important;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: var(--space-1);
+}
+.wbs-colhead.wbs-col-linked { text-align: center; }
+/* 헤더 셀은 필터 드롭다운이 잘리면 안 된다 (STATUS 헤더와 같은 처리) */
+.wbs-head-cell.wbs-col-linked { overflow: visible; }
+
+/* ── Life Wheel 편집창: 선택된 Value 는 배경 포커스 색으로 ────────
+   기존에는 글자 굵기만 달라서 어떤 가치가 연결됐는지 한눈에 안 보였다. */
+.lw-cv-chip.selected {
+  font-weight: 600;
+  background: rgba(var(--accent-rgb), 0.18);
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+}
+.lw-cv-chip.selected:hover { background: rgba(var(--accent-rgb), 0.26); color: var(--brand-primary); }
+.lw-cv-chip.selected .lw-cv-chip-del { color: var(--brand-primary); opacity: 0.7; }
+
+/* =========================================================
+   🔮 Mandalart — 목표/달성현황 개편
+   목표 칸은 네 유형 모두 '글'로 적고, 숫자(목표값·실적·성공기준)는
+   달성현황 칸에서 직접 입력한다.
+   ========================================================= */
+
+/* 달성현황 칸의 라벨 조각 — 입력칸 사이를 잇는 짧은 말 */
+.mgt-perf-hint { font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; }
+.mgt-perf-sep  { font-size: var(--fs-xs); color: var(--text-3); }
+
+/* 습관형(월간): 1~12월 목표/실적 입력 — 6칸씩 두 줄 */
+.mgt-mon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 6px;
+}
+.mgt-mon-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  min-width: 0;
+}
+/* 목표를 채운 달 = 그 달의 실적이 목표 이상일 때 초록으로 표시 */
+.mgt-mon-cell.on { border-color: var(--success-border); background: var(--success-bg); }
+.mgt-mon-lbl {
+  font-size: var(--fs-3xs);
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.2;
+}
+.mgt-mon-cell.on .mgt-mon-lbl { color: var(--success); font-weight: 700; }
+.mgt-mon-inp {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-size: var(--fs-3xs);
+  font-family: inherit;
+  text-align: center;
+  color: var(--text-1);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 2px 1px;
+  /* 12칸이 나란히 서므로 스피너를 없애 폭을 아낀다 */
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.mgt-mon-inp::-webkit-outer-spin-button,
+.mgt-mon-inp::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+/* 실적 칸은 목표 칸과 구분되게 조금 진하게 */
+.mgt-mon-inp.mgt-mon-act { color: var(--text-1); font-weight: 700; }
+
+/* 월간 입력칸이 들어가므로 달성현황 열은 조금 더 넓게 */
+.mgt-td-perf { min-width: 260px; }
+
+@media (max-width: 768px) {
+  .mgt-mon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* =========================================================
+   🏠 홈 위젯 — Web 미니 (Archiving / Task / To Do)
+   Web 페이지의 세 칼럼을 그대로 줄여 놓은 모양.
+   ========================================================= */
+#web-body { flex: 1; min-height: 0; display: flex; }
+.hwb-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  padding: 0 var(--space-25) var(--space-25);
+}
+.hwb-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.hwb-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-15) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.hwb-col-title { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-2); letter-spacing: 0.06em; }
+.hwb-col-count {
+  font-size: var(--fs-3xs);
+  color: var(--text-3);
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-15);
+}
+.hwb-col-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-1); }
+.hwb-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+  padding: var(--space-15) var(--space-1);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-width: 0;
+  transition: background var(--dur-fast);
+}
+.hwb-item:hover { background: var(--surface-hover); }
+.hwb-strip { width: 2px; align-self: stretch; min-height: 13px; border-radius: 1px; flex-shrink: 0; }
+.hwb-text {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-2xs);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hwb-due { font-size: var(--fs-3xs); font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.hwb-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-3) var(--space-1); }
+
+/* =========================================================
+   ⏱ 홈 위젯 — 집중 카운트
+   고른 To Do 하나를 크게 세는 화면. 시각 기록이 아래에 쌓인다.
+   ========================================================= */
+#focus-body { flex: 1; min-height: 0; display: flex; }
+.fw-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-15);
+  padding: 0 var(--space-3) var(--space-25);
+}
+.fw-select {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  padding: var(--space-1) var(--space-15);
+  flex-shrink: 0;
+}
+.fw-select:disabled { opacity: 0.65; cursor: not-allowed; }
+.fw-sub {
+  font-size: var(--fs-3xs);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+/* 시간은 이 위젯의 주인공 — 눈금 글꼴로 자리가 흔들리지 않게 */
+.fw-time {
+  font-family: var(--tl-mono, monospace);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  padding: var(--space-1) 0;
+  flex-shrink: 0;
+}
+.fw-time.is-running { color: var(--brand-primary); }
+.fw-btns { display: flex; gap: var(--space-15); flex-shrink: 0; }
+.fw-btn {
+  flex: 1;
+  height: 30px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+}
+.fw-btn:hover:not(:disabled) { background: var(--surface-hover); }
+.fw-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fw-btn-start:not(:disabled) { border-color: var(--success-border); color: var(--success); background: var(--success-bg); }
+.fw-btn-pause:not(:disabled) { border-color: var(--warning-border); color: var(--warning); background: var(--warning-bg); }
+.fw-btn-end:not(:disabled)   { border-color: var(--brand-primary); color: #fff; background: var(--brand-primary); }
+/* 기록: 최근 것이 위 */
+.fw-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-1);
+}
+.fw-log-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 1px 0;
+  font-size: var(--fs-3xs);
+}
+.fw-log-act { font-weight: 700; color: var(--text-2); }
+.fw-act-start, .fw-act-resume { color: var(--success); }
+.fw-act-pause { color: var(--warning); }
+.fw-act-end   { color: var(--brand-primary); }
+.fw-log-time { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.fw-log-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-2) 0; }
+
+/* 폰: Web 미니의 세 칼럼을 나란히 두면 한 칸이 100px도 안 돼 글자가 사라진다
+   → 위아래로 쌓고, 카드 안에서 스크롤한다. */
+@media (max-width: 768px) {
+  .hwb-board { grid-template-columns: 1fr; }
+  .hwb-col-body { max-height: 22vh; }
+}

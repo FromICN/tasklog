@@ -31,7 +31,8 @@ function renderHomeView() {
   renderHomeCalendar();
   renderHomeMandalartWidget();
   renderHomeHabitWidget();
-  renderHomeGanttMini();
+  renderHomeWebWidget();
+  renderFocusWidget();
   renderHomeLifeWheel();
   hwInitLayout();
 }
@@ -41,9 +42,10 @@ function buildHomeLayout() {
   return '<div class="home-page">'
     + '<div class="home-grid-row1">'
     + buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
-    + buildCardShell('gantt-widget', 'Gantt', 'project', 'gantt-body')
+    + buildCardShell('web-widget', 'Web', 'cloud', 'web-body')
     + '</div>'
     + '<div class="home-grid-row2">'
+    + buildCardShell('focus-widget', '집중 카운트', null, 'focus-body')
     + buildCardShell('habit-widget', 'Habit Tracker', 'habit', 'habit-body')
     + buildCardShell('mandalart-widget', 'Mandalart', 'mandalart', 'mandalart-body')
     + buildCardShell('wheel-widget', 'Life Wheel', 'wheel', 'wheel-body')
@@ -447,238 +449,289 @@ function hpToggleHabitDay(year, sgId, actId, dateKey) {
   }
 }
 
-// ── 5. GANTT 미니 (GANTT 페이지 수준의 일자/진행률 상세) ──
-var homeGanttYear  = new Date().getFullYear();
-var homeGanttMonth = new Date().getMonth();
 
-function homeGanttPrev() { homeGanttMonth--; if (homeGanttMonth<0) { homeGanttMonth=11; homeGanttYear--; } renderHomeGanttMini(); }
-function homeGanttNext() { homeGanttMonth++; if (homeGanttMonth>11) { homeGanttMonth=0; homeGanttYear++; } renderHomeGanttMini(); }
-function homeGanttToday() { homeGanttYear=new Date().getFullYear(); homeGanttMonth=new Date().getMonth(); renderHomeGanttMini(); }
+// ── 5. Web 미니 (Archiving / Task / To Do 내역) ──
+//  Web 페이지(notes.js)와 같은 데이터를 그대로 세 칼럼으로 보여준다.
+//  카드를 누르면 Web 페이지나 해당 Task 상세로 넘어간다.
+function renderHomeWebWidget() {
+  var el = document.getElementById('web-body');
+  if (!el) return;
+  if (typeof loadNotes === 'function') loadNotes();
 
-var GM_LEFT = 136;
-var GM_LEFT_MAX = 400;
-var GM_MAX_ROWS = 14;
-var GM_MAX_SUBROWS = 4;
+  var memos = (typeof getArchivingNotes === 'function') ? getArchivingNotes() : [];
+  var actTasks = (typeof getActiveTasks === 'function') ? getActiveTasks() : [];
+  var actSteps = (typeof getActiveSteps === 'function') ? getActiveSteps() : [];
 
-// 좌측 라벨 영역 폭: 사용자가 드래그로 조정한 값(저장) 우선, 없으면 이름 길이 기반 자동
-function gmLeftWidth(taskList) {
-  var saved = parseInt(localStorage.getItem('homeGanttLeftW') || '', 10);
-  if (saved && saved >= 80) return Math.min(GM_LEFT_MAX, saved);
-  var maxLen = 0;
-  (taskList || []).forEach(function(t) {
-    var l = (t.text || '').replace(/^\[\d{6}\] /, '').length;
-    if (l > maxLen) maxLen = l;
-  });
-  var w = GM_LEFT + Math.max(0, maxLen - 13) * 8;
-  return Math.round(Math.min(204, Math.max(GM_LEFT, w)));
+  function col(title, count, itemsHtml, emptyMsg) {
+    return '<div class="hwb-col">'
+      + '<div class="hwb-col-head"><span class="hwb-col-title">' + title + '</span>'
+      +   '<span class="hwb-col-count">' + count + '</span></div>'
+      + '<div class="hwb-col-body">'
+      + (count ? itemsHtml : '<div class="hwb-empty">' + hwEsc(emptyMsg) + '</div>')
+      + '</div></div>';
+  }
+  // 마감일 배지 (Task/To Do 공용) — 지난 것은 빨강, 남은 것은 초록
+  function dueBadge(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var day = new Date(d); day.setHours(0,0,0,0);
+    var today = new Date(); today.setHours(0,0,0,0);
+    var over = day < today;
+    return '<span class="hwb-due" style="color:' + (over ? 'var(--danger)' : 'var(--success)') + ';">'
+      + (d.getMonth()+1) + '/' + d.getDate() + '</span>';
+  }
+  function cleanName(t) { return String(t || '').replace(/^\[\d{6}\]\s*/, ''); }
+
+  var memoHtml = memos.map(function(n) {
+    return '<div class="hwb-item" onclick="navToMenu(\'cloud\')" title="Web 페이지 열기">'
+      + '<span class="hwb-strip" style="background:var(--text-3);"></span>'
+      + '<span class="hwb-text">' + hwEsc(n.text) + '</span>'
+      + '</div>';
+  }).join('');
+
+  var taskHtml = actTasks.map(function(t) {
+    return '<div class="hwb-item" onclick="openDetailPanel(' + t.id + ')" title="상세 보기">'
+      + '<span class="hwb-strip" style="background:var(--success);"></span>'
+      + '<span class="hwb-text">' + hwEsc(cleanName(t.text)) + '</span>'
+      + dueBadge(t.dueDateTime)
+      + '</div>';
+  }).join('');
+
+  var stepHtml = actSteps.map(function(e) {
+    return '<div class="hwb-item" onclick="openDetailPanel(' + e.task.id + ')" title="상위 Task 상세 보기">'
+      + '<span class="hwb-strip" style="background:var(--info);"></span>'
+      + '<span class="hwb-text">' + hwEsc(cleanName(e.step.text)) + '</span>'
+      + dueBadge(e.step.dueDateTime || e.task.dueDateTime)
+      + '</div>';
+  }).join('');
+
+  el.innerHTML = '<div class="hwb-board">'
+    + col('Archiving', memos.length, memoHtml, '작성한 메모가 없어요')
+    + col('Task', actTasks.length, taskHtml, '미완료 Task가 없어요')
+    + col('To Do', actSteps.length, stepHtml, '미완료 To Do가 없어요')
+    + '</div>';
 }
 
-// 좌측 라벨 영역 폭 드래그 조정 핸들 부착 (헤더 spacer 오른쪽 경계)
-function gmAttachLeftResize() {
-  var wrap = document.querySelector('#gantt-body .gm-wrap');
-  var spacer = document.querySelector('#gantt-body .gm-left-spacer');
-  if (!wrap || !spacer) return;
-  if (window.getComputedStyle(spacer).position === 'static') spacer.style.position = 'relative';
-  var h = document.createElement('div');
-  h.className = 'cr-handle';
-  spacer.appendChild(h);
-  h.addEventListener('click', function(e){ e.stopPropagation(); });
-  h.addEventListener('mousedown', function(e) {
-    e.preventDefault(); e.stopPropagation();
-    var startX = e.clientX;
-    var startW = Math.round(spacer.getBoundingClientRect().width);
-    var lastW = startW;
-    document.body.classList.add('cr-resizing');
-    function mm(ev) {
-      lastW = Math.max(80, Math.min(GM_LEFT_MAX, Math.round(startW + (ev.clientX - startX))));
-      wrap.style.setProperty('--gm-left', lastW + 'px');
-    }
-    function mu() {
-      document.removeEventListener('mousemove', mm);
-      document.removeEventListener('mouseup', mu);
-      document.body.classList.remove('cr-resizing');
-      try { localStorage.setItem('homeGanttLeftW', String(lastW)); } catch (err) {}
-      renderHomeGanttMini();   // 오늘선 위치 등 재계산
-    }
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
-  });
+// ============================================
+//  ⏱ 집중 카운트 — 오늘 할 To Do 하나를 골라 시간을 잰다
+//  --------------------------------------------
+//  · 세션(작업)은 오늘 해야 할 To Do 중에서 고른다
+//  · 시작 / 정지 / 종료 — 누른 시각을 하나도 빠짐없이 기록한다
+//  · 종료하면 그 순간에 To Do 가 완료 처리되고, 완료 시각과 집중 시간이
+//    Work Diary 주간 그리드에 그대로 얹힌다(completedAt · wdDurMin).
+//
+//  진행 중인 세션은 localStorage 에 둔다 — 다른 메뉴에 갔다 와도,
+//  새로고침을 해도 재던 시간이 이어진다.
+// ============================================
+var FOCUS_KEY = 'tasklog-focus-session';
+var _focusTick = null;
+
+function focusLoad() {
+  try {
+    var raw = localStorage.getItem(FOCUS_KEY);
+    if (!raw) return null;
+    var s = JSON.parse(raw);
+    return (s && s.taskId != null) ? s : null;
+  } catch (e) { return null; }
+}
+function focusSave(s) {
+  try {
+    if (s) localStorage.setItem(FOCUS_KEY, JSON.stringify(s));
+    else localStorage.removeItem(FOCUS_KEY);
+  } catch (e) {}
 }
 
-function renderHomeGanttMini() {
-  var el = document.getElementById('gantt-body');
+// 오늘 해야 할 To Do — 마감일이 오늘까지인 미완료 To Do.
+// 하나도 없으면(마감일을 안 쓰는 경우) 미완료 To Do 전체를 보여준다.
+function focusTodayTodos() {
+  if (typeof tasks === 'undefined' || !Array.isArray(tasks)) return [];
+  var today = new Date(); today.setHours(23, 59, 59, 999);
+  var all = [], due = [];
+  tasks.forEach(function(t) {
+    (t.steps || []).forEach(function(s) {
+      if (s.completed) return;
+      var entry = { taskId: t.id, stepId: s.id, text: s.text, taskText: t.text };
+      all.push(entry);
+      var iso = s.dueDateTime || t.dueDateTime;
+      if (iso) {
+        var d = new Date(iso);
+        if (!isNaN(d.getTime()) && d <= today) due.push(entry);
+      }
+    });
+  });
+  return due.length ? due : all;
+}
+
+// 누적 집중 시간(초) — 실행 구간의 합. 진행 중이면 지금까지를 더한다.
+function focusElapsedSec(s) {
+  if (!s || !Array.isArray(s.segments)) return 0;
+  var ms = 0, now = Date.now();
+  s.segments.forEach(function(seg) {
+    var st = new Date(seg.start).getTime();
+    var en = seg.end ? new Date(seg.end).getTime() : (s.running ? now : st);
+    if (!isNaN(st) && !isNaN(en) && en > st) ms += (en - st);
+  });
+  return Math.floor(ms / 1000);
+}
+
+function focusFmtDur(sec) {
+  var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0');
+}
+function focusFmtClock(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
+}
+
+// 버튼을 누른 시각을 기록에 남긴다 — 이 목록이 '다 기록된다'의 실체다
+function focusLog(s, action) {
+  if (!s.log) s.log = [];
+  s.log.push({ at: new Date().toISOString(), action: action });
+}
+
+var FOCUS_ACTION_LABEL = { start: '시작', pause: '정지', resume: '재개', end: '종료' };
+
+// ── 조작 ──────────────────────────────────
+function focusPickSession(val) {
+  var s = focusLoad();
+  if (s && s.running) return;              // 재는 중에는 세션을 바꾸지 않는다
+  if (!val) { focusSave(null); renderFocusWidget(); return; }
+  var p = String(val).split(':');
+  var taskId = Number(p[0]), stepId = p[1];
+  var found = focusTodayTodos().find(function(e) {
+    return e.taskId === taskId && String(e.stepId) === String(stepId);
+  });
+  if (!found) return;
+  focusSave({
+    taskId: found.taskId, stepId: found.stepId, text: found.text, taskText: found.taskText,
+    running: false, segments: [], log: []
+  });
+  renderFocusWidget();
+}
+
+function focusStart() {
+  var s = focusLoad();
+  if (!s || s.running) return;
+  var now = new Date().toISOString();
+  focusLog(s, s.segments.length ? 'resume' : 'start');
+  s.segments.push({ start: now, end: null });
+  s.running = true;
+  focusSave(s);
+  renderFocusWidget();
+}
+
+function focusPause() {
+  var s = focusLoad();
+  if (!s || !s.running) return;
+  var now = new Date().toISOString();
+  focusLog(s, 'pause');
+  var last = s.segments[s.segments.length - 1];
+  if (last && !last.end) last.end = now;
+  s.running = false;
+  focusSave(s);
+  renderFocusWidget();
+}
+
+// 종료 = '지금' 이 To Do 를 끝냈다는 뜻.
+//  완료 체크 + 완료 시각 + 집중 시간(분)을 함께 남겨 Work Diary 가 바로 받는다.
+function focusEnd() {
+  var s = focusLoad();
+  if (!s) return;
+  var nowIso = new Date().toISOString();
+  focusLog(s, 'end');
+  var last = s.segments[s.segments.length - 1];
+  if (last && !last.end) last.end = nowIso;
+  s.running = false;
+  var sec = focusElapsedSec(s);
+
+  var task = (typeof tasks !== 'undefined') ? tasks.find(function(t){ return t.id === s.taskId; }) : null;
+  var step = task && task.steps ? task.steps.find(function(x){ return String(x.id) === String(s.stepId); }) : null;
+  if (step) {
+    step.completed = true;
+    if (typeof applyDonePrefix === 'function') step.text = applyDonePrefix(step.text, true);
+    // 완료 '그 순간'의 시각 — Work Diary 그리드가 이 값으로 자리를 잡는다
+    step.completedAt = nowIso;
+    delete step.wdTimed; delete step.wdLogAt;
+    // 집중한 만큼을 블록 길이로 (Work Diary 최소 단위 10분)
+    step.wdDurMin = Math.max(10, Math.round(sec / 60));
+    // 이 세션의 버튼 기록을 To Do 에 붙여 둔다 — 나중에 되짚어 볼 수 있게
+    if (!Array.isArray(step.focusSessions)) step.focusSessions = [];
+    step.focusSessions.push({ endedAt: nowIso, durSec: sec, log: s.log });
+    if (typeof saveTasks === 'function') saveTasks();
+  }
+
+  focusSave(null);
+  renderFocusWidget();
+  // 완료가 반영되는 다른 위젯도 함께 갱신
+  if (typeof renderHomeWebWidget === 'function') renderHomeWebWidget();
+  if (typeof renderHomeNotif === 'function') renderHomeNotif();
+  if (typeof renderHomeCalendar === 'function') renderHomeCalendar();
+}
+
+// ── 렌더 ──────────────────────────────────
+function renderFocusWidget() {
+  var el = document.getElementById('focus-body');
+  if (_focusTick) { clearInterval(_focusTick); _focusTick = null; }
   if (!el) return;
 
-  if (typeof tasks === 'undefined' || typeof getTaskProgress !== 'function') {
-    el.innerHTML = emptyWidget('📊', '진행 중인 Task가 없습니다');
+  var s = focusLoad();
+  var todos = focusTodayTodos();
+  var curKey = s ? (s.taskId + ':' + s.stepId) : '';
+
+  // 진행 중인 세션의 To Do 가 목록에 없을 수 있다(마감일 변경 등) → 직접 넣어 준다
+  var opts = '<option value="">오늘 할 To Do 선택…</option>'
+    + todos.map(function(e) {
+        var k = e.taskId + ':' + e.stepId;
+        return '<option value="' + k + '"' + (k === curKey ? ' selected' : '') + '>'
+          + hwEsc(String(e.text || '').replace(/^\[\d{6}\]\s*/, '')) + '</option>';
+      }).join('');
+  if (s && todos.every(function(e){ return (e.taskId + ':' + e.stepId) !== curKey; })) {
+    opts += '<option value="' + curKey + '" selected>' + hwEsc(s.text) + '</option>';
+  }
+
+  if (!todos.length && !s) {
+    el.innerHTML = '<div class="fw-wrap">'
+      + emptyWidget('⏱', '오늘 할 To Do가 없습니다.\nTask에 To Do를 추가해보세요')
+      + '</div>';
     return;
   }
 
-  var MN = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  var year = homeGanttYear, month = homeGanttMonth;
-  var daysInMonth = new Date(year, month+1, 0).getDate();
-  var mS = new Date(year, month, 1);
-  var mE = new Date(year, month+1, 0, 23, 59, 59);
-  var today = new Date();
-  var todayIdx = (today.getFullYear()===year && today.getMonth()===month) ? today.getDate()-1 : null;
+  var running = !!(s && s.running);
+  var sec = focusElapsedSec(s);
+  var sub = s ? (s.taskText ? '↳ ' + String(s.taskText).replace(/^\[\d{6}\]\s*/, '') : '') : '';
 
-  var vis = tasks.filter(function(t) {
-    if (t.completed) return false;
-    var s = t.startDate   ? new Date(t.startDate)   : null;
-    var e = t.dueDateTime ? new Date(t.dueDateTime) : null;
-    if (s && e) return s <= mE && e >= mS;
-    if (s)      return s >= mS && s <= mE;
-    if (e)      return e >= mS && e <= mE;
-    return false;
-  });
+  var logHtml = (s && s.log && s.log.length)
+    ? s.log.slice().reverse().map(function(r) {
+        return '<div class="fw-log-row">'
+          + '<span class="fw-log-act fw-act-' + r.action + '">' + (FOCUS_ACTION_LABEL[r.action] || r.action) + '</span>'
+          + '<span class="fw-log-time">' + focusFmtClock(r.at) + '</span>'
+          + '</div>';
+      }).join('')
+    : '<div class="fw-log-empty">시작을 누르면 시각이 기록됩니다</div>';
 
-  // 정렬 기준: 완료되지 않은 To Do 중 마감일이 가장 빠른 순.
-  // (미완 To Do 마감일이 없으면 Task 자체 마감일, 그것도 없으면 맨 뒤)
-  function _earliestOpenTodoDue(t) {
-    var steps = t.steps || [];
-    var min = Infinity;
-    for (var i = 0; i < steps.length; i++) {
-      var s = steps[i];
-      if (s.completed || !s.dueDateTime) continue;
-      var ms = new Date(s.dueDateTime).getTime();
-      if (!isNaN(ms) && ms < min) min = ms;
-    }
-    if (min === Infinity) min = t.dueDateTime ? new Date(t.dueDateTime).getTime() : Infinity;
-    return min;
-  }
-  vis = vis.slice().sort(function(a, b) {
-    return _earliestOpenTodoDue(a) - _earliestOpenTodoDue(b);
-  });
-
-  var navHtml = '<div class="gm-nav">'
-    + '<button class="gm-arrow" onclick="homeGanttPrev()">‹</button>'
-    + '<span class="gm-month-label">'+year+'년 '+MN[month]+'</span>'
-    + '<button class="gm-arrow" onclick="homeGanttNext()">›</button>'
-    + (todayIdx===null ? '<button class="gm-today-btn" onclick="homeGanttToday()">오늘</button>' : '')
+  el.innerHTML = '<div class="fw-wrap">'
+    + '<select class="fw-select" ' + (running ? 'disabled title="정지한 뒤에 바꿀 수 있어요"' : '')
+    +   ' onchange="focusPickSession(this.value)">' + opts + '</select>'
+    + (sub ? '<div class="fw-sub">' + hwEsc(sub) + '</div>' : '')
+    + '<div class="fw-time' + (running ? ' is-running' : '') + '" id="fw-time">' + focusFmtDur(sec) + '</div>'
+    + '<div class="fw-btns">'
+    +   '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
+    +   '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
+    +   '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
+    + '</div>'
+    + '<div class="fw-log">' + logHtml + '</div>'
     + '</div>';
 
-  if (!vis.length) {
-    el.innerHTML = navHtml + emptyWidget('📊', '이번 달 진행 중인 Task가 없습니다');
-    return;
+  if (running) {
+    _focusTick = setInterval(function() {
+      var t = document.getElementById('fw-time');
+      // 홈을 벗어나면 표시할 곳이 없다 → 타이머만 멈추고 세션은 그대로 둔다
+      if (!t) { clearInterval(_focusTick); _focusTick = null; return; }
+      t.textContent = focusFmtDur(focusElapsedSec(focusLoad()));
+    }, 1000);
   }
-
-  var leftW = gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
-
-  // 배경 셀(요일/오늘 음영) — 모든 행이 공유하는 퍼센트 기반 칸, 우측 여백 없이 꽉 채움
-  var bgCellsHtml = '';
-  for (var d2 = 0; d2 < daysInMonth; d2++) {
-    var dow2 = new Date(year, month, d2+1).getDay();
-    var isT2 = (d2 === todayIdx);
-    var cls2 = 'gm-bgcell' + (isT2?' gm-today-col':'') + ((dow2===0||dow2===6)?' gm-weekend-col':'');
-    bgCellsHtml += '<div class="'+cls2+'"></div>';
-  }
-
-  var hdrCells = '';
-  for (var d = 1; d <= daysInMonth; d++) {
-    var dow = new Date(year, month, d).getDay();
-    var isToday = (d-1 === todayIdx);
-    var cls = 'gm-hcell' + (isToday?' gm-today':'') + (dow===0?' gm-sun':dow===6?' gm-sat':'');
-    hdrCells += '<div class="'+cls+'">'+d+'</div>';
-  }
-
-  var rows = vis.slice(0, GM_MAX_ROWS).map(function(task) {
-    var pct = getTaskProgress(task);
-    var color = getGanttColor(task);
-    var label = task.text.replace(/^\[\d{6}\] /, '');
-    var shortLabel = label;
-
-    var sDate = task.startDate   ? new Date(task.startDate)   : null;
-    var eDate = task.dueDateTime ? new Date(task.dueDateTime) : null;
-    var barLeftPct = 0, barWPct = 0, hasBar = false;
-    if (sDate || eDate) {
-      hasBar = true;
-      var cs = sDate ? (sDate < mS ? mS : sDate) : (eDate < mS ? mS : eDate);
-      var ce = eDate ? (eDate > mE ? mE : eDate) : cs;
-      barLeftPct = (cs.getDate()-1) / daysInMonth * 100;
-      barWPct    = Math.max(1/daysInMonth*100, (ce.getDate()-cs.getDate()+1) / daysInMonth * 100);
-    }
-
-    var dateLbl = '';
-    if (sDate && eDate) dateLbl = (sDate.getMonth()+1)+'/'+sDate.getDate()+' ~ '+(eDate.getMonth()+1)+'/'+eDate.getDate();
-    else if (sDate)     dateLbl = (sDate.getMonth()+1)+'/'+sDate.getDate()+' 시작';
-    else if (eDate)     dateLbl = (eDate.getMonth()+1)+'/'+eDate.getDate()+' 마감';
-    // Project 이모지: 만다라트 연도별 section → 라이프휠 순으로 해석 (todo.js 공용 해석기)
-    var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
-    if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
-
-    var _open = (typeof ganttIsOpen === 'function') ? ganttIsOpen(task.id) : (_ganttOpen[task.id] !== false);
-    var _hasSteps = (task.steps || []).length > 0;
-    var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
-      + '<div class="gm-left">'
-      + (_hasSteps ? '<span class="gm-toggle" onclick="ganttToggleTask('+task.id+',event)">'+(_open?'\u25be':'\u25b8')+'</span>' : '<span class="gm-toggle-empty"></span>')
-      + progressCircleSvg(pct, color)
-      + '<div class="gm-info">'
-      + '<div class="gm-name" title="'+hwEsc(label)+'">'+hwEsc(shortLabel)+'</div>'
-      + '</div>'
-      + '</div>'
-      + '<div class="gm-grid">'
-      + bgCellsHtml
-      + (hasBar
-          ? '<div class="gm-bar" style="left:'+barLeftPct.toFixed(3)+'%;width:'+barWPct.toFixed(3)+'%;border-color:'+color+';background:'+color+'25;">'
-            + '<div class="gm-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
-          : '')
-      + ((!_open && _hasSteps) ? ganttStepMarkers(task, mS, mE, daysInMonth, color) : '')
-      + '</div>'
-      + '</div>';
-
-    return mainRow + buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml);
-  }).join('');
-
-  var todayLine = todayIdx !== null
-    ? '<div class="gm-today-line" style="left:calc('+leftW+'px + (100% - '+leftW+'px) * '+(((todayIdx+0.5)/daysInMonth).toFixed(4))+');"></div>'
-    : '';
-
-  el.innerHTML = navHtml
-    + '<div class="gm-wrap" style="--gm-left:'+leftW+'px;">'
-    + '<div class="gm-header"><div class="gm-left-spacer"></div>'
-    + '<div class="gm-hcells">'+hdrCells+'</div></div>'
-    + '<div class="gm-body">' + todayLine + rows + '</div>'
-    + '</div>'
-    + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
-
-  gmAttachLeftResize();   // 좌측 텍스트 영역 폭 드래그 조정
-}
-
-// 하위 to-do(task.steps)를 GANTT 미니 그리드에 서브로우로 표시
-function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
-  var steps = task.steps || [];
-  if (!steps.length) return '';
-  if (typeof ganttIsOpen === 'function' ? !ganttIsOpen(task.id)
-      : (typeof _ganttOpen !== 'undefined' && _ganttOpen[task.id] === false)) return '';   // 기본 펼침
-  var shown = steps.slice(0, GM_MAX_SUBROWS);
-  var html = shown.map(function(step) {
-    var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;
-    var hasDot = !!(sd && sd >= mS && sd <= mE);
-    var leftPct = hasDot ? ((sd.getDate()-1+0.5) / daysInMonth * 100) : 0;
-    var label = step.text || '';
-    var shortLabel = label.length > 16 ? label.substring(0,16) + '…' : label;
-    return '<div class="gm-row gm-subrow" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
-      + '<div class="gm-left gm-sub-left">'
-      + '<span class="gm-sub-check'+(step.completed?' done':'')+'">'+(step.completed?'✓':'')+'</span>'
-      + '<div class="gm-info"><div class="gm-name gm-sub-name'+(step.completed?' done':'')+'" title="'+hwEsc(label)+'">'+hwEsc(shortLabel)+'</div></div>'
-      + '</div>'
-      + '<div class="gm-grid">'
-      + bgCellsHtml
-      + (hasDot
-          ? (step.completed
-              ? '<div class="gm-sub-dot done" style="left:'+leftPct.toFixed(3)+'%;color:'+color+';" title="'+hwEsc(label)+'">✓</div>'
-              : '<div class="gm-sub-dot" style="left:'+leftPct.toFixed(3)+'%;background:'+color+';"></div>')
-          : '')
-      + '</div>'
-      + '</div>';
-  }).join('');
-  if (steps.length > GM_MAX_SUBROWS) {
-    html += '<div class="gm-row gm-subrow gm-subrow-more">'
-      + '<div class="gm-left gm-sub-left"><span class="gm-sub-more">+'+(steps.length-GM_MAX_SUBROWS)+'개 항목 더</span></div>'
-      + '<div class="gm-grid">'+bgCellsHtml+'</div>'
-      + '</div>';
-  }
-  return html;
 }
 
 // ── 6. 인생의 수레바퀴 ────────────────────
@@ -856,7 +909,9 @@ function fmtKey(d) {
 // ============================================
 //  홈 위젯 레이아웃 — 크기 조정 / 위치 변경 (스크롤 없이 이웃이 보정)
 // ============================================
-var HW_LKEY = 'home-layout-v2';
+// v3 — 위젯 구성이 바뀌면(개수·순서) 저장된 열 너비가 어긋나므로 키를 올린다.
+//      (Gantt → Web 교체 · 집중 카운트 추가로 2행이 3개 → 4개가 됐다)
+var HW_LKEY = 'home-layout-v3';
 var _hwDrag = null;
 function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
 function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }

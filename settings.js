@@ -319,19 +319,28 @@ function buildTabMenus() {
       + ' onclick="settingsSetMenuProfile(\'' + p + '\')">' + label + '</button>';
   }).join('');
 
-  var rows = MENUS.filter(function(m) { return !m.divider; }).map(function(m) {
+  // 순서는 getMenuOrder(프로파일)를 따른다 — 손잡이(⣿)를 끌어 바꾼다
+  var menuList = (typeof orderedMenus === 'function')
+    ? orderedMenus(prof)
+    : MENUS.filter(function(m) { return !m.divider; });
+
+  var rows = menuList.map(function(m) {
     var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
     var on = vis[m.id] !== false;
-    return '<div class="settings-row">'
-      + '<div><div class="settings-row-label">' + sEsc(full) + '</div></div>'
+    return '<div class="settings-row menuord-row tl-dnd-row" data-menuid="' + m.id + '"'
+      + ' ondragover="settingsMenuDragOver(event,this)" ondragleave="settingsMenuDragLeave(event,this)"'
+      + ' ondrop="settingsMenuDrop(event,this)">'
+      + '<span class="tl-drag-handle menuord-handle" draggable="true" title="드래그해 메뉴 순서 변경"'
+      + ' ondragstart="settingsMenuDragStart(event,\'' + m.id + '\')" ondragend="settingsMenuDragEnd(event)">⠿</span>'
+      + '<div class="menuord-name"><div class="settings-row-label">' + sEsc(full) + '</div></div>'
       + buildToggle('menuvis-' + m.id, on, "settingsToggleMenu('" + m.id + "')")
       + '</div>';
   }).join('');
 
-  return '<div class="settings-section-head" style="margin-top:8px;">메뉴 표시</div>'
+  return '<div class="settings-section-head" style="margin-top:8px;">메뉴 표시 · 순서</div>'
     + '<div class="settings-row-desc" style="margin-bottom:10px;">'
-    + '사이드바에 보일 메뉴를 고릅니다. 데스크탑과 모바일 구성을 따로 저장하며,'
-    + ' 접속한 화면 크기에 맞는 구성이 적용됩니다.</div>'
+    + '사이드바에 보일 메뉴를 고릅니다. 왼쪽 손잡이를 끌면 순서를 바꿀 수 있습니다.'
+    + ' 데스크탑과 모바일 구성을 따로 저장하며, 접속한 화면 크기에 맞는 구성이 적용됩니다.</div>'
     + '<div class="menuvis-segs">' + segs + '</div>'
     + rows
     + '<div class="settings-row-desc" style="margin-top:12px;">'
@@ -360,10 +369,39 @@ function settingsResetMenus() {
   var here = (typeof appMenuProfile === 'function') ? appMenuProfile() : 'desktop';
   var prof = settingsState.menuProfile || here;
   try { localStorage.removeItem(MENU_VIS_KEY[prof]); } catch (e) {}
+  // 순서도 함께 기본값으로 (표시 여부만 되돌리면 순서가 남아 '기본값'이 아니게 된다)
+  try { if (typeof MENU_ORDER_KEY !== 'undefined') localStorage.removeItem(MENU_ORDER_KEY[prof]); } catch (e) {}
   if (prof === here && typeof initSidebar === 'function') {
     initSidebar();
     if (typeof isMenuVisible === 'function' && !isMenuVisible(currentMenu)) navToMenu(appDefaultMenu());
   }
+  setSettingsTab('menus');
+}
+
+// ── 메뉴 순서 드래그 (라이프휠·만다라트와 같은 tl-* 공용 헬퍼 사용) ──
+//  mandalart.js 가 settings.js 보다 먼저 로드되므로 tlGeneric* 를 그대로 쓸 수 있다.
+function settingsMenuDragStart(ev, id) {
+  if (typeof tlGenericStart === 'function') tlGenericStart(ev, 'menuord', id);
+}
+function settingsMenuDragOver(ev, row) {
+  if (typeof tlGenericOver === 'function') tlGenericOver(ev, 'menuord', row.dataset.menuid);
+}
+function settingsMenuDragLeave(ev) {
+  if (typeof tlDragLeave === 'function') tlDragLeave(ev);
+}
+function settingsMenuDragEnd() {
+  if (typeof tlDragEnd === 'function') tlDragEnd();
+}
+function settingsMenuDrop(ev, row) {
+  ev.preventDefault();
+  var drag = (typeof _tlDrag !== 'undefined') ? _tlDrag : null;
+  var after = (typeof tlDropIsAfter === 'function') ? tlDropIsAfter(ev) : false;
+  if (typeof tlDragEnd === 'function') tlDragEnd();
+  if (!drag || drag.type !== 'menuord') return;
+  var here = (typeof appMenuProfile === 'function') ? appMenuProfile() : 'desktop';
+  var prof = settingsState.menuProfile || here;
+  if (typeof moveMenuOrder !== 'function') return;
+  if (!moveMenuOrder(prof, drag.id, row.dataset.menuid, after)) return;
   setSettingsTab('menus');
 }
 

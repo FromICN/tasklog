@@ -318,8 +318,8 @@ function jnlItemLogInfo(obj) {
   return { date: new Date(pd.getFullYear(), pd.getMonth(), pd.getDate(), 12, 0, 0, 0), timed: false };
 }
 
-// 08:00 기준 선형 분(0=08:00 … 1439=07:59 다음날)
-var JNLW_WIN_START = 8;      // 그리드 최상단 시각(08:00)
+// 07:00 기준 선형 분(0=07:00 … 1439=06:59 다음날)
+var JNLW_WIN_START = 7;      // 그리드 최상단 시각(07:00)
 var JNLW_SNAP = 10;         // 스냅 단위(분) — 지속시간/이동 10분 단위
 var JNLW_MIN_DUR = 10;      // 최소 지속시간(분)
 function jnlwClockToLin(h, m) { return (((h * 60 + m) - JNLW_WIN_START * 60) % 1440 + 1440) % 1440; }
@@ -420,7 +420,7 @@ function jnlwAlldayChip(it) {
     + '</div>';
 }
 
-// 주간 그리드 HTML (시간 08:00~07:00, 종일은 최하단, 내부 스크롤)
+// 주간 그리드 HTML (시간 07:00~06:00, 종일은 최하단, 내부 스크롤)
 function jnlBuildWeekGrid() {
   var r = getWeekRange(_journalWeek);
   var start = new Date(r.start); start.setHours(0, 0, 0, 0);
@@ -445,7 +445,7 @@ function jnlBuildWeekGrid() {
   }
   head += '</div>';
 
-  // 시간 거터(08:00→07:00)
+  // 시간 거터(07:00→06:00)
   var gutter = '<div class="jnlw-gutter" style="height:' + totalH + 'px;">';
   for (var r2 = 0; r2 < 24; r2++) {
     var hh = (JNLW_WIN_START + r2) % 24;

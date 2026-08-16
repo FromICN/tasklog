@@ -42,8 +42,10 @@ function getNotesByType(type) {
 }
 
 // Archiving 칼럼에 표시할 메모만 (type === 'memo')
+//  기본은 최신순(createNote 가 앞에 넣는다). 드래그로 바꾼 순서가 있으면 그것을 따른다.
 function getArchivingNotes() {
-  return notesData.filter(function(n){ return n.type === 'memo'; });
+  var memos = notesData.filter(function(n){ return n.type === 'memo'; });
+  return nbApplyManualOrder(memos, nbLoadOrder('nbMemoOrder'), function(n){ return String(n.id); }, true);
 }
 
 // 마감일 오름차순 정렬 헬퍼 (마감일 없음 = 맨 뒤, Infinity-Infinity NaN 방지)
@@ -54,13 +56,17 @@ function nbCmpMs(x, y) { if (x < y) return -1; if (x > y) return 1; return 0; }
 //    저장된 순서가 우선, 순서에 없는 항목은 마감일 오름차순(기본) 뒤에 유지
 function nbLoadOrder(k){ try{ var r=localStorage.getItem(k); if(r){ var o=JSON.parse(r); if(Array.isArray(o)) return o; } }catch(e){} return []; }
 function nbSaveOrder(k,arr){ try{ localStorage.setItem(k, JSON.stringify(arr)); }catch(e){} }
-function nbApplyManualOrder(items, order, keyFn){
+//  newFirst=true 면 순서에 없는(= 정렬 후에 새로 생긴) 항목을 맨 앞에 둔다.
+//  Archiving 메모가 그렇다 — 새 메모는 항상 위에 쌓이는 것이 기존 동작이라,
+//  한 번 순서를 바꿨다고 새 메모가 목록 맨 아래로 가면 안 된다.
+function nbApplyManualOrder(items, order, keyFn, newFirst){
   if(!order || !order.length) return items;
   var pos={}; order.forEach(function(k,i){ pos[String(k)]=i; });
+  var unknown = newFirst ? -Infinity : Infinity;
   return items.slice().sort(function(a,b){
     var pa=pos[keyFn(a)]; var pb=pos[keyFn(b)];
-    if(pa===undefined) pa=Infinity;
-    if(pb===undefined) pb=Infinity;
+    if(pa===undefined) pa=unknown;
+    if(pb===undefined) pb=unknown;
     if(pa!==pb) return pa-pb;   // 수동 순서 우선
     return 0;                    // 나머지는 기존(마감일) 순서 유지 (안정 정렬)
   });
@@ -279,7 +285,7 @@ function buildMemoCard(note) {
   var dueHtml = dueStr ? '<span class="nb-card-due">📅 ' + dueStr + '</span>' : '';
   var timeStr = note.createdAt ? new Date(note.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
   return '<div class="nb-card" draggable="true" data-kind="memo" data-note-id="' + note.id + '"'
-    + ' ondragstart="nbDragStart(event)">'
+    + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:#555;"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-text">'+escNb(note.text)+'</div>'
@@ -398,12 +404,14 @@ document.addEventListener('dragend', function() {
   document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after').forEach(function(el){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); });
 });
 
-// ── 같은 칼럼 내 카드 순서 변경 (Task / To Do) ──
+// ── 같은 칼럼 내 카드 순서 변경 (Archiving / Task / To Do) ──
+// 순서를 바꿀 수 있는 카드 종류
+function nbKindReorderable(kind){ return kind==='memo'||kind==='task'||kind==='step'; }
 function nbCardDragOver(e, card){
   if(!_nbDrag) return;
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
-  var sameKind=(_nbDrag.kind===card.dataset.kind)&&(card.dataset.kind==='task'||card.dataset.kind==='step');
+  var sameKind=(_nbDrag.kind===card.dataset.kind)&&nbKindReorderable(card.dataset.kind);
   document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after').forEach(function(el){ if(el!==card){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); } });
   if(sameKind){
     var r=card.getBoundingClientRect(); var after=e.clientY>r.top+r.height/2;
@@ -416,10 +424,14 @@ function nbCardDrop(e, card){
   card.classList.remove('nb-card-drop-before'); card.classList.remove('nb-card-drop-after');
   var d=_nbDrag; _nbDrag=null; if(!d) return;
   var cardKind=card.dataset.kind;
-  var sameKind=(d.kind===cardKind)&&(cardKind==='task'||cardKind==='step');
+  var sameKind=(d.kind===cardKind)&&nbKindReorderable(cardKind);
   if(!sameKind){ nbApplyMove(d, cardKind); return; }   // 다른 종류 → 칼럼 이동 로직
   var r=card.getBoundingClientRect(); var after=e.clientY>r.top+r.height/2;
-  if(cardKind==='task'){
+  if(cardKind==='memo'){
+    var fromKeyM=String(d.noteId), toKeyM=String(card.dataset.noteId);
+    if(fromKeyM===toKeyM) return;
+    nbReorderSave('nbMemoOrder', getArchivingNotes().map(function(n){ return String(n.id); }), fromKeyM, toKeyM, after);
+  } else if(cardKind==='task'){
     var fromKey=String(d.taskId), toKey=String(card.dataset.taskId);
     if(fromKey===toKey) return;
     nbReorderSave('nbTaskOrder', getActiveTasks().map(function(t){ return String(t.id); }), fromKey, toKey, after);

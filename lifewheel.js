@@ -821,11 +821,12 @@ function lwOpenSectionModal(idx) {
     + '<div class="smart-field-header"><span class="smart-label">Info</span></div>'
     + '<textarea class="smart-textarea" id="lw-info">' + hwEsc(sec.info || '') + '</textarea>'
     + '</div>'
-    + smartHtml
     + '<div class="smart-field">'
     + '<div class="smart-field-header"><span class="smart-label">Goal</span></div>'
     + '<textarea class="smart-textarea" id="lw-smart-finalGoal">' + hwEsc(sec.smart.finalGoal || '') + '</textarea>'
     + '</div>'
+    // SMART 체크는 Goal 을 점검하는 항목이라 Goal 바로 아래에 둔다
+    + smartHtml
     + '<div class="smart-field">'
     + '<div class="smart-field-header"><span class="smart-label">Ideal</span></div>'
     + '<textarea class="smart-textarea" id="lw-ideal">' + hwEsc(sec.ideal || '') + '</textarea>'

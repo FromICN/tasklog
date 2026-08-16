@@ -2982,7 +2982,8 @@ function rpEsc(text) { var d = document.createElement('div'); d.textContent = te
 var currentMenu = 'home';
 
 var _SVG = {
-  todo:      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>',
+  // Board = 원형 순환 아이콘, Habit Tracker = 체크 아이콘 (두 메뉴의 아이콘을 서로 맞바꿈)
+  todo:      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>',
   home:      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M160-120v-480l320-240 320 240v480H560v-280H400v280H160Z"/></svg>',
   cloud:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1.5V22.5M1.5 12H22.5M4.58 4.58 19.42 19.42M19.42 4.58 4.58 19.42"/><path d="M12 5 16.95 7.05 19 12 16.95 16.95 12 19 7.05 16.95 5 12 7.05 7.05Z"/><path d="M12 8.2 14.69 9.31 15.8 12 14.69 14.69 12 15.8 9.31 14.69 8.2 12 9.31 9.31Z"/></svg>',
   mvv:       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><circle cx="12" cy="12" r="5.8"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><path d="M14 10 L21.5 2.5"/><path d="M21.5 2.5 L17.6 3 M21.5 2.5 L21 6.4"/><path d="M12 12 L15.1 11 L13 8.9 Z" fill="currentColor" stroke="none"/></svg>',
@@ -2992,8 +2993,7 @@ var _SVG = {
   wbs:       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor"><path d="M176,152h32a16,16,0,0,0,16-16V104a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H88V80h8a16,16,0,0,0,16-16V32A16,16,0,0,0,96,16H64A16,16,0,0,0,48,32V64A16,16,0,0,0,64,80h8V192a24,24,0,0,0,24,24h64v8a16,16,0,0,0,16,16h32a16,16,0,0,0,16-16V192a16,16,0,0,0-16-16H176a16,16,0,0,0-16,16v8H96a8,8,0,0,1-8-8V128h72v8A16,16,0,0,0,176,152ZM64,32H96V64H64ZM176,192h32v32H176Zm0-88h32v32H176Z"/></svg>',
   journal:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h240v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Z"/></svg>',
   calendar:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>',
-  // 원형 순환 — 습관은 '쌓는 것'이 아니라 '도는 것'이라는 뜻
-  habit:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>',
+  habit:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>',
 };
 
 var MENUS = [
@@ -3009,6 +3009,10 @@ var MENUS = [
   { id:'project',   icon:_SVG.project,   label:'Gantt',        short:'Gantt'},
   { id:'wbs',       icon:_SVG.wbs,       label:'WBS',          short:'WBS'  },
 ];
+
+// 사이드바 구분선 위치 = 표시 중인 메뉴 중 몇 번째 다음에 넣을지
+// (MENUS 기본 구성의 divider 자리와 같다 — Home · Web · WD 다음)
+var MENU_DIVIDER_AT = MENUS.findIndex(function(m) { return m.divider; });
 
 var MENU_TITLES = {
   home:'Home', todo:'Board', cloud:'Web', mvv:'Mission Vision Value',
@@ -3079,11 +3083,71 @@ function setMenuVis(profile, id, on) {
 // 기본값에 없는(새로 추가된) 메뉴는 표시로 본다
 function isMenuVisible(id) { return getMenuVis(appMenuProfile())[id] !== false; }
 
+// ============================================
+//  ↕ 메뉴 순서 — 표시 여부와 같은 프로파일(desktop/mobile) 단위로 저장
+//  --------------------------------------------
+//  설정 > 메뉴에서 드래그로 바꾼 순서를 담는다. 저장된 값이 없으면 MENUS
+//  선언 순서를 그대로 쓴다. 나중에 메뉴가 추가돼도(저장된 순서에 없는 id)
+//  빠지지 않도록, 저장된 순서 뒤에 기본 순서 기준으로 이어 붙인다.
+// ============================================
+var MENU_ORDER_KEY = { desktop: 'app-menu-order-desktop', mobile: 'app-menu-order-mobile' };
+
+// MENUS 선언 순서의 id 목록 (구분선 제외)
+function defaultMenuIds() {
+  return MENUS.filter(function(m) { return !m.divider; }).map(function(m) { return m.id; });
+}
+
+function getMenuOrder(profile) {
+  profile = (profile === 'mobile') ? 'mobile' : 'desktop';
+  var base = defaultMenuIds(), out = [];
+  try {
+    var raw = localStorage.getItem(MENU_ORDER_KEY[profile]);
+    if (raw) {
+      var saved = JSON.parse(raw);
+      if (Array.isArray(saved)) {
+        saved.forEach(function(id) {
+          if (base.indexOf(id) >= 0 && out.indexOf(id) < 0) out.push(id);
+        });
+      }
+    }
+  } catch (e) {}
+  // 저장된 순서에 없던 메뉴는 기본 순서대로 뒤에 붙인다
+  base.forEach(function(id) { if (out.indexOf(id) < 0) out.push(id); });
+  return out;
+}
+
+function setMenuOrder(profile, ids) {
+  profile = (profile === 'mobile') ? 'mobile' : 'desktop';
+  try { localStorage.setItem(MENU_ORDER_KEY[profile], JSON.stringify(ids)); } catch (e) {}
+  if (profile === appMenuProfile()) initSidebar();
+}
+
+// 순서를 적용한 메뉴 객체 목록 (구분선 제외)
+function orderedMenus(profile) {
+  return getMenuOrder(profile).map(function(id) {
+    return MENUS.find(function(m) { return !m.divider && m.id === id; });
+  }).filter(Boolean);
+}
+
+// 한 칸 옮기기 — fromId 를 toId 자리의 앞/뒤로 이동
+function moveMenuOrder(profile, fromId, toId, after) {
+  var arr = getMenuOrder(profile);
+  var fi = arr.indexOf(fromId);
+  if (fi < 0 || fromId === toId) return false;
+  arr.splice(fi, 1);
+  var ti = arr.indexOf(toId);
+  if (ti < 0) ti = arr.length; else if (after) ti += 1;
+  arr.splice(ti, 0, fromId);
+  setMenuOrder(profile, arr);
+  return true;
+}
+
 // 표시 중인 메뉴 id 목록 (사이드바 순서)
 function visibleMenuIds() {
   var vis = getMenuVis(appMenuProfile());
-  return MENUS.filter(function(m) { return !m.divider && vis[m.id] !== false; })
-              .map(function(m) { return m.id; });
+  return orderedMenus(appMenuProfile())
+    .filter(function(m) { return vis[m.id] !== false; })
+    .map(function(m) { return m.id; });
 }
 
 // 시작 화면 — Home 이 꺼져 있으면 표시 중인 첫 메뉴로
@@ -3110,18 +3174,13 @@ function initSidebar() {
     + '<span class="nav-item-label">Setting</span>'
     + '</button>'
     + '<div class="nav-divider"></div>';
-  // 숨긴 메뉴를 빼면 구분선이 맨 앞·맨 뒤에 남거나 두 줄로 겹친다 → 먼저 정리
-  var vis = getMenuVis(appMenuProfile());
-  var items = [];
-  MENUS.forEach(function(m) {
-    if (m.divider) {
-      if (items.length && !items[items.length - 1].divider) items.push({ divider:true });
-      return;
-    }
-    if (vis[m.id] === false) return;
-    items.push(m);
-  });
-  while (items.length && items[items.length - 1].divider) items.pop();
+  // 순서(설정 > 메뉴에서 드래그로 변경) → 표시 여부 순으로 걸러 목록을 만든다
+  var prof = appMenuProfile();
+  var vis = getMenuVis(prof);
+  var items = orderedMenus(prof).filter(function(m) { return vis[m.id] !== false; });
+  // 구분선은 기본 구성과 같은 자리(위에서 세 번째 다음)에 둔다.
+  // 순서를 바꿔도 사이드바의 덩어리 나눔이 그대로 유지된다.
+  if (items.length > MENU_DIVIDER_AT) items.splice(MENU_DIVIDER_AT, 0, { divider:true });
 
   nav.innerHTML = settingsBtn + items.map(function(m) {
     if (m.divider) return '<div class="nav-divider"></div>';
