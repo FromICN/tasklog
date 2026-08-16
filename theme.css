@@ -142,6 +142,10 @@
   --fw-fill:      #2F8A67;
   --fw-knob:      #E0A458;
   --fw-knob-line: #8C6531;
+
+  /* 살짝 눌러 둔 판 — MVV 상자, 만다라트 연간목표 입력칸처럼
+     '적는 자리'임을 색으로 알리는 곳에 쓴다. 테마마다 값이 다르다. */
+  --wash: #232B27;
 }
 
 body.light-mode {
@@ -216,6 +220,8 @@ body.light-mode {
   --fw-fill:      #14563F;
   --fw-knob:      #EFBE72;
   --fw-knob-line: #BE8F45;
+
+  --wash: #E6E9E3;
 }
 
 /* ── 2. 글꼴: 읽는 글 / 눈금 글 ──────────────────────────── */
@@ -726,7 +732,7 @@ progress {
    안쪽 입력칸·버튼·칩은 자기 표면을 그대로 쓰므로 카드 자체만 비운다. */
 #page-content .home-page .card { background: transparent; }
 
-#page-content .mvv-card { background: #E6E9E3; }
+#page-content .mvv-card { background: var(--wash); }
 /* 글을 쓰는 안쪽 상자는 비워 둔다 — 상자 배경까지 칠하면 카드 위에 회색이
    두 겹으로 얹혀 답답해진다. 경계는 테두리 한 줄로 충분하다. */
 #page-content .mvv-rta { background: transparent; }

@@ -24,46 +24,19 @@ var GCAL_COLOR = '#1A73E8';
 // 캘린더 위젯에서 현재 선택된 날짜 (기본: 오늘)
 var homeCalSelectedKey = fmtKey(new Date());
 
-function renderHomeView() {
-  var content = document.getElementById('page-content');
-  if (!content) return;
-  content.innerHTML = buildHomeLayout();
-  renderHomeCalendar();
-  renderFocusWidget();
-  renderHomeMandalartWidget();
-  renderHomeHabitWidget();
-  renderHomeWebWidget();
-  renderHomeLifeWheel();
-  hwInitLayout();
-}
-
-// ── 전체 레이아웃 ──────────────────────────
-//  모든 위젯이 같은 자격의 카드다. 머리글을 끌어 윗줄·아랫줄 어느 자리로든
-//  옮길 수 있다(자리 맞바꿈이라 줄별 개수는 그대로 유지된다).
-function buildHomeLayout() {
-  return '<div class="home-page">'
-    + '<div class="home-grid-row1">'
-    + buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
-    + buildCardShell('web-widget', 'Web', 'cloud', 'web-body')
-    + '</div>'
-    + '<div class="home-grid-row2">'
-    + buildCardShell('focus-widget', 'Focus On', null, 'focus-body')
-    + buildCardShell('habit-widget', 'Habit Tracker', 'habit', 'habit-body')
-    + buildCardShell('mandalart-widget', 'Mandalart', 'mandalart', 'mandalart-body')
-    + buildCardShell('wheel-widget', 'Life Wheel', 'wheel', 'wheel-body')
-    + '</div>'
-    + '</div>';
-}
-
-function buildCardShell(id, title, navTarget, bodyId) {
+// 카드 껍데기 — 배치(place)가 오면 격자 위치를 인라인으로 박아 준다
+function buildCardShell(id, title, navTarget, bodyId, place) {
   var header = '';
   if (title) {
     var titleHtml = navTarget
-      ? '<span class="card-title card-title-link" onclick="navToMenu(\'' + navTarget + '\')">' + title + '</span>'
+      ? '<span class="card-title card-title-link" onclick="navToMenu(\x27' + navTarget + '\x27)">' + title + '</span>'
       : '<span class="card-title">' + title + '</span>';
     header = '<div class="card-header">' + titleHtml + '</div>';
   }
-  return '<div class="card" id="' + id + '">'
+  var st = place
+    ? ' style="grid-column:' + place.c + ' / span ' + place.w + ';grid-row:' + place.r + ' / span ' + place.h + ';"'
+    : '';
+  return '<div class="card" id="' + id + '"' + st + '>'
     + header
     + '<div id="' + bodyId + '"></div>'
     + '</div>';
@@ -216,42 +189,26 @@ function calAttachAutoScale() {
 })();
 
 // 마감일 dot 맵 (task 본체 + 하위 steps 공용 헬퍼)
+// 달력 점 = 구글 캘린더에서 불러온 일정만.
+//  Task·To Do 마감은 Web 위젯과 알림이 이미 보여 준다. 여기에까지 찍으면
+//  '앱 밖에 잡혀 있는 약속'이 무엇인지 한눈에 안 들어온다.
 function collectDueDotsMap(rangeStart, rangeEnd) {
   var dotMap = {};
-  var taskEventIds = {};   // Task가 이미 캘린더에 등록한 이벤트 id (중복 점 방지)
+  if (typeof calendarEvents === 'undefined') return dotMap;
+
+  // Task 가 직접 등록한 일정은 결국 그 Task 라서 뺀다(중복 점 방지)
+  var taskEventIds = {};
   if (typeof tasks !== 'undefined') {
-    tasks.forEach(function(task) {
-      if (task.calendarEventId) taskEventIds[task.calendarEventId] = true;
-      var eiColor = EI_COLORS[task.eisenhower] || 'var(--text-2)';
-      if (task.dueDateTime) {
-        var d = new Date(task.dueDateTime);
-        if (d >= rangeStart && d <= rangeEnd) {
-          var k = fmtKey(d); if (!dotMap[k]) dotMap[k]=[]; dotMap[k].push(eiColor);
-        }
-      }
-      if (Array.isArray(task.steps)) {
-        task.steps.forEach(function(step) {
-          if (step.dueDateTime) {
-            var sd = new Date(step.dueDateTime);
-            if (sd >= rangeStart && sd <= rangeEnd) {
-              var sk = fmtKey(sd); if (!dotMap[sk]) dotMap[sk]=[]; dotMap[sk].push(eiColor);
-            }
-          }
-        });
-      }
-    });
+    tasks.forEach(function(task) { if (task.calendarEventId) taskEventIds[task.calendarEventId] = true; });
   }
-  // 구글 캘린더에서 가져온 일정 (Task가 직접 등록한 것은 제외)
-  if (typeof calendarEvents !== 'undefined') {
-    calendarEvents.forEach(function(ev) {
-      if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
-      if (!ev.dueDateTime) return;
-      var ed = new Date(ev.dueDateTime);
-      if (ed >= rangeStart && ed <= rangeEnd) {
-        var ek = fmtKey(ed); if (!dotMap[ek]) dotMap[ek]=[]; dotMap[ek].push(ev.calColor || GCAL_COLOR);
-      }
-    });
-  }
+  calendarEvents.forEach(function(ev) {
+    if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
+    if (!ev.dueDateTime) return;
+    var ed = new Date(ev.dueDateTime);
+    if (ed >= rangeStart && ed <= rangeEnd) {
+      var ek = fmtKey(ed); if (!dotMap[ek]) dotMap[ek] = []; dotMap[ek].push(ev.calColor || GCAL_COLOR);
+    }
+  });
   return dotMap;
 }
 
@@ -524,6 +481,32 @@ function renderHomeHabitWidget() {
       + '</div>';
   }).join('');
   el.innerHTML = '<div class="habit-2col">' + html + '</div>';
+  habitSyncColumns();
+}
+
+// 세로로 내려가다 높이가 다 차면 오른쪽에 다음 열을 만든다.
+//  flex-wrap 이 줄바꿈은 해 주지만, 각 열의 폭은 우리가 정해 줘야
+//  칸이 고르게 나뉜다. 몇 열이 필요한지 → 가로로 몇 열이 들어가는지
+//  순서로 계산해 좁은 쪽을 택한다.
+var HABIT_MIN_COL = 190;   // 이름 + 요일 칸 7개가 눌리지 않는 최소 폭
+function habitSyncColumns() {
+  var wrap = document.querySelector('#habit-body .habit-2col');
+  if (!wrap) return;
+  var rows = wrap.querySelectorAll('.habit-row');
+  if (!rows.length) return;
+
+  var availH = wrap.clientHeight, availW = wrap.clientWidth;
+  if (availH <= 0 || availW <= 0) return;
+  var rowH = rows[0].getBoundingClientRect().height || 1;
+  var gap = parseFloat(getComputedStyle(wrap).columnGap) || 0;
+
+  var perCol = Math.max(1, Math.floor(availH / rowH));      // 한 열에 담기는 개수
+  var need = Math.ceil(rows.length / perCol);               // 그래서 몇 열이 필요한가
+  var fit = Math.max(1, Math.floor((availW + gap) / (HABIT_MIN_COL + gap)));  // 가로로 몇 열이 들어가는가
+  var cols = Math.max(1, Math.min(need, fit));
+
+  var w = (availW - gap * (cols - 1)) / cols;
+  wrap.style.setProperty('--habit-col-w', w.toFixed(2) + 'px');
 }
 
 function hpToggleHabitDay(year, sgId, actId, dateKey) {
@@ -532,6 +515,189 @@ function hpToggleHabitDay(year, sgId, actId, dateKey) {
     if (typeof saveMandalarts === 'function') saveMandalarts();
     renderHomeHabitWidget();
   }
+}
+
+
+// ── Gantt 미니 (Gantt 페이지 수준의 일자/진행률 상세) ──
+//  설정에서 켠 사람만 쓰는 위젯이라 기본은 꺼져 있다.
+//  GM_* 상수와 gmLeftWidth · buildGanttSubRows 는 gantt.js 가 갖고 있다.
+var homeGanttYear  = new Date().getFullYear();
+var homeGanttMonth = new Date().getMonth();
+
+function homeGanttPrev() { homeGanttMonth--; if (homeGanttMonth<0) { homeGanttMonth=11; homeGanttYear--; } renderHomeGanttMini(); }
+function homeGanttNext() { homeGanttMonth++; if (homeGanttMonth>11) { homeGanttMonth=0; homeGanttYear++; } renderHomeGanttMini(); }
+function homeGanttToday() { homeGanttYear=new Date().getFullYear(); homeGanttMonth=new Date().getMonth(); renderHomeGanttMini(); }
+
+
+// 좌측 라벨 영역 폭 드래그 조정 핸들 부착 (헤더 spacer 오른쪽 경계)
+function gmAttachLeftResize() {
+  var wrap = document.querySelector('#gantt-body .gm-wrap');
+  var spacer = document.querySelector('#gantt-body .gm-left-spacer');
+  if (!wrap || !spacer) return;
+  if (window.getComputedStyle(spacer).position === 'static') spacer.style.position = 'relative';
+  var h = document.createElement('div');
+  h.className = 'cr-handle';
+  spacer.appendChild(h);
+  h.addEventListener('click', function(e){ e.stopPropagation(); });
+  h.addEventListener('mousedown', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    var startX = e.clientX;
+    var startW = Math.round(spacer.getBoundingClientRect().width);
+    var lastW = startW;
+    document.body.classList.add('cr-resizing');
+    function mm(ev) {
+      lastW = Math.max(80, Math.min(GM_LEFT_MAX, Math.round(startW + (ev.clientX - startX))));
+      wrap.style.setProperty('--gm-left', lastW + 'px');
+    }
+    function mu() {
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+      document.body.classList.remove('cr-resizing');
+      try { localStorage.setItem('homeGanttLeftW', String(lastW)); } catch (err) {}
+      renderHomeGanttMini();   // 오늘선 위치 등 재계산
+    }
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+}
+
+function renderHomeGanttMini() {
+  var el = document.getElementById('gantt-body');
+  if (!el) return;
+
+  if (typeof tasks === 'undefined' || typeof getTaskProgress !== 'function') {
+    el.innerHTML = emptyWidget('📊', '진행 중인 Task가 없습니다');
+    return;
+  }
+
+  var MN = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  var year = homeGanttYear, month = homeGanttMonth;
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+  var mS = new Date(year, month, 1);
+  var mE = new Date(year, month+1, 0, 23, 59, 59);
+  var today = new Date();
+  var todayIdx = (today.getFullYear()===year && today.getMonth()===month) ? today.getDate()-1 : null;
+
+  var vis = tasks.filter(function(t) {
+    if (t.completed) return false;
+    var s = t.startDate   ? new Date(t.startDate)   : null;
+    var e = t.dueDateTime ? new Date(t.dueDateTime) : null;
+    if (s && e) return s <= mE && e >= mS;
+    if (s)      return s >= mS && s <= mE;
+    if (e)      return e >= mS && e <= mE;
+    return false;
+  });
+
+  // 정렬 기준: 완료되지 않은 To Do 중 마감일이 가장 빠른 순.
+  // (미완 To Do 마감일이 없으면 Task 자체 마감일, 그것도 없으면 맨 뒤)
+  function _earliestOpenTodoDue(t) {
+    var steps = t.steps || [];
+    var min = Infinity;
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      if (s.completed || !s.dueDateTime) continue;
+      var ms = new Date(s.dueDateTime).getTime();
+      if (!isNaN(ms) && ms < min) min = ms;
+    }
+    if (min === Infinity) min = t.dueDateTime ? new Date(t.dueDateTime).getTime() : Infinity;
+    return min;
+  }
+  vis = vis.slice().sort(function(a, b) {
+    return _earliestOpenTodoDue(a) - _earliestOpenTodoDue(b);
+  });
+
+  var navHtml = '<div class="gm-nav">'
+    + '<button class="gm-arrow" onclick="homeGanttPrev()">‹</button>'
+    + '<span class="gm-month-label">'+year+'년 '+MN[month]+'</span>'
+    + '<button class="gm-arrow" onclick="homeGanttNext()">›</button>'
+    + (todayIdx===null ? '<button class="gm-today-btn" onclick="homeGanttToday()">오늘</button>' : '')
+    + '</div>';
+
+  if (!vis.length) {
+    el.innerHTML = navHtml + emptyWidget('📊', '이번 달 진행 중인 Task가 없습니다');
+    return;
+  }
+
+  var leftW = gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
+
+  // 배경 셀(요일/오늘 음영) — 모든 행이 공유하는 퍼센트 기반 칸, 우측 여백 없이 꽉 채움
+  var bgCellsHtml = '';
+  for (var d2 = 0; d2 < daysInMonth; d2++) {
+    var dow2 = new Date(year, month, d2+1).getDay();
+    var isT2 = (d2 === todayIdx);
+    var cls2 = 'gm-bgcell' + (isT2?' gm-today-col':'') + ((dow2===0||dow2===6)?' gm-weekend-col':'');
+    bgCellsHtml += '<div class="'+cls2+'"></div>';
+  }
+
+  var hdrCells = '';
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dow = new Date(year, month, d).getDay();
+    var isToday = (d-1 === todayIdx);
+    var cls = 'gm-hcell' + (isToday?' gm-today':'') + (dow===0?' gm-sun':dow===6?' gm-sat':'');
+    hdrCells += '<div class="'+cls+'">'+d+'</div>';
+  }
+
+  var rows = vis.slice(0, GM_MAX_ROWS).map(function(task) {
+    var pct = getTaskProgress(task);
+    var color = getGanttColor(task);
+    var label = task.text.replace(/^\[\d{6}\] /, '');
+    var shortLabel = label;
+
+    var sDate = task.startDate   ? new Date(task.startDate)   : null;
+    var eDate = task.dueDateTime ? new Date(task.dueDateTime) : null;
+    var barLeftPct = 0, barWPct = 0, hasBar = false;
+    if (sDate || eDate) {
+      hasBar = true;
+      var cs = sDate ? (sDate < mS ? mS : sDate) : (eDate < mS ? mS : eDate);
+      var ce = eDate ? (eDate > mE ? mE : eDate) : cs;
+      barLeftPct = (cs.getDate()-1) / daysInMonth * 100;
+      barWPct    = Math.max(1/daysInMonth*100, (ce.getDate()-cs.getDate()+1) / daysInMonth * 100);
+    }
+
+    var dateLbl = '';
+    if (sDate && eDate) dateLbl = (sDate.getMonth()+1)+'/'+sDate.getDate()+' ~ '+(eDate.getMonth()+1)+'/'+eDate.getDate();
+    else if (sDate)     dateLbl = (sDate.getMonth()+1)+'/'+sDate.getDate()+' 시작';
+    else if (eDate)     dateLbl = (eDate.getMonth()+1)+'/'+eDate.getDate()+' 마감';
+    // Project 이모지: 만다라트 연도별 section → 라이프휠 순으로 해석 (todo.js 공용 해석기)
+    var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
+    if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
+
+    var _open = (typeof ganttIsOpen === 'function') ? ganttIsOpen(task.id) : (_ganttOpen[task.id] !== false);
+    var _hasSteps = (task.steps || []).length > 0;
+    var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
+      + '<div class="gm-left">'
+      + (_hasSteps ? '<span class="gm-toggle" onclick="ganttToggleTask('+task.id+',event)">'+(_open?'\u25be':'\u25b8')+'</span>' : '<span class="gm-toggle-empty"></span>')
+      + progressCircleSvg(pct, color)
+      + '<div class="gm-info">'
+      + '<div class="gm-name" title="'+hwEsc(label)+'">'+hwEsc(shortLabel)+'</div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="gm-grid">'
+      + bgCellsHtml
+      + (hasBar
+          ? '<div class="gm-bar" style="left:'+barLeftPct.toFixed(3)+'%;width:'+barWPct.toFixed(3)+'%;border-color:'+color+';background:'+color+'25;">'
+            + '<div class="gm-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
+          : '')
+      + ((!_open && _hasSteps) ? ganttStepMarkers(task, mS, mE, daysInMonth, color) : '')
+      + '</div>'
+      + '</div>';
+
+    return mainRow + buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml);
+  }).join('');
+
+  var todayLine = todayIdx !== null
+    ? '<div class="gm-today-line" style="left:calc('+leftW+'px + (100% - '+leftW+'px) * '+(((todayIdx+0.5)/daysInMonth).toFixed(4))+');"></div>'
+    : '';
+
+  el.innerHTML = navHtml
+    + '<div class="gm-wrap" style="--gm-left:'+leftW+'px;">'
+    + '<div class="gm-header"><div class="gm-left-spacer"></div>'
+    + '<div class="gm-hcells">'+hdrCells+'</div></div>'
+    + '<div class="gm-body">' + todayLine + rows + '</div>'
+    + '</div>'
+    + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
+
+  gmAttachLeftResize();   // 좌측 텍스트 영역 폭 드래그 조정
 }
 
 
@@ -1149,159 +1315,320 @@ function fmtKey(d) {
 
 
 // ============================================
-//  홈 위젯 레이아웃 — 크기 조정 / 위치 변경 (스크롤 없이 이웃이 보정)
+//  🏠 홈 위젯 배치 — 4열 × 3행 격자
+//  --------------------------------------------
+//  위젯마다 { c, r, w, h } (왼쪽 열 · 윗 행 · 가로 칸수 · 세로 칸수)를 갖는다.
+//  · 머리글을 끌어 다른 칸으로 옮긴다. 빈자리면 그냥 가고,
+//    크기가 같은 위젯이 있으면 서로 자리를 바꾼다. 겹치는 배치는 만들지 않는다.
+//  · 오른쪽 아래 손잡이를 끌어 칸 단위로 크기를 바꾼다.
+//    작게 줄여 빈칸(여백)을 남겨 두는 것도 배치의 하나로 본다.
+//  · 어떤 위젯을 띄울지는 설정 > 메뉴에서 고른다.
 // ============================================
-// v6 — 위젯 구성이 바뀌면(개수·순서) 저장된 열 너비가 어긋나므로 키를 올린다.
-//      (세로 묶음을 없애고 Focus On 이 2행의 독립 카드가 됐다 — 1행 2개 · 2행 4개)
-var HW_LKEY = 'home-layout-v6';
-var _hwDrag = null;
+var HW_COLS = 4, HW_ROWS = 3;
+
+// v7 — 두 줄(row1/row2) 구조에서 4×3 격자로 바뀌었다. 예전 값은 쓸 수 없다.
+var HW_LKEY = 'home-layout-v7';
+
+// 홈에 놓을 수 있는 위젯 목록 (기본 배치 · 기본 표시 여부 포함)
+var HOME_WIDGETS = [
+  { id:'cal-widget',       title:'Calendar',      nav:null,        body:'cal-body',        render:'renderHomeCalendar',        def:{c:1,r:1,w:1,h:2}, on:true  },
+  { id:'web-widget',       title:'Web',           nav:'cloud',     body:'web-body',        render:'renderHomeWebWidget',       def:{c:2,r:1,w:2,h:1}, on:true  },
+  { id:'focus-widget',     title:'Focus On',      nav:null,        body:'focus-body',      render:'renderFocusWidget',         def:{c:4,r:1,w:1,h:2}, on:true  },
+  { id:'habit-widget',     title:'Habit Tracker', nav:'habit',     body:'habit-body',      render:'renderHomeHabitWidget',     def:{c:2,r:2,w:2,h:1}, on:true  },
+  { id:'mandalart-widget', title:'Mandalart',     nav:'mandalart', body:'mandalart-body',  render:'renderHomeMandalartWidget', def:{c:1,r:3,w:2,h:1}, on:true  },
+  { id:'wheel-widget',     title:'Life Wheel',    nav:'wheel',     body:'wheel-body',      render:'renderHomeLifeWheel',       def:{c:3,r:3,w:1,h:1}, on:true  },
+  { id:'gantt-widget',     title:'Gantt',         nav:'project',   body:'gantt-body',      render:'renderHomeGanttMini',       def:{c:4,r:3,w:1,h:1}, on:false },
+];
+
+function hwDef(id) { return HOME_WIDGETS.find(function (w) { return w.id === id; }); }
+
 function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
 function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }
-function hwRowCards(row) {
-  return Array.prototype.filter.call(row.children, function (c) {
-    return c.classList && c.classList.contains('card');
-  });
+
+// ── 표시 여부 ──
+function hwVisible(id) {
+  var L = hwLoadLayout();
+  if (L.visible && typeof L.visible[id] === 'boolean') return L.visible[id];
+  var d = hwDef(id);
+  return d ? d.on : false;
 }
-function hwOrder(row) { return hwRowCards(row).map(function (c) { return c.id; }); }
-// 저장된 순서대로 카드를 옮긴다. 다른 줄에 있던 카드도 이 줄로 데려온다
-// (윗줄 ↔ 아랫줄 교체를 저장해 두려면 줄을 넘는 이동이 가능해야 한다).
-function hwApplyOrder(row, order) {
-  if (!order || !order.length) return;
-  order.forEach(function (id) { var el = document.getElementById(id); if (el) row.appendChild(el); });
+function hwVisibleWidgets() { return HOME_WIDGETS.filter(function (w) { return hwVisible(w.id); }); }
+
+function hwSetVisible(id, on) {
+  var L = hwLoadLayout();
+  if (!L.visible) L.visible = {};
+  L.visible[id] = !!on;
+  if (on) {
+    // 새로 켠 위젯이 남의 자리에 겹치지 않도록, 빈 곳을 찾아 앉힌다
+    if (!L.place) L.place = {};
+    var d = hwDef(id);
+    var spot = hwFindFreeSpot(L, id, d ? d.def.w : 1, d ? d.def.h : 1);
+    if (spot) L.place[id] = spot;
+  }
+  hwSaveLayout(L);
+  if (typeof currentMenu !== 'undefined' && currentMenu === 'home') renderHomeView();
+}
+
+// ── 배치 ──
+function hwPlace(id) {
+  var L = hwLoadLayout();
+  var p = (L.place && L.place[id]) || (hwDef(id) || {}).def || { c:1, r:1, w:1, h:1 };
+  return { c: p.c, r: p.r, w: p.w, h: p.h };
+}
+function hwSetPlace(id, p) {
+  var L = hwLoadLayout();
+  if (!L.place) L.place = {};
+  L.place[id] = { c: p.c, r: p.r, w: p.w, h: p.h };
+  hwSaveLayout(L);
+}
+
+// 격자 점유표 — exceptId 는 비워 둔 것으로 친다
+function hwOccupancy(exceptId) {
+  var grid = [];
+  for (var r = 0; r <= HW_ROWS; r++) grid.push(new Array(HW_COLS + 1).fill(null));
+  hwVisibleWidgets().forEach(function (w) {
+    if (w.id === exceptId) return;
+    var p = hwPlace(w.id);
+    for (var rr = p.r; rr < p.r + p.h; rr++)
+      for (var cc = p.c; cc < p.c + p.w; cc++)
+        if (rr <= HW_ROWS && cc <= HW_COLS) grid[rr][cc] = w.id;
+  });
+  return grid;
+}
+
+function hwFits(p) {
+  return p.c >= 1 && p.r >= 1 && p.w >= 1 && p.h >= 1
+    && p.c + p.w - 1 <= HW_COLS && p.r + p.h - 1 <= HW_ROWS;
+}
+// 그 자리에 놓을 수 있는가 (격자 밖으로 나가지 않고, 남과 겹치지 않는가)
+function hwAreaFree(p, exceptId) {
+  if (!hwFits(p)) return false;
+  var g = hwOccupancy(exceptId);
+  for (var r = p.r; r < p.r + p.h; r++)
+    for (var c = p.c; c < p.c + p.w; c++)
+      if (g[r][c]) return false;
+  return true;
+}
+// 그 칸을 차지하고 있는 위젯 id
+function hwAt(c, r, exceptId) { return hwOccupancy(exceptId)[r] ? hwOccupancy(exceptId)[r][c] : null; }
+
+// 켤 때 앉힐 빈자리 찾기 — 원하는 크기부터 시작해 안 되면 점점 줄인다
+function hwFindFreeSpot(L, id, w, h) {
+  var tries = [[w,h],[1,h],[w,1],[1,1]];
+  for (var t = 0; t < tries.length; t++) {
+    for (var r = 1; r <= HW_ROWS; r++) {
+      for (var c = 1; c <= HW_COLS; c++) {
+        var p = { c:c, r:r, w:tries[t][0], h:tries[t][1] };
+        if (hwAreaFree(p, id)) return p;
+      }
+    }
+  }
+  return null;   // 자리가 없으면 저장된(또는 기본) 자리를 그대로 쓴다
+}
+
+// ── 그리기 ──────────────────────────────────
+function buildHomeLayout() {
+  var cards = hwVisibleWidgets().map(function (w) {
+    var p = hwPlace(w.id);
+    return buildCardShell(w.id, w.title, w.nav, w.body, p);
+  }).join('');
+  return '<div class="home-page"><div class="home-grid" id="home-grid">' + cards + '</div></div>';
+}
+
+function renderHomeView() {
+  var content = document.getElementById('page-content');
+  if (!content) return;
+  content.innerHTML = buildHomeLayout();
+  hwVisibleWidgets().forEach(function (w) {
+    var fn = window[w.render];
+    if (typeof fn === 'function') { try { fn(); } catch (e) {} }
+  });
+  hwInitLayout();
+}
+
+// 위젯 하나만 다시 그린다 (배치가 바뀌면 내부 크기도 다시 맞춰야 한다)
+function hwRerender(id) {
+  var w = hwDef(id);
+  if (!w) return;
+  var fn = window[w.render];
+  if (typeof fn === 'function') { try { fn(); } catch (e) {} }
+}
+
+// ── 배치 적용 · 손잡이 부착 ──────────────────
+function hwApplyPlace(el, p) {
+  el.style.gridColumn = p.c + ' / span ' + p.w;
+  el.style.gridRow    = p.r + ' / span ' + p.h;
 }
 
 function hwInitLayout() {
-  var row1 = document.querySelector('.home-grid-row1');
-  var row2 = document.querySelector('.home-grid-row2');
-  var page = document.querySelector('.home-page');
-  if (!row1 || !row2 || !page) return;
-  var L = hwLoadLayout();
-  if (L.order1) hwApplyOrder(row1, L.order1);
-  if (L.order2) hwApplyOrder(row2, L.order2);
-  if (L.row1cols) row1.style.gridTemplateColumns = L.row1cols;
-  if (L.row2cols) row2.style.gridTemplateColumns = L.row2cols;
-  if (L.row2h) row2.style.height = L.row2h + 'px';
-
-  hwAddColHandles(row1, 'row1cols');
-  hwAddColHandles(row2, 'row2cols');
-  hwAddRowHandle(row1, row2, page);
-  hwAddReorder(row1);
-  hwAddReorder(row2);
+  var grid = document.getElementById('home-grid');
+  if (!grid) return;
+  hwVisibleWidgets().forEach(function (w) {
+    var el = document.getElementById(w.id);
+    if (!el) return;
+    hwApplyPlace(el, hwPlace(w.id));
+    hwAddMoveHandle(el, w.id);
+    hwAddResizeGrip(el, w.id);
+  });
+  hwAddGridDrop(grid);
+  hwSyncResponsive();
 }
 
-// ── 가로 크기 조정 (이웃 열이 반대로 보정 → 총 너비 유지) ──
-function hwAddColHandles(row, key) {
-  var cards = hwRowCards(row);
-  cards.forEach(function (card, i) {
-    if (i === cards.length - 1) return;
-    if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
-    var h = document.createElement('div');
-    h.className = 'hw-resize-x';
-    h.title = '드래그해 너비 조정';
-    card.appendChild(h);
-    h.addEventListener('mousedown', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      var widths = cards.map(function (c) { return c.getBoundingClientRect().width; });
-      var startX = e.clientX, MIN = 90;
-      function mm(ev) {
-        var d = ev.clientX - startX;
-        var nd = Math.max(MIN - widths[i], Math.min(widths[i + 1] - MIN, d));
-        var w = widths.slice(); w[i] += nd; w[i + 1] -= nd;
-        row.style.gridTemplateColumns = w.map(function (x) { return x + 'px'; }).join(' ');
-        calSyncScale();   // 끄는 동안 달력이 같이 늘고 준다
-      }
-      function mu() {
-        document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
-        document.body.classList.remove('hw-resizing');
-        var Ly = hwLoadLayout(); Ly[key] = row.style.gridTemplateColumns; hwSaveLayout(Ly);
-      }
-      document.body.classList.add('hw-resizing');
-      document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
-    });
+// 격자 좌표 → 픽셀 계산에 쓰는 한 칸 크기
+function hwCellSize(grid) {
+  var r = grid.getBoundingClientRect();
+  var gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+  var gapR = parseFloat(getComputedStyle(grid).rowGap) || gap;
+  return {
+    w: (r.width  - gap  * (HW_COLS - 1)) / HW_COLS,
+    h: (r.height - gapR * (HW_ROWS - 1)) / HW_ROWS,
+    gap: gap, gapR: gapR, rect: r
+  };
+}
+// 화면 좌표가 몇 번째 칸인지
+function hwCellAt(grid, x, y) {
+  var s = hwCellSize(grid);
+  var c = Math.floor((x - s.rect.left) / (s.w + s.gap)) + 1;
+  var r = Math.floor((y - s.rect.top)  / (s.h + s.gapR)) + 1;
+  return { c: Math.max(1, Math.min(HW_COLS, c)), r: Math.max(1, Math.min(HW_ROWS, r)) };
+}
+
+// ── 옮기기 (머리글 드래그) ──
+var _hwDrag = null;
+function hwAddMoveHandle(card, id) {
+  var head = card.querySelector('.card-header');
+  if (!head) return;
+  head.setAttribute('draggable', 'true');
+  head.classList.add('hw-drag-head');
+  head.addEventListener('dragstart', function (e) {
+    _hwDrag = { id: id };
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', id); } catch (_) {} }
+    setTimeout(function () { card.classList.add('hw-dragging'); }, 0);
+  });
+  head.addEventListener('dragend', function () {
+    card.classList.remove('hw-dragging');
+    _hwDrag = null;
+    hwClearGhost();
   });
 }
 
-// ── 세로 크기 조정 (두 행 경계 · row1은 flex로 자동 보정) ──
-function hwAddRowHandle(row1, row2, page) {
-  if (getComputedStyle(row2).position === 'static') row2.style.position = 'relative';
-  var h = document.createElement('div');
-  h.className = 'hw-resize-y';
-  h.title = '드래그해 높이 조정';
-  row2.appendChild(h);
-  h.addEventListener('mousedown', function (e) {
+function hwGhost(grid) {
+  var g = grid.querySelector('.hw-ghost');
+  if (!g) { g = document.createElement('div'); g.className = 'hw-ghost'; grid.appendChild(g); }
+  return g;
+}
+function hwClearGhost() {
+  var g = document.querySelector('.hw-ghost');
+  if (g) g.remove();
+}
+
+// 옮길 목적지 계산: 커서가 가리키는 칸을 새 왼쪽·위 모서리로 삼되,
+// 격자 밖으로 나가면 안쪽으로 당긴다.
+function hwTargetPlace(grid, id, x, y) {
+  var cur = hwPlace(id);
+  var cell = hwCellAt(grid, x, y);
+  var p = { c: cell.c, r: cell.r, w: cur.w, h: cur.h };
+  p.c = Math.min(p.c, HW_COLS - p.w + 1);
+  p.r = Math.min(p.r, HW_ROWS - p.h + 1);
+  return p;
+}
+
+function hwAddGridDrop(grid) {
+  grid.addEventListener('dragover', function (e) {
+    if (!_hwDrag) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    var p = hwTargetPlace(grid, _hwDrag.id, e.clientX, e.clientY);
+    var ok = hwAreaFree(p, _hwDrag.id) || !!hwSwapTarget(_hwDrag.id, p);
+    var g = hwGhost(grid);
+    hwApplyPlace(g, p);
+    g.classList.toggle('is-bad', !ok);
+  });
+  grid.addEventListener('drop', function (e) {
+    if (!_hwDrag) return;
+    e.preventDefault();
+    var id = _hwDrag.id; _hwDrag = null;
+    hwClearGhost();
+    var p = hwTargetPlace(grid, id, e.clientX, e.clientY);
+    hwMoveTo(id, p);
+  });
+}
+
+// 목적지에 있는 '크기가 같은' 위젯 — 있으면 서로 자리를 바꾼다
+function hwSwapTarget(id, p) {
+  var other = hwAt(p.c, p.r, id);
+  if (!other) return null;
+  var op = hwPlace(other);
+  return (op.w === p.w && op.h === p.h) ? other : null;
+}
+
+function hwMoveTo(id, p) {
+  var cur = hwPlace(id);
+  if (cur.c === p.c && cur.r === p.r) return;
+  if (hwAreaFree(p, id)) {
+    hwSetPlace(id, p);
+  } else {
+    var other = hwSwapTarget(id, p);
+    if (!other) return;             // 겹치는 배치는 만들지 않는다
+    hwSetPlace(other, { c: cur.c, r: cur.r, w: p.w, h: p.h });
+    hwSetPlace(id, p);
+  }
+  renderHomeView();
+}
+
+// ── 크기 조정 (오른쪽 아래 손잡이) ──
+function hwAddResizeGrip(card, id) {
+  if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+  var grip = document.createElement('div');
+  grip.className = 'hw-grip';
+  grip.title = '드래그해 칸 단위로 크기 조정';
+  card.appendChild(grip);
+
+  grip.addEventListener('mousedown', function (e) {
     e.preventDefault(); e.stopPropagation();
-    var startY = e.clientY, startH = row2.getBoundingClientRect().height;
-    var pageH = page.getBoundingClientRect().height;
+    var grid = document.getElementById('home-grid');
+    if (!grid) return;
+    var start = hwPlace(id);
+    var last = { c:start.c, r:start.r, w:start.w, h:start.h };
+
     function mm(ev) {
-      var d = ev.clientY - startY;
-      var nh = Math.max(140, Math.min(pageH - 200, startH - d));
-      row2.style.height = nh + 'px';
-      calSyncScale();
+      var cell = hwCellAt(grid, ev.clientX, ev.clientY);
+      var p = { c:start.c, r:start.r, w: cell.c - start.c + 1, h: cell.r - start.r + 1 };
+      p.w = Math.max(1, Math.min(HW_COLS - start.c + 1, p.w));
+      p.h = Math.max(1, Math.min(HW_ROWS - start.r + 1, p.h));
+      if (p.w === last.w && p.h === last.h) return;
+      if (!hwAreaFree(p, id)) return;      // 남의 자리를 먹지 않는다
+      last = p;
+      hwApplyPlace(card, p);
     }
     function mu() {
-      document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
       document.body.classList.remove('hw-resizing');
-      var Ly = hwLoadLayout(); Ly.row2h = Math.round(parseFloat(row2.style.height)); hwSaveLayout(Ly);
+      if (last.w !== start.w || last.h !== start.h) {
+        hwSetPlace(id, last);
+        hwRerender(id);       // 안쪽 내용(달력 눈금 등)을 새 크기에 맞춘다
+      }
+      hwSyncResponsive();
     }
     document.body.classList.add('hw-resizing');
-    document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
   });
 }
 
-// ── 위치 변경 (헤더 드래그로 위젯 자리 교체) ──
-//  같은 줄 안에서도, 윗줄 ↔ 아랫줄 사이에서도 바꿀 수 있다.
-//  '교체(swap)'라서 두 줄의 위젯 개수는 그대로다 — 저장된 열 너비가 어긋나지 않는다.
-//  (부모가 다른 두 요소를 맞바꾸므로 자리 표시자를 하나 끼워 안전하게 옮긴다)
-function hwSwap(a, b) {
-  if (a === b) return;
-  var ph = document.createElement('span');
-  a.parentNode.insertBefore(ph, a);      // a 자리에 표시자
-  b.parentNode.insertBefore(a, b);       // a → b 자리
-  ph.parentNode.insertBefore(b, ph);     // b → a 가 있던 자리
-  ph.parentNode.removeChild(ph);
+// ── 크기에 반응하는 위젯들 한꺼번에 갱신 ──
+function hwSyncResponsive() {
+  if (typeof calSyncScale === 'function') calSyncScale();
+  if (typeof habitSyncColumns === 'function') habitSyncColumns();
 }
 
-// 두 줄의 순서를 함께 저장한다 (줄을 넘나들면 양쪽이 다 바뀐다)
-function hwSaveBothOrders() {
-  var row1 = document.querySelector('.home-grid-row1');
-  var row2 = document.querySelector('.home-grid-row2');
-  if (!row1 || !row2) return;
-  var Ly = hwLoadLayout();
-  Ly.order1 = hwOrder(row1);
-  Ly.order2 = hwOrder(row2);
-  hwSaveLayout(Ly);
-}
-
-function hwAddReorder(row) {
-  hwRowCards(row).forEach(function (card) {
-    var head = card.querySelector('.card-header');
-    if (!head) return;
-    head.setAttribute('draggable', 'true');
-    head.classList.add('hw-drag-head');
-    head.addEventListener('dragstart', function (e) {
-      _hwDrag = { id: card.id };
-      if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', card.id); } catch (_) {} }
-      setTimeout(function () { card.classList.add('hw-dragging'); }, 0);
-    });
-    head.addEventListener('dragend', function () { card.classList.remove('hw-dragging'); _hwDrag = null; });
-    card.addEventListener('dragover', function (e) {
-      if (!_hwDrag || _hwDrag.id === card.id) return;
-      var src = document.getElementById(_hwDrag.id);
-      if (!src) return;
-      e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    });
-    card.addEventListener('drop', function (e) {
-      if (!_hwDrag) return;
-      var src = document.getElementById(_hwDrag.id);
-      _hwDrag = null;
-      if (!src || src === card) return;
-      e.preventDefault(); e.stopPropagation();
-      var crossRow = (src.parentNode !== card.parentNode);
-      hwSwap(src, card);
-      hwSaveBothOrders();
-      // 줄을 넘어간 경우엔 폭 조절 손잡이가 엉뚱한 카드에 붙어 있다 → 통째로 다시 그린다
-      if (crossRow) renderHomeView();
-    });
+// 창 크기가 바뀌어도 안쪽이 따라오게 한다
+(function watchHomeResize() {
+  var t = null;
+  window.addEventListener('resize', function () {
+    if (!document.getElementById('home-grid')) return;
+    if (t) clearTimeout(t);
+    t = setTimeout(hwSyncResponsive, 100);
   });
-}
+})();

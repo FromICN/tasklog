@@ -248,11 +248,8 @@ html.pwa-standalone body {
   /* 주간 캘린더: 시간 거터 축소 */
   .calw-tlabel { font-size: 9px; }
 
-  /* 홈 아래줄(만다라트 · 라이프휠)을 2열로 두면 한 칸이 169px이라
-     만다라트의 항목 이름이 0px로 눌려 사라진다 → 한 줄에 하나씩.
-     ⚠️ 아래 6-B의 `1fr 1fr !important` 가 이 파일에서 더 뒤에 있으므로
-        선택자를 한 단계 더 구체적으로 써서 순서와 무관하게 이기게 한다. */
-  .home-page .home-grid-row2 { grid-template-columns: 1fr !important; }
+  /* 폰에서는 4열 격자가 한 칸 90px도 안 된다 → 한 줄에 하나씩 세로로 쌓는다 */
+  .home-page .home-grid { grid-template-columns: 1fr !important; }
 }
 
 /* 가로 모드에서 세로 공간이 짧을 때 */
@@ -309,9 +306,8 @@ html.pwa-standalone body {
        왼쪽 여백 메우기는 아래 9번(Gantt) 규칙에서 그림자로 처리한다. */
     background-color: var(--tl-sheet, var(--card-bg));
   }
-  /* 데스크톱용 컬럼 폭 드래그 핸들은 터치에서 오작동만 일으킨다 */
-  .hw-resize-x,
-  .hw-resize-y,
+  /* 데스크톱용 크기 조정 손잡이는 터치에서 오작동만 일으킨다 */
+  .hw-grip,
   .tl-col-resizer { display: none !important; }
 
   /* 가로 스크롤 되는 표: 스크롤바를 감춰 세로 공간 확보 */
@@ -345,39 +341,30 @@ html.pwa-standalone body {
     overflow: visible !important;
   }
 
-  /* flex:1 1 auto 인 채로 두면 내용(카드 600px)이 배정된 높이(≈257px)를
-     넘쳐 다음 행이 위에 겹쳐 그려진다. 내용만큼 늘어나게 바꾼다. */
-  .home-grid-row1,
-  .home-grid-row2 {
+  /* 폰에서는 격자를 접어 한 줄에 하나씩 세운다.
+     데스크톱에서 저장한 grid-column/row 인라인 값이 남아 있으므로
+     !important 로 눌러 준다(안 그러면 3행 격자에 카드가 겹쳐 그려진다). */
+  .home-grid {
     flex: 0 0 auto !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
     height: auto !important;
     overflow: visible;
   }
-  .home-grid-row1 {
-    grid-template-columns: 1fr !important;
-    min-height: 0 !important;
-  }
-  .home-grid-row2 {
-    grid-template-columns: 1fr 1fr !important;
-  }
-  /* 습관 트래커는 가로로 긴 막대라 전체 폭을 준다 */
-  #habit-widget { grid-column: 1 / -1; }
-
-  /* 높이 제한을 아예 없애면 목록형 위젯(Web 등)이 항목 수만큼 늘어난다.
-     카드마다 상한을 두고 내부에서 스크롤하게 한다. */
-  .home-grid-row1 > .card,
-  .home-grid-row2 > .card {
+  .home-grid > .card {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
     height: auto;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 190px;
+    max-height: 62vh;
   }
-  .home-grid-row1 > .card { min-height: 300px; max-height: 62vh; }
-  .home-grid-row2 > .card { min-height: 190px; max-height: 50vh; }
+  #cal-widget, #web-widget { min-height: 300px; }
   #habit-widget { min-height: 150px; }
 
-  .home-grid-row1 > .card > *:last-child,
-  .home-grid-row2 > .card > *:last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .home-grid > .card > *:last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
 
   /* ── 2. Board (Task · To Do) ─────────────────────────────
      12개 열을 숨기지 않고 가로 스크롤 + 첫 열(To Do) 고정

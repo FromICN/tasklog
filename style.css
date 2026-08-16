@@ -4356,13 +4356,6 @@ body.light-mode .lw-cv-tag {
 /* 노트 래퍼 제거 (그리드에 통합) */
 .hp-notes-wrap { display: none; }
 
-/* 구 홈 grid (호환) */
-.home-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--space-4);
-  padding-bottom: var(--space-6);
-}
 
 /* ── 요약 위젯 스타일 ── */
 .hp-stats { padding: var(--space-05) 0; }
@@ -4676,26 +4669,51 @@ body.light-mode .lw-cv-tag {
   box-sizing: border-box;
   overflow: hidden;
 }
-.home-grid-row1 {
+/* 4열 × 3행 격자 — 위젯마다 grid-column/row 를 인라인으로 받는다.
+   빈칸이 남아도 그대로 둔다(작게 줄여 여백을 만드는 것도 배치의 하나). */
+.home-grid {
   display: grid;
-  grid-template-columns: 1fr 3fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
   flex: 1 1 auto;
-  min-height: 330px;
-}
-/* 2행: Focus On · Habit Tracker · Mandalart · Life Wheel */
-.home-grid-row2 {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr 1.1fr 1fr;
-  gap: var(--space-3);
-  height: 272px;
-  flex-shrink: 0;
-}
-.home-grid-row1 > .card,
-.home-grid-row2 > .card {
-  height: 100%;
   min-height: 0;
+  position: relative;
 }
+.home-grid > .card {
+  min-height: 0;
+  min-width: 0;
+}
+
+/* 옮길 자리 미리보기 */
+.hw-ghost {
+  border: 1.5px dashed var(--brand-primary);
+  border-radius: var(--radius-lg);
+  background: rgba(var(--accent-rgb), 0.10);
+  pointer-events: none;
+  z-index: 5;
+}
+.hw-ghost.is-bad {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+/* 오른쪽 아래 크기 손잡이 */
+.hw-grip {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  z-index: 6;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+  background:
+    linear-gradient(135deg, transparent 0 55%, var(--text-3) 55% 68%, transparent 68% 78%, var(--text-3) 78% 91%, transparent 91%);
+}
+.card:hover .hw-grip { opacity: 0.8; }
+.hw-grip:hover { opacity: 1; }
 
 /* 카드 공통 */
 .card {
@@ -4707,20 +4725,7 @@ body.light-mode .lw-cv-tag {
   flex-direction: column;
 }
 
-/* 홈 위젯 크기 조정 / 위치 변경 */
-.home-grid-row1, .home-grid-row2 { position: relative; }
-.hw-resize-x {
-  position: absolute; top: 0; right: 0; width: 7px; height: 100%;
-  cursor: col-resize; z-index: 6; background: transparent;
-  transition: background var(--dur-fast);
-}
-.hw-resize-x:hover, body.hw-resizing .hw-resize-x { background: rgba(var(--accent-rgb),0.35); }
-.hw-resize-y {
-  position: absolute; left: 0; top: -5px; width: 100%; height: 10px;
-  cursor: row-resize; z-index: 7; background: transparent;
-  transition: background var(--dur-fast);
-}
-.hw-resize-y:hover, body.hw-resizing .hw-resize-y { background: rgba(var(--accent-rgb),0.35); }
+/* 홈 위젯 크기 조정 / 위치 변경 (손잡이는 .hw-grip — 격자 편에 정의) */
 body.hw-resizing { user-select: none; }
 .hw-drag-head { cursor: move; }
 .card.hw-dragging { opacity: 0.5; }
@@ -5056,7 +5061,19 @@ body.hw-resizing { user-select: none; }
 .todo-text.done { text-decoration: line-through; color: var(--text-3); }
 
 /* ── Habit Tracker ── */
-.habit-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 calc(var(--space-3) + 2px); }
+/* 세로로 내려가다 높이가 다 차면 오른쪽에 다음 열이 생긴다.
+   (열 수를 고정하지 않아, 위젯을 넓히면 열이 늘고 좁히면 한 줄로 돌아온다) */
+.habit-2col {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  height: 100%;
+  min-height: 0;
+  gap: 0 calc(var(--space-3) + 2px);
+}
+/* 한 열의 폭 — 열이 하나면 전체를 쓰고, 여러 열이면 나눠 갖는다 */
+.habit-2col > .habit-row { width: var(--habit-col-w, 100%); box-sizing: border-box; }
 .habit-row {
   display: flex;
   align-items: center;
@@ -5094,8 +5111,10 @@ body.hw-resizing { user-select: none; }
 .habit-dot.future { opacity: 0.35; cursor: default; }
 .habit-dot.today { box-shadow: 0 0 0 0.5px var(--text-3); }
 
-/* ── Gantt 그리드 (Gantt 페이지) ──
-   홈의 Gantt 미니 위젯은 Web 위젯으로 교체돼 #gantt-body 규칙은 걷어냈다. */
+/* ── Gantt 그리드 (Gantt 페이지 · 홈 Gantt 미니 위젯 공용) ── */
+#gantt-body { display: flex; flex-direction: column; }
+#gantt-body .gm-header { background: var(--main-bg); z-index: 6; }
+#gantt-body .gm-body { position: relative; z-index: 0; }
 .gm-nav {
   display: flex;
   align-items: center;
@@ -7072,8 +7091,7 @@ body.light-mode .lw-table td { border-bottom-color: rgba(0,0,0,0.09); }
 body.light-mode .settings-panel { background: var(--bg-1); border-left-color: var(--border); }
 body.light-mode .home-widget { background: var(--bg-1); border-color: rgba(0,0,0,0.07); box-shadow: var(--shadow-sm); }
 /* 홈 대시보드 위젯 상자: 화이트 배경 + 테두리선만 (그림자 제거) */
-body.light-mode .home-grid-row1 > .card,
-body.light-mode .home-grid-row2 > .card {
+body.light-mode .home-grid > .card {
   background: #ffffff;
   border-color: rgba(0,0,0,0.12);
   box-shadow: none;
@@ -11281,7 +11299,7 @@ body.light-mode .right-panel {
 
 /* Mandalart 연간목표: 상자는 비우고, 글 쓰는 칸만 색을 준다 */
 .mdt-perf-annual { background: transparent; }
-.mdt-perf-annual-inp { background: #E6E9E3; }
+.mdt-perf-annual-inp { background: var(--wash); }
 
 /* 실적관리: 목표 · 메모 · 달성현황 칸의 흰 배경을 걷어낸다.
    ([R5 #7] 이 var(--bg)=흰색을 깔고 있어 표 위에 흰 조각이 떠 보였다)
@@ -11301,3 +11319,11 @@ body.light-mode .right-panel {
 }
 /* Habit Tracker 항목 이름도 위젯 본문 기준(12px)에 맞춘다 — theme.css 의 .mda-name 과 같은 값 */
 .habit-name { font-size: 12px; }
+
+/* ── Habit Tracker: 글자 크기를 Mandalart 위젯 본문(12px)에 맞춘다 ──
+   제목만 유난히 커서 표가 위아래로 들쭉날쭉해 보였다. */
+.ht-cal-name  { font-size: 13px; }
+.ht-chip-value { font-size: 12px; }
+.ht-item-name { font-size: 12px; }
+.ht-empty-title { font-size: 13px; }
+.ht-empty-desc  { font-size: 12px; }
