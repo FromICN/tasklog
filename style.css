@@ -4683,10 +4683,10 @@ body.light-mode .lw-cv-tag {
   flex: 1 1 auto;
   min-height: 330px;
 }
-/* 2행: Habit Tracker · Mandalart · Life Wheel */
+/* 2행: Focus On · Habit Tracker · Mandalart · Life Wheel */
 .home-grid-row2 {
   display: grid;
-  grid-template-columns: 1.7fr 1.2fr 1fr;
+  grid-template-columns: 1fr 1.5fr 1.1fr 1fr;
   gap: var(--space-3);
   height: 272px;
   flex-shrink: 0;
@@ -4838,23 +4838,26 @@ body.hw-resizing { user-select: none; }
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
+  /* 간격·칸 높이·글자 크기는 위젯 크기에 맞춰 home.js 가 정해 준다
+     (--cal-* 변수. 값이 없을 때는 아래 기본값으로 돈다) */
+  gap: var(--cal-gap, 1px);
 }
 .cal-dh {
   text-align: center;
-  font-size: var(--fs-2xs);
+  font-size: var(--cal-fs-dow, var(--fs-2xs));
   font-weight: 600;
   color: var(--text-3);
   padding: 3px 0 var(--space-1);
 }
 .cal-cell {
   text-align: center;
-  font-size: var(--fs-xs);
+  font-size: var(--cal-fs, var(--fs-xs));
   border-radius: var(--radius-sm);
-  padding: 3px 0;
+  padding: 0;
   cursor: pointer;
   transition: background var(--dur-fast);
-  min-height: 28px;
+  min-height: var(--cal-cell-h, 28px);
+  justify-content: center;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4869,16 +4872,16 @@ body.hw-resizing { user-select: none; }
   background: var(--brand-primary);
   color: #fff;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  width: var(--cal-today, 20px);
+  height: var(--cal-today, 20px);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
 }
-.cal-num { font-size: var(--fs-xs); color: var(--text-1); }
+.cal-num { font-size: var(--cal-fs, var(--fs-xs)); color: var(--text-1); line-height: 1.1; }
 .cal-dots { display: flex; gap: var(--space-05); justify-content: center; margin-top: 1px; }
-.cal-dot  { width: 4px; height: 4px; border-radius: 50%; }
+.cal-dot  { width: var(--cal-dot, 4px); height: var(--cal-dot, 4px); border-radius: 50%; }
 
 /* 캘린더 팝업 */
 .cal-popup {
@@ -11004,17 +11007,6 @@ body.light-mode .right-panel {
    시계는 원이라 좌우가 남는다 → 오른쪽 빈자리에 버튼을 세로로 세우고,
    To Do 고르는 칸은 시계 아래로 내렸다.
    ========================================================= */
-/* 1행 왼쪽 칸: Calendar 위 / Focus On 아래로 쌓는 묶음 */
-.hw-stack {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 0;
-  min-width: 0;
-}
-.hw-stack > #cal-widget   { flex: 1 1 auto; min-height: 0; }
-.hw-stack > #focus-widget { flex: 0 0 auto; }
-
 #focus-body { flex: 1; min-height: 0; display: flex; }
 .fw-wrap {
   flex: 1;
@@ -11048,8 +11040,9 @@ body.light-mode .right-panel {
 .fw-dial-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: 132px;
-  height: 132px;
+  /* 2행 카드 높이(기본 272px) 안에 시계 + 선택칸 + 기록이 다 들어가야 한다 */
+  width: 112px;
+  height: 112px;
 }
 .fw-dial { display: block; width: 100%; height: 100%; }
 .fw-dial-face { fill: var(--fw-face); stroke: var(--fw-ring); stroke-width: 0.8; }
@@ -11126,7 +11119,7 @@ body.light-mode .right-panel {
   padding: 0 var(--space-15);
   color: var(--text-2);
 }
-.fw-sess-list { flex: 1; min-height: 44px; max-height: 92px; overflow-y: auto; }
+.fw-sess-list { flex: 1 1 auto; min-height: 26px; overflow-y: auto; }
 .fw-sess {
   display: flex;
   align-items: center;
@@ -11168,7 +11161,7 @@ body.light-mode .right-panel {
 
 /* 폰: 세로로 길어지므로 시계를 조금 줄이고 버튼은 그대로 옆에 둔다 */
 @media (max-width: 768px) {
-  .fw-dial-wrap { width: 112px; height: 112px; }
+  .fw-dial-wrap { width: 104px; height: 104px; }
 }
 
 /* =========================================================

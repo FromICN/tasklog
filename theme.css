@@ -722,7 +722,21 @@ progress {
 /* MVV: Why · How · What · Action Plan 상자 배경.
    위 '본문 투명화'가 --tl-sheet 를 비워 두므로, 이 파일에서(=투명화 규칙보다
    뒤에서) 직접 칠해야 한다. style.css 에 두면 theme.css 규칙에 밀린다. */
+/* 홈 위젯 상자는 배경 없이 테두리만 — 화면 바탕색이 그대로 올라온다.
+   안쪽 입력칸·버튼·칩은 자기 표면을 그대로 쓰므로 카드 자체만 비운다. */
+#page-content .home-page .card { background: transparent; }
+
 #page-content .mvv-card { background: #E6E9E3; }
 /* 글을 쓰는 안쪽 상자는 비워 둔다 — 상자 배경까지 칠하면 카드 위에 회색이
    두 겹으로 얹혀 답답해진다. 경계는 테두리 한 줄로 충분하다. */
 #page-content .mvv-rta { background: transparent; }
+
+/* 달력 글자 크기는 위젯 크기를 따라간다 — home.js 가 --cal-* 를 채워 준다.
+   위쪽 제도 테마 규칙이 고정 px 를 박아 두고 있어 여기서 되돌린다.
+   (변수가 아직 없을 때는 원래 값 그대로 돈다) */
+#page-content .cal-cell { font-size: var(--cal-fs, 12px); }
+#page-content .cal-num  { font-size: var(--cal-fs, 11.5px); }
+#page-content .cal-dh   { font-size: var(--cal-fs-dow, 10px); }
+/* 오늘 표시 원과 마감 점도 같은 기준으로 함께 늘고 준다 */
+#page-content .cal-cell.today .cal-num { width: var(--cal-today, 19px); height: var(--cal-today, 19px); }
+#page-content .cal-dot { width: var(--cal-dot, 3px); height: var(--cal-dot, 3px); }

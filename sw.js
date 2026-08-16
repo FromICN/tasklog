@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20260817b'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20260817f'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -23,12 +23,12 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest.json?v=20260810a',
-  './style.css?v=20260817b',
+  './style.css?v=20260817c',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
   './mobile.css?v=20260817a',
   './fonts/pretendard.css?v=20260809a',
-  './theme.css?v=20260817a',
+  './theme.css?v=20260817e',
   './config.js?v=20260810a',
   './firebase-init.js?v=20260808a',
   './colresize.js?v=20260722',
@@ -38,7 +38,7 @@ const PRECACHE_URLS = [
   './calendar.js?v=20260731a',
   './mandalart.js?v=20260816e',
   './lifewheel.js?v=20260816e',
-  './home.js?v=20260817b',
+  './home.js?v=20260817f',
   './habit.js?v=20260816e',
   './calpage.js?v=20260730',
   './gantt.js?v=20260816b',
@@ -52,7 +52,7 @@ const PRECACHE_URLS = [
   './todo.js?v=20260803a',
   './yearsync.js?v=20260722',
   './script.js?v=20260816a',
-  './pwa.js?v=20260817b',
+  './pwa.js?v=20260817f',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',

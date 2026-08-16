@@ -38,18 +38,16 @@ function renderHomeView() {
 }
 
 // ── 전체 레이아웃 ──────────────────────────
-//  1행 왼쪽 칸은 Calendar 와 Focus On 을 세로로 쌓은 묶음(.hw-stack)이다.
-//  둘은 각자 테두리를 가진 별개의 카드이고, 자리만 위아래로 붙어 있다.
+//  모든 위젯이 같은 자격의 카드다. 머리글을 끌어 윗줄·아랫줄 어느 자리로든
+//  옮길 수 있다(자리 맞바꿈이라 줄별 개수는 그대로 유지된다).
 function buildHomeLayout() {
   return '<div class="home-page">'
     + '<div class="home-grid-row1">'
-    + '<div class="hw-stack" id="cal-stack">'
-    +   buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
-    +   buildCardShell('focus-widget', 'Focus On', null, 'focus-body')
-    + '</div>'
+    + buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
     + buildCardShell('web-widget', 'Web', 'cloud', 'web-body')
     + '</div>'
     + '<div class="home-grid-row2">'
+    + buildCardShell('focus-widget', 'Focus On', null, 'focus-body')
     + buildCardShell('habit-widget', 'Habit Tracker', 'habit', 'habit-body')
     + buildCardShell('mandalart-widget', 'Mandalart', 'mandalart', 'mandalart-body')
     + buildCardShell('wheel-widget', 'Life Wheel', 'wheel', 'wheel-body')
@@ -144,7 +142,78 @@ function renderHomeCalendar() {
   var el = document.getElementById('cal-body');
   if (!el) return;
   el.innerHTML = (homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid();
+  calAttachAutoScale();
 }
+
+// ── 위젯 크기에 맞춰 달력이 늘고 준다 ──────────────────
+//  칸 크기·간격·글자 크기를 고정값으로 두면, 위젯을 넓히면 여백만 커지고
+//  좁히면 숫자가 서로 붙는다. 남은 자리를 재서 한 칸의 크기를 먼저 정하고,
+//  글자와 간격을 그 칸에 비례해 맞춘다.
+var _calRO = null;
+
+function calSyncScale() {
+  var body = document.getElementById('cal-body');
+  if (!body) return;
+  var grid = body.querySelector('.cal-grid');
+  if (!grid) return;
+
+  var head = body.querySelector('.cal-header');
+  var availW = body.clientWidth;
+  var availH = body.clientHeight - (head ? head.offsetHeight : 0);
+  if (availW <= 0 || availH <= 0) return;
+
+  // 격자는 요일 한 줄 + 주 N줄. 셀 개수로 몇 주인지 되짚는다.
+  var cells = grid.querySelectorAll('.cal-cell').length;
+  var weeks = Math.max(1, Math.round(cells / 7));
+
+  var cw = availW / 7;               // 한 칸 너비
+  var ch = availH / (weeks + 1);     // 한 칸 높이(요일 줄 포함)
+  var unit = Math.min(cw, ch);       // 정사각형에 가까운 쪽을 기준으로
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  var gap   = clamp(unit * 0.05, 1, 5);
+  var fsNum = clamp(unit * 0.42, 8, 20);
+  var fsDow = clamp(unit * 0.34, 7, 15);
+  var today = clamp(fsNum * 1.55, 14, 32);
+  var dot   = clamp(unit * 0.09, 3, 8);
+  var cellH = Math.max(14, ch - gap);
+
+  // 값이 그대로면 손대지 않는다 (ResizeObserver 가 헛돌지 않도록)
+  var sig = [gap, fsNum, fsDow, today, dot, cellH].map(function (n) { return n.toFixed(2); }).join('|');
+  if (body.dataset.calSig === sig) return;
+  body.dataset.calSig = sig;
+
+  body.style.setProperty('--cal-gap',    gap.toFixed(2) + 'px');
+  body.style.setProperty('--cal-fs',     fsNum.toFixed(2) + 'px');
+  body.style.setProperty('--cal-fs-dow', fsDow.toFixed(2) + 'px');
+  body.style.setProperty('--cal-today',  today.toFixed(2) + 'px');
+  body.style.setProperty('--cal-dot',    dot.toFixed(2) + 'px');
+  body.style.setProperty('--cal-cell-h', cellH.toFixed(2) + 'px');
+}
+
+function calAttachAutoScale() {
+  var body = document.getElementById('cal-body');
+  if (!body) return;
+  if (_calRO) { try { _calRO.disconnect(); } catch (e) {} _calRO = null; }
+  delete body.dataset.calSig;
+  calSyncScale();
+  // 창 크기 변경·사이드바 변화 등 어디서 흔들려도 따라오게 한다.
+  if (typeof ResizeObserver === 'function') {
+    _calRO = new ResizeObserver(function () { calSyncScale(); });
+    _calRO.observe(body);
+  }
+}
+
+// ResizeObserver 는 프레임을 그릴 때 도는데, 창 크기 변경은 그것만 믿기엔
+// 늦게 반영되는 환경이 있다(구형 WebView 등) → resize 도 함께 듣는다.
+(function watchCalResize() {
+  var t = null;
+  window.addEventListener('resize', function () {
+    if (!document.getElementById('cal-body')) return;
+    if (t) clearTimeout(t);
+    t = setTimeout(calSyncScale, 100);
+  });
+})();
 
 // 마감일 dot 맵 (task 본체 + 하위 steps 공용 헬퍼)
 function collectDueDotsMap(rangeStart, rangeEnd) {
@@ -1082,17 +1151,15 @@ function fmtKey(d) {
 // ============================================
 //  홈 위젯 레이아웃 — 크기 조정 / 위치 변경 (스크롤 없이 이웃이 보정)
 // ============================================
-// v5 — 위젯 구성이 바뀌면(개수·순서) 저장된 열 너비가 어긋나므로 키를 올린다.
-//      (Focus On 이 별도 카드로 떨어져 나와 1행 왼쪽이 세로 묶음이 됐다)
-var HW_LKEY = 'home-layout-v5';
+// v6 — 위젯 구성이 바뀌면(개수·순서) 저장된 열 너비가 어긋나므로 키를 올린다.
+//      (세로 묶음을 없애고 Focus On 이 2행의 독립 카드가 됐다 — 1행 2개 · 2행 4개)
+var HW_LKEY = 'home-layout-v6';
 var _hwDrag = null;
 function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
 function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }
-// 한 줄의 '칸' 목록. 카드 하나일 수도 있고, 카드를 세로로 쌓은 묶음(.hw-stack)일 수도 있다.
-// 너비 조정과 순서 저장은 이 칸 단위로 돈다.
 function hwRowCards(row) {
   return Array.prototype.filter.call(row.children, function (c) {
-    return c.classList && (c.classList.contains('card') || c.classList.contains('hw-stack'));
+    return c.classList && c.classList.contains('card');
   });
 }
 function hwOrder(row) { return hwRowCards(row).map(function (c) { return c.id; }); }
@@ -1108,11 +1175,9 @@ function hwInitLayout() {
   var row2 = document.querySelector('.home-grid-row2');
   var page = document.querySelector('.home-page');
   if (!row1 || !row2 || !page) return;
-  var stack = document.getElementById('cal-stack');
   var L = hwLoadLayout();
   if (L.order1) hwApplyOrder(row1, L.order1);
   if (L.order2) hwApplyOrder(row2, L.order2);
-  if (stack && L.orderStack) hwApplyOrder(stack, L.orderStack);
   if (L.row1cols) row1.style.gridTemplateColumns = L.row1cols;
   if (L.row2cols) row2.style.gridTemplateColumns = L.row2cols;
   if (L.row2h) row2.style.height = L.row2h + 'px';
@@ -1122,7 +1187,6 @@ function hwInitLayout() {
   hwAddRowHandle(row1, row2, page);
   hwAddReorder(row1);
   hwAddReorder(row2);
-  if (stack) hwAddReorder(stack);   // 묶음 안에서 위아래 자리 바꾸기
 }
 
 // ── 가로 크기 조정 (이웃 열이 반대로 보정 → 총 너비 유지) ──
@@ -1144,6 +1208,7 @@ function hwAddColHandles(row, key) {
         var nd = Math.max(MIN - widths[i], Math.min(widths[i + 1] - MIN, d));
         var w = widths.slice(); w[i] += nd; w[i + 1] -= nd;
         row.style.gridTemplateColumns = w.map(function (x) { return x + 'px'; }).join(' ');
+        calSyncScale();   // 끄는 동안 달력이 같이 늘고 준다
       }
       function mu() {
         document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
@@ -1171,6 +1236,7 @@ function hwAddRowHandle(row1, row2, page) {
       var d = ev.clientY - startY;
       var nh = Math.max(140, Math.min(pageH - 200, startH - d));
       row2.style.height = nh + 'px';
+      calSyncScale();
     }
     function mu() {
       document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu);
@@ -1195,41 +1261,19 @@ function hwSwap(a, b) {
   ph.parentNode.removeChild(ph);
 }
 
-// 두 줄 + 세로 묶음의 순서를 한꺼번에 저장한다 (줄을 넘나들면 양쪽이 다 바뀐다)
+// 두 줄의 순서를 함께 저장한다 (줄을 넘나들면 양쪽이 다 바뀐다)
 function hwSaveBothOrders() {
   var row1 = document.querySelector('.home-grid-row1');
   var row2 = document.querySelector('.home-grid-row2');
   if (!row1 || !row2) return;
-  var stack = document.getElementById('cal-stack');
   var Ly = hwLoadLayout();
   Ly.order1 = hwOrder(row1);
   Ly.order2 = hwOrder(row2);
-  if (stack) Ly.orderStack = Array.prototype.filter.call(stack.children, function (c) {
-    return c.classList && c.classList.contains('card');
-  }).map(function (c) { return c.id; });
   hwSaveLayout(Ly);
 }
 
-// 맞바꿀 수 있는 짝인지 — 같은 통 안이거나, 윗줄 ↔ 아랫줄일 때만.
-// (줄에 있는 카드와 묶음 안의 카드를 섞으면 칸 수가 어긋나 배치가 깨진다)
-function hwRowish(el) {
-  return !!el && el.classList
-    && (el.classList.contains('home-grid-row1') || el.classList.contains('home-grid-row2'));
-}
-function hwCanSwap(a, b) {
-  if (a.parentNode === b.parentNode) return true;
-  return hwRowish(a.parentNode) && hwRowish(b.parentNode);
-}
-
-// 드래그 대상은 실제 카드만 (묶음 자체에는 머리글이 없다)
-function hwReorderCards(container) {
-  return Array.prototype.filter.call(container.children, function (c) {
-    return c.classList && c.classList.contains('card');
-  });
-}
-
 function hwAddReorder(row) {
-  hwReorderCards(row).forEach(function (card) {
+  hwRowCards(row).forEach(function (card) {
     var head = card.querySelector('.card-header');
     if (!head) return;
     head.setAttribute('draggable', 'true');
@@ -1243,7 +1287,7 @@ function hwAddReorder(row) {
     card.addEventListener('dragover', function (e) {
       if (!_hwDrag || _hwDrag.id === card.id) return;
       var src = document.getElementById(_hwDrag.id);
-      if (!src || !hwCanSwap(src, card)) return;   // 못 바꾸는 짝이면 놓을 수 없게 둔다
+      if (!src) return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     });
@@ -1251,13 +1295,13 @@ function hwAddReorder(row) {
       if (!_hwDrag) return;
       var src = document.getElementById(_hwDrag.id);
       _hwDrag = null;
-      if (!src || src === card || !hwCanSwap(src, card)) return;
+      if (!src || src === card) return;
       e.preventDefault(); e.stopPropagation();
-      var crossContainer = (src.parentNode !== card.parentNode);
+      var crossRow = (src.parentNode !== card.parentNode);
       hwSwap(src, card);
       hwSaveBothOrders();
-      // 통을 넘어간 경우엔 폭 조절 손잡이가 엉뚱한 칸에 붙어 있다 → 통째로 다시 그린다
-      if (crossContainer) renderHomeView();
+      // 줄을 넘어간 경우엔 폭 조절 손잡이가 엉뚱한 카드에 붙어 있다 → 통째로 다시 그린다
+      if (crossRow) renderHomeView();
     });
   });
 }
