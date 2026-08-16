@@ -4933,9 +4933,8 @@ body.hw-resizing { user-select: none; }
   flex: 1 1 auto;
   min-height: 0;
 }
-/* 캘린더 위젯 바디를 세로 flex로 → 아래쪽 Focus On 이 남은 공간을 채움 */
+/* 캘린더 위젯 바디를 세로 flex로 → 달력 격자가 남는 높이를 채움 */
 #cal-body { display: flex; flex-direction: column; }
-#cal-body > *:not(.cal-focus) { flex-shrink: 0; }
 .cal-detail-header {
   font-size: var(--fs-sm);
   font-weight: 700;
@@ -10859,19 +10858,23 @@ body.light-mode .right-panel {
   .ht-cell { aspect-ratio: 1 / 1; }
 }
 
-/* ── WBS: Linked Task 컬럼 (연계 TASK 선행 ← / 후행 →) ──────────
-   이름이 길 수 있어 다른 컬럼보다 넓게 두고, 넘치면 말줄임 처리한다.
-   (전체 내용은 title 툴팁으로 본다) */
-.wbs-col-linked {
-  width: var(--wbs-w-linked, 150px) !important;
+/* ── WBS: 선행 / 후행 Task 컬럼 ─────────────────────────────
+   한 칸에 몰아 넣지 않고 열을 갈랐다. 이름이 길 수 있어 날짜 열보다
+   넓게 두고, 넘치면 말줄임 + 툴팁으로 본다. */
+.wbs-col-prev { width: var(--wbs-w-prev, 130px) !important; }
+.wbs-col-next { width: var(--wbs-w-next, 130px) !important; }
+.wbs-col-prev,
+.wbs-col-next {
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   padding-right: var(--space-1);
 }
-.wbs-colhead.wbs-col-linked { text-align: center; }
-/* 헤더 셀은 필터 드롭다운이 잘리면 안 된다 (STATUS 헤더와 같은 처리) */
-.wbs-head-cell.wbs-col-linked { overflow: visible; }
+.wbs-colhead.wbs-col-prev,
+.wbs-colhead.wbs-col-next { text-align: center; }
+/* 헤더 셀은 필터 드롭다운이 잘리면 안 된다 (Status 헤더와 같은 처리) */
+.wbs-head-cell.wbs-col-prev,
+.wbs-head-cell.wbs-col-next { overflow: visible; }
 
 /* ── Life Wheel 편집창: 선택된 Value 는 배경 포커스 색으로 ────────
    기존에는 글자 굵기만 달라서 어떤 가치가 연결됐는지 한눈에 안 보였다. */
@@ -10997,19 +11000,22 @@ body.light-mode .right-panel {
 .hwb-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-3) var(--space-1); }
 
 /* =========================================================
-   ⏱ Focus On — Calendar 카드 아래쪽에 들어가는 다이얼 타이머
-   넬나 '포커스 온' 을 본떠, 분 눈금이 둘린 원판에 지난 시간을
-   부채꼴로 칠하고 가운데에 숫자를 적는다.
+   ⏱ Focus On — Calendar 아래에 붙는 별개의 카드
+   시계는 원이라 좌우가 남는다 → 오른쪽 빈자리에 버튼을 세로로 세우고,
+   To Do 고르는 칸은 시계 아래로 내렸다.
    ========================================================= */
-.cal-focus {
-  border-top: 1px solid var(--border);
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  flex: 1;
-  min-height: 0;
+/* 1행 왼쪽 칸: Calendar 위 / Focus On 아래로 쌓는 묶음 */
+.hw-stack {
   display: flex;
-  overflow: hidden;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  min-width: 0;
 }
+.hw-stack > #cal-widget   { flex: 1 1 auto; min-height: 0; }
+.hw-stack > #focus-widget { flex: 0 0 auto; }
+
+#focus-body { flex: 1; min-height: 0; display: flex; }
 .fw-wrap {
   flex: 1;
   min-height: 0;
@@ -11017,12 +11023,12 @@ body.light-mode .right-panel {
   flex-direction: column;
   gap: var(--space-15);
 }
-.fw-head {
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--text-2);
-  flex-shrink: 0;
+/* 시계(왼쪽) + 버튼(오른쪽) */
+.fw-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
 }
 .fw-select {
   width: 100%;
@@ -11042,46 +11048,55 @@ body.light-mode .right-panel {
 .fw-dial-wrap {
   position: relative;
   flex: 0 0 auto;
-  width: 118px;
-  height: 118px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 132px;
+  height: 132px;
 }
-.fw-dial { position: absolute; inset: 0; width: 100%; height: 100%; }
-.fw-dial-face { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
-.fw-dial-tick { stroke: var(--text-3); stroke-width: 0.7; opacity: 0.55; }
-.fw-dial-tick.is-long { stroke: var(--text-2); stroke-width: 1.1; opacity: 0.9; }
-/* 지난 시간 = 칠해진 부채꼴. 브랜드색이라 다크/라이트 모두 읽힌다 */
-.fw-dial-fill { fill: var(--brand-primary); opacity: 0.85; }
-.fw-dial-knob { fill: var(--warning); stroke: var(--surface); stroke-width: 1.5; }
-/* 시간 숫자는 다이얼 한가운데 — 눈금 글꼴로 자리가 흔들리지 않게 */
-.fw-time {
-  position: relative;
-  z-index: 1;
-  font-family: var(--tl-mono, monospace);
-  font-size: var(--fs-lg);
+.fw-dial { display: block; width: 100%; height: 100%; }
+.fw-dial-face { fill: var(--fw-face); stroke: var(--fw-ring); stroke-width: 0.8; }
+.fw-dial-tick { stroke: var(--fw-ink); stroke-width: 0.55; opacity: 0.75; }
+.fw-dial-tick.is-long { stroke-width: 1.3; opacity: 1; }
+.fw-dial-num {
+  fill: var(--fw-ink);
+  font-size: 5.6px;
   font-weight: 600;
-  color: var(--text-1);
-  font-variant-numeric: tabular-nums;
-  background: var(--surface);
-  padding: 1px 5px;
-  border-radius: var(--radius-sm);
+  font-family: Pretendard, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: central;
 }
-.fw-time.is-running { color: var(--brand-primary); }
+/* 지난 시간 = 0에서 시계 방향으로 칠한 진녹색 부채꼴 */
+.fw-dial-fill { fill: var(--fw-fill); }
+.fw-dial-knob { fill: var(--fw-knob); }
+.fw-dial-knob-line { stroke: var(--fw-knob-line); stroke-width: 0.9; stroke-linecap: round; }
+/* 실물의 'Great things take time.' 자리 — 같은 색·같은 위치에 시간을 적는다 */
+.fw-dial-time {
+  fill: var(--fw-ink);
+  font-size: 7px;
+  font-weight: 700;
+  font-family: var(--tl-mono, monospace);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.fw-dial-time.is-running { fill: var(--fw-fill); }
+/* 부채꼴에 덮이면 진녹색 위 흰 글씨로 뒤집는다 */
+.fw-dial-time.is-over,
+.fw-dial-time.is-running.is-over { fill: var(--fw-face); }
 
-/* ── 버튼 ── */
-.fw-btns { display: flex; gap: var(--space-15); flex-shrink: 0; }
+/* ── 버튼: 시계 오른쪽 빈자리에 세로로 ── */
+.fw-btns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-15);
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .fw-btn {
-  flex: 1;
-  height: 28px;
+  height: 30px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-1);
   font-family: inherit;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-sm);
   font-weight: 700;
   cursor: pointer;
   transition: background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
@@ -11111,7 +11126,7 @@ body.light-mode .right-panel {
   padding: 0 var(--space-15);
   color: var(--text-2);
 }
-.fw-sess-list { flex: 1; min-height: 0; overflow-y: auto; }
+.fw-sess-list { flex: 1; min-height: 44px; max-height: 92px; overflow-y: auto; }
 .fw-sess {
   display: flex;
   align-items: center;
@@ -11150,6 +11165,11 @@ body.light-mode .right-panel {
 .fw-sess:hover .fw-sess-del { visibility: visible; }
 .fw-sess-del:hover { background: var(--danger-bg); color: var(--danger); }
 .fw-sess-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-2) 0; }
+
+/* 폰: 세로로 길어지므로 시계를 조금 줄이고 버튼은 그대로 옆에 둔다 */
+@media (max-width: 768px) {
+  .fw-dial-wrap { width: 112px; height: 112px; }
+}
 
 /* =========================================================
    🗓 캘린더 날짜 hover — 구글 캘린더 일정만 작게
@@ -11236,37 +11256,6 @@ body.light-mode .right-panel {
   .hwb-col-body { max-height: 22vh; }
 }
 
-/* ── WBS: Linked Task 선행/후행 구분 표시 ────────────────────
-   화살표(←→)만으로는 어느 쪽이 먼저인지 매번 헷갈려서 글자로 못 박는다.
-   한 칸에 최대 두 줄(선행·후행)이라 줄 높이를 촘촘히 둔다. */
-.wbs-col-linked.set {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
-  line-height: 1.25;
-  padding-top: 1px;
-  padding-bottom: 1px;
-}
-.wbs-link-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.wbs-link-tag {
-  flex: 0 0 auto;
-  font-size: var(--fs-3xs);
-  font-weight: 700;
-  line-height: 1.4;
-  padding: 0 4px;
-  border-radius: var(--radius-xs);
-  border: 1px solid;
-}
-.wbs-link-prev { color: var(--st-wait); border-color: var(--st-wait); }
-.wbs-link-next { color: var(--st-done); border-color: var(--st-done); }
-.wbs-link-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-1);
-}
 
 /* =========================================================
    📓 Work Diary — 주간 그리드 · 캘린더 · 리뷰 정리

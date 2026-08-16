@@ -217,30 +217,18 @@ function wbsLinkedNames(task, dir) {
   return (Array.isArray(ids) ? ids : []).map(wbsLinkedName).filter(Boolean);
 }
 
-// 정렬·필터·툴팁용 평문: '선행 A / 후행 B'
-function wbsLinkedText(task) {
-  var out = [];
-  var p = wbsLinkedNames(task, 'prev'), n = wbsLinkedNames(task, 'next');
-  if (p.length) out.push('선행 ' + p.join(', '));
-  if (n.length) out.push('후행 ' + n.join(', '));
-  return out.join(' / ');
+// 정렬·필터·툴팁용 평문 (방향별)
+function wbsLinkedText(task, dir) {
+  return wbsLinkedNames(task, dir).join(', ');
 }
 
-// 화면 표시: 선행과 후행을 라벨 뱃지로 나눠 준다.
-//  화살표만으로는 어느 쪽이 먼저인지 매번 헷갈려서, 글자로 못 박는다.
-function wbsLinkedCol(task) {
-  var p = wbsLinkedNames(task, 'prev'), n = wbsLinkedNames(task, 'next');
-  if (!p.length && !n.length) return wbsEmptyCol('wbs-col-linked');
-  function line(dir, names) {
-    if (!names.length) return '';
-    return '<span class="wbs-link-line">'
-      + '<span class="wbs-link-tag wbs-link-' + dir + '">' + (dir === 'prev' ? '선행' : '후행') + '</span>'
-      + '<span class="wbs-link-name">' + wbsEsc(names.join(', ')) + '</span>'
-      + '</span>';
-  }
-  return '<span class="wbs-col wbs-col-linked set" title="' + wbsEsc(wbsLinkedText(task)) + '">'
-    + line('prev', p) + line('next', n)
-    + '</span>';
+// 선행 / 후행은 각각 자기 열을 갖는다.
+//  한 칸에 몰아 넣으면 어느 쪽이 몇 개인지 눈으로 세야 해서, 열로 갈랐다.
+function wbsLinkedCol(task, dir) {
+  var cls = (dir === 'prev') ? 'wbs-col-prev' : 'wbs-col-next';
+  var txt = wbsLinkedText(task, dir);
+  if (!txt) return wbsEmptyCol(cls);
+  return '<span class="wbs-col ' + cls + ' set" title="' + wbsEsc(txt) + '">' + wbsEsc(txt) + '</span>';
 }
 
 function wbsStartCol(task) {
@@ -258,10 +246,11 @@ function wbsDueCol(task) {
 //  Section(트리 이름) 칸은 자리가 고정이고, 그 오른쪽 네 칸만 순서를 바꾼다.
 //  Board 의 컬럼 드래그와 같은 방식(localStorage 저장)이다.
 var WBS_COLS = [
-  { key: 'linked', label: 'Linked Task', cls: 'wbs-col-linked' },
-  { key: 'start',  label: 'Start',       cls: 'wbs-col-start'  },
-  { key: 'due',    label: 'Due',         cls: 'wbs-col-due'    },
-  { key: 'status', label: 'Status',      cls: 'wbs-col-status-cell' },
+  { key: 'prev',   label: '선행 Task', cls: 'wbs-col-prev'   },
+  { key: 'next',   label: '후행 Task', cls: 'wbs-col-next'   },
+  { key: 'start',  label: 'Start',     cls: 'wbs-col-start'  },
+  { key: 'due',    label: 'Due',       cls: 'wbs-col-due'    },
+  { key: 'status', label: 'Status',    cls: 'wbs-col-status-cell' },
 ];
 
 function wbsLoadColOrder() {
@@ -325,7 +314,7 @@ function wbsColVal(task, key) {
   if (key === 'start')  return task.startDate ? wbsFmtDate(task.startDate) : '';
   if (key === 'due')    return task.dueDateTime ? wbsFmtDate(task.dueDateTime) : '';
   if (key === 'status') return wbsTaskStatusLabel(task);
-  if (key === 'linked') return wbsLinkedText(task);
+  if (key === 'prev' || key === 'next') return wbsLinkedText(task, key);
   return (task.text || '');
 }
 
@@ -360,7 +349,7 @@ function wbsSortTasks(arr) {
     if (k === 'start')      { va = a.startDate ? new Date(a.startDate).getTime() : Infinity; vb = b.startDate ? new Date(b.startDate).getTime() : Infinity; }
     else if (k === 'due')   { va = a.dueDateTime ? new Date(a.dueDateTime).getTime() : Infinity; vb = b.dueDateTime ? new Date(b.dueDateTime).getTime() : Infinity; }
     else if (k === 'status'){ var order = ['대기','진행','중단','완료','취소']; va = order.indexOf(wbsTaskStatusLabel(a)); vb = order.indexOf(wbsTaskStatusLabel(b)); }
-    else if (k === 'linked'){ va = wbsLinkedText(a).toLowerCase(); vb = wbsLinkedText(b).toLowerCase(); }
+    else if (k === 'prev' || k === 'next'){ va = wbsLinkedText(a, k).toLowerCase(); vb = wbsLinkedText(b, k).toLowerCase(); }
     else { va = (a.text || '').toLowerCase(); vb = (b.text || '').toLowerCase(); }
     if (va < vb) return -1 * dir;
     if (va > vb) return  1 * dir;
@@ -384,7 +373,7 @@ function wbsDistinctVals(key) {
 }
 
 function wbsPassesColFilters(task) {
-  var keys = ['linked', 'start', 'due', 'status'];
+  var keys = ['prev', 'next', 'start', 'due', 'status'];
   for (var i = 0; i < keys.length; i++) {
     var ex = _wbsColFilters[keys[i]];
     if (ex && ex[wbsColFilterVal(task, keys[i])]) return false;
@@ -538,7 +527,8 @@ function wbsAttachColResize() {
   var root = document.getElementById('wbs-root');
   if (!root || typeof TLColResize === 'undefined') return;
   TLColResize.flex(root, root, 'wbsColW', [
-    { key: 'linked', headSel: '#wbs-th-linked', varName: '--wbs-w-linked', min: 80 },
+    { key: 'prev',   headSel: '#wbs-th-prev',   varName: '--wbs-w-prev',   min: 80 },
+    { key: 'next',   headSel: '#wbs-th-next',   varName: '--wbs-w-next',   min: 80 },
     { key: 'start',  headSel: '#wbs-th-start',  varName: '--wbs-w-start',  min: 64 },
     { key: 'due',    headSel: '#wbs-th-due',    varName: '--wbs-w-due',    min: 64 },
     { key: 'status', headSel: '#wbs-th-status', varName: '--wbs-w-status', min: 64 },
@@ -848,7 +838,8 @@ function renderWbsTask(task) {
     + '<span class="wbs-cb" data-wbs-task="' + task.id + '">' + (task.completed ? '☑' : '☐') + '</span>'
     + '<span class="wbs-task-text' + (task.completed ? ' done' : '') + '" data-wbs-open="' + task.id + '" title="클릭해서 편집">' + wbsEsc(task.text) + '</span>'
     + wbsColsHtml({
-        linked: wbsLinkedCol(task),
+        prev:   wbsLinkedCol(task, 'prev'),
+        next:   wbsLinkedCol(task, 'next'),
         start:  wbsStartCol(task),
         due:    wbsDueCol(task),
         status: wbsStatusCell(wbsStatusBadge(wbsTaskStatusLabel(task))),

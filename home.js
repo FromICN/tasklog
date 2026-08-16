@@ -28,7 +28,8 @@ function renderHomeView() {
   var content = document.getElementById('page-content');
   if (!content) return;
   content.innerHTML = buildHomeLayout();
-  renderHomeCalendar();          // 안에서 Focus On 까지 그린다
+  renderHomeCalendar();
+  renderFocusWidget();
   renderHomeMandalartWidget();
   renderHomeHabitWidget();
   renderHomeWebWidget();
@@ -37,12 +38,15 @@ function renderHomeView() {
 }
 
 // ── 전체 레이아웃 ──────────────────────────
-//  Focus On 은 별도 카드가 아니라 Calendar 카드 아래쪽에 들어간다
-//  (예전에 일자별 일정 목록이 있던 자리).
+//  1행 왼쪽 칸은 Calendar 와 Focus On 을 세로로 쌓은 묶음(.hw-stack)이다.
+//  둘은 각자 테두리를 가진 별개의 카드이고, 자리만 위아래로 붙어 있다.
 function buildHomeLayout() {
   return '<div class="home-page">'
     + '<div class="home-grid-row1">'
-    + buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
+    + '<div class="hw-stack" id="cal-stack">'
+    +   buildCardShell('cal-widget', 'Calendar', null, 'cal-body')
+    +   buildCardShell('focus-widget', 'Focus On', null, 'focus-body')
+    + '</div>'
     + buildCardShell('web-widget', 'Web', 'cloud', 'web-body')
     + '</div>'
     + '<div class="home-grid-row2">'
@@ -134,14 +138,12 @@ function renderHomeNotif() {
 }
 
 // ── 2. 캘린더 위젯 ────────────────────────
-//  달력 아래에는 예전에 '그 날의 일정 목록'이 있었다. 목록은 날짜에 커서를
-//  올리면 뜨는 작은 말풍선으로 옮기고, 비워진 자리는 Focus On 이 쓴다.
+//  달력 아래에 있던 '그 날의 일정 목록'은 날짜에 커서를 올리면 뜨는
+//  작은 말풍선으로 옮겼다. 그 자리는 아래 Focus On 카드가 이어받는다.
 function renderHomeCalendar() {
   var el = document.getElementById('cal-body');
   if (!el) return;
-  var grid = (homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid();
-  el.innerHTML = grid + '<div class="cal-focus" id="focus-body"></div>';
-  renderFocusWidget();
+  el.innerHTML = (homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid();
 }
 
 // 마감일 dot 맵 (task 본체 + 하위 steps 공용 헬퍼)
@@ -566,9 +568,6 @@ function hwbAddMemo() {
 var FOCUS_KEY = 'tasklog-focus-session';
 var _focusTick = null;
 
-// 다이얼 한 바퀴 = 60분. 60분을 넘기면 두 바퀴째부터는 계속 채워 둔다.
-var FOCUS_DIAL_MIN = 60;
-
 function focusLoad() {
   try {
     var raw = localStorage.getItem(FOCUS_KEY);
@@ -754,38 +753,70 @@ function focusRefreshSiblings() {
 }
 
 // ── 다이얼 ────────────────────────────────
-//  분 눈금이 둘린 원판 + 경과 시간만큼 칠한 부채꼴.
+//  넬나 '포커스 온'을 그대로 옮겼다. 바깥에서 안쪽으로:
+//    얇은 회색 링 → 분 눈금(5분마다 굵게) → 5분 단위 숫자 → 진녹색 부채꼴 → 황토색 노브
+//  한 바퀴 = 60분. 넘어가면 두 바퀴째를 이어서 칠한다.
+var FOCUS_DIAL_MIN = 60;
+
 function focusDialSvg(sec, running) {
-  var R = 46, CX = 50, CY = 50;
+  var CX = 50, CY = 50;
+  var R_FACE = 47;    // 원판 테두리
+  var R_TICK = 45.6;  // 눈금 바깥 끝
+  var R_TICK_L = 41.6, R_TICK_S = 43.4;   // 긴 눈금 / 짧은 눈금 안쪽 끝
+  var R_NUM = 35.5;   // 숫자가 앉는 자리
+  var R_FILL = 31;    // 부채꼴 반지름 — 실물처럼 숫자 안쪽까지 차오른다
+  var R_KNOB = 8.4;
+
   var mins = sec / 60;
-  var frac = FOCUS_DIAL_MIN > 0 ? Math.min(1, (mins % FOCUS_DIAL_MIN) / FOCUS_DIAL_MIN) : 0;
-  if (mins >= FOCUS_DIAL_MIN && frac === 0) frac = 1;   // 정확히 한 바퀴면 꽉 찬 상태로
+  var frac = (mins % FOCUS_DIAL_MIN) / FOCUS_DIAL_MIN;
+  if (mins >= FOCUS_DIAL_MIN && frac === 0) frac = 1;   // 딱 한 바퀴면 꽉 찬 상태로
 
   var svg = '<svg class="fw-dial" viewBox="0 0 100 100" aria-hidden="true">';
-  svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R + '" class="fw-dial-face"/>';
-  // 5분마다 긴 눈금, 나머지는 짧게 — 넬나 다이얼의 분 눈금
+  svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R_FACE + '" class="fw-dial-face"/>';
+
+  // 분 눈금 60개 — 5분마다 길고 굵게
   for (var i = 0; i < 60; i++) {
-    var ang = (i * 6 - 90) * Math.PI / 180;
+    var a = (i * 6 - 90) * Math.PI / 180;
     var lng = (i % 5 === 0);
-    var r1 = R - (lng ? 6 : 3), r2 = R - 1;
-    svg += '<line x1="' + (CX + r1 * Math.cos(ang)).toFixed(2) + '" y1="' + (CY + r1 * Math.sin(ang)).toFixed(2) + '"'
-      + ' x2="' + (CX + r2 * Math.cos(ang)).toFixed(2) + '" y2="' + (CY + r2 * Math.sin(ang)).toFixed(2) + '"'
+    var ri = lng ? R_TICK_L : R_TICK_S;
+    svg += '<line x1="' + (CX + ri * Math.cos(a)).toFixed(2) + '" y1="' + (CY + ri * Math.sin(a)).toFixed(2) + '"'
+      + ' x2="' + (CX + R_TICK * Math.cos(a)).toFixed(2) + '" y2="' + (CY + R_TICK * Math.sin(a)).toFixed(2) + '"'
       + ' class="fw-dial-tick' + (lng ? ' is-long' : '') + '"/>';
   }
-  // 경과 부채꼴 (12시 방향에서 시계 방향)
+
+  // 5분 단위 숫자 (0 · 5 · 10 … 55)
+  for (var n = 0; n < 60; n += 5) {
+    var an = (n * 6 - 90) * Math.PI / 180;
+    svg += '<text x="' + (CX + R_NUM * Math.cos(an)).toFixed(2) + '" y="' + (CY + R_NUM * Math.sin(an)).toFixed(2) + '"'
+      + ' class="fw-dial-num">' + n + '</text>';
+  }
+
+  // 지난 시간 = 0 에서 시계 방향으로 칠한 부채꼴
   if (frac > 0) {
     var sweep = frac * 360;
-    var rr = R - 8;
     if (sweep >= 359.9) {
-      svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + rr + '" class="fw-dial-fill"/>';
+      svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R_FILL + '" class="fw-dial-fill"/>';
     } else {
       var a2 = (sweep - 90) * Math.PI / 180;
-      var x2 = (CX + rr * Math.cos(a2)).toFixed(2), y2 = (CY + rr * Math.sin(a2)).toFixed(2);
-      svg += '<path class="fw-dial-fill" d="M' + CX + ' ' + CY + ' L' + CX + ' ' + (CY - rr)
-        + ' A' + rr + ' ' + rr + ' 0 ' + (sweep > 180 ? 1 : 0) + ' 1 ' + x2 + ' ' + y2 + ' Z"/>';
+      svg += '<path class="fw-dial-fill" d="M' + CX + ' ' + CY + ' L' + CX + ' ' + (CY - R_FILL)
+        + ' A' + R_FILL + ' ' + R_FILL + ' 0 ' + (sweep > 180 ? 1 : 0) + ' 1 '
+        + (CX + R_FILL * Math.cos(a2)).toFixed(2) + ' ' + (CY + R_FILL * Math.sin(a2)).toFixed(2) + ' Z"/>';
     }
   }
-  svg += '<circle cx="' + CX + '" cy="' + CY + '" r="8" class="fw-dial-knob' + (running ? ' is-running' : '') + '"/>';
+
+  // 가운데 손잡이 — 실물의 돌리는 노브. 위쪽에 짧은 홈이 하나 파여 있다.
+  svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R_KNOB + '" class="fw-dial-knob"/>';
+  svg += '<line x1="' + CX + '" y1="' + (CY - 3.4) + '" x2="' + CX + '" y2="' + (CY + 1.2) + '" class="fw-dial-knob-line"/>';
+
+  // 실물에는 이 자리에 'Great things take time.' 이 적혀 있다.
+  // 우리에겐 지금 얼마나 쟀는지가 더 급하므로, 같은 자리에 같은 색으로 시간을 적는다.
+  //  30분을 넘기면 부채꼴이 이 글자 자리(정중앙 아래)를 덮는다 →
+  //  그때는 진녹색 위의 흰 글씨로 뒤집어야 읽힌다.
+  var covered = (frac * 360) > 180;
+  svg += '<text x="' + CX + '" y="68.5" class="fw-dial-time'
+    + (running ? ' is-running' : '') + (covered ? ' is-over' : '') + '">'
+    + focusFmtDur(sec) + '</text>';
+
   svg += '</svg>';
   return svg;
 }
@@ -832,33 +863,28 @@ function renderFocusWidget() {
       }).join('')
     : '<div class="fw-sess-empty">오늘 끝낸 세션이 없습니다</div>';
 
+  // 시계는 원이라 좌우에 빈 공간이 남는다 → 오른쪽 빈자리에 버튼을 세로로 세운다.
   el.innerHTML = '<div class="fw-wrap">'
-    + '<div class="fw-head">Focus On</div>'
+    + '<div class="fw-main">'
+    +   '<div class="fw-dial-wrap" id="fw-dial-wrap">' + focusDialSvg(sec, running) + '</div>'
+    +   '<div class="fw-btns">'
+    +     '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
+    +     '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
+    +     '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
+    +   '</div>'
+    + '</div>'
     + '<select class="fw-select" ' + (running ? 'disabled title="정지한 뒤에 바꿀 수 있어요"' : '')
     +   ' onchange="focusPickSession(this.value)">' + opts + '</select>'
-    + '<div class="fw-dial-wrap" id="fw-dial-wrap">'
-    +   focusDialSvg(sec, running)
-    +   '<span class="fw-time' + (running ? ' is-running' : '') + '" id="fw-time">' + focusFmtDur(sec) + '</span>'
-    + '</div>'
-    + '<div class="fw-btns">'
-    +   '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
-    +   '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
-    +   '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
-    + '</div>'
     + '<div class="fw-sess-head">오늘 완료 <span class="fw-sess-count">' + sessions.length + '</span></div>'
     + '<div class="fw-sess-list">' + sessionHtml + '</div>'
     + '</div>';
 
   if (running) {
     _focusTick = setInterval(function() {
-      var t = document.getElementById('fw-time');
-      // 홈을 벗어나면 표시할 곳이 없다 → 타이머만 멈추고 세션은 그대로 둔다
-      if (!t) { clearInterval(_focusTick); _focusTick = null; return; }
-      var cur = focusElapsedSec(focusLoad());
-      t.textContent = focusFmtDur(cur);
       var wrap = document.getElementById('fw-dial-wrap');
-      var old = wrap ? wrap.querySelector('.fw-dial') : null;
-      if (old) old.outerHTML = focusDialSvg(cur, true);
+      // 홈을 벗어나면 그릴 곳이 없다 → 타이머만 멈추고 세션은 그대로 둔다
+      if (!wrap) { clearInterval(_focusTick); _focusTick = null; return; }
+      wrap.innerHTML = focusDialSvg(focusElapsedSec(focusLoad()), true);
     }, 1000);
   }
 }
@@ -1056,13 +1082,19 @@ function fmtKey(d) {
 // ============================================
 //  홈 위젯 레이아웃 — 크기 조정 / 위치 변경 (스크롤 없이 이웃이 보정)
 // ============================================
-// v4 — 위젯 구성이 바뀌면(개수·순서) 저장된 열 너비가 어긋나므로 키를 올린다.
-//      (Focus On 이 Calendar 안으로 들어가며 2행이 4개 → 3개가 됐다)
-var HW_LKEY = 'home-layout-v4';
+// v5 — 위젯 구성이 바뀌면(개수·순서) 저장된 열 너비가 어긋나므로 키를 올린다.
+//      (Focus On 이 별도 카드로 떨어져 나와 1행 왼쪽이 세로 묶음이 됐다)
+var HW_LKEY = 'home-layout-v5';
 var _hwDrag = null;
 function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
 function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }
-function hwRowCards(row) { return Array.prototype.filter.call(row.children, function (c) { return c.classList && c.classList.contains('card'); }); }
+// 한 줄의 '칸' 목록. 카드 하나일 수도 있고, 카드를 세로로 쌓은 묶음(.hw-stack)일 수도 있다.
+// 너비 조정과 순서 저장은 이 칸 단위로 돈다.
+function hwRowCards(row) {
+  return Array.prototype.filter.call(row.children, function (c) {
+    return c.classList && (c.classList.contains('card') || c.classList.contains('hw-stack'));
+  });
+}
 function hwOrder(row) { return hwRowCards(row).map(function (c) { return c.id; }); }
 // 저장된 순서대로 카드를 옮긴다. 다른 줄에 있던 카드도 이 줄로 데려온다
 // (윗줄 ↔ 아랫줄 교체를 저장해 두려면 줄을 넘는 이동이 가능해야 한다).
@@ -1076,9 +1108,11 @@ function hwInitLayout() {
   var row2 = document.querySelector('.home-grid-row2');
   var page = document.querySelector('.home-page');
   if (!row1 || !row2 || !page) return;
+  var stack = document.getElementById('cal-stack');
   var L = hwLoadLayout();
   if (L.order1) hwApplyOrder(row1, L.order1);
   if (L.order2) hwApplyOrder(row2, L.order2);
+  if (stack && L.orderStack) hwApplyOrder(stack, L.orderStack);
   if (L.row1cols) row1.style.gridTemplateColumns = L.row1cols;
   if (L.row2cols) row2.style.gridTemplateColumns = L.row2cols;
   if (L.row2h) row2.style.height = L.row2h + 'px';
@@ -1086,8 +1120,9 @@ function hwInitLayout() {
   hwAddColHandles(row1, 'row1cols');
   hwAddColHandles(row2, 'row2cols');
   hwAddRowHandle(row1, row2, page);
-  hwAddReorder(row1, 'order1');
-  hwAddReorder(row2, 'order2');
+  hwAddReorder(row1);
+  hwAddReorder(row2);
+  if (stack) hwAddReorder(stack);   // 묶음 안에서 위아래 자리 바꾸기
 }
 
 // ── 가로 크기 조정 (이웃 열이 반대로 보정 → 총 너비 유지) ──
@@ -1160,19 +1195,41 @@ function hwSwap(a, b) {
   ph.parentNode.removeChild(ph);
 }
 
-// 두 줄의 순서를 함께 저장한다 (줄을 넘나들면 양쪽이 다 바뀐다)
+// 두 줄 + 세로 묶음의 순서를 한꺼번에 저장한다 (줄을 넘나들면 양쪽이 다 바뀐다)
 function hwSaveBothOrders() {
   var row1 = document.querySelector('.home-grid-row1');
   var row2 = document.querySelector('.home-grid-row2');
   if (!row1 || !row2) return;
+  var stack = document.getElementById('cal-stack');
   var Ly = hwLoadLayout();
   Ly.order1 = hwOrder(row1);
   Ly.order2 = hwOrder(row2);
+  if (stack) Ly.orderStack = Array.prototype.filter.call(stack.children, function (c) {
+    return c.classList && c.classList.contains('card');
+  }).map(function (c) { return c.id; });
   hwSaveLayout(Ly);
 }
 
-function hwAddReorder(row, key) {
-  hwRowCards(row).forEach(function (card) {
+// 맞바꿀 수 있는 짝인지 — 같은 통 안이거나, 윗줄 ↔ 아랫줄일 때만.
+// (줄에 있는 카드와 묶음 안의 카드를 섞으면 칸 수가 어긋나 배치가 깨진다)
+function hwRowish(el) {
+  return !!el && el.classList
+    && (el.classList.contains('home-grid-row1') || el.classList.contains('home-grid-row2'));
+}
+function hwCanSwap(a, b) {
+  if (a.parentNode === b.parentNode) return true;
+  return hwRowish(a.parentNode) && hwRowish(b.parentNode);
+}
+
+// 드래그 대상은 실제 카드만 (묶음 자체에는 머리글이 없다)
+function hwReorderCards(container) {
+  return Array.prototype.filter.call(container.children, function (c) {
+    return c.classList && c.classList.contains('card');
+  });
+}
+
+function hwAddReorder(row) {
+  hwReorderCards(row).forEach(function (card) {
     var head = card.querySelector('.card-header');
     if (!head) return;
     head.setAttribute('draggable', 'true');
@@ -1185,20 +1242,22 @@ function hwAddReorder(row, key) {
     head.addEventListener('dragend', function () { card.classList.remove('hw-dragging'); _hwDrag = null; });
     card.addEventListener('dragover', function (e) {
       if (!_hwDrag || _hwDrag.id === card.id) return;
+      var src = document.getElementById(_hwDrag.id);
+      if (!src || !hwCanSwap(src, card)) return;   // 못 바꾸는 짝이면 놓을 수 없게 둔다
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
     });
     card.addEventListener('drop', function (e) {
       if (!_hwDrag) return;
-      e.preventDefault(); e.stopPropagation();
       var src = document.getElementById(_hwDrag.id);
       _hwDrag = null;
-      if (!src || src === card) return;
-      var crossRow = (src.parentNode !== card.parentNode);
+      if (!src || src === card || !hwCanSwap(src, card)) return;
+      e.preventDefault(); e.stopPropagation();
+      var crossContainer = (src.parentNode !== card.parentNode);
       hwSwap(src, card);
       hwSaveBothOrders();
-      // 줄을 넘어간 경우엔 폭 조절 손잡이가 엉뚱한 카드에 붙어 있다 → 통째로 다시 그린다
-      if (crossRow) renderHomeView();
+      // 통을 넘어간 경우엔 폭 조절 손잡이가 엉뚱한 칸에 붙어 있다 → 통째로 다시 그린다
+      if (crossContainer) renderHomeView();
     });
   });
 }

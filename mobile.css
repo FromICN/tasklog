@@ -527,7 +527,7 @@ html.pwa-standalone body {
   .lw-table thead th:first-child { z-index: 3; }
 
   /* ── 8. WBS ──────────────────────────────────────────────
-     행이 flex라서 Linked Task·Start·Due·Status(414px)가 이름을 밀어내
+     행이 flex라서 선행·후행·Start·Due·Status(504px)가 이름을 밀어내
      한 글자씩 세로로 접히는 문제가 있다.
      → 행에 최소 폭을 주고 컨테이너를 가로 스크롤시킨다.
        (이름은 줄이지 않고 말줄임으로 처리)                    */
@@ -540,7 +540,7 @@ html.pwa-standalone body {
     padding-right: var(--space-1);
     overflow-x: auto;
   }
-  .wbs-row { min-width: 750px; }   /* Linked Task 컬럼이 늘어난 만큼 함께 넓힘 */
+  .wbs-row { min-width: 860px; }   /* 선행·후행 두 열이 늘어난 만큼 함께 넓힘 */
 
   .wbs-sec-label,
   .wbs-sg-label,

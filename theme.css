@@ -133,6 +133,15 @@
   --card-solid:    #1A211D;
   --panel-solid:   #1A211D;
   --bg1-solid:     #1A211D;
+
+  /* Focus On 다이얼 — 넬나 '포커스 온'의 배색.
+     다크에서는 흰 원판이 화면을 때리므로 판만 어둡게 낮춘다. */
+  --fw-face:      #232B27;
+  --fw-ring:      rgba(255,255,255,0.28);
+  --fw-ink:       #9CD9BE;
+  --fw-fill:      #2F8A67;
+  --fw-knob:      #E0A458;
+  --fw-knob-line: #8C6531;
 }
 
 body.light-mode {
@@ -199,6 +208,14 @@ body.light-mode {
   --card-solid:    #FFFFFF;
   --panel-solid:   #FFFFFF;
   --bg1-solid:     #F4F6F2;
+
+  /* 라이트는 실물 그대로 — 흰 원판 · 진녹색 · 황토색 노브 */
+  --fw-face:      #FFFFFF;
+  --fw-ring:      #8E9B92;
+  --fw-ink:       #14503C;
+  --fw-fill:      #14563F;
+  --fw-knob:      #EFBE72;
+  --fw-knob-line: #BE8F45;
 }
 
 /* ── 2. 글꼴: 읽는 글 / 눈금 글 ──────────────────────────── */
@@ -706,3 +723,6 @@ progress {
    위 '본문 투명화'가 --tl-sheet 를 비워 두므로, 이 파일에서(=투명화 규칙보다
    뒤에서) 직접 칠해야 한다. style.css 에 두면 theme.css 규칙에 밀린다. */
 #page-content .mvv-card { background: #E6E9E3; }
+/* 글을 쓰는 안쪽 상자는 비워 둔다 — 상자 배경까지 칠하면 카드 위에 회색이
+   두 겹으로 얹혀 답답해진다. 경계는 테두리 한 줄로 충분하다. */
+#page-content .mvv-rta { background: transparent; }
