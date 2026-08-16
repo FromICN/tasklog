@@ -125,7 +125,6 @@ function renderJournalView() {
     +   '</div>'
     + '</div>'
     + jnlSection('issue', 'Retrospective', '이번 주를 돌아보며 배운 점과 개선할 점을 기록하세요.')
-    + '<div class="jnl-footer" id="jnl-saved-at"></div>'
     + '</div>';
 
   var slot = document.getElementById('topbar-journal-slot');
@@ -143,7 +142,6 @@ function jnlMonthCalPanel() {
     +   '<button class="jnl-cal-navbtn" onclick="jnlCalNav(1)">\u203a</button>'
     + '</div>'
     + '<div class="jnl-cal-grid" id="jnl-cal-grid"></div>'
-    + '<div class="jnl-cal-hint">일자를 클릭하면 해당 주가 표시됩니다.</div>'
     + '<div id="jnl-week-label" style="display:none;"></div>'
     + '</div>';
 }
@@ -207,6 +205,8 @@ function jnlClearDirty() {
   if (btn) { btn.textContent = '저장'; btn.style.opacity = '0.6'; }
 }
 
+// 화면에서 '마지막 저장' 줄을 걷어냈다(그 높이는 본문이 가져갔다).
+// 저장 시각을 다시 보여 주고 싶으면 #jnl-saved-at 만 되살리면 된다.
 function jnlUpdateSavedAt(iso) {
   var el = document.getElementById('jnl-saved-at');
   if (!el) return;
@@ -402,21 +402,22 @@ function jnlwBlockHTML(it, totalH) {
     + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',false)">'
     + '<div class="jnlw-ev-rz jnlw-ev-rz-top" onpointerdown="jnlwRzDown(event,\'top\',' + it.taskId + ',' + sid + ')"></div>'
     + '<div class="jnlw-ev-in">'
-    + '<span class="jnlw-ev-head">' + jnlBadge(it.type) + '<span class="jnlw-ev-txt">' + safe + '</span></span>'
+    // 그리드에는 To Do 만 올라오므로 'ToDo' 배지는 늘 같은 말이다 → 자리만 차지해서 뺐다
+    + '<span class="jnlw-ev-head"><span class="jnlw-ev-txt">' + safe + '</span></span>'
     + (parent ? '<span class="jnlw-ev-parent">' + parent + '</span>' : '')
     + '</div>'
     + '<div class="jnlw-ev-rz jnlw-ev-rz-bot" onpointerdown="jnlwRzDown(event,\'bot\',' + it.taskId + ',' + sid + ')"></div>'
     + '</div>';
 }
 
-// 종일 칩 HTML (배지 + ToDo 텍스트만)
+// 종일 칩 HTML (텍스트만)
 function jnlwAlldayChip(it) {
   var safe = jnlEscape(it.text || '');
   var sid = (it.stepId == null) ? 'null' : it.stepId;
   return '<div class="jnlw-chip" data-task="' + it.taskId + '" data-step="' + sid + '"'
     + ' style="border-left:3px solid ' + it.color + ';" title="' + safe + '"'
     + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',true)">'
-    + '<span class="jnlw-chip-head">' + jnlBadge(it.type) + '<span class="jnlw-chip-x">' + safe + '</span></span>'
+    + '<span class="jnlw-chip-head"><span class="jnlw-chip-x">' + safe + '</span></span>'
     + '</div>';
 }
 
@@ -426,7 +427,9 @@ function jnlBuildWeekGrid() {
   var start = new Date(r.start); start.setHours(0, 0, 0, 0);
   var todayKey = jnlDayKey(new Date());
   var totalH = 24 * JNLW_ROW_H;
-  var cols = '52px repeat(7, minmax(0, 1fr))';
+  // 주말은 적을 일이 적다 — 토·일을 평일의 절반으로 줄이고 그만큼 월~금을 넓힌다.
+  // (열 순서: 거터 · 월 화 수 목 금 · 토 일)
+  var cols = '52px repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.5fr))';
 
   var items = jnlCollectWeekGridItems(_journalWeek).filter(function (it) { return it.type === 'todo'; });
   var timedByDay = [], alldayByDay = [];

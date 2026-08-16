@@ -4683,10 +4683,10 @@ body.light-mode .lw-cv-tag {
   flex: 1 1 auto;
   min-height: 330px;
 }
-/* 2행: 집중 카운트 · Habit Tracker · Mandalart · Life Wheel */
+/* 2행: Habit Tracker · Mandalart · Life Wheel */
 .home-grid-row2 {
   display: grid;
-  grid-template-columns: 1fr 1.5fr 1.1fr 1fr;
+  grid-template-columns: 1.7fr 1.2fr 1fr;
   gap: var(--space-3);
   height: 272px;
   flex-shrink: 0;
@@ -4933,9 +4933,9 @@ body.hw-resizing { user-select: none; }
   flex: 1 1 auto;
   min-height: 0;
 }
-/* 캘린더 위젯 바디를 세로 flex로 → 상세목록이 남은 공간을 채움 */
+/* 캘린더 위젯 바디를 세로 flex로 → 아래쪽 Focus On 이 남은 공간을 채움 */
 #cal-body { display: flex; flex-direction: column; }
-#cal-body > *:not(.cal-detail) { flex-shrink: 0; }
+#cal-body > *:not(.cal-focus) { flex-shrink: 0; }
 .cal-detail-header {
   font-size: var(--fs-sm);
   font-weight: 700;
@@ -10886,67 +10886,51 @@ body.light-mode .right-panel {
 
 /* =========================================================
    🔮 Mandalart — 목표/달성현황 개편
-   목표 칸은 네 유형 모두 '글'로 적고, 숫자(목표값·실적·성공기준)는
-   달성현황 칸에서 직접 입력한다.
+   목표 칸은 세 유형 모두 '글'로 적고, 숫자(목표값·실적·성공기준)는
+   달성현황 칸에서 한 줄로 직접 입력한다.
    ========================================================= */
 
 /* 달성현황 칸의 라벨 조각 — 입력칸 사이를 잇는 짧은 말 */
 .mgt-perf-hint { font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; }
 .mgt-perf-sep  { font-size: var(--fs-xs); color: var(--text-3); }
 
-/* 습관형(월간): 1~12월 목표/실적 입력 — 6칸씩 두 줄 */
-.mgt-mon-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 4px;
-  margin-top: 6px;
-}
-.mgt-mon-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  min-width: 0;
-}
-/* 목표를 채운 달 = 그 달의 실적이 목표 이상일 때 초록으로 표시 */
-.mgt-mon-cell.on { border-color: var(--success-border); background: var(--success-bg); }
-.mgt-mon-lbl {
-  font-size: var(--fs-3xs);
-  color: var(--text-3);
-  text-align: center;
-  line-height: 1.2;
-}
-.mgt-mon-cell.on .mgt-mon-lbl { color: var(--success); font-weight: 700; }
-.mgt-mon-inp {
-  width: 100%;
-  min-width: 0;
+/* 한 줄 배치 — 줄바꿈 없이 '실적 / 목표 (단위)' 가 한눈에 들어오게 */
+.mgt-perf-1line { flex-wrap: nowrap; gap: 4px; min-width: 0; }
+.mgt-perf-1line .mgt-perf-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* 숫자 입력칸: type="text" 라 스피너 자체가 없다.
+   (type="number" 의 위·아래 화살표가 좁은 칸의 폭을 잡아먹었다) */
+.mdt-num-inp,
+.mdt-unit-inp {
+  flex: 0 0 auto;
   box-sizing: border-box;
-  font-size: var(--fs-3xs);
-  font-family: inherit;
   text-align: center;
+  font-size: var(--fs-xs);
+  font-family: inherit;
   color: var(--text-1);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  padding: 2px 1px;
-  /* 12칸이 나란히 서므로 스피너를 없애 폭을 아낀다 */
+  border-radius: var(--radius-sm);
+  padding: 3px var(--space-1);
+}
+.mdt-num-inp { width: 52px; }
+.mdt-num-inp.mdt-num-sm { width: 38px; }
+.mdt-unit-inp { width: 46px; }
+
+/* 남아 있는 number 입력칸(액션 카드 등)도 스피너를 걷어낸다 */
+.mgt-td-perf input[type="number"],
+.mdt-annual-target-inp,
+.mdt-annual-unit-inp {
   -moz-appearance: textfield;
   appearance: textfield;
 }
-.mgt-mon-inp::-webkit-outer-spin-button,
-.mgt-mon-inp::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-/* 실적 칸은 목표 칸과 구분되게 조금 진하게 */
-.mgt-mon-inp.mgt-mon-act { color: var(--text-1); font-weight: 700; }
+.mgt-td-perf input[type="number"]::-webkit-outer-spin-button,
+.mgt-td-perf input[type="number"]::-webkit-inner-spin-button,
+.mdt-annual-target-inp::-webkit-outer-spin-button,
+.mdt-annual-target-inp::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-/* 월간 입력칸이 들어가므로 달성현황 열은 조금 더 넓게 */
-.mgt-td-perf { min-width: 260px; }
-
-@media (max-width: 768px) {
-  .mgt-mon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
+/* 한 줄이 들어갈 만큼만 — 월별 입력칸이 빠져 다시 좁혀도 된다 */
+.mgt-td-perf { min-width: 210px; }
 
 /* =========================================================
    🏠 홈 위젯 — Web 미니 (Archiving / Task / To Do)
@@ -11013,17 +10997,32 @@ body.light-mode .right-panel {
 .hwb-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-3) var(--space-1); }
 
 /* =========================================================
-   ⏱ 홈 위젯 — 집중 카운트
-   고른 To Do 하나를 크게 세는 화면. 시각 기록이 아래에 쌓인다.
+   ⏱ Focus On — Calendar 카드 아래쪽에 들어가는 다이얼 타이머
+   넬나 '포커스 온' 을 본떠, 분 눈금이 둘린 원판에 지난 시간을
+   부채꼴로 칠하고 가운데에 숫자를 적는다.
    ========================================================= */
-#focus-body { flex: 1; min-height: 0; display: flex; }
+.cal-focus {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
 .fw-wrap {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-15);
-  padding: 0 var(--space-3) var(--space-25);
+}
+.fw-head {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  flex-shrink: 0;
 }
 .fw-select {
   width: 100%;
@@ -11033,36 +11032,50 @@ body.light-mode .right-panel {
   border-radius: var(--radius-md);
   color: var(--text-1);
   font-family: inherit;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-sm);
   padding: var(--space-1) var(--space-15);
   flex-shrink: 0;
 }
 .fw-select:disabled { opacity: 0.65; cursor: not-allowed; }
-.fw-sub {
-  font-size: var(--fs-3xs);
-  color: var(--text-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 0;
+
+/* ── 다이얼 ── */
+.fw-dial-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: 118px;
+  height: 118px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-/* 시간은 이 위젯의 주인공 — 눈금 글꼴로 자리가 흔들리지 않게 */
+.fw-dial { position: absolute; inset: 0; width: 100%; height: 100%; }
+.fw-dial-face { fill: var(--surface); stroke: var(--border); stroke-width: 1; }
+.fw-dial-tick { stroke: var(--text-3); stroke-width: 0.7; opacity: 0.55; }
+.fw-dial-tick.is-long { stroke: var(--text-2); stroke-width: 1.1; opacity: 0.9; }
+/* 지난 시간 = 칠해진 부채꼴. 브랜드색이라 다크/라이트 모두 읽힌다 */
+.fw-dial-fill { fill: var(--brand-primary); opacity: 0.85; }
+.fw-dial-knob { fill: var(--warning); stroke: var(--surface); stroke-width: 1.5; }
+/* 시간 숫자는 다이얼 한가운데 — 눈금 글꼴로 자리가 흔들리지 않게 */
 .fw-time {
+  position: relative;
+  z-index: 1;
   font-family: var(--tl-mono, monospace);
-  font-size: 30px;
+  font-size: var(--fs-lg);
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-align: center;
-  color: var(--text-2);
+  color: var(--text-1);
   font-variant-numeric: tabular-nums;
-  padding: var(--space-1) 0;
-  flex-shrink: 0;
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
 }
 .fw-time.is-running { color: var(--brand-primary); }
+
+/* ── 버튼 ── */
 .fw-btns { display: flex; gap: var(--space-15); flex-shrink: 0; }
 .fw-btn {
   flex: 1;
-  height: 30px;
+  height: 28px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
@@ -11078,28 +11091,143 @@ body.light-mode .right-panel {
 .fw-btn-start:not(:disabled) { border-color: var(--success-border); color: var(--success); background: var(--success-bg); }
 .fw-btn-pause:not(:disabled) { border-color: var(--warning-border); color: var(--warning); background: var(--warning-bg); }
 .fw-btn-end:not(:disabled)   { border-color: var(--brand-primary); color: #fff; background: var(--brand-primary); }
-/* 기록: 최근 것이 위 */
-.fw-log {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  border-top: 1px solid var(--border);
-  padding-top: var(--space-1);
-}
-.fw-log-row {
+
+/* ── 오늘 끝낸 세션 ── */
+.fw-sess-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: 1px 0;
+  gap: var(--space-1);
   font-size: var(--fs-3xs);
+  font-weight: 700;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-1);
+  flex-shrink: 0;
 }
-.fw-log-act { font-weight: 700; color: var(--text-2); }
-.fw-act-start, .fw-act-resume { color: var(--success); }
-.fw-act-pause { color: var(--warning); }
-.fw-act-end   { color: var(--brand-primary); }
-.fw-log-time { color: var(--text-3); font-variant-numeric: tabular-nums; }
-.fw-log-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-2) 0; }
+.fw-sess-count {
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-15);
+  color: var(--text-2);
+}
+.fw-sess-list { flex: 1; min-height: 0; overflow-y: auto; }
+.fw-sess {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+  padding: 2px var(--space-1) 2px 0;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-2xs);
+  min-width: 0;
+}
+.fw-sess:hover { background: var(--surface-hover); }
+.fw-sess-time { color: var(--text-3); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.fw-sess-txt {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fw-sess-dur { color: var(--text-2); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+/* 삭제 단추는 평소 숨어 있다가 그 줄에 커서를 올리면 오른쪽에 나타난다 */
+.fw-sess-del {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-3xs);
+  line-height: 1;
+  cursor: pointer;
+  visibility: hidden;
+}
+.fw-sess:hover .fw-sess-del { visibility: visible; }
+.fw-sess-del:hover { background: var(--danger-bg); color: var(--danger); }
+.fw-sess-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-2) 0; }
+
+/* =========================================================
+   🗓 캘린더 날짜 hover — 구글 캘린더 일정만 작게
+   ========================================================= */
+.cal-hovertip {
+  position: fixed;
+  z-index: 4000;
+  max-width: 240px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-15) var(--space-2);
+  pointer-events: none;
+}
+.cal-hovertip-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-15);
+  font-size: var(--fs-2xs);
+  line-height: 1.5;
+  min-width: 0;
+}
+.cal-hovertip-time { color: var(--text-3); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.cal-hovertip-txt {
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-hovertip-more { font-size: var(--fs-3xs); color: var(--text-3); margin-top: 2px; }
+
+/* =========================================================
+   🏠 Web 위젯 상단 +Memo
+   ========================================================= */
+.hwb-write {
+  display: flex;
+  gap: var(--space-15);
+  padding: 0 var(--space-25) var(--space-15);
+  flex-shrink: 0;
+}
+.hwb-write-inp {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  padding: var(--space-1) var(--space-2);
+}
+.hwb-write-btn {
+  flex: 0 0 auto;
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  background: var(--brand-primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  padding: 0 var(--space-25);
+  cursor: pointer;
+}
+.hwb-write-btn:hover { opacity: 0.9; }
+/* +Memo 가 위에 붙으므로 보드가 남는 높이를 갖는다 */
+#web-body { flex-direction: column; }
+
+/* =========================================================
+   🏠 홈 위젯 글자 크기 통일 (Habit Tracker · Life Wheel)
+   본문 기준은 --fs-base(13px) — Mandalart·알림 위젯과 같다.
+   ========================================================= */
+.habit-dot-dow { font-size: var(--fs-3xs); }
+/* SVG 텍스트는 viewBox 배율만큼 확대돼 보인다.
+   기본 크기(뷰박스 182 → 카드 폭 약 300px, 배율 ≈1.6)에서
+   13px 로 보이도록 사용자 단위를 8 로 둔다. */
+.wheel-label { font-size: 8px; font-family: Pretendard, sans-serif; }
 
 /* 폰: Web 미니의 세 칼럼을 나란히 두면 한 칸이 100px도 안 돼 글자가 사라진다
    → 위아래로 쌓고, 카드 안에서 스크롤한다. */
@@ -11107,3 +11235,87 @@ body.light-mode .right-panel {
   .hwb-board { grid-template-columns: 1fr; }
   .hwb-col-body { max-height: 22vh; }
 }
+
+/* ── WBS: Linked Task 선행/후행 구분 표시 ────────────────────
+   화살표(←→)만으로는 어느 쪽이 먼저인지 매번 헷갈려서 글자로 못 박는다.
+   한 칸에 최대 두 줄(선행·후행)이라 줄 높이를 촘촘히 둔다. */
+.wbs-col-linked.set {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.25;
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+.wbs-link-line { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.wbs-link-tag {
+  flex: 0 0 auto;
+  font-size: var(--fs-3xs);
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  border: 1px solid;
+}
+.wbs-link-prev { color: var(--st-wait); border-color: var(--st-wait); }
+.wbs-link-next { color: var(--st-done); border-color: var(--st-done); }
+.wbs-link-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+/* =========================================================
+   📓 Work Diary — 주간 그리드 · 캘린더 · 리뷰 정리
+   ========================================================= */
+
+/* 주간 그리드 판 자체가 흰색이라 월~금 칸이 흰 종이처럼 보였다.
+   칸은 이미 투명이므로, 판만 비우면 화면 바탕색이 그대로 올라온다. */
+.jnlw { background: transparent; }
+
+/* 좌측 캘린더: 안내 문구를 걷어낸 자리만큼 세로를 줄인다 */
+.jnl-cal-hint { display: none; }
+.jnl-cal-panel { padding: var(--space-25) var(--space-25) var(--space-2); gap: var(--space-15); }
+.jnl-cal-cell { padding: 3px 0; }
+.jnl-cal-grid { gap: 1px; }
+
+/* Weekly Review: 별은 눈에 띄되 줄을 밀어내지 않을 만큼만,
+   항목 사이 간격은 10% 좁혀 한 화면에 더 담는다. */
+.jnl-stars { font-size: 15px; gap: 2px; }
+.jnl-star:hover { transform: none; }   /* 작아진 만큼 확대 효과는 뺀다 */
+.jnl-sec-eval .jnl-eval { gap: calc(var(--space-3) * 0.9); }
+.jnl-eval-scores { gap: calc(var(--space-1) * 0.9); }
+.jnl-eval-desc { line-height: 1.26; }
+
+/* '마지막 저장' 줄 제거 — 남는 높이는 위쪽 본문이 가져간다 */
+.jnl-footer { display: none; }
+
+/* =========================================================
+   🎨 배경 정리 — MVV · Mandalart
+   ========================================================= */
+
+/* Mandalart 연간목표: 상자는 비우고, 글 쓰는 칸만 색을 준다 */
+.mdt-perf-annual { background: transparent; }
+.mdt-perf-annual-inp { background: #E6E9E3; }
+
+/* 실적관리: 목표 · 메모 · 달성현황 칸의 흰 배경을 걷어낸다.
+   ([R5 #7] 이 var(--bg)=흰색을 깔고 있어 표 위에 흰 조각이 떠 보였다)
+   고정 머리글(.mdt-grid-table th)은 비치면 안 되므로 건드리지 않는다. */
+.mgt-text-inp,
+.mdt-memo-box,
+.mdt-num-inp,
+.mdt-unit-inp,
+.mdt-hb-thr,
+.mdt-annual-target-inp,
+.mdt-annual-unit-inp,
+.mgt-perf-cum,
+.mgt-perf-habit,
+.mgt-perf-result,
+.mgt-type-sel {
+  background: transparent;
+}
+/* Habit Tracker 항목 이름도 위젯 본문 기준(12px)에 맞춘다 — theme.css 의 .mda-name 과 같은 값 */
+.habit-name { font-size: 12px; }

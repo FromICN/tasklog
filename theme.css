@@ -485,11 +485,12 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
   background: var(--tl-sheet);
 }
 
+/* 열 이름은 BOARD_COLS 에 적힌 대소문자 그대로 둔다 —
+   uppercase 로 뭉개면 'To Do' 가 'TO DO' 로 보인다. */
 .todo-table th {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-3);
   border-bottom: 1px solid var(--tl-rule);
   background: var(--tl-sheet);
@@ -700,3 +701,8 @@ progress {
 #page-content .todo-table thead th {
   background: var(--main-bg);
 }
+
+/* MVV: Why · How · What · Action Plan 상자 배경.
+   위 '본문 투명화'가 --tl-sheet 를 비워 두므로, 이 파일에서(=투명화 규칙보다
+   뒤에서) 직접 칠해야 한다. style.css 에 두면 theme.css 규칙에 밀린다. */
+#page-content .mvv-card { background: #E6E9E3; }

@@ -112,7 +112,7 @@ function htEmptyHtml(year) {
   return '<div class="ht-empty">'
     + '<div class="ht-empty-icon">🌱</div>'
     + '<div class="ht-empty-title">' + year + '년에 등록된 습관이 없습니다</div>'
-    + '<div class="ht-empty-desc">Mandalart 의 실행항목을 <b>습관형</b>(월간 · 주간)으로 지정하면<br>여기에서 한 해 실적을 관리할 수 있습니다.</div>'
+    + '<div class="ht-empty-desc">Mandalart 의 실행항목을 <b>습관형</b>으로 지정하면<br>여기에서 한 해 실적을 관리할 수 있습니다.</div>'
     + '<button class="ht-empty-btn" onclick="navToMenu(\'mandalart\')">Mandalart 열기</button>'
     + '</div>';
 }
@@ -128,7 +128,7 @@ function htListHtml(year, habits, cur) {
     var stat = htStat(a, year);
     var color = sg.color || 'var(--brand-primary)';
     var doneToday = !!(a.habitLog && a.habitLog[todayKey]);
-    var freq = (a.habitFreq === 'weekly') ? ('주 ' + Math.max(1, +a.habitWeeklyTarget || 1) + '회') : '월간';
+    var freq = '주 ' + Math.max(1, +a.habitWeeklyTarget || 1) + '회';
 
     return '<button class="ht-item' + (key === curKey ? ' active' : '') + '"'
       + ' onclick="htSelect(' + year + ',\'' + key + '\')">'
@@ -148,16 +148,13 @@ function htListHtml(year, habits, cur) {
     + '<div class="ht-list-body">' + rows + '</div>';
 }
 
-// 주간형은 목표를 채운 주 기준, 월간형은 매월 목표를 채운 달 기준.
+// '주 N회 이상' 을 채운 주 기준.
 // 판정 기준은 만다라트(실적관리)와 같아야 한다 — 같은 습관이 두 화면에서
 // 다른 달성률로 보이면 어느 쪽을 믿어야 할지 알 수 없다.
 function htStat(a, year) {
-  var weekly = (a.habitFreq === 'weekly');
-  var st = weekly
-    ? (typeof mdtHabitYearWeeks  === 'function' ? mdtHabitYearWeeks(a, year) : null)
-    : (typeof mdtHabitYearMonths === 'function' ? mdtHabitYearMonths(a)      : null);
+  var st = (typeof mdtHabitYearWeeks === 'function') ? mdtHabitYearWeeks(a, year) : null;
   if (!st) st = { done: 0, total: 0, rate: 0 };
-  st.unit = weekly ? '주' : '월';
+  st.unit = '주';
   return st;
 }
 
