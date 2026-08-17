@@ -11388,3 +11388,20 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 }
 .cal-detail-time { font-size: var(--fs-3xs); color: var(--text-3); flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .cal-detail-item.is-cal { cursor: default; }
+
+/* ── Web 위젯 Archiving: 메모 전문 표시 ──────────────────────
+   Task·To Do 는 이름만 알면 되지만, 메모는 내용 자체가 항목이다.
+   말줄임을 풀고 줄바꿈도 살린다(칸이 넘치면 칼럼이 세로로 스크롤). */
+.hwb-item-memo { align-items: flex-start; }
+.hwb-text-full {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.45;
+}
+/* 칸이 좁으면 세 칼럼을 세로로 쌓는다 (home.js 의 webSyncBoard 가 붙인다) */
+.hwb-board.is-narrow {
+  grid-template-columns: 1fr;
+  grid-auto-rows: minmax(0, 1fr);
+}

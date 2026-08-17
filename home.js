@@ -819,10 +819,13 @@ function renderHomeWebWidget() {
   }
   function cleanName(t) { return String(t || '').replace(/^\[\d{6}\]\s*/, ''); }
 
+  // Archiving 은 메모 전문을 그대로 보여 준다.
+  //  Task/To Do 와 달리 '무슨 내용인지'가 곧 그 항목이라, 한 줄로 자르면 쓸모가 없다.
+  //  hwEsc 는 줄바꿈을 그대로 두므로 CSS 의 pre-wrap 이 살려 준다.
   var memoHtml = memos.map(function(n) {
-    return '<div class="hwb-item" onclick="navToMenu(\'cloud\')" title="Web 페이지 열기">'
+    return '<div class="hwb-item hwb-item-memo" onclick="navToMenu(\'cloud\')" title="Web 페이지 열기">'
       + '<span class="hwb-strip" style="background:var(--text-3);"></span>'
-      + '<span class="hwb-text">' + hwEsc(n.text) + '</span>'
+      + '<span class="hwb-text hwb-text-full">' + hwEsc(n.text) + '</span>'
       + '</div>';
   }).join('');
 
@@ -855,6 +858,16 @@ function renderHomeWebWidget() {
     + col('Task', actTasks.length, taskHtml, '미완료 Task가 없어요')
     + col('To Do', actSteps.length, stepHtml, '미완료 To Do가 없어요')
     + '</div>';
+  webSyncBoard();
+}
+
+// 칸이 좁으면 세 칼럼을 나란히 둘 수 없다 — 한 줄에 하나씩 세로로 쌓는다.
+//  (Archiving 이 메모 전문을 보여 주므로, 좁은 칼럼에서는 글자가 한 자씩 끊긴다)
+var HWB_NARROW = 260;
+function webSyncBoard() {
+  var board = document.querySelector('#web-body .hwb-board');
+  if (!board) return;
+  board.classList.toggle('is-narrow', board.clientWidth < HWB_NARROW);
 }
 
 // Web 위젯 상단 +Memo → Archiving 에 저장
@@ -1839,6 +1852,7 @@ function hwSyncResponsive() {
   if (typeof calSyncScale === 'function') calSyncScale();
   if (typeof habitSyncColumns === 'function') habitSyncColumns();
   if (typeof focusSyncDial === 'function') focusSyncDial();
+  if (typeof webSyncBoard === 'function') webSyncBoard();
 }
 
 // 창 크기가 바뀌어도 안쪽이 따라오게 한다
