@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var SW_URL  = './sw.js?v=20260817w';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
+  var SW_URL  = './sw.js?v=20260817x';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
   var isHttps = location.protocol === 'https:';
   var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var isNative = /^(capacitor|ionic|file):$/.test(location.protocol);
