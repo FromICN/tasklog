@@ -114,8 +114,40 @@ function renderHomeNotif() {
 function renderHomeCalendar() {
   var el = document.getElementById('cal-body');
   if (!el) return;
-  el.innerHTML = (homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid();
+  el.innerHTML = ((homeCalView === 'weekly') ? buildWeeklyCalGrid() : buildMonthlyCalGrid())
+    + '<div class="cal-detail" id="cal-detail"></div>';
+  renderCalDetail();
   calAttachAutoScale();
+}
+
+// 달력 아래 목록 — 고른 날짜의 구글 캘린더 일정.
+//  점만으로는 '무슨 약속인지'를 알 수 없어서, 날짜를 누르면 여기에 펼친다.
+//  Task·To Do 는 Web 위젯이 맡으므로 여기에 섞지 않는다.
+function renderCalDetail() {
+  var el = document.getElementById('cal-detail');
+  if (!el) return;
+  var p = homeCalSelectedKey.split('-');
+  var dt = new Date(+p[0], +p[1] - 1, +p[2]);
+  var dayStr = (dt.getMonth() + 1) + '월 ' + dt.getDate() + '일 ('
+    + ['일','월','화','수','목','금','토'][dt.getDay()] + ')';
+
+  var items = calGcalDayItems(homeCalSelectedKey);
+  var html = '<div class="cal-detail-header">' + dayStr
+    + '<span class="cal-detail-count">' + items.length + '</span></div>';
+  if (!items.length) {
+    html += '<div class="cal-detail-empty">구글 캘린더 일정이 없습니다</div>';
+  } else {
+    html += '<div class="cal-detail-list">' + items.map(function (item) {
+      var timeStr = item.time
+        ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2, '0')
+          + ':' + String(item.time.getMinutes()).padStart(2, '0') + '</span>'
+        : '<span class="cal-detail-time">종일</span>';
+      return '<div class="cal-detail-item is-cal" style="border-left-color:' + (item.color || GCAL_COLOR) + ';">'
+        + googleLogoSvg() + timeStr
+        + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
+    }).join('') + '</div>';
+  }
+  el.innerHTML = html;
 }
 
 // ── 위젯 크기에 맞춰 달력이 늘고 준다 ──────────────────
@@ -130,9 +162,13 @@ function calSyncScale() {
   var grid = body.querySelector('.cal-grid');
   if (!grid) return;
 
+  // 달력 격자가 실제로 쓸 수 있는 높이 = 바디 − 머리글 − 아래 일정 목록
   var head = body.querySelector('.cal-header');
+  var detail = body.querySelector('.cal-detail');
   var availW = body.clientWidth;
-  var availH = body.clientHeight - (head ? head.offsetHeight : 0);
+  var availH = body.clientHeight
+    - (head ? head.offsetHeight : 0)
+    - (detail ? detail.offsetHeight : 0);
   if (availW <= 0 || availH <= 0) return;
 
   // 격자는 요일 한 줄 + 주 N줄. 셀 개수로 몇 주인지 되짚는다.
@@ -1066,6 +1102,31 @@ function focusDialSvg(sec, running) {
   return svg;
 }
 
+// 시계를 남는 자리에 꽉 채운다.
+//  버튼·선택칸·기록이 쓰고 남은 높이와 가로폭 중 작은 쪽이 지름이 된다.
+//  (원이라 한쪽은 반드시 남는다 — 그 방향으로는 가운데 정렬한다)
+function focusSyncDial() {
+  var wrap = document.querySelector('#focus-body .fw-wrap');
+  var dial = wrap ? wrap.querySelector('.fw-dial-wrap') : null;
+  if (!wrap || !dial) return;
+
+  var gap = parseFloat(getComputedStyle(wrap).rowGap) || 0;
+  var used = 0, others = 0;
+  Array.prototype.forEach.call(wrap.children, function (el) {
+    if (el === dial) return;
+    others++;
+    used += el.getBoundingClientRect().height;
+  });
+  var availH = wrap.clientHeight - used - gap * others;
+  var availW = wrap.clientWidth;
+  var size = Math.max(24, Math.min(availW, availH));
+
+  var cur = parseFloat(dial.style.width) || 0;
+  if (Math.abs(cur - size) < 0.5) return;    // 값이 그대로면 손대지 않는다
+  dial.style.width = size.toFixed(1) + 'px';
+  dial.style.height = size.toFixed(1) + 'px';
+}
+
 // ── 렌더 ──────────────────────────────────
 function renderFocusWidget() {
   var el = document.getElementById('focus-body');
@@ -1108,21 +1169,21 @@ function renderFocusWidget() {
       }).join('')
     : '<div class="fw-sess-empty">오늘 끝낸 세션이 없습니다</div>';
 
-  // 시계는 원이라 좌우에 빈 공간이 남는다 → 오른쪽 빈자리에 버튼을 세로로 세운다.
+  // 시계가 남는 자리를 다 쓰고, 버튼은 그 아래에 나란히 선다.
   el.innerHTML = '<div class="fw-wrap">'
-    + '<div class="fw-main">'
-    +   '<div class="fw-dial-wrap" id="fw-dial-wrap">' + focusDialSvg(sec, running) + '</div>'
-    +   '<div class="fw-btns">'
-    +     '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
-    +     '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
-    +     '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
-    +   '</div>'
+    + '<div class="fw-dial-wrap" id="fw-dial-wrap">' + focusDialSvg(sec, running) + '</div>'
+    + '<div class="fw-btns">'
+    +   '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
+    +   '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
+    +   '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
     + '</div>'
     + '<select class="fw-select" ' + (running ? 'disabled title="정지한 뒤에 바꿀 수 있어요"' : '')
     +   ' onchange="focusPickSession(this.value)">' + opts + '</select>'
     + '<div class="fw-sess-head">오늘 완료 <span class="fw-sess-count">' + sessions.length + '</span></div>'
     + '<div class="fw-sess-list">' + sessionHtml + '</div>'
     + '</div>';
+
+  focusSyncDial();
 
   if (running) {
     _focusTick = setInterval(function() {
@@ -1738,6 +1799,7 @@ function hwAddResizeGrip(card, id) {
 function hwSyncResponsive() {
   if (typeof calSyncScale === 'function') calSyncScale();
   if (typeof habitSyncColumns === 'function') habitSyncColumns();
+  if (typeof focusSyncDial === 'function') focusSyncDial();
 }
 
 // 창 크기가 바뀌어도 안쪽이 따라오게 한다

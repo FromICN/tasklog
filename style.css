@@ -5102,8 +5102,9 @@ body.hw-resizing { user-select: none; }
 .habit-meta-right { margin-top: 0; margin-left: auto; margin-right: var(--space-2); flex-shrink: 0; text-align: right; white-space: nowrap; }
 .habit-week { display: flex; gap: 3px; flex-shrink: 0; }
 .habit-dot {
-  width: 18px;
-  height: 18px;
+  /* 요일 체크 칸 — 18px 에서 80% */
+  width: 14.4px;
+  height: 14.4px;
   border-radius: var(--radius-xs);
   background: var(--surface-hover);
   border: 1px solid var(--border);
@@ -11040,13 +11041,7 @@ body.light-mode .right-panel {
   flex-direction: column;
   gap: var(--space-15);
 }
-/* 시계(왼쪽) + 버튼(오른쪽) */
-.fw-main {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex: 0 0 auto;
-}
+/* 시계는 남는 자리를 다 쓴다 (크기는 home.js 의 focusSyncDial 이 잰다) */
 .fw-select {
   width: 100%;
   box-sizing: border-box;
@@ -11065,9 +11060,9 @@ body.light-mode .right-panel {
 .fw-dial-wrap {
   position: relative;
   flex: 0 0 auto;
-  /* 2행 카드 높이(기본 272px) 안에 시계 + 선택칸 + 기록이 다 들어가야 한다 */
-  width: 112px;
-  height: 112px;
+  align-self: center;   /* 원이라 한쪽은 남는다 → 그 방향으로 가운데 */
+  min-width: 0;
+  min-height: 0;
 }
 .fw-dial { display: block; width: 100%; height: 100%; }
 .fw-dial-face { fill: var(--fw-face); stroke: var(--fw-ring); stroke-width: 0.8; }
@@ -11099,14 +11094,14 @@ body.light-mode .right-panel {
 .fw-dial-time.is-over,
 .fw-dial-time.is-running.is-over { fill: var(--fw-face); }
 
-/* ── 버튼: 시계 오른쪽 빈자리에 세로로 ── */
+/* ── 버튼: 시계 아래에 나란히 ── */
 .fw-btns {
   display: flex;
-  flex-direction: column;
   gap: var(--space-15);
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
 }
+.fw-btns > .fw-btn { flex: 1 1 0; min-width: 0; }
 .fw-btn {
   height: 30px;
   border-radius: var(--radius-md);
@@ -11144,7 +11139,9 @@ body.light-mode .right-panel {
   padding: 0 var(--space-15);
   color: var(--text-2);
 }
-.fw-sess-list { flex: 1 1 auto; min-height: 26px; overflow-y: auto; }
+/* 위젯을 아주 작게 줄이면 이 목록이 먼저 양보한다 —
+   최소 높이를 잡아 두면 카드 밖으로 내용이 삐져나온다. */
+.fw-sess-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .fw-sess {
   display: flex;
   align-items: center;
@@ -11184,10 +11181,7 @@ body.light-mode .right-panel {
 .fw-sess-del:hover { background: var(--danger-bg); color: var(--danger); }
 .fw-sess-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-2) 0; }
 
-/* 폰: 세로로 길어지므로 시계를 조금 줄이고 버튼은 그대로 옆에 둔다 */
-@media (max-width: 768px) {
-  .fw-dial-wrap { width: 104px; height: 104px; }
-}
+
 
 /* =========================================================
    🗓 캘린더 날짜 hover — 구글 캘린더 일정만 작게
@@ -11364,3 +11358,31 @@ body.light-mode .right-panel {
 }
 .hw-track:hover,
 body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
+
+/* 요일 글자도 칸과 같은 비율로 (9px → 80%) */
+.habit-dot-dow { font-size: 7.2px; }
+
+/* ── 달력 아래 구글 일정 목록 ────────────────────────────────
+   격자가 남는 높이를 갖고, 목록은 제 내용만큼만 쓰되 너무 커지지 않게 막는다. */
+.cal-detail {
+  flex: 0 0 auto;
+  max-height: 38%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.cal-detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+}
+.cal-detail-count {
+  font-size: var(--fs-3xs);
+  font-weight: 700;
+  color: var(--text-3);
+  background: var(--surface);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-15);
+}
+.cal-detail-time { font-size: var(--fs-3xs); color: var(--text-3); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.cal-detail-item.is-cal { cursor: default; }
