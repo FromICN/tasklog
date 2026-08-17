@@ -156,20 +156,55 @@ function renderCalDetail() {
 //  글자와 간격을 그 칸에 비례해 맞춘다.
 var _calRO = null;
 
+// 위젯이 격자에서 '한 칸(1행)'만 차지했을 때 달력 격자가 가졌을 높이.
+//  그 값을 상한으로 삼아, 위젯을 더 늘려도 달력은 그대로 두고
+//  늘어난 세로는 아래 일정 목록이 가져가게 한다.
+// 바디의 안쪽 높이 — clientHeight 는 위아래 여백을 포함하므로 빼 준다.
+// (이걸 빼먹으면 달력에 여백만큼 더 주게 돼 카드 밖으로 밀려난다)
+function calInnerH(body) {
+  var cs = getComputedStyle(body);
+  return body.clientHeight - (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0);
+}
+
+function calBaseGridH(body, headH) {
+  var card = body.closest ? body.closest('.card') : null;
+  var homeGrid = document.getElementById('home-grid');
+  if (!card || !homeGrid) return null;
+  var rows = getComputedStyle(homeGrid).gridTemplateRows.split(' ')
+    .map(parseFloat).filter(function (n) { return !isNaN(n); });
+  if (!rows.length) return null;
+  var p = (typeof hwPlace === 'function') ? hwPlace(card.id) : null;
+  var rowH = (p && rows[p.r - 1]) ? rows[p.r - 1] : rows[0];
+  // 카드가 달력 말고 쓰는 높이(카드 머리글 + 바디 안쪽 여백)
+  var chrome = card.getBoundingClientRect().height - calInnerH(body);
+  return Math.max(80, rowH - chrome - headH);
+}
+
 function calSyncScale() {
   var body = document.getElementById('cal-body');
   if (!body) return;
   var grid = body.querySelector('.cal-grid');
   if (!grid) return;
 
-  // 달력 격자가 실제로 쓸 수 있는 높이 = 바디 − 머리글 − 아래 일정 목록
+  // 달력 격자는 '한 칸(1×1)'에 들어갈 만큼만 쓴다.
+  //  위젯을 세로로 늘려도 달력은 그대로 두고, 늘어난 만큼은 아래 일정 목록이 가져간다.
   var head = body.querySelector('.cal-header');
   var detail = body.querySelector('.cal-detail');
+  // 머리글은 아래쪽 바깥여백까지 자리를 차지한다 (offsetHeight 에는 안 잡힌다)
+  var headH = head ? (head.offsetHeight + (parseFloat(getComputedStyle(head).marginBottom) || 0)) : 0;
   var availW = body.clientWidth;
-  var availH = body.clientHeight
-    - (head ? head.offsetHeight : 0)
-    - (detail ? detail.offsetHeight : 0);
-  if (availW <= 0 || availH <= 0) return;
+  var roomH = calInnerH(body) - headH;            // 격자 + 목록이 나눠 쓸 높이
+  if (availW <= 0 || roomH <= 0) return;
+
+  var base = calBaseGridH(body, headH);
+  var availH = base ? Math.min(base, roomH) : roomH;
+  // 1칸 높이면 달력이 다 쓰고 남는 게 없다 → 목록은 아예 접는다.
+  // (억지로 끼워 넣으면 날짜 한 줄이 카드 밖으로 밀려난다)
+  var CAL_DETAIL_MIN = 44;
+  var showDetail = (roomH - availH) >= CAL_DETAIL_MIN;
+  if (detail) detail.style.display = showDetail ? '' : 'none';
+  if (!showDetail) availH = roomH;
+  if (availH <= 0) return;
 
   // 격자는 요일 한 줄 + 주 N줄. 셀 개수로 몇 주인지 되짚는다.
   var cells = grid.querySelectorAll('.cal-cell').length;
@@ -198,9 +233,13 @@ function calSyncScale() {
   var fsHead = clamp(unit * 0.36, 9, 15);
 
   // 값이 그대로면 손대지 않는다 (ResizeObserver 가 헛돌지 않도록)
-  var sig = [gap, fsNum, fsDow, today, dot, fsHead].map(function (n) { return n.toFixed(2); }).join('|');
+  var sig = [gap, fsNum, fsDow, today, dot, fsHead, availH].map(function (n) { return n.toFixed(2); }).join('|');
   if (body.dataset.calSig === sig) return;
   body.dataset.calSig = sig;
+
+  // 격자 높이를 못 박는다 → 남는 세로는 아래 일정 목록 몫이 된다
+  // 소수점이 올림되면 1px 이 카드 밖으로 나간다 → 내림한다
+  grid.style.height = Math.floor(availH) + 'px';
 
   body.style.setProperty('--cal-gap',     gap.toFixed(2) + 'px');
   body.style.setProperty('--cal-fs',      fsNum.toFixed(2) + 'px');
