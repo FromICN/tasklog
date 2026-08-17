@@ -11410,3 +11410,22 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
   grid-template-columns: 1fr;
   grid-auto-rows: minmax(0, 1fr);
 }
+
+/* ── Focus On: 시계 안 분 눈금 숫자 (5.6px → 80%) ── */
+.fw-dial-num { font-size: 4.48px; }
+
+/* ── Mandalart 위젯: 좁아지면 이름 대신 막대가 줄어든다 ──────────
+   Section 이름이 잘려서 어느 항목인지 모르게 되는 것보다,
+   막대가 짧아지는 편이 낫다. shrink 값을 크게 줘 막대가 먼저 양보한다. */
+.mda-name {
+  flex: 0 1 auto;
+  white-space: normal;        /* 정 안 되면 줄바꿈해서라도 다 보여 준다 */
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.mda-track {
+  flex: 0 20 110px;           /* 이름(1)보다 20배 빨리 줄어든다 */
+  min-width: 24px;
+}

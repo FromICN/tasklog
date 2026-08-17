@@ -1028,11 +1028,16 @@ function focusEnd() {
   if (step) {
     step.completed = true;
     if (typeof applyDonePrefix === 'function') step.text = applyDonePrefix(step.text, true);
-    // 완료 '그 순간'의 시각 — Work Diary 그리드가 이 값으로 자리를 잡는다
+    // 완료 '그 순간'의 시각 (다른 화면의 '완료 시각' 표시가 이 값을 쓴다)
     step.completedAt = nowIso;
-    delete step.wdTimed; delete step.wdLogAt;
     // 집중한 만큼을 블록 길이로 (Work Diary 최소 단위 10분)
     step.wdDurMin = Math.max(10, Math.round(sec / 60));
+    // Work Diary 그리드는 블록을 '시작 시각'에서 아래로 그린다.
+    //  completedAt 을 그대로 두면 종료 시각에서 블록이 시작해, 실제로 일한
+    //  시간대보다 한 칸 뒤에 얹힌다 → 끝이 종료 시각에 닿도록 앞당겨 놓는다.
+    var wdStart = new Date(new Date(nowIso).getTime() - step.wdDurMin * 60000);
+    step.wdTimed = true;
+    step.wdLogAt = wdStart.toISOString();
     // 이 세션의 버튼 기록을 To Do 에 붙여 둔다 — 목록에서 지울 때도 이걸 본다
     if (!Array.isArray(step.focusSessions)) step.focusSessions = [];
     step.focusSessions.push({ endedAt: nowIso, durSec: sec, log: s.log });
