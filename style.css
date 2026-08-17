@@ -4814,7 +4814,7 @@ body.hw-resizing { user-select: none; }
 }
 .cal-arrow:hover { color: var(--text-1); }
 .cal-month-label {
-  font-size: var(--fs-base);
+  font-size: var(--cal-fs-head, var(--fs-base));
   font-weight: 600;
   color: var(--text-1);
   min-width: 80px;
@@ -4843,8 +4843,13 @@ body.hw-resizing { user-select: none; }
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  /* 간격·칸 높이·글자 크기는 위젯 크기에 맞춰 home.js 가 정해 준다
-     (--cal-* 변수. 값이 없을 때는 아래 기본값으로 돈다) */
+  /* 첫 줄(요일)은 글자 높이만, 나머지 주 줄이 남는 높이를 똑같이 나눠 갖는다.
+     칸 높이를 내용으로 정하면 위젯을 줄였을 때 아래가 넘치거나 붕 떠서
+     여백이 한쪽으로 쏠린다. 간격·글자 크기는 home.js 가 --cal-* 로 준다. */
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 0;
   gap: var(--cal-gap, 1px);
 }
 .cal-dh {
@@ -4861,8 +4866,9 @@ body.hw-resizing { user-select: none; }
   padding: 0;
   cursor: pointer;
   transition: background var(--dur-fast);
-  min-height: var(--cal-cell-h, 28px);
+  min-height: 0;
   justify-content: center;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -11327,3 +11333,33 @@ body.light-mode .right-panel {
 .ht-item-name { font-size: 12px; }
 .ht-empty-title { font-size: 13px; }
 .ht-empty-desc  { font-size: 12px; }
+
+/* 달력 머리글: 위젯을 줄이면 화살표와 여백도 함께 줄어든다 */
+.cal-header { flex: 0 0 auto; margin-bottom: var(--cal-gap, 2px); }
+.cal-arrow { font-size: calc(var(--cal-fs-head, 13px) * 1.25); padding: 0 4px; }
+.cal-month-label { min-width: 0; }
+/* 요일 줄도 칸 크기에 맞춰 눌린다 */
+.cal-dh { padding: 0 0 1px; line-height: 1.35; }
+
+/* ── 격자 칸 경계선 — 끌어서 열 너비 · 행 높이 조정 ──────────
+   격자 위에 절대 위치로 얹어 칸 배치에는 끼어들지 않는다. */
+.hw-track {
+  position: absolute;
+  z-index: 8;
+  background: transparent;
+  transition: background var(--dur-fast);
+}
+.hw-track-col {
+  top: 0; bottom: 0;
+  width: 11px;
+  transform: translateX(-50%);
+  cursor: col-resize;
+}
+.hw-track-row {
+  left: 0; right: 0;
+  height: 11px;
+  transform: translateY(-50%);
+  cursor: row-resize;
+}
+.hw-track:hover,
+body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }

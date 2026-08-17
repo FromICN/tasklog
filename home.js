@@ -139,29 +139,39 @@ function calSyncScale() {
   var cells = grid.querySelectorAll('.cal-cell').length;
   var weeks = Math.max(1, Math.round(cells / 7));
 
-  var cw = availW / 7;               // 한 칸 너비
-  var ch = availH / (weeks + 1);     // 한 칸 높이(요일 줄 포함)
-  var unit = Math.min(cw, ch);       // 정사각형에 가까운 쪽을 기준으로
-
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-  var gap   = clamp(unit * 0.05, 1, 5);
-  var fsNum = clamp(unit * 0.42, 8, 20);
-  var fsDow = clamp(unit * 0.34, 7, 15);
-  var today = clamp(fsNum * 1.55, 14, 32);
-  var dot   = clamp(unit * 0.09, 3, 8);
-  var cellH = Math.max(14, ch - gap);
+
+  // 주 행은 남는 높이를 나눠 갖는다(CSS 가 1fr 로 처리). 여기서는 그 한 줄이
+  // 몇 px 이 되는지를 먼저 알아야 글자 크기를 거기에 맞출 수 있다.
+  // 간격이 높이에 영향을 주고 높이가 다시 간격을 정하므로, 두 번 돌려 수렴시킨다.
+  var dowEl = grid.querySelector('.cal-dh');
+  var dowH = dowEl ? dowEl.getBoundingClientRect().height : 14;
+  var gap = 2, unit = 0, cw = 0, ch = 0;
+  for (var pass = 0; pass < 2; pass++) {
+    cw = (availW - gap * 6) / 7;
+    ch = (availH - dowH - gap * weeks) / weeks;
+    unit = Math.max(6, Math.min(cw, ch));
+    gap = clamp(unit * 0.05, 1, 5);
+  }
+
+  var fsNum = clamp(unit * 0.42, 7, 20);
+  var fsDow = clamp(unit * 0.34, 6, 15);
+  // 오늘 표시 원이 한 칸보다 크면 삐져나온다 → 칸 크기로도 한 번 더 막는다
+  var today = clamp(Math.min(fsNum * 1.55, unit * 0.86), 12, 32);
+  var dot   = clamp(unit * 0.09, 2.5, 8);
+  var fsHead = clamp(unit * 0.36, 9, 15);
 
   // 값이 그대로면 손대지 않는다 (ResizeObserver 가 헛돌지 않도록)
-  var sig = [gap, fsNum, fsDow, today, dot, cellH].map(function (n) { return n.toFixed(2); }).join('|');
+  var sig = [gap, fsNum, fsDow, today, dot, fsHead].map(function (n) { return n.toFixed(2); }).join('|');
   if (body.dataset.calSig === sig) return;
   body.dataset.calSig = sig;
 
-  body.style.setProperty('--cal-gap',    gap.toFixed(2) + 'px');
-  body.style.setProperty('--cal-fs',     fsNum.toFixed(2) + 'px');
-  body.style.setProperty('--cal-fs-dow', fsDow.toFixed(2) + 'px');
-  body.style.setProperty('--cal-today',  today.toFixed(2) + 'px');
-  body.style.setProperty('--cal-dot',    dot.toFixed(2) + 'px');
-  body.style.setProperty('--cal-cell-h', cellH.toFixed(2) + 'px');
+  body.style.setProperty('--cal-gap',     gap.toFixed(2) + 'px');
+  body.style.setProperty('--cal-fs',      fsNum.toFixed(2) + 'px');
+  body.style.setProperty('--cal-fs-dow',  fsDow.toFixed(2) + 'px');
+  body.style.setProperty('--cal-today',   today.toFixed(2) + 'px');
+  body.style.setProperty('--cal-dot',     dot.toFixed(2) + 'px');
+  body.style.setProperty('--cal-fs-head', fsHead.toFixed(2) + 'px');
 }
 
 function calAttachAutoScale() {
@@ -1463,6 +1473,7 @@ function hwApplyPlace(el, p) {
 function hwInitLayout() {
   var grid = document.getElementById('home-grid');
   if (!grid) return;
+  hwApplyTracks(grid);
   hwVisibleWidgets().forEach(function (w) {
     var el = document.getElementById(w.id);
     if (!el) return;
@@ -1471,26 +1482,132 @@ function hwInitLayout() {
     hwAddResizeGrip(el, w.id);
   });
   hwAddGridDrop(grid);
+  hwAddTrackHandles(grid);
   hwSyncResponsive();
 }
 
-// 격자 좌표 → 픽셀 계산에 쓰는 한 칸 크기
-function hwCellSize(grid) {
-  var r = grid.getBoundingClientRect();
-  var gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
-  var gapR = parseFloat(getComputedStyle(grid).rowGap) || gap;
+// ── 칸 경계선 끌어 열 너비 · 행 높이 조정 ──────────────────
+//  경계마다 얇은 손잡이를 얹는다. 격자 위에 절대 위치로 올리므로
+//  칸 배치에는 끼어들지 않는다. 트랙 크기가 바뀌면 다시 놓는다.
+var HW_TRACK_MIN = 60;   // 한 칸이 이보다 좁아지면 안쪽 내용이 못 버틴다
+
+function hwAddTrackHandles(grid) {
+  Array.prototype.forEach.call(grid.querySelectorAll('.hw-track'), function (el) { el.remove(); });
+  var t = hwTracks(grid);
+  var pos;
+
+  pos = 0;
+  for (var i = 0; i < t.cols.length - 1; i++) {
+    pos += t.cols[i];
+    grid.appendChild(hwMakeTrackHandle('col', i, pos + t.gapC / 2));
+    pos += t.gapC;
+  }
+  pos = 0;
+  for (var j = 0; j < t.rows.length - 1; j++) {
+    pos += t.rows[j];
+    grid.appendChild(hwMakeTrackHandle('row', j, pos + t.gapR / 2));
+    pos += t.gapR;
+  }
+}
+
+function hwMakeTrackHandle(kind, idx, offset) {
+  var h = document.createElement('div');
+  h.className = 'hw-track hw-track-' + kind;
+  h.title = (kind === 'col') ? '드래그해 열 너비 조정' : '드래그해 행 높이 조정';
+  h.style[kind === 'col' ? 'left' : 'top'] = offset + 'px';
+  h.addEventListener('mousedown', function (e) { hwTrackDrag(e, kind, idx); });
+  return h;
+}
+
+function hwTrackDrag(e, kind, idx) {
+  e.preventDefault(); e.stopPropagation();
+  var grid = document.getElementById('home-grid');
+  if (!grid) return;
+  var isCol = (kind === 'col');
+  var t = hwTracks(grid);
+  var sizes = (isCol ? t.cols : t.rows).slice();
+  var start = isCol ? e.clientX : e.clientY;
+  var a0 = sizes[idx], b0 = sizes[idx + 1];
+  var totalPx = sizes.reduce(function (s, v) { return s + v; }, 0);
+  var frs = hwTrackFr(isCol ? 'cols' : 'rows');
+  var totalFr = frs.reduce(function (s, v) { return s + v; }, 0);
+  var moved = sizes.slice();
+
+  function mm(ev) {
+    var d = (isCol ? ev.clientX : ev.clientY) - start;
+    d = Math.max(HW_TRACK_MIN - a0, Math.min(b0 - HW_TRACK_MIN, d));
+    moved = sizes.slice();
+    moved[idx] = a0 + d;
+    moved[idx + 1] = b0 - d;
+    // 끄는 동안은 px 로 바로 반영 (fr 로 환산하면 반올림이 눈에 띈다)
+    grid.style[isCol ? 'gridTemplateColumns' : 'gridTemplateRows'] =
+      moved.map(function (v) { return v + 'px'; }).join(' ');
+    hwSyncResponsive();
+  }
+  function mu() {
+    document.removeEventListener('mousemove', mm);
+    document.removeEventListener('mouseup', mu);
+    document.body.classList.remove('hw-resizing');
+    // px → fr 로 되돌려 저장한다. 창 크기가 달라져도 비율이 유지된다.
+    hwSetTrackFr(isCol ? 'cols' : 'rows', moved.map(function (v) { return v / totalPx * totalFr; }));
+    hwApplyTracks(grid);
+    hwAddTrackHandles(grid);
+    hwSyncResponsive();
+  }
+  document.body.classList.add('hw-resizing');
+  document.addEventListener('mousemove', mm);
+  document.addEventListener('mouseup', mu);
+}
+
+// ── 격자 칸 크기 (열 너비 · 행 높이) ──────────────────────
+//  칸을 모두 똑같이 두지 않는다. 열마다 · 행마다 몫(fr)을 따로 갖고,
+//  경계선을 끌어 그 몫을 옮긴다. 화면 폭이 달라져도 비율이 유지되도록
+//  px 이 아니라 fr 로 저장한다.
+function hwTrackFr(kind) {
+  var L = hwLoadLayout();
+  var n = (kind === 'cols') ? HW_COLS : HW_ROWS;
+  var a = L[kind];
+  if (Array.isArray(a) && a.length === n && a.every(function (v) { return typeof v === 'number' && v > 0; })) return a.slice();
+  return new Array(n).fill(1);
+}
+function hwSetTrackFr(kind, arr) {
+  var L = hwLoadLayout();
+  L[kind] = arr.map(function (v) { return Math.round(v * 1000) / 1000; });
+  hwSaveLayout(L);
+}
+function hwApplyTracks(grid) {
+  grid.style.gridTemplateColumns = hwTrackFr('cols').map(function (f) { return f + 'fr'; }).join(' ');
+  grid.style.gridTemplateRows    = hwTrackFr('rows').map(function (f) { return f + 'fr'; }).join(' ');
+}
+
+// 지금 그려진 트랙의 실제 픽셀 크기
+function hwTracks(grid) {
+  var cs = getComputedStyle(grid);
   return {
-    w: (r.width  - gap  * (HW_COLS - 1)) / HW_COLS,
-    h: (r.height - gapR * (HW_ROWS - 1)) / HW_ROWS,
-    gap: gap, gapR: gapR, rect: r
+    cols: cs.gridTemplateColumns.split(' ').map(parseFloat),
+    rows: cs.gridTemplateRows.split(' ').map(parseFloat),
+    gapC: parseFloat(cs.columnGap) || 0,
+    gapR: parseFloat(cs.rowGap) || 0,
+    rect: grid.getBoundingClientRect()
   };
 }
-// 화면 좌표가 몇 번째 칸인지
+
+// 화면 좌표가 몇 번째 칸인지 (칸 크기가 제각각이므로 트랙을 훑어 찾는다)
 function hwCellAt(grid, x, y) {
-  var s = hwCellSize(grid);
-  var c = Math.floor((x - s.rect.left) / (s.w + s.gap)) + 1;
-  var r = Math.floor((y - s.rect.top)  / (s.h + s.gapR)) + 1;
-  return { c: Math.max(1, Math.min(HW_COLS, c)), r: Math.max(1, Math.min(HW_ROWS, r)) };
+  var t = hwTracks(grid);
+  function pick(pos, sizes, gap) {
+    var acc = 0;
+    for (var i = 0; i < sizes.length; i++) {
+      acc += sizes[i];
+      if (pos <= acc) return i + 1;
+      acc += gap;
+    }
+    return sizes.length;
+  }
+  return {
+    c: Math.max(1, Math.min(HW_COLS, pick(x - t.rect.left, t.cols, t.gapC))),
+    r: Math.max(1, Math.min(HW_ROWS, pick(y - t.rect.top,  t.rows, t.gapR)))
+  };
 }
 
 // ── 옮기기 (머리글 드래그) ──
