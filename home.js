@@ -1169,8 +1169,15 @@ function focusSyncDial() {
     others++;
     used += el.getBoundingClientRect().height;
   });
-  var availH = wrap.clientHeight - used - gap * others;
-  var availW = wrap.clientWidth;
+
+  // ⚠️ 남는 자리는 wrap 이 아니라 카드 바디에서 잰다.
+  //    시계가 wrap 의 최소 폭을 밀어 올려서, wrap 을 재면 '지금 시계 크기'가
+  //    그대로 나온다 → 폭을 줄여도 줄어들지 않고 오른쪽이 잘린다.
+  var host = document.getElementById('focus-body');
+  var hcs = getComputedStyle(host);
+  var availW = host.clientWidth  - (parseFloat(hcs.paddingLeft) || 0) - (parseFloat(hcs.paddingRight)  || 0);
+  var availH = host.clientHeight - (parseFloat(hcs.paddingTop)  || 0) - (parseFloat(hcs.paddingBottom) || 0)
+             - used - gap * others;
   var size = Math.max(24, Math.min(availW, availH));
 
   var cur = parseFloat(dial.style.width) || 0;

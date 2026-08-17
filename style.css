@@ -11038,6 +11038,9 @@ body.light-mode .right-panel {
 .fw-wrap {
   flex: 1;
   min-height: 0;
+  /* 이게 없으면 시계(고정 크기 자식)가 wrap 의 최소 폭을 붙잡아
+     카드가 좁아져도 wrap 이 안 줄고 시계 오른쪽이 잘린다 */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-15);
@@ -11077,9 +11080,11 @@ body.light-mode .right-panel {
   text-anchor: middle;
   dominant-baseline: central;
 }
-/* 지난 시간 = 0에서 시계 방향으로 칠한 진녹색 부채꼴 */
-.fw-dial-fill { fill: var(--fw-fill); }
-.fw-dial-knob { fill: var(--fw-knob); }
+/* 지난 시간 = 0에서 시계 방향으로 칠한 부채꼴.
+   가운데 손잡이와 같은 색으로 맞춘다 — 색이 같으면 손잡이가 묻히므로
+   손잡이에는 테두리를 둘러 경계를 남긴다. */
+.fw-dial-fill { fill: var(--fw-knob); }
+.fw-dial-knob { fill: var(--fw-knob); stroke: var(--fw-knob-line); stroke-width: 0.6; }
 .fw-dial-knob-line { stroke: var(--fw-knob-line); stroke-width: 0.9; stroke-linecap: round; }
 /* 실물의 'Great things take time.' 자리 — 같은 색·같은 위치에 시간을 적는다 */
 .fw-dial-time {
@@ -11091,9 +11096,9 @@ body.light-mode .right-panel {
   dominant-baseline: central;
 }
 .fw-dial-time.is-running { fill: var(--fw-fill); }
-/* 부채꼴에 덮이면 진녹색 위 흰 글씨로 뒤집는다 */
+/* 부채꼴에 덮이면 그 위에서 읽히는 잉크색으로 뒤집는다 */
 .fw-dial-time.is-over,
-.fw-dial-time.is-running.is-over { fill: var(--fw-face); }
+.fw-dial-time.is-running.is-over { fill: var(--fw-ink); }
 
 /* ── 버튼: 시계 아래에 나란히 ── */
 .fw-btns {
