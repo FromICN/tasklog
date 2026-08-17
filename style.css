@@ -4669,12 +4669,13 @@ body.light-mode .lw-cv-tag {
   box-sizing: border-box;
   overflow: hidden;
 }
-/* 4열 × 3행 격자 — 위젯마다 grid-column/row 를 인라인으로 받는다.
-   빈칸이 남아도 그대로 둔다(작게 줄여 여백을 만드는 것도 배치의 하나). */
+/* 6열 × 4행 격자 — 위젯마다 grid-column/row 를 인라인으로 받는다.
+   빈칸이 남아도 그대로 둔다(작게 줄여 여백을 만드는 것도 배치의 하나).
+   ⚠️ 칸 수를 바꾸면 home.js 의 HW_COLS · HW_ROWS 도 같이 바꿔야 한다. */
 .home-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(0, 1fr));
   gap: var(--space-3);
   flex: 1 1 auto;
   min-height: 0;

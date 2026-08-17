@@ -1325,7 +1325,7 @@ function fmtKey(d) {
 
 
 // ============================================
-//  🏠 홈 위젯 배치 — 4열 × 3행 격자
+//  🏠 홈 위젯 배치 — 6열 × 4행 격자
 //  --------------------------------------------
 //  위젯마다 { c, r, w, h } (왼쪽 열 · 윗 행 · 가로 칸수 · 세로 칸수)를 갖는다.
 //  · 머리글을 끌어 다른 칸으로 옮긴다. 빈자리면 그냥 가고,
@@ -1334,20 +1334,20 @@ function fmtKey(d) {
 //    작게 줄여 빈칸(여백)을 남겨 두는 것도 배치의 하나로 본다.
 //  · 어떤 위젯을 띄울지는 설정 > 메뉴에서 고른다.
 // ============================================
-var HW_COLS = 4, HW_ROWS = 3;
+var HW_COLS = 6, HW_ROWS = 4;
 
-// v7 — 두 줄(row1/row2) 구조에서 4×3 격자로 바뀌었다. 예전 값은 쓸 수 없다.
-var HW_LKEY = 'home-layout-v7';
+// v8 — 격자가 4×3 에서 6×4 로 넓어졌다. 예전 자리·트랙 값은 칸 수가 달라 쓸 수 없다.
+var HW_LKEY = 'home-layout-v8';
 
 // 홈에 놓을 수 있는 위젯 목록 (기본 배치 · 기본 표시 여부 포함)
 var HOME_WIDGETS = [
-  { id:'cal-widget',       title:'Calendar',      nav:null,        body:'cal-body',        render:'renderHomeCalendar',        def:{c:1,r:1,w:1,h:2}, on:true  },
-  { id:'web-widget',       title:'Web',           nav:'cloud',     body:'web-body',        render:'renderHomeWebWidget',       def:{c:2,r:1,w:2,h:1}, on:true  },
-  { id:'focus-widget',     title:'Focus On',      nav:null,        body:'focus-body',      render:'renderFocusWidget',         def:{c:4,r:1,w:1,h:2}, on:true  },
-  { id:'habit-widget',     title:'Habit Tracker', nav:'habit',     body:'habit-body',      render:'renderHomeHabitWidget',     def:{c:2,r:2,w:2,h:1}, on:true  },
-  { id:'mandalart-widget', title:'Mandalart',     nav:'mandalart', body:'mandalart-body',  render:'renderHomeMandalartWidget', def:{c:1,r:3,w:2,h:1}, on:true  },
-  { id:'wheel-widget',     title:'Life Wheel',    nav:'wheel',     body:'wheel-body',      render:'renderHomeLifeWheel',       def:{c:3,r:3,w:1,h:1}, on:true  },
-  { id:'gantt-widget',     title:'Gantt',         nav:'project',   body:'gantt-body',      render:'renderHomeGanttMini',       def:{c:4,r:3,w:1,h:1}, on:false },
+  { id:'cal-widget',       title:'Calendar',      nav:null,        body:'cal-body',        render:'renderHomeCalendar',        def:{c:1,r:1,w:2,h:2}, on:true  },
+  { id:'web-widget',       title:'Web',           nav:'cloud',     body:'web-body',        render:'renderHomeWebWidget',       def:{c:3,r:1,w:2,h:2}, on:true  },
+  { id:'focus-widget',     title:'Focus On',      nav:null,        body:'focus-body',      render:'renderFocusWidget',         def:{c:5,r:1,w:2,h:2}, on:true  },
+  { id:'habit-widget',     title:'Habit Tracker', nav:'habit',     body:'habit-body',      render:'renderHomeHabitWidget',     def:{c:1,r:3,w:3,h:2}, on:true  },
+  { id:'mandalart-widget', title:'Mandalart',     nav:'mandalart', body:'mandalart-body',  render:'renderHomeMandalartWidget', def:{c:4,r:3,w:2,h:2}, on:true  },
+  { id:'wheel-widget',     title:'Life Wheel',    nav:'wheel',     body:'wheel-body',      render:'renderHomeLifeWheel',       def:{c:6,r:3,w:1,h:1}, on:true  },
+  { id:'gantt-widget',     title:'Gantt',         nav:'project',   body:'gantt-body',      render:'renderHomeGanttMini',       def:{c:6,r:4,w:1,h:1}, on:false },
 ];
 
 function hwDef(id) { return HOME_WIDGETS.find(function (w) { return w.id === id; }); }
