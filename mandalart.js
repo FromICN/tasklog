@@ -126,6 +126,16 @@ function loadMandalarts() {
               // 구버전 분기 실적 합계를 누적 실적으로 이관
               a.cumActual = (a.quarters || []).reduce(function(s, q){ return s + (+q.value || 0); }, 0);
             }
+            // ▶ 유형 개편: 달성형(누적/실적) → '실적형(result)' 하나로 통합. 습관형은 유지.
+            if (a.trackingType !== 'habit') { a.trackingType = 'task'; a.achieveType = 'result'; }
+            // 실적형 실적 기록(일자·내용). 예전 실적형 월배지(달성월)를 일자 기록으로 이관.
+            if (!Array.isArray(a.resultEntries)) {
+              a.resultEntries = [];
+              var _rm = a.resultMonths || {};
+              for (var _mo = 1; _mo <= 12; _mo++) {
+                if (_rm[_mo] === 1) a.resultEntries.push({ date: String(m.year) + '-' + (('0'+_mo).slice(-2)) + '-01', text: '' });
+              }
+            }
           });
         });
       });
@@ -207,7 +217,7 @@ function ensureMdtData(year) {
         smart: { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'' },
         notes: '',
         actions: Array.from({length:8}, function(_, j) {
-          return { id: j+1, text: '', completed: false, trackingType: 'task', achieveType: 'cum', resultCompare: 'gte', habitFreq: 'weekly', successThreshold: 80, habitWeeklyTarget: 1, habitLog: {}, resultMonths: {}, annualTarget: 0, annualUnit: '', cumActual: 0, goalText: '', evalIndicators: '', quarters: defaultMdtQuarters() };
+          return { id: j+1, text: '', completed: false, trackingType: 'task', achieveType: 'result', resultCompare: 'gte', habitFreq: 'weekly', successThreshold: 80, habitWeeklyTarget: 1, habitLog: {}, resultMonths: {}, resultEntries: [], annualTarget: 0, annualUnit: '', cumActual: 0, goalText: '', evalIndicators: '', quarters: defaultMdtQuarters() };
         })
       };
     })
@@ -480,22 +490,36 @@ function mdtHabitYearWeeks(a, year) {
   return { done: done, total: totalWeeks, rate: Math.round(done / totalWeeks * 100), target: target };
 }
 
+// 실적형 실적 수 = 일자가 입력된 기록의 개수 (구버전 누적값은 기록이 없을 때만 보조 사용)
+function mdtResultActual(a) {
+  var e = Array.isArray(a.resultEntries) ? a.resultEntries : [];
+  var cnt = e.filter(function(x){ return x && x.date; }).length;
+  if (cnt === 0 && (+a.cumActual || 0) > 0) return +a.cumActual;   // 구버전 누적 보존
+  return cnt;
+}
+// 습관형 목표 달성에 필요한 '주 수' = 52주 × 성공기준% (이 수를 100%로 보고 바 표시)
+function mdtHabitReqWeeks(a) {
+  var thr = Math.max(0, Math.min(100, +a.successThreshold || 0));
+  return Math.max(1, Math.ceil(52 * thr / 100));
+}
+
 // action 하나의 달성 현황 { pct(0~100), label, achieved }
+//  · 공통: label 은 '실적/목표(단위)' 형식으로 달성현황 칸에 그대로 노출한다.
 function mdtActPerf(a, year) {
   if (a.trackingType === 'habit') {
-    var thr = a.successThreshold || 80;
-    var stW = mdtHabitYearWeeks(a, year);
-    return { pct: stW.rate, label: stW.done + '주 / ' + stW.total + '주 (' + stW.rate + '%)', achieved: stW.rate >= thr };
+    // 습관형: '주 N회'를 달성한 주 수 / (52주×성공기준%) — 후자를 100%로 본다.
+    var done = mdtHabitYearWeeks(a, year).done;
+    var req  = mdtHabitReqWeeks(a);
+    var pctH = Math.min(100, Math.round(done / req * 100));
+    return { pct: pctH, label: done + ' / ' + req + ' 주', achieved: done >= req };
   }
-  if (a.achieveType === 'result') {
-    // 실적형: 12월에 달성했는가로 판단
-    return { pct: a.completed ? 100 : 0, label: a.completed ? '달성' : '미달성', achieved: !!a.completed };
-  }
-  // 누적형: 연간 정해진 횟수(목표) 대비 누적 실적
+  // 실적형: 일자 기록 수(실적) / 목표값(단위)
+  var actual = mdtResultActual(a);
   var target = +a.annualTarget || 0;
-  var sum = +a.cumActual || 0;
-  var pct = target > 0 ? Math.min(100, Math.round(sum / target * 100)) : 0;
-  return { pct: pct, label: '누적 ' + sum + (a.annualUnit ? ' ' + a.annualUnit : '') + (target > 0 ? ' / ' + target + (a.annualUnit ? ' ' + a.annualUnit : '') + ' (' + pct + '%)' : ''), achieved: target > 0 && sum >= target };
+  var unit   = a.annualUnit ? (' ' + a.annualUnit) : '';
+  var pct = target > 0 ? Math.min(100, Math.round(actual / target * 100)) : 0;
+  var label = actual + ' / ' + target + unit + (target > 0 ? ' (' + pct + '%)' : '');
+  return { pct: pct, label: label, achieved: target > 0 && actual >= target };
 }
 
 function calcSgPerf(sg, year) {
@@ -967,7 +991,7 @@ function buildSgDetailHtml(m, sg) {
     + '<th class="mgt-th-drag"></th>'
     + '<th class="mgt-th-proj" data-cr-key="proj">Project</th>'
     + '<th class="mgt-th-type" data-cr-key="type">유형</th>'
-    + '<th class="mgt-th-goal" data-cr-key="goal">목표</th>'
+    + '<th class="mgt-th-goal" data-cr-key="goal">세부계획</th>'
     + '<th class="mgt-th-perf" data-cr-key="perf">달성현황</th>'
     + '<th class="mgt-th-memo" data-cr-key="memo">메모(실적)</th>'
     + '</tr></thead><tbody>';
@@ -993,15 +1017,13 @@ function buildSgDetailHtml(m, sg) {
 // action의 유형 값 ('cum' | 'result' | 'habit')
 //  구버전 'daily'(일간) · 'monthly'(월간)도 전부 습관형 하나로 읽는다.
 function mdtActTypeVal(a) {
-  return (a.trackingType === 'habit') ? 'habit'
-                                      : (a.achieveType === 'result' ? 'result' : 'cum');
+  return (a.trackingType === 'habit') ? 'habit' : 'result';   // 유형 2종: 실적형 / 습관형
 }
 
 // 유형 선택 드롭다운 (그리드 · 실적 패널 공용 — 한 곳에서만 고치면 되도록)
 function mdtTypeSelectHtml(year, sgId, actId, tv) {
   var opts = [
-    ['cum',     '달성형(누적)'],
-    ['result',  '달성형(실적)'],
+    ['result',  '실적형'],
     ['habit',   '습관형'],
   ].map(function(o) {
     return '<option value="' + o[0] + '"' + (tv === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
@@ -1016,7 +1038,8 @@ function mdtSetActType(year, sgId, actId, val) {
   var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
   var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
   if (val === 'habit') { a.trackingType = 'habit'; a.habitFreq = 'weekly'; }
-  else { a.trackingType = 'task'; a.achieveType = (val === 'result') ? 'result' : 'cum'; }
+  else { a.trackingType = 'task'; a.achieveType = 'result'; }
+  if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
   saveMandalarts();
   if (document.querySelector('.mdt-grid-table')) openSgDetail(year, sgId);
   else _mdtRerenderActCard(year, sgId, actId);
@@ -1079,53 +1102,179 @@ function mdtResultMonthsHtml(yr, sgId, a) {
 //  숫자(목표값 · 성공기준)는 전부 오른쪽 '달성현황' 칸에서 직접 입력한다.
 function mdtGoalCellHtml(m, sg, a) {
   var yr = m.year, sgId = sg.id;
-  return '<input type="text" class="mgt-text-inp" value="' + escMdt(a.goalText || '') + '" placeholder="목표"'
+  return '<input type="text" class="mgt-text-inp" value="' + escMdt(a.goalText || '') + '" placeholder="세부계획"'
     + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'goalText\',this.value);saveMandalarts();">';
 }
 
-// 달성률 막대 (달성현황 칸 공용)
-function mdtPerfBarHtml(sg, perf) {
-  return '<div class="mdt-perf-dash-bar mgt-hb-bar mgt-hb-bar--static" title="' + escMdt(perf.label) + '">'
-    + '<div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>';
-}
-
-// 그리드 셀: 달성현황 — 목표값·실적값을 모두 여기서 직접 입력한다
+// 그리드 셀: 달성현황 — 실적/목표(단위) 요약 + 진행바. 바(칸)를 누르면 실적 입력 창이 뜬다.
 function mdtPerfCellHtml(m, sg, a) {
   var yr = m.year, sgId = sg.id;
-  var tv = mdtActTypeVal(a);
   var perf = mdtActPerf(a, yr);
-  // 숫자 칸은 전부 type="text" + inputmode="numeric" 이다.
-  //  type="number" 의 위·아래 화살표(스피너)가 좁은 칸을 잡아먹어, 타이핑으로만 넣는다.
-  var reload = 'saveMandalarts();openSgDetail(' + yr + ',' + sgId + ');';
-  if (tv === 'cum') {
-    // 누적형: 실적 / 목표 (단위) — 읽는 순서대로 '한 줄'. 실적이 앞이다.
-    return '<div class="mgt-perf-cum mgt-perf-1line">'
-      + '<input type="text" inputmode="numeric" class="mdt-num-inp" value="' + (+a.cumActual || 0) + '" title="누적 실적"'
-      + ' onchange="mdtSaveCum(' + yr + ',' + sgId + ',' + a.id + ',this.value)">'
-      + '<span class="mgt-perf-sep">/</span>'
-      + '<input type="text" inputmode="numeric" class="mdt-num-inp" value="' + (+a.annualTarget || 0) + '" title="연간 목표값"'
-      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value);' + reload + '">'
-      + '<input type="text" class="mdt-unit-inp" value="' + escMdt(a.annualUnit || '') + '" placeholder="단위" title="단위"'
-      + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value);' + reload + '">'
-      + '<span class="mgt-perf-label">' + ((+a.annualTarget || 0) > 0 ? (perf.pct + '%') : '목표값 입력') + '</span>'
-      + '</div>'
-      + mdtPerfBarHtml(sg, perf);
+  return '<div class="mgt-perf-wrap" onclick="mdtOpenPerfModal(' + yr + ',' + sgId + ',' + a.id + ')" title="클릭해 실적 입력">'
+    + '<div class="mgt-perf-summary">' + escMdt(perf.label) + (perf.achieved ? ' <span class="mgt-perf-badge-sq on">달성</span>' : '') + '</div>'
+    + '<div class="mdt-perf-dash-bar mgt-perf-clickbar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
+    + '</div>';
+}
+
+// ============================================================
+//  📥 실적 입력 모달 (달성현황 바 클릭 → 새 창)
+//   · 실적형: 목표값·단위 + [일자·내용] 표(일자 입력 시 자동 실적 카운팅)
+//   · 습관형: 주N회·성공기준% + 1~12월 캘린더(날짜 클릭 시 실적 카운팅)
+// ============================================================
+function mdtOpenPerfModal(year, sgId, actId) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
+  var old = document.getElementById('mdt-perf-modal-overlay'); if (old) old.remove();
+  var isHabit = (a.trackingType === 'habit');
+  var title = (a.text && a.text.trim()) ? a.text : ('Project ' + a.id);
+  var html = '<div class="mdt-proj-overlay" id="mdt-perf-modal-overlay" onclick="if(event.target===this)mdtClosePerfModal()">'
+    + '<div class="mdt-proj-modal mdt-perf-modal">'
+    +   '<div class="mdt-proj-modal-header" style="border-bottom:3px solid ' + sg.color + ';">'
+    +     '<div class="mdt-proj-modal-title"><span style="font-size:22px;">' + sg.emoji + '</span>'
+    +       '<span>' + escMdt(title) + '</span>'
+    +       '<span class="mdt-perf-modal-tag">' + (isHabit ? '습관형' : '실적형') + '</span></div>'
+    +     '<button class="mdt-proj-close" onclick="mdtClosePerfModal()">✕</button>'
+    +   '</div>'
+    +   '<div class="mdt-proj-modal-body" id="mdt-perf-modal-body"></div>'
+    +   '<div class="mdt-proj-modal-footer">'
+    +     '<button class="mdt-proj-save" onclick="mdtClosePerfModal()" style="background:' + sg.color + ';">닫기</button>'
+    +   '</div>'
+    + '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  _mdtPerfModalCtx = { year: year, sgId: sgId, actId: actId };
+  mdtRenderPerfModalBody(year, sgId, actId);
+}
+var _mdtPerfModalCtx = null;
+
+function mdtClosePerfModal() {
+  var el = document.getElementById('mdt-perf-modal-overlay'); if (el) el.remove();
+  // 그리드가 열려 있으면 달성현황 갱신
+  if (_mdtPerfModalCtx && document.querySelector('.mdt-grid-table')) {
+    openSgDetail(_mdtPerfModalCtx.year, _mdtPerfModalCtx.sgId);
   }
-  if (tv === 'result') {
-    var resBadge = perf.achieved ? '<span class="mgt-perf-badge mgt-perf-badge-sq on">달성</span>' : '';
-    return '<div class="mgt-perf-result">' + mdtResultMonthsHtml(yr, sgId, a) + resBadge + '</div>';
-  }
-  // 습관형: '주 n회 (연간 n%) 이상' — 한 줄. 날짜 체크는 Habit Tracker 에서 한다.
-  return '<div class="mgt-perf-habit mgt-perf-1line">'
-    + '<span class="mgt-perf-hint">주</span>'
-    + '<input type="text" inputmode="numeric" class="mdt-num-inp mdt-num-sm" value="' + (a.habitWeeklyTarget || 1) + '" title="주 N회 목표"'
-    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'habitWeeklyTarget\',+this.value);' + reload + '">'
-    + '<span class="mgt-perf-hint">회 (연간</span>'
-    + '<input type="text" inputmode="numeric" class="mdt-num-inp mdt-num-sm" value="' + (a.successThreshold || 80) + '" title="연간 성공 기준(달성 주 비율)"'
-    + ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);' + reload + '">'
-    + '<span class="mgt-perf-hint">%) 이상</span>'
+  _mdtPerfModalCtx = null;
+}
+
+function mdtRenderPerfModalBody(year, sgId, actId) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
+  var body = document.getElementById('mdt-perf-modal-body'); if (!body) return;
+  body.innerHTML = (a.trackingType === 'habit')
+    ? mdtBuildHabitModalBody(m, sg, a)
+    : mdtBuildResultModalBody(m, sg, a);
+}
+
+// 달성현황 요약 + 바 (모달 상단 공용)
+function mdtPerfModalHead(m, sg, a) {
+  var perf = mdtActPerf(a, m.year);
+  return '<div class="mdt-perf-modal-head">'
+    + '<div class="mdt-perf-modal-sum">' + escMdt(perf.label) + (perf.achieved ? ' <span class="mgt-perf-badge-sq on">달성</span>' : '') + '</div>'
+    + '<div class="mdt-perf-dash-bar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
+    + '</div>';
+}
+
+// ── 실적형 모달: 목표값·단위 + 일자/내용 표 ──
+function mdtBuildResultModalBody(m, sg, a) {
+  var yr = m.year, sgId = sg.id;
+  if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
+  var save = 'saveMandalarts();mdtRenderPerfModalBody(' + yr + ',' + sgId + ',' + a.id + ');';
+  var head = '<div class="mdt-perf-goalrow">'
+    + '<label>목표값</label>'
+    + '<input type="text" inputmode="numeric" class="mdt-num-inp" value="' + (+a.annualTarget || 0) + '"'
+    +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value);' + save + '">'
+    + '<input type="text" class="mdt-unit-inp" value="' + escMdt(a.annualUnit || '') + '" placeholder="단위"'
+    +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value);' + save + '">'
+    + '</div>';
+  // 표: 기존 기록 + 항상 빈 행 1개(입력 시 자동 추가)
+  var rows = '';
+  a.resultEntries.forEach(function(e, idx) {
+    rows += mdtResultRowHtml(yr, sgId, a.id, idx, e.date || '', e.text || '', false);
+  });
+  rows += mdtResultRowHtml(yr, sgId, a.id, a.resultEntries.length, '', '', true);   // 새 입력용 빈 행
+  var table = '<div class="mdt-perf-tbl">'
+    + '<div class="mdt-perf-tbl-hd"><span class="c-idx">#</span><span class="c-date">일자</span><span class="c-text">내용</span><span class="c-del"></span></div>'
+    + rows
     + '</div>'
-    + mdtPerfBarHtml(sg, perf);
+    + '<div class="mdt-perf-tbl-hint">※ 일자를 입력하면 자동으로 실적 1건으로 집계됩니다.</div>';
+  return mdtPerfModalHead(m, sg, a) + head + table;
+}
+
+function mdtResultRowHtml(yr, sgId, actId, idx, date, text, isNew) {
+  var chg = 'mdtResultRowChange(' + yr + ',' + sgId + ',' + actId + ',' + idx + ',';
+  return '<div class="mdt-perf-tr' + (isNew ? ' is-new' : '') + '">'
+    + '<span class="c-idx">' + (isNew ? '+' : (idx + 1)) + '</span>'
+    + '<input type="date" class="c-date mdt-perf-date" value="' + date + '" onchange="' + chg + '\'date\',this.value)">'
+    + '<input type="text" class="c-text mdt-perf-txt" value="' + escMdt(text) + '" placeholder="내용" onchange="' + chg + '\'text\',this.value)">'
+    + (isNew ? '<span class="c-del"></span>'
+             : '<button class="c-del mdt-perf-del" title="삭제" onclick="mdtDelResultRow(' + yr + ',' + sgId + ',' + actId + ',' + idx + ')">✕</button>')
+    + '</div>';
+}
+
+function mdtResultRowChange(year, sgId, actId, idx, field, value) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
+  if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
+  if (idx >= a.resultEntries.length) a.resultEntries.push({ date: '', text: '' });  // 빈 행 → 실제 행
+  a.resultEntries[idx][field] = value;
+  // 일자·내용이 모두 비면 그 행 제거(빈 행 정리)
+  a.resultEntries = a.resultEntries.filter(function(e){ return (e.date && e.date.trim()) || (e.text && e.text.trim()); });
+  saveMandalarts();
+  mdtRenderPerfModalBody(year, sgId, actId);
+}
+
+function mdtDelResultRow(year, sgId, actId, idx) {
+  var m = getMdt(year); if (!m) return;
+  var sg = m.subGoals.find(function(s){ return s.id === sgId; }); if (!sg) return;
+  var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
+  if (!Array.isArray(a.resultEntries)) return;
+  a.resultEntries.splice(idx, 1);
+  saveMandalarts();
+  mdtRenderPerfModalBody(year, sgId, actId);
+}
+
+// ── 습관형 모달: 주N회·성공기준% + 1~12월 캘린더 ──
+function mdtBuildHabitModalBody(m, sg, a) {
+  var yr = m.year, sgId = sg.id;
+  var save = 'saveMandalarts();mdtRenderPerfModalBody(' + yr + ',' + sgId + ',' + a.id + ');';
+  var head = '<div class="mdt-perf-goalrow">'
+    + '<label>목표</label><span class="mdt-perf-hint">주</span>'
+    + '<input type="text" inputmode="numeric" class="mdt-num-inp mdt-num-sm" value="' + (a.habitWeeklyTarget || 1) + '" title="주 N회"'
+    +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'habitWeeklyTarget\',+this.value);' + save + '">'
+    + '<span class="mdt-perf-hint">회 · 52주 중</span>'
+    + '<input type="text" inputmode="numeric" class="mdt-num-inp mdt-num-sm" value="' + (a.successThreshold || 80) + '" title="성공 기준(%)"'
+    +   ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'successThreshold\',+this.value);' + save + '">'
+    + '<span class="mdt-perf-hint">% 이상 달성 시 성공</span>'
+    + '</div>';
+  return mdtPerfModalHead(m, sg, a) + head + mdt12MonthCalHtml(yr, sgId, a);
+}
+
+// 1~12월 미니 캘린더 (클릭 시 toggleHabitDay)
+function mdt12MonthCalHtml(year, sgId, a) {
+  var log = a.habitLog || {};
+  var today = new Date();
+  var DOW = ['일','월','화','수','목','금','토'];
+  var MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  var months = '';
+  for (var mo = 0; mo < 12; mo++) {
+    var daysIn = new Date(year, mo + 1, 0).getDate();
+    var firstDow = new Date(year, mo, 1).getDay();
+    var cells = DOW.map(function(d){ return '<span class="mc-dow">' + d + '</span>'; }).join('');
+    for (var i = 0; i < firstDow; i++) cells += '<span class="mc-cell mc-empty"></span>';
+    for (var d = 1; d <= daysIn; d++) {
+      var cd = new Date(year, mo, d);
+      var dKey = fmtHabitKey(cd);
+      var isFuture = cd > today;
+      var isDone = !!log[dKey];
+      var isToday = (d === today.getDate() && mo === today.getMonth() && year === today.getFullYear());
+      var cls = 'mc-cell' + (isDone ? ' mc-done' : '') + (isToday ? ' mc-today' : '') + (isFuture ? ' mc-future' : '');
+      cells += '<span class="' + cls + '"' + (isFuture ? '' : ' onclick="toggleHabitDay(' + year + ',' + sgId + ',' + a.id + ',\'' + dKey + '\')"') + '>' + d + '</span>';
+    }
+    months += '<div class="mc-month"><div class="mc-title">' + MONTHS[mo] + '</div><div class="mc-grid">' + cells + '</div></div>';
+  }
+  return '<div class="mdt-12mo-cal">' + months + '</div>';
 }
 
 // 그리드 행 (습관형은 아래에 월간 캘린더 행 추가: 캘린더 왼쪽 · 메모 오른쪽)
@@ -1378,30 +1527,12 @@ function saveActQuarterValue(year, sgId, actId, qIdx, value) {
 // 달성형 실적 블록 (누적형: 연간목표 대비 누적 실적 / 실적형: 12월 달성 여부)
 function buildAnnualTargetHtml(m, sg, a) {
   var yr = m.year, sgId = sg.id;
-  if (a.achieveType === 'result') {
-    var perfR = mdtActPerf(a, yr);
-    return '<div class="mdt-annual-block">'
-      + '<div class="mgt-result-head"><span class="mdt-hb-lbl">월별 달성</span>'
-      +   '<span class="mgt-perf-badge' + (perfR.achieved ? ' on' : '') + '">' + (perfR.achieved ? '달성' : '미달성') + '</span></div>'
-      + mdtResultMonthsHtml(yr, sgId, a)
-      + '</div>';
-  }
-  var target = a.annualTarget || 0;
-  var unit = a.annualUnit || '';
-  var sum = +a.cumActual || 0;
-  var pct = target > 0 ? Math.min(100, Math.round(sum / target * 100)) : 0;
-
+  // 실적형: 실적/목표(단위) 요약 + 진행바(클릭 시 실적 입력 모달)
+  var perf = mdtActPerf(a, yr);
   return '<div class="mdt-annual-block">'
-    + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
-    +   '<span style="font-size:11px;color:var(--text-3);">연간목표</span>'
-    +   '<input type="number" value="' + target + '" class="mdt-annual-target-inp"'
-    +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualTarget\',+this.value)">'
-    +   '<input type="text" value="' + escMdt(unit) + '" placeholder="단위" class="mdt-annual-unit-inp"'
-    +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'annualUnit\',this.value)">'
-    +   '<span style="font-size:11px;color:var(--text-3);">누적실적</span>'
-    +   '<input type="number" value="' + sum + '" class="mdt-annual-target-inp"'
-    +     ' onchange="saveActF(' + yr + ',' + sgId + ',' + a.id + ',\'cumActual\',+this.value)">'
-    +   '<span class="mdt-annual-sum">누적 ' + sum + (unit ? (' ' + escMdt(unit)) : '') + ' (' + pct + '%)</span>'
+    + '<div class="mgt-perf-wrap" onclick="mdtOpenPerfModal(' + yr + ',' + sgId + ',' + a.id + ')" title="클릭해 실적 입력">'
+    +   '<div class="mgt-perf-summary">' + escMdt(perf.label) + (perf.achieved ? ' <span class="mgt-perf-badge-sq on">달성</span>' : '') + '</div>'
+    +   '<div class="mdt-perf-dash-bar mgt-perf-clickbar"><div class="mdt-perf-dash-fill" style="width:' + perf.pct + '%;background:' + sg.color + ';"></div></div>'
     + '</div>'
     + '</div>';
 }
@@ -1539,6 +1670,7 @@ function toggleHabitDay(year, sgId, actId, dateKey) {
   if (a.habitLog[dateKey]) delete a.habitLog[dateKey];
   else a.habitLog[dateKey] = true;
   saveMandalarts();   // home Habit Tracker와 즉시 연동
+  if (document.getElementById('mdt-perf-modal-overlay')) mdtRenderPerfModalBody(year, sgId, actId);
   _mdtRerenderActCard(year, sgId, actId);
   if (typeof renderHomeHabitWidget === 'function') renderHomeHabitWidget();
 }
