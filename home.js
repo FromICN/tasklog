@@ -666,15 +666,10 @@ function renderHomeGanttMini() {
   }
   vis = vis.slice().sort(function (a, b) { return _due(a) - _due(b); });
 
-  var headHtml = '<div class="hgw-head">'
-    + '<span class="hgw-range">' + (winS.getMonth()+1) + '/' + winS.getDate()
-    +   ' – ' + (winL.getMonth()+1) + '/' + winL.getDate() + '</span>'
-    + '<span class="hgw-today-lbl">오늘 ' + (today.getMonth()+1) + '/' + today.getDate()
-    +   ' (' + DOW[today.getDay()] + ')</span>'
-    + '</div>';
-
+  // 기간·오늘 날짜를 따로 적지 않는다 — 바로 아래 날짜 눈금이 그대로 보여 주고,
+  // 좁은 카드에서는 그 한 줄이 목록에서 행 하나를 빼앗는다.
   if (!vis.length) {
-    el.innerHTML = headHtml + emptyWidget('📊', '오늘 할 일이 있는 Task가 없습니다');
+    el.innerHTML = emptyWidget('📊', '오늘 할 일이 있는 Task가 없습니다');
     return;
   }
 
@@ -768,8 +763,7 @@ function renderHomeGanttMini() {
     return taskRow + todoRows + more;
   }).join('');
 
-  el.innerHTML = headHtml
-    + '<div class="hgw-wrap">'
+  el.innerHTML = '<div class="hgw-wrap">'
     +   '<div class="hgw-scale"><div class="hgw-lbl hgw-lbl-spacer"></div>'
     +     '<div class="hgw-lane"><div class="hgw-grid">' + scaleCells + '</div></div></div>'
     +   '<div class="hgw-list">' + rows + '</div>'
