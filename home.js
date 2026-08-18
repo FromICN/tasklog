@@ -603,47 +603,37 @@ function hpToggleHabitDay(year, sgId, actId, dateKey) {
 }
 
 
-// ── Gantt 미니 (Gantt 페이지 수준의 일자/진행률 상세) ──
+// ── Gantt 미니 — 오늘 앞뒤 5일(11일) 짜리 '이번 주 할 일' 띠 ──
+//  ⚠️ Gantt 페이지(gm-* / renderGanttView)와 **일부러 다른 화면**이다. 합치지 말 것.
+//    · 페이지: 한 달 전체 · 마감 안 된 Task 전부 · 접었다 펴는 하위 To Do · 좌측 폭 드래그
+//    · 위젯 : 오늘 ±5일 · '오늘 손댈 일이 남은' Task 와 그 Task 의 안 끝난 To Do 만
+//      한 화면에 다 들어와야 하는 자리라, 고를 것도 접을 것도 두지 않았다.
 //  설정에서 켠 사람만 쓰는 위젯이라 기본은 꺼져 있다.
-//  GM_* 상수와 gmLeftWidth · buildGanttSubRows 는 gantt.js 가 갖고 있다.
-var homeGanttYear  = new Date().getFullYear();
-var homeGanttMonth = new Date().getMonth();
+var HGW_BACK   = 5;    // 오늘 기준 뒤로 며칠
+var HGW_FWD    = 5;    // 오늘 기준 앞으로 며칠
+var HGW_ROWS   = 5;    // 보여 줄 Task 수
+var HGW_TODOS  = 4;    // Task 하나에 보여 줄 To Do 수
 
-function homeGanttPrev() { homeGanttMonth--; if (homeGanttMonth<0) { homeGanttMonth=11; homeGanttYear--; } renderHomeGanttMini(); }
-function homeGanttNext() { homeGanttMonth++; if (homeGanttMonth>11) { homeGanttMonth=0; homeGanttYear++; } renderHomeGanttMini(); }
-function homeGanttToday() { homeGanttYear=new Date().getFullYear(); homeGanttMonth=new Date().getMonth(); renderHomeGanttMini(); }
+function hgwDayStart(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+function hgwAddDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
 
+// 오늘 기준으로 '지금 손댈 일이 남은' Task 인가.
+//  · 끝난 Task 는 뺀다
+//  · 아직 시작 전(시작일이 내일 이후)인 Task 도 뺀다 — 오늘 할 일이 아니다
+//  · To Do 를 달아 뒀는데 전부 끝냈으면 뺀다 (Task 자체를 닫는 일만 남은 상태)
+function hgwTaskIsLive(t, today) {
+  if (!t || t.completed) return false;
+  var s = t.startDate ? hgwDayStart(new Date(t.startDate)) : null;
+  if (s && !isNaN(s.getTime()) && s > today) return false;
+  var steps = t.steps || [];
+  if (steps.length && !steps.some(function (x) { return !x.completed; })) return false;
+  return true;
+}
 
-// 좌측 라벨 영역 폭 드래그 조정 핸들 부착 (헤더 spacer 오른쪽 경계)
-function gmAttachLeftResize() {
-  var wrap = document.querySelector('#gantt-body .gm-wrap');
-  var spacer = document.querySelector('#gantt-body .gm-left-spacer');
-  if (!wrap || !spacer) return;
-  if (window.getComputedStyle(spacer).position === 'static') spacer.style.position = 'relative';
-  var h = document.createElement('div');
-  h.className = 'cr-handle';
-  spacer.appendChild(h);
-  h.addEventListener('click', function(e){ e.stopPropagation(); });
-  h.addEventListener('mousedown', function(e) {
-    e.preventDefault(); e.stopPropagation();
-    var startX = e.clientX;
-    var startW = Math.round(spacer.getBoundingClientRect().width);
-    var lastW = startW;
-    document.body.classList.add('cr-resizing');
-    function mm(ev) {
-      lastW = Math.max(80, Math.min(GM_LEFT_MAX, Math.round(startW + (ev.clientX - startX))));
-      wrap.style.setProperty('--gm-left', lastW + 'px');
-    }
-    function mu() {
-      document.removeEventListener('mousemove', mm);
-      document.removeEventListener('mouseup', mu);
-      document.body.classList.remove('cr-resizing');
-      try { localStorage.setItem('homeGanttLeftW', String(lastW)); } catch (err) {}
-      renderHomeGanttMini();   // 오늘선 위치 등 재계산
-    }
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
-  });
+// 창 안에서의 위치(0~100%). 창을 벗어난 값은 잘라서 끝에 붙인다.
+function hgwPct(date, winS, days) {
+  var off = (hgwDayStart(date) - winS) / 86400000;
+  return Math.max(0, Math.min(days, off)) / days * 100;
 }
 
 function renderHomeGanttMini() {
@@ -655,134 +645,150 @@ function renderHomeGanttMini() {
     return;
   }
 
-  var MN = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  var year = homeGanttYear, month = homeGanttMonth;
-  var daysInMonth = new Date(year, month+1, 0).getDate();
-  var mS = new Date(year, month, 1);
-  var mE = new Date(year, month+1, 0, 23, 59, 59);
-  var today = new Date();
-  var todayIdx = (today.getFullYear()===year && today.getMonth()===month) ? today.getDate()-1 : null;
+  var DOW = ['일','월','화','수','목','금','토'];
+  var today = hgwDayStart(new Date());
+  var days  = HGW_BACK + HGW_FWD + 1;
+  var winS  = hgwAddDays(today, -HGW_BACK);        // 창 첫날 00:00
+  var winL  = hgwAddDays(today, HGW_FWD);          // 창 마지막날 00:00
 
-  var vis = tasks.filter(function(t) {
-    if (t.completed) return false;
-    var s = t.startDate   ? new Date(t.startDate)   : null;
-    var e = t.dueDateTime ? new Date(t.dueDateTime) : null;
-    if (s && e) return s <= mE && e >= mS;
-    if (s)      return s >= mS && s <= mE;
-    if (e)      return e >= mS && e <= mE;
-    return false;
-  });
+  var vis = tasks.filter(function (t) { return hgwTaskIsLive(t, today); });
 
-  // 정렬 기준: 완료되지 않은 To Do 중 마감일이 가장 빠른 순.
-  // (미완 To Do 마감일이 없으면 Task 자체 마감일, 그것도 없으면 맨 뒤)
-  function _earliestOpenTodoDue(t) {
-    var steps = t.steps || [];
+  // 급한 순: 안 끝난 To Do 중 가장 이른 마감 → 없으면 Task 마감 → 그것도 없으면 맨 뒤
+  function _due(t) {
     var min = Infinity;
-    for (var i = 0; i < steps.length; i++) {
-      var s = steps[i];
-      if (s.completed || !s.dueDateTime) continue;
+    (t.steps || []).forEach(function (s) {
+      if (s.completed || !s.dueDateTime) return;
       var ms = new Date(s.dueDateTime).getTime();
       if (!isNaN(ms) && ms < min) min = ms;
-    }
+    });
     if (min === Infinity) min = t.dueDateTime ? new Date(t.dueDateTime).getTime() : Infinity;
     return min;
   }
-  vis = vis.slice().sort(function(a, b) {
-    return _earliestOpenTodoDue(a) - _earliestOpenTodoDue(b);
-  });
+  vis = vis.slice().sort(function (a, b) { return _due(a) - _due(b); });
 
-  var navHtml = '<div class="gm-nav">'
-    + '<button class="gm-arrow" onclick="homeGanttPrev()">‹</button>'
-    + '<span class="gm-month-label">'+year+'년 '+MN[month]+'</span>'
-    + '<button class="gm-arrow" onclick="homeGanttNext()">›</button>'
-    + (todayIdx===null ? '<button class="gm-today-btn" onclick="homeGanttToday()">오늘</button>' : '')
+  var headHtml = '<div class="hgw-head">'
+    + '<span class="hgw-range">' + (winS.getMonth()+1) + '/' + winS.getDate()
+    +   ' – ' + (winL.getMonth()+1) + '/' + winL.getDate() + '</span>'
+    + '<span class="hgw-today-lbl">오늘 ' + (today.getMonth()+1) + '/' + today.getDate()
+    +   ' (' + DOW[today.getDay()] + ')</span>'
     + '</div>';
 
   if (!vis.length) {
-    el.innerHTML = navHtml + emptyWidget('📊', '이번 달 진행 중인 Task가 없습니다');
+    el.innerHTML = headHtml + emptyWidget('📊', '오늘 할 일이 있는 Task가 없습니다');
     return;
   }
 
-  var leftW = gmLeftWidth(vis.slice(0, GM_MAX_ROWS));
-
-  // 배경 셀(요일/오늘 음영) — 모든 행이 공유하는 퍼센트 기반 칸, 우측 여백 없이 꽉 채움
-  var bgCellsHtml = '';
-  for (var d2 = 0; d2 < daysInMonth; d2++) {
-    var dow2 = new Date(year, month, d2+1).getDay();
-    var isT2 = (d2 === todayIdx);
-    var cls2 = 'gm-bgcell' + (isT2?' gm-today-col':'') + ((dow2===0||dow2===6)?' gm-weekend-col':'');
-    bgCellsHtml += '<div class="'+cls2+'"></div>';
+  // 날짜 눈금 + 모든 행이 함께 쓰는 배경 칸
+  var scaleCells = '', bgCells = '';
+  for (var i = 0; i < days; i++) {
+    var d = hgwAddDays(winS, i);
+    var dw = d.getDay();
+    var cls = (i === HGW_BACK ? ' is-today' : '') + (dw === 0 ? ' is-sun' : dw === 6 ? ' is-sat' : '');
+    scaleCells += '<div class="hgw-day' + cls + '"><em>' + DOW[dw] + '</em><b>' + d.getDate() + '</b></div>';
+    bgCells    += '<div class="hgw-cell' + cls + '"></div>';
   }
 
-  var hdrCells = '';
-  for (var d = 1; d <= daysInMonth; d++) {
-    var dow = new Date(year, month, d).getDay();
-    var isToday = (d-1 === todayIdx);
-    var cls = 'gm-hcell' + (isToday?' gm-today':'') + (dow===0?' gm-sun':dow===6?' gm-sat':'');
-    hdrCells += '<div class="'+cls+'">'+d+'</div>';
+  function lane(inner) {
+    return '<div class="hgw-lane"><div class="hgw-grid">' + bgCells + '</div>' + inner + '</div>';
   }
 
-  var rows = vis.slice(0, GM_MAX_ROWS).map(function(task) {
-    var pct = getTaskProgress(task);
+  var rows = vis.slice(0, HGW_ROWS).map(function (task) {
+    var pct   = getTaskProgress(task);
     var color = getGanttColor(task);
-    var label = task.text.replace(/^\[\d{6}\] /, '');
-    var shortLabel = label;
+    var label = String(task.text || '').replace(/^\[\d{6}\] /, '');
 
-    var sDate = task.startDate   ? new Date(task.startDate)   : null;
-    var eDate = task.dueDateTime ? new Date(task.dueDateTime) : null;
-    var barLeftPct = 0, barWPct = 0, hasBar = false;
-    if (sDate || eDate) {
-      hasBar = true;
-      var cs = sDate ? (sDate < mS ? mS : sDate) : (eDate < mS ? mS : eDate);
-      var ce = eDate ? (eDate > mE ? mE : eDate) : cs;
-      barLeftPct = (cs.getDate()-1) / daysInMonth * 100;
-      barWPct    = Math.max(1/daysInMonth*100, (ce.getDate()-cs.getDate()+1) / daysInMonth * 100);
+    var sD = task.startDate   ? new Date(task.startDate)   : null;
+    var eD = task.dueDateTime ? new Date(task.dueDateTime) : null;
+    if (sD && isNaN(sD.getTime())) sD = null;
+    if (eD && isNaN(eD.getTime())) eD = null;
+
+    // 막대는 창 밖으로 나가는 쪽을 잘라 붙이고, 잘렸다는 표시를 그 끝에 남긴다
+    var barHtml = '';
+    if (sD || eD) {
+      var cs = hgwDayStart(sD || eD), ce = hgwDayStart(eD || sD);
+      if (cs <= winL && ce >= winS) {
+        var l = hgwPct(cs, winS, days);
+        var r = Math.min(100, hgwPct(ce, winS, days) + (100 / days));   // 마감일 칸까지 채운다
+        var w = Math.max(100 / days, r - l);
+        barHtml = '<div class="hgw-bar" style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%;'
+          + 'border-color:' + color + ';background:' + color + '22;">'
+          + '<i style="width:' + pct + '%;background:' + color + ';"></i></div>'
+          + (cs < winS ? '<span class="hgw-edge is-l">‹</span>' : '')
+          + (ce > winL ? '<span class="hgw-edge is-r">›</span>' : '');
+      } else {
+        // 창 밖 — 마감이 한참 지났거나 한참 남았다. 어느 쪽인지만 알린다.
+        barHtml = ce < winS
+          ? '<span class="hgw-edge is-l is-off is-late">‹ 지남</span>'
+          : '<span class="hgw-edge is-r is-off">이후 ›</span>';
+      }
     }
 
-    var dateLbl = '';
-    if (sDate && eDate) dateLbl = (sDate.getMonth()+1)+'/'+sDate.getDate()+' ~ '+(eDate.getMonth()+1)+'/'+eDate.getDate();
-    else if (sDate)     dateLbl = (sDate.getMonth()+1)+'/'+sDate.getDate()+' 시작';
-    else if (eDate)     dateLbl = (eDate.getMonth()+1)+'/'+eDate.getDate()+' 마감';
-    // Project 이모지: 만다라트 연도별 section → 라이프휠 순으로 해석 (todo.js 공용 해석기)
-    var _secEmoji = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
-    if (_secEmoji) dateLbl = _secEmoji + ' ' + dateLbl;
-
-    var _open = (typeof ganttIsOpen === 'function') ? ganttIsOpen(task.id) : (_ganttOpen[task.id] !== false);
-    var _hasSteps = (task.steps || []).length > 0;
-    var mainRow = '<div class="gm-row" onclick="if(typeof openDetailPanel===\'function\')openDetailPanel('+task.id+')">'
-      + '<div class="gm-left">'
-      + (_hasSteps ? '<span class="gm-toggle" onclick="ganttToggleTask('+task.id+',event)">'+(_open?'\u25be':'\u25b8')+'</span>' : '<span class="gm-toggle-empty"></span>')
-      + progressCircleSvg(pct, color)
-      + '<div class="gm-info">'
-      + '<div class="gm-name" title="'+hwEsc(label)+'">'+hwEsc(shortLabel)+'</div>'
+    var emoji = (typeof todoSectionEmoji === 'function') ? (todoSectionEmoji(task) || '') : (task.lwSectionEmoji || '');
+    var taskRow = '<div class="hgw-row is-task" title="' + hwEsc(label) + '"'
+      + ' onclick="if(typeof openDetailPanel===\'function\')openDetailPanel(' + task.id + ')">'
+      + '<div class="hgw-lbl">'
+      +   '<span class="hgw-chip" style="background:' + color + ';"></span>'
+      +   (emoji ? '<span class="hgw-emoji">' + emoji + '</span>' : '')
+      +   '<span class="hgw-name">' + hwEsc(label) + '</span>'
+      +   '<span class="hgw-pct">' + pct + '%</span>'
       + '</div>'
-      + '</div>'
-      + '<div class="gm-grid">'
-      + bgCellsHtml
-      + (hasBar
-          ? '<div class="gm-bar" style="left:'+barLeftPct.toFixed(3)+'%;width:'+barWPct.toFixed(3)+'%;border-color:'+color+';background:'+color+'25;">'
-            + '<div class="gm-bar-fill" style="width:'+pct+'%;background:'+color+';"></div></div>'
-          : '')
-      + ((!_open && _hasSteps) ? ganttStepMarkers(task, mS, mE, daysInMonth, color) : '')
-      + '</div>'
+      + lane(barHtml)
       + '</div>';
 
-    return mainRow + buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml);
+    // 안 끝난 To Do 만. 마감일이 있으면 그날 칸 한가운데에 점을 찍는다.
+    var open = (task.steps || []).filter(function (s) { return !s.completed; });
+    var todoRows = open.slice(0, HGW_TODOS).map(function (step) {
+      var nm = String(step.text || '').replace(/^\[\d{6}\]\s*/, '');
+      var sd = step.dueDateTime ? new Date(step.dueDateTime) : null;
+      if (sd && isNaN(sd.getTime())) sd = null;
+      var mark = '';
+      if (sd) {
+        var dd = hgwDayStart(sd);
+        var late = dd < today;
+        if (dd < winS)      mark = '<span class="hgw-edge is-l is-off is-late">‹ 지남</span>';
+        else if (dd > winL) mark = '<span class="hgw-edge is-r is-off">이후 ›</span>';
+        else mark = '<span class="hgw-dot' + (late ? ' is-late' : '') + '" style="left:'
+          + (hgwPct(dd, winS, days) + (50 / days)).toFixed(2) + '%;'
+          + (late ? '' : 'background:' + color + ';') + '" title="' + hwEsc(nm) + '"></span>';
+      }
+      return '<div class="hgw-row is-todo" title="' + hwEsc(nm) + '"'
+        + ' onclick="if(typeof openDetailPanel===\'function\')openDetailPanel(' + task.id + ')">'
+        + '<div class="hgw-lbl"><span class="hgw-tick"></span>'
+        +   '<span class="hgw-name">' + hwEsc(nm) + '</span></div>'
+        + lane(mark)
+        + '</div>';
+    }).join('');
+
+    var more = open.length > HGW_TODOS
+      ? '<div class="hgw-row is-todo is-more"><div class="hgw-lbl">'
+        + '<span class="hgw-tick"></span><span class="hgw-name">+' + (open.length - HGW_TODOS) + '개 더</span>'
+        + '</div>' + lane('') + '</div>'
+      : '';
+
+    return taskRow + todoRows + more;
   }).join('');
 
-  var todayLine = todayIdx !== null
-    ? '<div class="gm-today-line" style="left:calc('+leftW+'px + (100% - '+leftW+'px) * '+(((todayIdx+0.5)/daysInMonth).toFixed(4))+');"></div>'
-    : '';
-
-  el.innerHTML = navHtml
-    + '<div class="gm-wrap" style="--gm-left:'+leftW+'px;">'
-    + '<div class="gm-header"><div class="gm-left-spacer"></div>'
-    + '<div class="gm-hcells">'+hdrCells+'</div></div>'
-    + '<div class="gm-body">' + todayLine + rows + '</div>'
+  el.innerHTML = headHtml
+    + '<div class="hgw-wrap">'
+    +   '<div class="hgw-scale"><div class="hgw-lbl hgw-lbl-spacer"></div>'
+    +     '<div class="hgw-lane"><div class="hgw-grid">' + scaleCells + '</div></div></div>'
+    +   '<div class="hgw-list">' + rows + '</div>'
     + '</div>'
-    + (vis.length > GM_MAX_ROWS ? '<div class="gm-more">+'+(vis.length-GM_MAX_ROWS)+'개 더 있음 · 전체보기에서 확인</div>' : '');
+    + (vis.length > HGW_ROWS
+        ? '<div class="hgw-more">+' + (vis.length - HGW_ROWS) + '개 Task 더 · 전체보기에서 확인</div>' : '');
 
-  gmAttachLeftResize();   // 좌측 텍스트 영역 폭 드래그 조정
+  hgwSyncWidth();
+}
+
+// 칸이 좁으면 11일치 눈금이 한 자도 못 들어간다 — 요일 글자와 진행률(%)을 접는다.
+//  (다른 반응형 위젯과 같이 hwSyncResponsive 가 불러 준다)
+var HGW_TIGHT = 150;    // 날짜 칸 전체 폭이 이보다 좁으면 접는 모드
+function hgwSyncWidth() {
+  var wrap = document.querySelector('#gantt-body .hgw-wrap');
+  if (!wrap) return;
+  var lane = wrap.querySelector('.hgw-lane');
+  if (!lane) return;
+  wrap.classList.toggle('is-tight', lane.getBoundingClientRect().width < HGW_TIGHT);
 }
 
 
@@ -1129,6 +1135,12 @@ function focusDialSvg(sec, running) {
       + ' class="fw-dial-num">' + n + '</text>';
   }
 
+  // 가운데 손잡이 — 실물의 돌리는 노브.
+  //  ⚠️ 부채꼴보다 먼저 그린다. 부채꼴은 노브와 같은 색이라 나중에 그리면
+  //     이미 칠해진 각도만큼 노브 테두리를 덮어 지운다 → 채워진 쪽과 노브가
+  //     맞닿는 자리에서만 경계선이 사라지고, 아직 안 칠해진 쪽은 그대로 남는다.
+  svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R_KNOB + '" class="fw-dial-knob"/>';
+
   // 지난 시간 = 0 에서 시계 방향으로 칠한 부채꼴
   if (frac > 0) {
     var sweep = frac * 360;
@@ -1141,10 +1153,6 @@ function focusDialSvg(sec, running) {
         + (CX + R_FILL * Math.cos(a2)).toFixed(2) + ' ' + (CY + R_FILL * Math.sin(a2)).toFixed(2) + ' Z"/>';
     }
   }
-
-  // 가운데 손잡이 — 실물의 돌리는 노브. 위쪽에 짧은 홈이 하나 파여 있다.
-  svg += '<circle cx="' + CX + '" cy="' + CY + '" r="' + R_KNOB + '" class="fw-dial-knob"/>';
-  svg += '<line x1="' + CX + '" y1="' + (CY - 3.4) + '" x2="' + CX + '" y2="' + (CY + 1.2) + '" class="fw-dial-knob-line"/>';
 
   // 실물에는 이 자리에 'Great things take time.' 이 적혀 있다.
   // 우리에겐 지금 얼마나 쟀는지가 더 급하므로, 같은 자리에 같은 색으로 시간을 적는다.
@@ -1160,8 +1168,16 @@ function focusDialSvg(sec, running) {
 }
 
 // 시계를 남는 자리에 꽉 채운다.
-//  버튼·선택칸·기록이 쓰고 남은 높이와 가로폭 중 작은 쪽이 지름이 된다.
+//  버튼·선택칸·머리글이 쓰고 남은 높이와 가로폭 중 작은 쪽이 지름이 된다.
 //  (원이라 한쪽은 반드시 남는다 — 그 방향으로는 가운데 정렬한다)
+//
+//  ⚠️ 늘어나는 칸(.fw-sess-list)의 지금 높이는 재지 않는다.
+//     그 칸은 '시계가 쓰고 남은 자리'를 받아 가므로, 높이를 그대로 더하면
+//       시계 크기 → 목록 높이 → 다시 시계 크기
+//     로 되물린다. 그래서 다시 그릴 때(시작·정지·종료)마다 값이 다른 데로
+//     수렴해 시계가 커졌다 작아졌다 했다.
+//     → 늘지 않는 자식(flex-grow: 0)만 더한다. 그러면 시계 지름은 카드 크기와
+//       고정 높이 요소들만으로 정해져, 세션 상태가 바뀌어도 그대로다.
 function focusSyncDial() {
   var wrap = document.querySelector('#focus-body .fw-wrap');
   var dial = wrap ? wrap.querySelector('.fw-dial-wrap') : null;
@@ -1171,7 +1187,8 @@ function focusSyncDial() {
   var used = 0, others = 0;
   Array.prototype.forEach.call(wrap.children, function (el) {
     if (el === dial) return;
-    others++;
+    others++;                                   // 사이 여백은 늘어나는 칸도 차지한다
+    if (parseFloat(getComputedStyle(el).flexGrow) > 0) return;   // 남는 자리를 받는 칸 → 재지 않는다
     used += el.getBoundingClientRect().height;
   });
 
@@ -1865,6 +1882,7 @@ function hwSyncResponsive() {
   if (typeof habitSyncColumns === 'function') habitSyncColumns();
   if (typeof focusSyncDial === 'function') focusSyncDial();
   if (typeof webSyncBoard === 'function') webSyncBoard();
+  if (typeof hgwSyncWidth === 'function') hgwSyncWidth();
 }
 
 // 창 크기가 바뀌어도 안쪽이 따라오게 한다

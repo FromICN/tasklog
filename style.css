@@ -5120,10 +5120,9 @@ body.hw-resizing { user-select: none; }
 .habit-dot.future { opacity: 0.35; cursor: default; }
 .habit-dot.today { box-shadow: 0 0 0 0.5px var(--text-3); }
 
-/* ── Gantt 그리드 (Gantt 페이지 · 홈 Gantt 미니 위젯 공용) ── */
+/* ── Gantt 그리드 (Gantt 페이지 전용 · gm-*) ──
+   홈 Gantt 위젯은 이 엔진을 쓰지 않는다 → 파일 끝의 hgw-* 참조 */
 #gantt-body { display: flex; flex-direction: column; }
-#gantt-body .gm-header { background: var(--main-bg); z-index: 6; }
-#gantt-body .gm-body { position: relative; z-index: 0; }
 .gm-nav {
   display: flex;
   align-items: center;
@@ -10996,9 +10995,9 @@ body.light-mode .right-panel {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
-.hwb-col-title { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-2); letter-spacing: 0.06em; }
+.hwb-col-title { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); letter-spacing: 0.06em; }
 .hwb-col-count {
-  font-size: var(--fs-3xs);
+  font-size: var(--fs-2xs);
   color: var(--text-3);
   background: var(--surface);
   border-radius: var(--radius-full);
@@ -11020,14 +11019,16 @@ body.light-mode .right-panel {
 .hwb-text {
   flex: 1;
   min-width: 0;
-  font-size: var(--fs-2xs);
+  /* 다른 위젯 본문(.mda-name · .gm-name · .habit-name = 12px)과 같은 크기.
+     혼자 10px 이라 Web 위젯만 작아 보였다. */
+  font-size: 12px;
   color: var(--text-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hwb-due { font-size: var(--fs-3xs); font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.hwb-empty { font-size: var(--fs-3xs); color: var(--text-3); text-align: center; padding: var(--space-3) var(--space-1); }
+.hwb-due { font-size: var(--fs-xs); font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.hwb-empty { font-size: var(--fs-xs); color: var(--text-3); text-align: center; padding: var(--space-3) var(--space-1); }
 
 /* =========================================================
    ⏱ Focus On — Calendar 아래에 붙는 별개의 카드
@@ -11082,10 +11083,11 @@ body.light-mode .right-panel {
 }
 /* 지난 시간 = 0에서 시계 방향으로 칠한 부채꼴.
    가운데 손잡이와 같은 색으로 맞춘다 — 색이 같으면 손잡이가 묻히므로
-   손잡이에는 테두리를 둘러 경계를 남긴다. */
+   손잡이에는 테두리를 둘러 경계를 남긴다.
+   단, 부채꼴을 손잡이보다 나중에 그려서(home.js focusDialSvg) 이미 칠해진
+   각도만큼은 그 테두리를 덮어 지운다 → 차오른 쪽과 손잡이 사이에는 선이 없다. */
 .fw-dial-fill { fill: var(--fw-knob); }
 .fw-dial-knob { fill: var(--fw-knob); stroke: var(--fw-knob-line); stroke-width: 0.6; }
-.fw-dial-knob-line { stroke: var(--fw-knob-line); stroke-width: 0.9; stroke-linecap: round; }
 /* 실물의 'Great things take time.' 자리 — 같은 색·같은 위치에 시간을 적는다 */
 .fw-dial-time {
   fill: var(--fw-ink);
@@ -11238,7 +11240,7 @@ body.light-mode .right-panel {
   border-radius: var(--radius-md);
   color: var(--text-1);
   font-family: inherit;
-  font-size: var(--fs-2xs);
+  font-size: 12px;
   padding: var(--space-1) var(--space-2);
 }
 .hwb-write-btn {
@@ -11248,7 +11250,7 @@ body.light-mode .right-panel {
   background: var(--brand-primary);
   color: #fff;
   font-family: inherit;
-  font-size: var(--fs-2xs);
+  font-size: var(--fs-xs);
   font-weight: 700;
   padding: 0 var(--space-25);
   cursor: pointer;
@@ -11430,4 +11432,205 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 .mda-track {
   flex: 1 1 auto;
   min-width: 24px;
+}
+
+/* =========================================================
+   📊 Gantt 위젯 (hgw-*) — 오늘 앞뒤 5일짜리 '이번 주 할 일' 띠
+   ⚠️ Gantt 페이지의 gm-* 와 **다른 화면**이다. 한쪽을 고쳐도 다른 쪽을
+      따라 고치지 말 것 — 보는 목적이 다르다(한 달 전체 ↔ 오늘 언저리).
+   ========================================================= */
+.hgw-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 var(--space-05) var(--space-1);
+  flex-shrink: 0;
+}
+.hgw-range     { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hgw-today-lbl { font-size: var(--fs-2xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+.hgw-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 날짜 눈금 — 목록이 스크롤해도 위에 남는다 */
+.hgw-scale {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 26px;
+  border-bottom: 1px solid var(--border);
+}
+.hgw-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  line-height: 1;
+}
+.hgw-day em { font-style: normal; font-size: 8.5px; color: var(--text-3); }
+.hgw-day b  { font-weight: 600; font-size: 10.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.hgw-day.is-sun em, .hgw-day.is-sun b { color: #B4574A; }
+.hgw-day.is-sat em, .hgw-day.is-sat b { color: #7A93A8; }
+.hgw-day.is-today b {
+  background: var(--tl-seal, var(--brand-primary));
+  color: #fff;
+  border-radius: 2px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+}
+
+.hgw-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+.hgw-list::-webkit-scrollbar { width: 5px; }
+.hgw-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: var(--radius-xs); }
+
+.hgw-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  cursor: pointer;
+}
+.hgw-row.is-task { height: 22px; }
+.hgw-row.is-todo { height: 18px; }
+.hgw-row:hover .hgw-lbl { color: var(--text-1); }
+.hgw-row:hover .hgw-name { text-decoration: underline; text-underline-offset: 2px; }
+.hgw-row.is-more { cursor: default; }
+.hgw-row.is-more:hover .hgw-name { text-decoration: none; }
+
+/* 왼쪽 이름 칸 — 폭을 비율로 못 박아 막대 시작점을 한 줄로 맞춘다 */
+.hgw-lbl {
+  flex: 0 0 42%;
+  max-width: 168px;
+  min-width: 68px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+  padding-right: var(--space-15);
+  border-right: 1px solid var(--border);
+  color: var(--text-2);
+  overflow: hidden;
+}
+.hgw-lbl-spacer { border-right-color: transparent; }
+.hgw-chip  { width: 3px; align-self: stretch; margin: 4px 0; border-radius: 1px; flex-shrink: 0; }
+.hgw-emoji { font-size: 10px; flex-shrink: 0; line-height: 1; }
+/* To Do 는 Task 아래에 딸린 줄이라, 눈금 하나만큼 들여쓴다 */
+.hgw-tick {
+  width: 9px;
+  flex-shrink: 0;
+  margin-left: 3px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  height: 7px;
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.hgw-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hgw-row.is-task .hgw-name { color: var(--text-1); font-weight: 600; }
+.hgw-row.is-todo .hgw-name { font-size: 11px; color: var(--text-2); }
+.hgw-row.is-more .hgw-name { color: var(--text-3); font-size: 10px; }
+.hgw-pct {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 오른쪽 날짜 칸 */
+.hgw-lane { position: relative; flex: 1 1 auto; min-width: 0; }
+/* 칸 수는 home.js 가 넣어 주는 자식 수(HGW_BACK + HGW_FWD + 1)만큼 자동으로 늘어난다
+   — repeat() 에 숫자를 박아 두면 기간을 바꿀 때마다 여기까지 따라 고쳐야 한다. */
+.hgw-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.hgw-cell { border-right: 1px solid var(--border); opacity: 0.5; }
+.hgw-cell:last-child { border-right: none; }
+.hgw-cell.is-sun, .hgw-cell.is-sat { background: rgba(127,127,127,0.06); }
+.hgw-cell.is-today { background: var(--tl-seal-wash, rgba(255,107,79,0.10)); opacity: 1; }
+/* 눈금 줄의 칸에는 세로선을 그리지 않는다 — 날짜 글자와 겹쳐 지저분하다 */
+.hgw-scale .hgw-cell { border-right: none; }
+
+.hgw-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 9px;
+  box-sizing: border-box;
+  border: 1px solid;
+  border-left-width: 2px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+.hgw-bar > i { display: block; height: 100%; }
+
+.hgw-dot {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+.hgw-dot.is-late {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px rgba(239,68,68,0.22);
+}
+
+/* 창 밖으로 나간 쪽 표시 */
+.hgw-edge {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-3);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.hgw-edge.is-l { left: 1px; }
+.hgw-edge.is-r { right: 1px; }
+.hgw-edge.is-off { font-size: 9px; }
+.hgw-edge.is-late { color: var(--danger); font-weight: 700; }
+
+/* 칸이 좁을 때 — home.js 의 hgwSyncWidth 가 붙인다.
+   요일 글자와 진행률(%)을 접어서 이름과 막대에 자리를 몰아 준다. */
+.hgw-wrap.is-tight .hgw-day em,
+.hgw-wrap.is-tight .hgw-pct,
+.hgw-wrap.is-tight .hgw-emoji { display: none; }
+.hgw-wrap.is-tight .hgw-day b { font-size: 9px; }
+.hgw-wrap.is-tight .hgw-scale { height: 18px; }
+.hgw-wrap.is-tight .hgw-lbl { flex-basis: 48%; min-width: 56px; }
+.hgw-wrap.is-tight .hgw-row.is-task { height: 20px; }
+.hgw-wrap.is-tight .hgw-row.is-todo { height: 17px; }
+
+.hgw-more {
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  text-align: center;
+  padding-top: var(--space-1);
+  flex-shrink: 0;
 }
