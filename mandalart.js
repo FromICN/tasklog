@@ -532,6 +532,31 @@ function calcSgPerf(sg, year) {
   return { pct: pct, sum: 0, target: 0, qStats: [0,0,0,0], achCount: acts.length, done: done, total: sg.actions.length };
 }
 
+// 연간 진행 현황 = 전체 Project 수 중 완료한 Project 수
+//  · '전체'는 이름을 적어 둔 Project 만 센다 — 빈 칸은 아직 Project 가 아니다.
+function calcMdtProjectProgress(m) {
+  var total = 0, done = 0;
+  (m.subGoals || []).forEach(function(sg) {
+    (sg.actions || []).forEach(function(a) {
+      if (!a || !a.text || !a.text.trim()) return;
+      total++;
+      if (a.completed) done++;
+    });
+  });
+  return { done: done, total: total, pct: total ? Math.round(done / total * 100) : 0 };
+}
+
+// 연간 목표 입력칸 아래 진행 현황 바
+function buildMdtAnnualProgHtml(prog) {
+  return '<div class="mdt-annual-prog">'
+    + '<div class="mdt-annual-prog-bar"><div class="mdt-annual-prog-fill" style="width:' + prog.pct + '%;"></div></div>'
+    + '<div class="mdt-annual-prog-meta">'
+    +   '<span class="mdt-annual-prog-txt">Project ' + prog.done + ' / ' + prog.total + ' 완료</span>'
+    +   '<span class="mdt-annual-prog-pct">' + prog.pct + '%</span>'
+    + '</div>'
+    + '</div>';
+}
+
 function buildMdtPerfDashboard(m) {
   var _order = tlGetSectionOrder(m.year);
   var cardsHtml = _order.map(function(si) {
@@ -558,6 +583,7 @@ function buildMdtPerfDashboard(m) {
     + '<label class="mdt-perf-annual-label">' + m.year + ' 연간 목표</label>'
     + '<input class="mdt-perf-annual-inp" type="text" value="' + escMdt(m.coreGoal.text || '') + '"'
     + ' placeholder="올해의 핵심 목표를 입력하세요..." onchange="saveMdtAnnualGoal(' + m.year + ',this.value)">'
+    + buildMdtAnnualProgHtml(calcMdtProjectProgress(m))
     + '</div>';
 
   return '<div class="mdt-perf-dash">'

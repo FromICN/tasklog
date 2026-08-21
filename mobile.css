@@ -757,3 +757,18 @@ html.pwa-standalone body {
   .sidebar,
   .right-panel { transition: none !important; animation: none !important; }
 }
+
+/* =========================================================
+   📥 Mandalart 실적 입력 모달 — 좁은 화면
+   일자 칸이 148px 로 고정돼 있어 '내용' 칸이 55px 까지 눌렸다.
+   ========================================================= */
+@media (max-width: 768px) {
+  .mdt-perf-tbl-hd,
+  .mdt-perf-tr {
+    grid-template-columns: 22px 118px minmax(0, 1fr) 26px;
+    gap: var(--space-1);
+    padding: 5px var(--space-15);
+  }
+  .mdt-perf-modal .mdt-proj-modal-body { padding: var(--space-3) var(--space-25); }
+  .mdt-perf-goalrow { gap: var(--space-1); }
+}

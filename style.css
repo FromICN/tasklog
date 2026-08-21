@@ -8275,7 +8275,7 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 }
 .mdt-proj-ta:focus { outline: none; border-color: var(--brand-primary); }
 .mdt-proj-notes { font-size: var(--fs-sm); color: var(--text-2); line-height: 1.6; }
-.mdt-proj-prog-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: var(--radius-xs); overflow: hidden; margin-top: var(--space-15); }
+.mdt-proj-prog-bar { height: 6px; background: rgba(127,127,127,0.22); border-radius: var(--radius-xs); overflow: hidden; margin-top: var(--space-15); }
 .mdt-proj-prog-fill { height: 100%; background: var(--brand-primary); border-radius: var(--radius-xs); transition: width var(--dur-slow); }
 .mdt-proj-prog-num { font-size: var(--fs-sm); color: var(--text-3); margin-top: var(--space-1); }
 
@@ -8315,12 +8315,12 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 .mdt-perf-dash-emoji { font-size: var(--fs-xl); }
 .mdt-perf-dash-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text-1); flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .mdt-perf-dash-prog { font-size: var(--fs-xs); color: var(--text-3); }
-.mdt-perf-dash-bar { height: 5px; background: rgba(255,255,255,0.08); border-radius: var(--radius-xs); overflow: hidden; }
+.mdt-perf-dash-bar { height: 5px; background: rgba(127,127,127,0.22); border-radius: var(--radius-xs); overflow: hidden; }
 .mdt-perf-dash-fill { height: 100%; border-radius: var(--radius-xs); transition: width var(--dur-slow); }
 .mdt-perf-dash-foot { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-15); }
 .mdt-perf-dash-pct { font-size: var(--fs-xs); color: var(--text-3); }
 .mdt-perf-dash-qdots { display: flex; gap: 3px; }
-.mdt-perf-qdot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.12); display: inline-block; }
+.mdt-perf-qdot { width: 7px; height: 7px; border-radius: 50%; background: rgba(127,127,127,0.25); display: inline-block; }
 .mdt-perf-qdot.on { background: var(--brand-primary); }
 .mdt-perf-section-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2); }
 .mdt-perf-back { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-2); font-size: var(--fs-sm); padding: 5px var(--space-25); cursor: pointer; }
@@ -11623,3 +11623,250 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
   padding-top: var(--space-1);
   flex-shrink: 0;
 }
+
+/* =========================================================
+   🔮 Mandalart — 연간 목표 진행 현황 바
+   전체 Project 수 중 완료한 Project 수. 입력칸 바로 아래에 붙는다.
+   ========================================================= */
+.mdt-annual-prog { margin-top: var(--space-15); }
+.mdt-annual-prog-bar {
+  height: 6px;
+  background: rgba(127,127,127,0.22);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+.mdt-annual-prog-fill {
+  height: 100%;
+  min-width: 0;
+  background: var(--brand-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--dur-slow);
+}
+.mdt-annual-prog-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 3px;
+}
+.mdt-annual-prog-txt { font-size: var(--fs-2xs); color: var(--text-3); }
+.mdt-annual-prog-pct { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); }
+
+/* =========================================================
+   📥 Mandalart — 실적 입력 모달 (달성현황 바 클릭 → 새 창)
+   mandalart.js 의 mdtOpenPerfModal 이 그리는 창. 표시 규칙이 없어
+   달·표·입력칸이 전부 기본 인라인 흐름으로 흘러 깨져 보였다.
+   ========================================================= */
+
+/* 12개월 달력이 들어가므로 SMART 창보다 넓게 잡는다 */
+.mdt-proj-modal.mdt-perf-modal { width: min(780px, 94vw); }
+/* 모달 본문은 세로 flex + gap(--space-4) 이라 조각 사이가 지나치게 벌어진다 */
+.mdt-perf-modal .mdt-proj-modal-body { gap: var(--space-3); }
+
+.mdt-perf-modal-tag {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--text-2);
+  background: rgba(127,127,127,0.16);
+  border-radius: var(--radius-full);
+  padding: 2px var(--space-2);
+  white-space: nowrap;
+}
+
+/* 상단 달성현황 요약 + 바 */
+.mdt-perf-modal-head {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: rgba(127,127,127,0.08);
+  border-radius: var(--radius-md);
+  padding: var(--space-25) var(--space-3);
+}
+.mdt-perf-modal-sum {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-1);
+}
+.mdt-perf-modal-head .mdt-perf-dash-bar { background: rgba(127,127,127,0.22); height: 6px; }
+
+/* 목표값·단위 / 주N회·성공기준 한 줄 */
+.mdt-perf-goalrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-15);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-25);
+}
+.mdt-perf-goalrow > label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-2);
+  margin-right: var(--space-1);
+}
+.mdt-perf-hint { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+/* 창 안에서는 입력칸이 보여야 한다 — 표 배경 투명화 규칙(#page-content 밖)을 되돌린다 */
+.mdt-perf-modal .mdt-num-inp,
+.mdt-perf-modal .mdt-unit-inp {
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  padding: 4px var(--space-15);
+}
+.mdt-perf-modal .mdt-num-inp { width: 64px; }
+.mdt-perf-modal .mdt-num-inp.mdt-num-sm { width: 52px; }
+.mdt-perf-modal .mdt-unit-inp { width: 64px; text-align: left; }
+
+/* ── 실적형: [# · 일자 · 내용 · 삭제] 표 ── */
+.mdt-perf-tbl {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.mdt-perf-tbl-hd,
+.mdt-perf-tr {
+  display: grid;
+  grid-template-columns: 34px 148px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: var(--space-15);
+  padding: 5px var(--space-2);
+}
+.mdt-perf-tbl-hd {
+  background: rgba(127,127,127,0.12);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.mdt-perf-tr + .mdt-perf-tr,
+.mdt-perf-tbl-hd + .mdt-perf-tr { border-top: 1px solid var(--border); }
+.mdt-perf-tr .c-idx,
+.mdt-perf-tbl-hd .c-idx { text-align: center; font-size: var(--fs-2xs); color: var(--text-3); }
+.mdt-perf-tr.is-new .c-idx { color: var(--brand-primary); font-weight: 700; }
+
+.mdt-perf-date,
+.mdt-perf-txt {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  padding: 4px var(--space-15);
+  outline: none;
+}
+.mdt-perf-date:focus,
+.mdt-perf-txt:focus { border-color: var(--brand-primary); }
+.mdt-perf-tr.is-new .mdt-perf-date,
+.mdt-perf-tr.is-new .mdt-perf-txt { border-style: dashed; }
+
+.mdt-perf-del {
+  width: 22px;
+  height: 22px;
+  justify-self: center;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+.mdt-perf-del:hover { background: var(--danger-bg); color: var(--danger); }
+.mdt-perf-tbl-hint { font-size: var(--fs-2xs); color: var(--text-3); margin-top: calc(var(--space-2) * -1); }
+
+/* ── 습관형: 1~12월 미니 캘린더 ── */
+.mdt-12mo-cal {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(142px, 1fr));
+  gap: var(--space-25);
+}
+.mc-month {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-15) var(--space-2) var(--space-2);
+}
+.mc-title {
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  color: var(--text-2);
+  text-align: center;
+  margin-bottom: 3px;
+}
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+}
+.mc-dow {
+  font-size: 9px;
+  line-height: 14px;
+  height: 14px;
+  color: var(--text-3);
+  text-align: center;
+}
+.mc-grid .mc-dow:first-child { color: var(--danger); }
+.mc-grid .mc-dow:nth-child(7) { color: var(--brand-primary); }
+.mc-cell {
+  font-size: 9px;
+  line-height: 16px;
+  height: 16px;
+  text-align: center;
+  color: var(--text-2);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.mc-cell:hover { background: rgba(127,127,127,0.2); }
+.mc-empty { cursor: default; }
+.mc-empty:hover { background: none; }
+.mc-done {
+  background: var(--success);
+  color: #fff;
+  font-weight: 700;
+}
+.mc-done:hover { background: var(--success); }
+.mc-today { box-shadow: inset 0 0 0 1px var(--brand-primary); font-weight: 700; }
+.mc-future { color: var(--text-3); opacity: 0.4; cursor: default; }
+.mc-future:hover { background: none; }
+
+/* =========================================================
+   📊 Mandalart 실적관리 표 — 달성현황 칸
+   칸 전체가 '실적 입력 창'을 여는 버튼이다. 규칙이 없어 요약 글과
+   막대가 아무 표시 없이 흘러 있었고, 누르면 창이 뜬다는 신호도 없었다.
+   ========================================================= */
+.mgt-perf-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-15) var(--space-2);
+  cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.mgt-perf-wrap:hover {
+  background: rgba(127,127,127,0.10);
+  border-color: var(--border);
+}
+.mgt-perf-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
+  font-size: var(--fs-xs);
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 누르는 막대는 조금 두껍게 — 5px 는 겨냥하기에 너무 얇다 */
+.mgt-perf-clickbar { height: 7px; }
