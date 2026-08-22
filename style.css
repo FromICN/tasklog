@@ -4111,7 +4111,7 @@ body.light-mode .lw-cv-tag {
 }
 
 .mdt-core-text {
-  font-size: var(--fs-base); font-weight: 700; color: #c4b5fd;
+  font-size: var(--fs-base); font-weight: 700; color: var(--text-1);
   text-align: center; line-height: 1.35; pointer-events: none;
 }
 
@@ -9393,9 +9393,13 @@ body.light-mode .pm-btn-save { background: #f0f0f0; }
   text-align: center;
   pointer-events: none;
 }
-/* 완료 시: 텍스트 대비 확보(밝은 배경) + 취소선 */
-.mdt-inner-cell.mdt-proj-done .mdt-inner-text { color: rgba(0,0,0,0.72); font-weight: 600; }
-.mdt-inner-text.mdt-cell-done-text { text-decoration: line-through; }
+/* 완료 시: 굵은 글씨 + 옅게 깔린 테마색 배경으로 알린다.
+   취소선은 넣지 않는다.
+   ⚠️ 글자색을 rgba(0,0,0,0.72) 로 박아 두면 다크에서 어두운 배경 위에
+   검은 글씨가 되어 대비가 1.35 까지 떨어진다(사실상 안 보인다).
+   본문 글자색을 따라가게 두면 라이트=검정 · 다크=흰색으로 함께 뒤집힌다. */
+.mdt-inner-cell.mdt-proj-done .mdt-inner-text { color: var(--text-1); font-weight: 600; }
+.mdt-inner-text.mdt-cell-done-text { text-decoration: none; }
 
 /* #2: section 최종목표(중앙 셀 보조 텍스트) */
 .mdt-ic-final {

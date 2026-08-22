@@ -1019,7 +1019,7 @@ function buildSgDetailHtml(m, sg) {
     + '<th class="mgt-th-type" data-cr-key="type">유형</th>'
     + '<th class="mgt-th-goal" data-cr-key="goal">세부계획</th>'
     + '<th class="mgt-th-perf" data-cr-key="perf">달성현황</th>'
-    + '<th class="mgt-th-memo" data-cr-key="memo">메모(실적)</th>'
+    + '<th class="mgt-th-memo" data-cr-key="memo">메모</th>'
     + '</tr></thead><tbody>';
 
   // [개선2] 드래그 순서(actionOrder)대로 Project 행 렌더 — SECTION 내 순서 변경 지원
@@ -1570,7 +1570,7 @@ function buildTaskCardBody(m, sg, a) {
   return '<div style="padding:4px 0;">'
     + buildAnnualTargetHtml(m, sg, a)
     + '<div style="' + S_ROW + 'flex-direction:column;gap:5px;">'
-    +   '<span style="' + S_LABEL + '">메모(실적)</span>'
+    +   '<span style="' + S_LABEL + '">메모</span>'
     +   '<div class="mdt-memo-box" contenteditable="true" spellcheck="false" data-ph=""'
     +     ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
     +     ' onblur="saveActCE(this)">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>'
@@ -1597,7 +1597,7 @@ function buildHabitCardBody(m, sg, a) {
     +   '<div class="mdt-hb-cal-col">' + buildHabitCalendar(yr, sgId, a) + '</div>'
     +   '<div class="mdt-hb-week-col">'
     +     '<div class="mdt-hb-memo-wrap">'
-    +       '<span class="mdt-hb-lbl">메모(실적)</span>'
+    +       '<span class="mdt-hb-lbl">메모</span>'
     +       '<div class="mdt-memo-box mdt-memo-sm" contenteditable="true" spellcheck="false" data-ph=""'
     +         ' data-year="' + yr + '" data-sg="' + sgId + '" data-act="' + a.id + '" data-field="memo"'
     +         ' onblur="saveActCE(this)">' + escMdt(a.memo || '').replace(/\n/g, '<br>') + '</div>'

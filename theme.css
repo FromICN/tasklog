@@ -136,7 +136,7 @@
 
   /* Focus On 다이얼 — 넬나 '포커스 온'의 배색.
      다크에서는 흰 원판이 화면을 때리므로 판만 어둡게 낮춘다. */
-  --fw-face:      #232B27;
+  --fw-face:      transparent;   /* 시계 판은 비운다 — 카드 바탕이 그대로 올라온다 */
   --fw-ring:      rgba(255,255,255,0.28);
   --fw-ink:       #9CD9BE;
   --fw-fill:      #2F8A67;
@@ -214,7 +214,7 @@ body.light-mode {
   --bg1-solid:     #F4F6F2;
 
   /* 라이트는 실물 그대로 — 흰 원판 · 진녹색 · 황토색 노브 */
-  --fw-face:      #FFFFFF;
+  --fw-face:      transparent;   /* 시계 판은 비운다 — 카드 바탕이 그대로 올라온다 */
   --fw-ring:      #8E9B92;
   --fw-ink:       #14503C;
   --fw-fill:      #14563F;
