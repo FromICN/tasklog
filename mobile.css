@@ -772,3 +772,19 @@ html.pwa-standalone body {
   .mdt-perf-modal .mdt-proj-modal-body { padding: var(--space-3) var(--space-25); }
   .mdt-perf-goalrow { gap: var(--space-1); }
 }
+
+/* 실적(목표값) 값 칸 · 습관(주간) 주별 표 — 좁은 화면 */
+@media (max-width: 768px) {
+  .mdt-perf-tbl.has-val .mdt-perf-tbl-hd,
+  .mdt-perf-tbl.has-val .mdt-perf-tr {
+    grid-template-columns: 22px 108px minmax(0, 1fr) 54px 26px;
+  }
+  /* 칸 나눔은 변수 하나만 — 머리글과 행이 함께 따라온다 */
+  .mdt-wk-tbl { --wk-cols: 42px minmax(0, 1fr) 60px 38px; }
+  .mdt-wk-tbl .mdt-perf-tbl-hd,
+  .mdt-wk-tr {
+    gap: var(--space-1);
+    padding: 4px var(--space-15);
+  }
+  .mdt-wk-tbl { max-height: 46vh; }
+}

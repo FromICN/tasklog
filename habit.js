@@ -25,7 +25,8 @@ function htHabits(year) {
   var out = [];
   m.subGoals.forEach(function(sg, i) {
     (sg.actions || []).forEach(function(a) {
-      if (a.trackingType !== 'habit' || !a.text || !a.text.trim()) return;
+      // 습관(주간)은 날짜 체크가 없다 — 날짜 달력을 쓰는 이 화면에는 올리지 않는다.
+      if (a.trackingType !== 'habit' || a.habitMode === 'weekly' || !a.text || !a.text.trim()) return;
       out.push({ sg: sg, a: a, secIdx: i });
     });
   });

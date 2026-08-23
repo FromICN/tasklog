@@ -11888,3 +11888,91 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
   color: var(--text-3);
   white-space: nowrap;
 }
+
+/* =========================================================
+   📥 실적 입력 모달 — 유형 4종에서 늘어난 칸
+   · 실적(목표값) : [# · 일자 · 내용 · 값 · 삭제] — 값 칸이 하나 더
+   · 습관(주간)   : [주차 · 기간 · 실적 · 판정] 주별 입력 표
+   ========================================================= */
+
+/* 실적(목표값): 값 칸이 붙은 표는 5열이 된다 */
+.mdt-perf-tbl.has-val .mdt-perf-tbl-hd,
+.mdt-perf-tbl.has-val .mdt-perf-tr {
+  grid-template-columns: 34px 148px minmax(0, 1fr) 72px 34px;
+}
+.mdt-perf-tbl.has-val .mdt-perf-tbl-hd .c-val { text-align: right; }
+.mdt-perf-val {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-align: right;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: 4px var(--space-15);
+  outline: none;
+}
+.mdt-perf-val:focus { border-color: var(--brand-primary); }
+.mdt-perf-tr.is-new .mdt-perf-val { border-style: dashed; }
+
+/* 습관(주간): 주별 실적 표 — 52~53줄이라 표 안에서 스크롤한다 */
+.mdt-wk-tbl {
+  max-height: 340px;
+  overflow-y: auto;
+  /* ⚠️ 칸 나눔은 여기 한 곳에서만 정한다.
+     머리글(.mdt-perf-tbl-hd)은 그냥 두면 .mdt-perf-tbl 의 4열(34/148/1fr/34)을
+     물려받아 행과 어긋난다. 둘이 같은 변수를 보게 해 두면 좁은 화면 규칙도
+     이 변수 하나만 덮어쓰면 되고, 한쪽만 고쳐서 어긋나는 일이 없다. */
+  --wk-cols: 52px minmax(0, 1fr) 78px 44px;
+}
+.mdt-wk-tbl .mdt-perf-tbl-hd {
+  position: sticky; top: 0; z-index: 1; background: var(--panel-bg);
+  grid-template-columns: var(--wk-cols);
+  gap: var(--space-15);
+  padding: 5px var(--space-2);
+}
+.mdt-wk-tr {
+  display: grid;
+  grid-template-columns: var(--wk-cols);
+  align-items: center;
+  gap: var(--space-15);
+  padding: 4px var(--space-2);
+  border-top: 1px solid var(--border);
+}
+.mdt-perf-tbl-hd .c-wk,
+.mdt-wk-tr .c-wk { font-size: var(--fs-2xs); color: var(--text-3); }
+.mdt-perf-tbl-hd .c-span,
+.mdt-wk-tr .c-span { font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; }
+.mdt-perf-tbl-hd .c-wval { text-align: right; }
+.mdt-perf-tbl-hd .c-wok,
+.mdt-wk-tr .c-wok { text-align: center; font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; }
+.mdt-wk-val {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-align: right;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  padding: 3px var(--space-15);
+  outline: none;
+}
+.mdt-wk-val:focus { border-color: var(--brand-primary); }
+
+/* 달성한 주 · 이번 주 · 아직 오지 않은 주 */
+.mdt-wk-tr.is-ok { background: var(--success-bg); }
+.mdt-wk-tr.is-ok .c-wok { color: var(--success); font-weight: 700; }
+.mdt-wk-tr.is-now { box-shadow: inset 2px 0 0 var(--brand-primary); }
+.mdt-wk-tr.is-now .c-wk { color: var(--brand-primary); font-weight: 700; }
+.mdt-wk-tr.is-future { opacity: 0.45; }
+
+/* 유형 드롭다운이 optgroup 두 개로 늘었다 — 폭을 조금 넓혀 준다 */
+.mgt-type-sel { min-width: 84px; }
