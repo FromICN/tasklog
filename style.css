@@ -11425,7 +11425,10 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
    → 이름 칸을 비율로 못 박아 막대 시작점을 한 줄로 맞추고,
      막대는 남는 자리를 다 먹어 위젯 폭에 따라 늘고 준다. % 는 맨 오른쪽. */
 .mda-name {
-  flex: 0 0 42%;
+  /* 0 1 = 기본 폭은 42% 로 못 박되, 칸이 좁아지면 줄어들 수는 있게.
+     모든 행이 같은 기준·같은 비율로 줄어드니 막대 시작점은 그대로 한 줄로 선다.
+     (0 0 이면 완료/전체 칸까지 더한 폭이 좁은 위젯을 넘겨 가로 스크롤이 생긴다) */
+  flex: 0 1 42%;
   min-width: 0;
   white-space: normal;        /* 잘라내지 않고 줄바꿈으로 다 보여 준다 */
   overflow: visible;
@@ -11874,3 +11877,14 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 }
 /* 누르는 막대는 조금 두껍게 — 5px 는 겨냥하기에 너무 얇다 */
 .mgt-perf-clickbar { height: 7px; }
+
+/* Mandalart 위젯 — 완료/전체 Project 수.
+   Mandalart 페이지의 SECTION 카드가 이름 옆에 적는 것과 같은 값이다.
+   폭을 못 박아 두어야 행마다 막대 시작점이 한 줄로 선다. */
+.mda-cnt {
+  flex: 0 0 32px;
+  text-align: right;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}

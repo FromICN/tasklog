@@ -508,18 +508,36 @@ function renderHomeMandalartWidget() {
     el.innerHTML = emptyWidget('🎯', '등록된 SECTION이 없습니다');
     return;
   }
-  var html = m.subGoals.map(function(sg, i) {
-    var acts  = (sg.actions || []).filter(function(a){ return a.text && a.text.trim(); });
-    var total = acts.length;
-    var done  = acts.filter(function(a){ return a.completed; }).length;
-    var pct   = total ? Math.round(done / total * 100) : 0;
-    var color = sg.color || HOME_SEC_COLORS[i] || '#4F6EF7';
-    var name  = (sg.text && sg.text.trim()) ? sg.text : ('Section' + (i + 1));
+  // ⚠️ Mandalart 페이지의 'SECTION별 달성 현황'(buildMdtPerfDashboard)과 같은 것을 보여 준다.
+  //    한쪽만 고치면 같은 화면 두 개가 다른 숫자를 말하게 되므로,
+  //    순서(tlGetSectionOrder)와 달성률(calcSgPerf) 모두 페이지의 함수를 그대로 쓴다.
+  //    · 순서 = 사용자가 드래그로 정해 둔 Section 순서 (배열 순서가 아니다)
+  //    · % = 각 Project 실적 달성률의 평균 (완료 개수 비율이 아니다)
+  //    · done/total = 완료 Project / 전체 Project 칸
+  var order = (typeof tlGetSectionOrder === 'function')
+    ? tlGetSectionOrder(m.year)
+    : m.subGoals.map(function(_, i){ return i; });
+
+  var html = order.map(function(si) {
+    var sg = m.subGoals[si];
+    if (!sg) return '';
+    var perf = (typeof calcSgPerf === 'function')
+      ? calcSgPerf(sg, m.year)
+      : (function() {                       // mandalart.js 가 없을 때만 쓰는 대비책
+          var acts = (sg.actions || []).filter(function(a){ return a.text && a.text.trim(); });
+          var d = acts.filter(function(a){ return a.completed; }).length;
+          return { pct: acts.length ? Math.round(d / acts.length * 100) : 0,
+                   done: d, total: (sg.actions || []).length };
+        })();
+    var color = sg.color || HOME_SEC_COLORS[si] || '#4F6EF7';
+    var name  = (sg.text && sg.text.trim()) ? sg.text : ('Section' + (si + 1));
     var label = (sg.emoji ? hwEsc(sg.emoji) + ' ' : '') + hwEsc(name);
-    return '<div class="mda-row" onclick="navToMenu(\'mandalart\')" title="' + hwEsc(name) + ' · ' + done + '/' + total + '">'
+    return '<div class="mda-row" onclick="navToMenu(\'mandalart\')"'
+      + ' title="' + hwEsc(name) + ' · 달성 ' + perf.done + '/' + perf.total + ' · 연간 ' + perf.pct + '%">'
       + '<span class="mda-name">' + label + '</span>'
-      + '<div class="mda-track"><div class="mda-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>'
-      + '<span class="mda-pct">' + pct + '%</span>'
+      + '<span class="mda-cnt">' + perf.done + '/' + perf.total + '</span>'
+      + '<div class="mda-track"><div class="mda-fill" style="width:' + perf.pct + '%;background:' + color + ';"></div></div>'
+      + '<span class="mda-pct">' + perf.pct + '%</span>'
       + '</div>';
   }).join('');
   el.innerHTML = html;
