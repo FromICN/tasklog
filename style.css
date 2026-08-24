@@ -5994,7 +5994,6 @@ body.light-mode .year-select {
   border-color: rgba(0,0,0,0.12);
 }
 body.light-mode .year-select:hover { background: rgba(0,0,0,0.07); }
-body.light-mode .year-select option { color: #1a1a1a; }
 /* MVV: 연도 드롭박스를 저장 버튼 스타일로 */
 .mvv-year-select {
   background: var(--brand-primary);
@@ -6007,7 +6006,6 @@ body.light-mode .year-select option { color: #1a1a1a; }
 }
 .mvv-year-select:hover { background: var(--brand-primary); opacity: 0.85; }
 .mvv-year-select:focus { border: none; }
-.mvv-year-select option { color: #1a1a1a; }
 
 /* ── 인생 수레바퀴 최종 목표 컬럼 ── */
 .lw-final-goal-cell { min-width: 160px; max-width: 220px; }
@@ -8659,30 +8657,22 @@ body.light-mode .mdt-inner-center { border-color: rgba(0,0,0,0.16); }
 
 /* =============================================
    🎨 select 드롭다운 테마 통일
+   ---------------------------------------------
+   ⚠️ <option> · <optgroup> 에는 색을 칠하지 않는다.
+   author 스타일이 하나라도 붙는 순간 크롬은 '펼친 목록'을 네이티브가 아니라
+   직접 그리는 판으로 바꾼다. 그 판의 바탕은 흰색이고 color-scheme 을 따르지
+   않아서, 다크에서 흰 판이 뜨고 그 위에 흰 글씨가 앉아 optgroup 이름표가
+   하얗게 뜨고 항목 글씨가 지워진 것처럼 보였다.
+   펼친 목록의 색은 theme.css 의 color-scheme(dark/light) 이 정한다.
+   여기서는 '닫힌 컨트롤'만 칠한다.
    ============================================= */
-/* 다크 모드 기본 */
-select,
-select option {
+select {
   background-color: #252525;
   color: rgba(255,255,255,0.92);
 }
-select option:checked,
-select option:hover {
-  background-color: #3a3a3a;
-}
-
-/* 라이트 모드 — 닫힌 컨트롤은 다른 입력칸과 동일한 surface 색, 펼친 목록만 흰색 */
 body.light-mode select {
   background-color: var(--surface);
   color: #1a1a1a;
-}
-body.light-mode select option {
-  background-color: #ffffff;
-  color: #1a1a1a;
-}
-body.light-mode select option:checked,
-body.light-mode select option:hover {
-  background-color: #f0f0f0;
 }
 
 /* ============================================
@@ -11919,22 +11909,9 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 .mdt-perf-val:focus { border-color: var(--brand-primary); }
 .mdt-perf-tr.is-new .mdt-perf-val { border-style: dashed; }
 
-/* ── 유형 드롭다운 ──
-   ⚠️ 다크에서 <optgroup> 이름표가 흰 판으로 뜬다.
-   브라우저가 optgroup/option 을 OS 목록으로 그리면서 페이지 색을 안 따라오기
-   때문이다. 배경·글자색을 직접 박아 줘야 목록이 화면과 같은 색으로 열린다. */
+/* 유형 드롭다운 — optgroup 두 개가 들어갈 폭.
+   목록 색은 건드리지 않는다(위 'select 드롭다운 테마 통일' 주석 참조). */
 .mgt-type-sel { min-width: 84px; }
-.mgt-type-sel optgroup,
-.mgt-type-sel option {
-  background: var(--panel-bg);
-  color: var(--text-1);
-}
-.mgt-type-sel optgroup {
-  color: var(--text-3);
-  font-size: var(--fs-2xs);
-  font-weight: 700;
-  font-style: normal;
-}
 
 /* ── 실적(목표): 값 + 판정 칸 ── */
 .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd,
@@ -11966,9 +11943,51 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
   padding: 3px var(--space-1);
   cursor: pointer;
 }
-.mdt-cmp-sel option { background: var(--panel-bg); color: var(--text-1); }
 
 /* 일자 칸: 마스크를 씌운 글자 입력. 덜 적은 채로 칸을 떠나면 빨갛게 알린다 */
 .mdt-perf-date { font-variant-numeric: tabular-nums; }
 .mdt-perf-date.is-bad { border-color: var(--danger); color: var(--danger); }
 
+
+/* =========================================================
+   📅 To Do 마감일 달력 — 납작하게
+   ---------------------------------------------------------
+   세로가 길었던 까닭은 두 가지였다.
+   ① .sdp-cal-wrap 이 배경·테두리·안여백을 가진 '상자'였다
+   ② .sdp-dc 에 aspect-ratio:1 이 걸려 날짜 칸이 칸 너비만큼
+      키가 커졌다(7칸 격자라 한 칸이 27px → 5줄이면 135px)
+   상자를 걷어내고 칸을 '가로로 긴 직사각형'으로 눕혀 세로를 반으로 줄인다.
+   ⚠️ .step-date-form 으로만 좁힌다 — Task 의 시작일·기한 피커는
+      같은 sdp-* 를 쓰지만 넓은 자리라 그대로 두는 게 낫다.
+   ========================================================= */
+.step-date-form .sdp-cal-wrap {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin-top: 0;
+}
+.step-date-form .sdp-cal-hdr2 { padding: 0 0 var(--space-1); }
+.step-date-form .sdp-cal-grid2 { gap: 1px; }
+.step-date-form .sdp-dh {
+  padding: 0 0 2px;
+  line-height: 1.2;
+}
+.step-date-form .sdp-dc {
+  aspect-ratio: auto;     /* 정사각형 강제 해제 — 세로를 잡아먹던 주범 */
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  border-radius: var(--radius-xs);   /* 원 → 가로로 긴 직사각형 */
+}
+.step-date-form .sdp-cal-footer {
+  padding-top: var(--space-1);
+  margin-top: 2px;
+}
+.step-date-form .sdp-today-btn,
+.step-date-form .sdp-cal-close-btn { padding: 2px var(--space-2); }
+/* 머리글의 연·월 드롭다운도 함께 낮춘다 — 달력만 납작해지면 머리가 커 보인다 */
+.step-date-form .sdp-year-sel,
+.step-date-form .sdp-month-sel { padding: 1px var(--space-1); font-size: var(--fs-xs); }
+/* 고른 날짜에 마우스를 올리면 살짝 흐려진다 — '다시 누르면 지워진다'는 신호.
+   지우기 버튼을 뺀 자리를 대신하는 유일한 힌트라 없으면 아무도 못 찾는다. */
+.step-date-form .sdp-dc.sdp-sel:hover { opacity: 0.55; }

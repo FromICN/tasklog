@@ -915,7 +915,8 @@ function buildPickerCalHtml(id) {
     if (dow === 6) cls += ' sdp-sat';
     if (dk === todayKey) cls += ' sdp-today';
     if (dk === s.dateStr) cls += ' sdp-sel';
-    html += '<div class="' + cls + '" onclick="pickerPickDate(\'' + id + '\',' + year + ',' + (month+1) + ',' + d + ')">' + d + '</div>';
+    var tip = (s.toggleClear && dk === s.dateStr) ? ' title="다시 누르면 마감일이 지워집니다"' : '';
+    html += '<div class="' + cls + '"' + tip + ' onclick="pickerPickDate(\'' + id + '\',' + year + ',' + (month+1) + ',' + d + ')">' + d + '</div>';
   }
   var filled = lead + total;
   var remain = (7 - (filled % 7)) % 7;
@@ -992,7 +993,14 @@ function pickerNext(id) {
 function pickerPickDate(id, year, month, day) {
   var s = pickerState[id];
   var pad = function(n){ return String(n).padStart(2,'0'); };
-  s.dateStr = year + '-' + pad(month) + '-' + pad(day);
+  var picked = year + '-' + pad(month) + '-' + pad(day);
+  // 이미 고른 날짜를 다시 누르면 해제한다.
+  //  To Do 마감일 달력에는 '지우기' 버튼이 없다(세로를 줄이려고 뺐다).
+  //  대신 고른 날짜를 한 번 더 눌러 지운다 — 자리를 차지하지 않는 방법이다.
+  //  ⚠️ toggleClear 를 켠 피커에서만 동작한다. clearPicker 는 시각(timeStr)까지
+  //     함께 지우므로, 시계가 붙은 피커에서 켜면 시간까지 날아간다.
+  if (s.toggleClear && s.dateStr === picked) { clearPicker(id); return; }
+  s.dateStr = picked;
   s.calYear = year; s.calMonth = month - 1;
   var textEl = document.getElementById('sdp-text-' + id);
   if (textEl) textEl.value = formatDateDisplay(s.dateStr);
@@ -2403,7 +2411,6 @@ function rpBuildStepsHtml() {
     var dateForm = '<div class="dp-sub-form step-date-form rp-step-date-form rp-stepcal-form" id="rp-step-date-form-'+s.id+'" style="display:none;"'
       + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();">'
       + '<div class="sdp-cal-wrap rp-stepcal" id="sdp-cal-rp-step-'+s.id+'"></div>'
-      + '<div class="rp-stepcal-actions"><button class="dp-date-clear" onclick="event.stopPropagation();rpClearStepDate('+s.id+')">✕ 지우기</button></div>'
       + '</div>';
     // 완료된 To Do: 완료일([YYMMDD])을 편집영역에 그대로 노출 → Task 완료일처럼 타이핑으로 직접 수정.
     //  호버 시 전체 완료일시(YYYY-MM-DD HH:MM) 툴팁 표시. 미완료는 순수 텍스트 + 편집 안내.
@@ -2503,6 +2510,7 @@ function rpToggleStepDateForm(stepId) {
   var pid = 'rp-step-' + stepId;
   var dateStr = (s && s.dueDateTime) ? toDateInputVal(s.dueDateTime) : '';
   initPicker(pid, dateStr, null);
+  pickerState[pid].toggleClear = true;   // 고른 날짜를 다시 눌러 해제(지우기 버튼 대체)
   var host = document.getElementById('sdp-cal-' + pid);
   if (host) { host.style.display = 'block'; host.innerHTML = buildPickerCalHtml(pid); }
   form.style.display = 'block';
