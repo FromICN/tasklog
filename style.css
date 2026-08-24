@@ -11919,60 +11919,56 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 .mdt-perf-val:focus { border-color: var(--brand-primary); }
 .mdt-perf-tr.is-new .mdt-perf-val { border-style: dashed; }
 
-/* 습관(주간): 주별 실적 표 — 52~53줄이라 표 안에서 스크롤한다 */
-.mdt-wk-tbl {
-  max-height: 340px;
-  overflow-y: auto;
-  /* ⚠️ 칸 나눔은 여기 한 곳에서만 정한다.
-     머리글(.mdt-perf-tbl-hd)은 그냥 두면 .mdt-perf-tbl 의 4열(34/148/1fr/34)을
-     물려받아 행과 어긋난다. 둘이 같은 변수를 보게 해 두면 좁은 화면 규칙도
-     이 변수 하나만 덮어쓰면 되고, 한쪽만 고쳐서 어긋나는 일이 없다. */
-  --wk-cols: 52px minmax(0, 1fr) 78px 44px;
+/* ── 유형 드롭다운 ──
+   ⚠️ 다크에서 <optgroup> 이름표가 흰 판으로 뜬다.
+   브라우저가 optgroup/option 을 OS 목록으로 그리면서 페이지 색을 안 따라오기
+   때문이다. 배경·글자색을 직접 박아 줘야 목록이 화면과 같은 색으로 열린다. */
+.mgt-type-sel { min-width: 84px; }
+.mgt-type-sel optgroup,
+.mgt-type-sel option {
+  background: var(--panel-bg);
+  color: var(--text-1);
 }
-.mdt-wk-tbl .mdt-perf-tbl-hd {
-  position: sticky; top: 0; z-index: 1; background: var(--panel-bg);
-  grid-template-columns: var(--wk-cols);
-  gap: var(--space-15);
-  padding: 5px var(--space-2);
+.mgt-type-sel optgroup {
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  font-style: normal;
 }
-.mdt-wk-tr {
-  display: grid;
-  grid-template-columns: var(--wk-cols);
-  align-items: center;
-  gap: var(--space-15);
-  padding: 4px var(--space-2);
-  border-top: 1px solid var(--border);
+
+/* ── 실적(목표): 값 + 판정 칸 ── */
+.mdt-perf-tbl.has-goal .mdt-perf-tbl-hd,
+.mdt-perf-tbl.has-goal .mdt-perf-tr {
+  grid-template-columns: 34px 132px minmax(0, 1fr) 72px 44px 34px;
 }
-.mdt-perf-tbl-hd .c-wk,
-.mdt-wk-tr .c-wk { font-size: var(--fs-2xs); color: var(--text-3); }
-.mdt-perf-tbl-hd .c-span,
-.mdt-wk-tr .c-span { font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; }
-.mdt-perf-tbl-hd .c-wval { text-align: right; }
-.mdt-perf-tbl-hd .c-wok,
-.mdt-wk-tr .c-wok { text-align: center; font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; }
-.mdt-wk-val {
-  width: 100%;
-  min-width: 0;
+.mdt-perf-tbl.has-goal .mdt-perf-tbl-hd .c-val { text-align: right; }
+.mdt-perf-tbl.has-goal .mdt-perf-tbl-hd .c-ok { text-align: center; }
+.mdt-perf-ok {
+  text-align: center;
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+/* 조건을 만족한 기록은 줄 전체로 알린다 — 값만 보고는 판정이 안 읽힌다 */
+.mdt-perf-tr.is-ok { background: var(--success-bg); }
+.mdt-perf-tr.is-ok .mdt-perf-ok { color: var(--success); font-weight: 700; }
+
+/* 이상/미만 고르는 칸 */
+.mdt-cmp-sel {
+  flex: 0 0 auto;
   box-sizing: border-box;
-  text-align: right;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-1);
   font-family: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  padding: 3px var(--space-15);
-  outline: none;
+  font-size: var(--fs-xs);
+  padding: 3px var(--space-1);
+  cursor: pointer;
 }
-.mdt-wk-val:focus { border-color: var(--brand-primary); }
+.mdt-cmp-sel option { background: var(--panel-bg); color: var(--text-1); }
 
-/* 달성한 주 · 이번 주 · 아직 오지 않은 주 */
-.mdt-wk-tr.is-ok { background: var(--success-bg); }
-.mdt-wk-tr.is-ok .c-wok { color: var(--success); font-weight: 700; }
-.mdt-wk-tr.is-now { box-shadow: inset 2px 0 0 var(--brand-primary); }
-.mdt-wk-tr.is-now .c-wk { color: var(--brand-primary); font-weight: 700; }
-.mdt-wk-tr.is-future { opacity: 0.45; }
+/* 일자 칸: 마스크를 씌운 글자 입력. 덜 적은 채로 칸을 떠나면 빨갛게 알린다 */
+.mdt-perf-date { font-variant-numeric: tabular-nums; }
+.mdt-perf-date.is-bad { border-color: var(--danger); color: var(--danger); }
 
-/* 유형 드롭다운이 optgroup 두 개로 늘었다 — 폭을 조금 넓혀 준다 */
-.mgt-type-sel { min-width: 84px; }

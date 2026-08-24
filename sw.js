@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20260823e'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20260824c'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -23,12 +23,12 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest.json?v=20260810a',
-  './style.css?v=20260823e',
+  './style.css?v=20260824a',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
-  './mobile.css?v=20260823e',
+  './mobile.css?v=20260824a',
   './fonts/pretendard.css?v=20260809a',
-  './theme.css?v=20260822a',
+  './theme.css?v=20260824c',
   './config.js?v=20260810a',
   './firebase-init.js?v=20260808a',
   './colresize.js?v=20260722',
@@ -36,10 +36,10 @@ const PRECACHE_URLS = [
   './backup-xlsx.js?v=20260722',
   './auth.js?v=20260813b',
   './calendar.js?v=20260731a',
-  './mandalart.js?v=20260823d',
+  './mandalart.js?v=20260824b',
   './lifewheel.js?v=20260816e',
   './home.js?v=20260823a',
-  './habit.js?v=20260823c',
+  './habit.js?v=20260824a',
   './calpage.js?v=20260730',
   './gantt.js?v=20260816b',
   './notes.js?v=20260816a',
@@ -52,7 +52,7 @@ const PRECACHE_URLS = [
   './todo.js?v=20260803a',
   './yearsync.js?v=20260722',
   './script.js?v=20260816a',
-  './pwa.js?v=20260823e',
+  './pwa.js?v=20260824c',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',
