@@ -11316,10 +11316,14 @@ body.light-mode .right-panel {
 .mdt-annual-unit-inp,
 .mgt-perf-cum,
 .mgt-perf-habit,
-.mgt-perf-result,
-.mgt-type-sel {
+.mgt-perf-result {
   background: transparent;
 }
+/* ⚠️ .mgt-type-sel(유형 드롭다운)은 여기서 뺐다.
+   select 의 배경이 투명하면 크롬이 '펼친 목록'을 흰 판으로 그린다
+   (목록 바탕은 select 의 계산된 background-color 를 쓰는데, 투명이면
+   기본 흰색으로 떨어진다). 그래서 다크에서 흰 판 위에 밝은 글씨가 앉아
+   항목이 지워진 것처럼 보였다. 아래에서 불투명 테마색으로 칠한다. */
 /* Habit Tracker 항목 이름도 위젯 본문 기준(12px)에 맞춘다 — theme.css 의 .mda-name 과 같은 값 */
 .habit-name { font-size: 12px; }
 
@@ -11910,8 +11914,16 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 .mdt-perf-tr.is-new .mdt-perf-val { border-style: dashed; }
 
 /* 유형 드롭다운 — optgroup 두 개가 들어갈 폭.
-   목록 색은 건드리지 않는다(위 'select 드롭다운 테마 통일' 주석 참조). */
-.mgt-type-sel { min-width: 84px; }
+   <option>·<optgroup> 에는 여전히 색을 칠하지 않는다(위 'select 드롭다운
+   테마 통일' 주석 참조). 대신 select 자신을 불투명한 테마색으로 칠한다.
+   크롬은 펼친 목록의 바탕을 select 의 계산된 background-color 에서 가져오므로,
+   이 한 줄로 닫힌 컨트롤과 펼친 목록이 같은 테마색이 된다.
+   var(--wash) = 다크 #232B27 / 라이트 #E6E9E3 (입력칸 계열 색). */
+.mgt-type-sel {
+  min-width: 84px;
+  background-color: var(--wash);
+  color: var(--text-1);
+}
 
 /* ── 실적(목표): 값 + 판정 칸 ── */
 .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd,
