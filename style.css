@@ -11914,16 +11914,8 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 .mdt-perf-tr.is-new .mdt-perf-val { border-style: dashed; }
 
 /* 유형 드롭다운 — optgroup 두 개가 들어갈 폭.
-   <option>·<optgroup> 에는 여전히 색을 칠하지 않는다(위 'select 드롭다운
-   테마 통일' 주석 참조). 대신 select 자신을 불투명한 테마색으로 칠한다.
-   크롬은 펼친 목록의 바탕을 select 의 계산된 background-color 에서 가져오므로,
-   이 한 줄로 닫힌 컨트롤과 펼친 목록이 같은 테마색이 된다.
-   var(--wash) = 다크 #232B27 / 라이트 #E6E9E3 (입력칸 계열 색). */
-.mgt-type-sel {
-  min-width: 84px;
-  background-color: var(--wash);
-  color: var(--text-1);
-}
+   배경색은 파일 맨 끝 'select 펼친 목록 배경' 블록에서 한꺼번에 정한다. */
+.mgt-type-sel { min-width: 84px; }
 
 /* ── 실적(목표): 값 + 판정 칸 ── */
 .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd,
@@ -12003,3 +11995,42 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 /* 고른 날짜에 마우스를 올리면 살짝 흐려진다 — '다시 누르면 지워진다'는 신호.
    지우기 버튼을 뺀 자리를 대신하는 유일한 힌트라 없으면 아무도 못 찾는다. */
 .step-date-form .sdp-dc.sdp-sel:hover { opacity: 0.55; }
+
+/* =========================================================
+   🎨 select 펼친 목록 배경 — 반투명 금지 (2026-08)
+   ---------------------------------------------------------
+   증상
+     다크에서 드롭다운을 펼치면 흰 판이 뜨고, 그 위에 밝은 글씨가 앉아
+     항목이 지워진 것처럼 보였다.
+   원인
+     크롬은 '펼친 목록'의 바탕을 select 의 계산된 background-color 에서
+     가져온다. 그 값이 transparent 나 rgba(...,0.05) 처럼 불투명하지 않으면
+     테마색이 아니라 기본 흰색으로 떨어진다.
+     :root 의 color-scheme 은 목록의 '글자색'만 맞춰 줄 뿐 바탕은 못 고친다.
+   해결
+     닫힌 컨트롤의 겉모습은 그대로 두되(반투명 값이 실제로 그려지던 색과
+     거의 같다) 배경만 불투명한 테마색으로 바꾼다.
+     var(--wash) = 입력칸 계열 색, 테마별로 값이 다르다.
+   ⚠️ <option>·<optgroup> 에는 여전히 색을 칠하지 않는다.
+      author 스타일이 붙는 순간 크롬이 목록을 직접 그리기 시작하면서
+      color-scheme 을 무시한다(위 'select 드롭다운 테마 통일' 주석 참조).
+   ========================================================= */
+.mgt-type-sel,      /* 만다라트: 프로젝트 유형 */
+.mdt-cmp-sel,       /* 만다라트: 이상/미만 달성기준 */
+.dep-pick-sel,      /* 선행 작업 선택 */
+.fw-select,         /* 공통 폼 select */
+.settings-select,   /* 설정 */
+.sdp-year-sel,      /* 날짜 선택기 연/월 */
+.sdp-month-sel,
+.year-select {      /* 연도 선택 */
+  background-color: var(--wash);
+  color: var(--text-1);
+}
+/* 연도 드롭박스는 라이트 전용 규칙(0,2,0)이 따로 있어 여기서 한 번 더 눌러 준다.
+   hover 값도 반투명이면 '눌러서 펼치는 순간'의 배경이 반투명이 되므로 함께 막는다.
+   라이트는 다른 select 와 같은 값(body.light-mode select = var(--surface))으로 맞춘다. */
+.year-select:hover { background-color: var(--wash); }
+body.light-mode .year-select,
+body.light-mode .year-select:hover {
+  background-color: var(--surface);
+}

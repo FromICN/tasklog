@@ -1,6 +1,6 @@
 {
   "manifest.json": "8dd477f972b0",
-  "style.css": "c315c8b2fa2f",
+  "style.css": "1cb4bb206c1f",
   "profile-modal.css": "6199d432a913",
   "login.css": "e4d2a0107b36",
   "mobile.css": "b66abc1a6ff2",
@@ -29,6 +29,6 @@
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "149076e53e44",
-  "pwa.js": "2f2fb406fe8c",
+  "pwa.js": "a2fc4699b960",
   "mobile-ui.js": "ff2c7494ef27"
 }
