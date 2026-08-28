@@ -134,7 +134,10 @@ function loadMandalarts() {
             if (a.resultMode === 'count' || !a.resultMode) a.resultMode = 'cum';
             if (a.resultMode === 'value') a.resultMode = 'goal';
             if (!a.resultCompare) a.resultCompare = 'gte';   // 목표 비교: 이상(gte) / 미만(lt)
-            if (a.targetCount == null) a.targetCount = 1;    // 목표: 몇 건을 만족해야 달성인가
+            // ▶ 목표 유형 개편 (2026-08-28): '필요 횟수(targetCount)' 를 없앴다.
+            //   조건을 만족한 기록이 1건이라도 있으면 달성이고, 진행률은 횟수가
+            //   아니라 '목표에 가장 근접한 실적 값'으로 잰다. 남아 있던 값은 지운다.
+            if (a.targetCount != null) delete a.targetCount;
             // 습관형의 하위 갈래(일간/주간)는 없앴다 — 주간이던 항목은 습관형으로 모인다.
             // 주별 실적(weekLog)은 지우지 않는다: 되돌릴 때 쓸 수 있고, 지우면 복구가 안 된다.
             if (a.habitMode) delete a.habitMode;
@@ -229,7 +232,7 @@ function ensureMdtData(year) {
         smart: { specific:'', measurable:'', achievable:'', relevant:'', timeBound:'' },
         notes: '',
         actions: Array.from({length:8}, function(_, j) {
-          return { id: j+1, text: '', completed: false, trackingType: 'task', achieveType: 'result', resultCompare: 'gte', resultMode: 'cum', targetCount: 1, habitFreq: 'weekly', successThreshold: 80, habitWeeklyTarget: 1, habitLog: {}, resultMonths: {}, resultEntries: [], annualTarget: 0, annualUnit: '', cumActual: 0, goalText: '', evalIndicators: '', quarters: defaultMdtQuarters() };
+          return { id: j+1, text: '', completed: false, trackingType: 'task', achieveType: 'result', resultCompare: 'gte', resultMode: 'cum', habitFreq: 'weekly', successThreshold: 80, habitWeeklyTarget: 1, habitLog: {}, resultMonths: {}, resultEntries: [], annualTarget: 0, annualUnit: '', cumActual: 0, goalText: '', evalIndicators: '', quarters: defaultMdtQuarters() };
         })
       };
     })
@@ -526,9 +529,43 @@ function mdtResultActual(a) {
   }
   return rows.length;
 }
-// 실적 유형이 '몇 건'을 채워야 달성인가 — 누적은 목표값, 목표는 필요 횟수
+// 실적 유형이 '몇 건'을 채워야 달성인가
+//  · 누적 = 목표값(annualTarget)  · 목표 = 조건을 만족한 기록 1건
 function mdtResultReq(a) {
-  return mdtResultIsGoal(a) ? Math.max(0, +a.targetCount || 0) : (+a.annualTarget || 0);
+  return mdtResultIsGoal(a) ? 1 : (+a.annualTarget || 0);
+}
+
+// 소수점 꼬리 자르기 (78.5 는 그대로, 78.500001 은 78.5 로)
+function mdtNumTrim(v) { return (Math.round((+v || 0) * 100) / 100) + ''; }
+
+// 목표 유형: 목표에 가장 근접한 실적 값
+//  · 이상(gte) → 기록 중 가장 큰 값  · 미만(lt) → 가장 작은 값
+//  ⚠️ 값을 적지 않은 행은 세지 않는다 — 일자만 적어 둔 행을 0 으로 읽으면
+//     '미만' 목표가 입력만으로 달성 처리된다.
+function mdtGoalBest(a) {
+  var e = Array.isArray(a.resultEntries) ? a.resultEntries : [];
+  var vals = [], met = 0;
+  e.forEach(function(x) {
+    if (!x || x.value === '' || x.value === null || x.value === undefined) return;
+    var v = +x.value;
+    if (!isFinite(v)) return;
+    vals.push(v);
+    if (mdtValueMeets(a, v)) met++;
+  });
+  if (!vals.length) return { has: false, best: 0, met: 0, count: 0 };
+  var best = (mdtCompareOf(a) === 'lt') ? Math.min.apply(null, vals) : Math.max.apply(null, vals);
+  return { has: true, best: best, met: met, count: vals.length };
+}
+
+// 목표 유형 달성률 — 횟수가 아니라 '최근접 값'이 기준이다.
+//  · 이상(gte) : 최근접값 ÷ 목표값
+//  · 미만(lt)  : 목표값 ÷ 최근접값   (값이 작을수록 목표에 가깝다)
+//  둘 다 0~100 으로 자른다. 값이 하나도 없거나 목표값이 0 이면 0%.
+function mdtGoalPct(a, best, hasVal) {
+  var t = +a.annualTarget || 0;
+  if (!hasVal || t <= 0) return 0;
+  var r = (mdtCompareOf(a) === 'lt') ? (best <= 0 ? 1 : t / best) : (best / t);
+  return Math.max(0, Math.min(100, Math.round(r * 100)));
 }
 // 습관형 목표 달성에 필요한 '주 수' = 52주 × 성공기준% (이 수를 100%로 보고 바 표시)
 function mdtHabitReqWeeks(a) {
@@ -546,10 +583,22 @@ function mdtActPerf(a, year) {
     var pctH = Math.min(100, Math.round(done / req * 100));
     return { pct: pctH, label: done + ' / ' + req + ' 주', achieved: done >= req };
   }
+  if (mdtResultIsGoal(a)) {
+    // 목표: 이 유형이 보고 싶은 것은 '몇 번 달성했나'가 아니라
+    //       '목표에 얼마나 가까워졌나'다. 그래서 진행률은 최근접 값으로 재고,
+    //       달성 판정만 '조건을 만족한 기록 1건 이상'으로 따로 본다.
+    var g    = mdtGoalBest(a);
+    var tg   = +a.annualTarget || 0;
+    var pctG = mdtGoalPct(a, g.best, g.has);
+    var unitG = a.annualUnit ? (' ' + a.annualUnit) : '';
+    var labelG = (g.has ? mdtNumTrim(g.best) : '–') + ' / ' + mdtNumTrim(tg) + unitG + ' ' + mdtCompareLabel(a)
+      + (g.has && tg > 0 ? ' (' + pctG + '%)' : '')
+      + ' · ' + g.met + '건';
+    return { pct: pctG, label: labelG, achieved: g.met >= 1 };
+  }
   var actual = mdtResultActual(a);
   var target = mdtResultReq(a);
-  // 목표 유형의 실적은 '조건을 만족한 건수'라 단위가 늘 '회'다.
-  var unit   = mdtResultIsGoal(a) ? ' 회' : (a.annualUnit ? (' ' + a.annualUnit) : '');
+  var unit   = a.annualUnit ? (' ' + a.annualUnit) : '';
   var pct = target > 0 ? Math.min(100, Math.round(actual / target * 100)) : 0;
   var label = actual + ' / ' + target + unit + (target > 0 ? ' (' + pct + '%)' : '');
   return { pct: pct, label: label, achieved: target > 0 && actual >= target };
@@ -670,7 +719,6 @@ function buildMdtPerfSectionHtml(m, sg) {
     if (a.resultMode === 'count' || !a.resultMode) a.resultMode = 'cum';
     if (a.resultMode === 'value') a.resultMode = 'goal';
     if (!a.resultCompare)    a.resultCompare = 'gte';
-    if (a.targetCount == null) a.targetCount = 1;
     if (!a.resultMonths)     a.resultMonths = {};
     if (a.habitWeeklyTarget == null) a.habitWeeklyTarget = 1;
     if (a.annualTarget === undefined) a.annualTarget = 0;
@@ -1072,7 +1120,6 @@ function buildSgDetailHtml(m, sg) {
     if (a.resultMode === 'count' || !a.resultMode) a.resultMode = 'cum';
     if (a.resultMode === 'value') a.resultMode = 'goal';
     if (!a.resultCompare)    a.resultCompare = 'gte';
-    if (a.targetCount == null) a.targetCount = 1;
     if (!a.resultMonths)     a.resultMonths = {};
     if (a.habitWeeklyTarget == null) a.habitWeeklyTarget = 1;
     html += buildMdtGridRow(m, sg, a);
@@ -1093,7 +1140,8 @@ function buildSgDetailHtml(m, sg) {
 //   실적(누적) resultMode='cum'  : 일자 기록의 '개수'    ≥ annualTarget → 달성
 //   실적(목표) resultMode='goal' : 기록마다 value 를 annualTarget 과 견줘
 //                                 (resultCompare: gte 이상 / lt 미만)
-//                                 조건을 만족한 '건수' ≥ targetCount → 달성
+//                                 조건을 만족한 기록이 1건 이상 → 달성
+//                                 진행률(%)은 건수가 아니라 목표에 가장 근접한 값
 //   습관               : 그 주 체크한 날 수 ≥ habitWeeklyTarget → 그 주 달성
 //                        달성 주 수 ≥ 52 × successThreshold% → 최종 달성
 // ============================================================
@@ -1160,7 +1208,6 @@ function mdtSetActType(year, sgId, actId, val) {
   else                        { a.trackingType = 'task';  a.achieveType = 'result'; a.resultMode = t.mode; }
   if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
   if (!a.resultCompare) a.resultCompare = 'gte';
-  if (a.targetCount == null) a.targetCount = 1;
   saveMandalarts();
   if (document.querySelector('.mdt-grid-table')) openSgDetail(year, sgId);
   else _mdtRerenderActCard(year, sgId, actId);
@@ -1240,7 +1287,7 @@ function mdtPerfCellHtml(m, sg, a) {
 // ============================================================
 //  📥 실적 입력 모달 (달성현황 바 클릭 → 새 창)
 //   · 실적(횟수)   : 목표값·단위 + [일자·내용] 표 — 기록 '개수'가 실적
-//   · 실적(목표값) : 위에 [값] 칸이 하나 더 — 값의 '합'이 실적
+//   · 실적(목표값) : 위에 [값] 칸이 하나 더 — 목표에 가장 근접한 값이 진행률
 //   · 습관(일간)   : 주 N회 + 1~12월 날짜 달력 — 그 주 체크한 '날 수'로 주 판정
 //   · 습관(주간)   : 주 목표값 + 주별 값 표 — 그 주에 적은 '값'으로 주 판정
 // ============================================================
@@ -1310,7 +1357,8 @@ function mdtBuildResultModalBody(m, sg, a) {
   };
   var head;
   if (isGoal) {
-    // 목표: [목표값][단위][이상/미만]  ·  [N] 회 이상 만족하면 성공
+    // 목표: [목표값][단위][이상/미만] — 1회 이상 만족하면 성공.
+    //       진행률은 목표에 가장 근접한 실적 값으로 재고, 필요 횟수 칸은 없다.
     var cmp = mdtCompareOf(a);
     head = '<div class="mdt-perf-goalrow">'
       + '<label>목표</label>'
@@ -1320,9 +1368,7 @@ function mdtBuildResultModalBody(m, sg, a) {
       +   '<option value="gte"' + (cmp === 'gte' ? ' selected' : '') + '>이상</option>'
       +   '<option value="lt"'  + (cmp === 'lt'  ? ' selected' : '') + '>미만</option>'
       + '</select>'
-      + '<span class="mdt-perf-sep">·</span>'
-      + '<input type="text" inputmode="numeric" class="mdt-num-inp mdt-num-sm" value="' + (+a.targetCount || 0) + '" title="필요 횟수"' + setF('targetCount', 'num') + '>'
-      + '<span class="mdt-perf-hint">회 이상 달성 시 성공</span>'
+      + '<span class="mdt-perf-hint">· 1회 이상 달성하면 성공 · 진행률은 최근접 값 기준</span>'
       + '</div>';
   } else {
     // 누적: [목표값][단위] — 기록 개수가 목표값에 닿으면 성공
@@ -1346,7 +1392,7 @@ function mdtBuildResultModalBody(m, sg, a) {
     + '</div>'
     + '<div class="mdt-perf-tbl-hint">'
     +   (isGoal
-        ? '※ 값이 <b>' + (+a.annualTarget || 0) + escMdt(a.annualUnit ? ' ' + a.annualUnit : '') + ' ' + mdtCompareLabel(a) + '</b>인 기록만 달성으로 셉니다.'
+        ? '※ 값이 <b>' + mdtNumTrim(a.annualTarget) + escMdt(a.annualUnit ? ' ' + a.annualUnit : '') + ' ' + mdtCompareLabel(a) + '</b>인 기록이 1건이라도 있으면 달성입니다. 진행률(%)은 목표에 가장 근접한 값으로 표시됩니다.'
         : '※ 일자를 입력하면 자동으로 실적 1건으로 집계됩니다.')
     + '</div>';
   return mdtPerfModalHead(m, sg, a) + head + table;
