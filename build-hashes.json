@@ -13,7 +13,7 @@
   "backup-xlsx.js": "12c91b645e8b",
   "auth.js": "1e04979bbcd7",
   "calendar.js": "684254c2eb91",
-  "mandalart.js": "8ca89041e743",
+  "mandalart.js": "13f461f40383",
   "lifewheel.js": "9400f0b5e144",
   "home.js": "e05ce7e07c9d",
   "habit.js": "863576396495",
@@ -29,6 +29,6 @@
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "149076e53e44",
-  "pwa.js": "353da6e3bb4b",
+  "pwa.js": "7446cd0c4bb0",
   "mobile-ui.js": "ff2c7494ef27"
 }

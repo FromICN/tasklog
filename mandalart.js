@@ -542,12 +542,31 @@ function mdtFindTask(id) {
   for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
   return null;
 }
-// Task 완료일 → 'YYYY-MM-DD' (안 끝났으면 빈 문자열)
+function mdtTaskDone(t) { return !!(t && t.completed); }
+
+// Task 완료일 → 'YYYY-MM-DD' (못 읽으면 빈 문자열)
+//  ⚠️ 우선순위: 제목 앞의 [YYMMDD] → completedAt. 순서를 바꾸지 말 것.
+//     상세 패널 저장(script.js `rpSaveTask`)은 `completed` 와 제목 접두어만
+//     쓰고 `completedAt` 은 건드리지 않는다. `completedAt` 만 보면 그렇게
+//     완료한 Task 가 전부 '미완료'로 보인다 — 실제로 그렇게 보였다.
+//     게다가 접두어는 사용자가 직접 고칠 수 있는 '공식 완료일'이라
+//     (`applyCompletePrefix` 가 손으로 적은 값을 그대로 지킨다) 이쪽이 먼저다.
 function mdtTaskDate(t) {
-  if (!t || !t.completedAt) return '';
-  var d = new Date(t.completedAt);
-  if (isNaN(d.getTime())) return '';
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  if (!t) return '';
+  var m = String(t.text || '').match(/^\[(\d{2})(\d{2})(\d{2})\]/);
+  if (m) {
+    var y = 2000 + (+m[1]), mo = +m[2], da = +m[3];
+    if (mo >= 1 && mo <= 12 && da >= 1 && da <= new Date(y, mo, 0).getDate()) {
+      return y + '-' + m[2] + '-' + m[3];
+    }
+  }
+  if (t.completedAt) {
+    var d = new Date(t.completedAt);
+    if (!isNaN(d.getTime())) {
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+  }
+  return '';
 }
 // 제목 앞에 붙는 [YYMMDD] 머리표는 떼고 보여 준다
 function mdtTaskText(t) { return t ? String(t.text || '').replace(/^\[\d{6}\] /, '') : ''; }
@@ -561,7 +580,7 @@ function mdtEntryView(e) {
   var t = mdtFindTask(e.taskId);
   if (!t) { v.missing = (e.taskId !== null && e.taskId !== undefined); return v; }
   v.task = t;
-  v.date = mdtTaskDate(t);
+  v.date = mdtTaskDone(t) ? mdtTaskDate(t) : '';   // 완료를 취소하면 실적에서도 빠진다
   v.text = mdtTaskText(t);
   return v;
 }
@@ -1460,9 +1479,9 @@ function mdtBuildResultModalBody(m, sg, a) {
     rows += mdtResultRowHtml(yr, sgId, a, r.idx, i + 1, r.e, false, isGoal);
   });
   rows += mdtResultRowHtml(yr, sgId, a, a.resultEntries.length, 0, null, true, isGoal);   // 새 입력용 빈 행
-  var pickRow = '<label class="mdt-perf-allchk" title="이 Project 에 연결되지 않은 Task 까지 고를 수 있게 한다">'
+  var pickRow = '<label class="mdt-perf-allchk" title="이 Project 에 연결되지 않은 완료 Task 까지 고를 수 있게 한다">'
     + '<input type="checkbox"' + (_mdtTaskPickAll ? ' checked' : '') + ' onchange="mdtToggleTaskPickAll(this.checked)">'
-    + '연결되지 않은 Task도 목록에 표시</label>';
+    + '연결되지 않은 완료 Task도 목록에 표시</label>';
   var table = pickRow
     + '<div class="mdt-perf-tbl' + (isGoal ? ' has-goal' : '') + '">'
     + '<div class="mdt-perf-tbl-hd"><span class="c-idx">#</span><span class="c-src">연동</span>'
@@ -1474,7 +1493,7 @@ function mdtBuildResultModalBody(m, sg, a) {
     +   (isGoal
         ? '※ 값이 <b>' + mdtNumTrim(a.annualTarget) + escMdt(a.annualUnit ? ' ' + a.annualUnit : '') + ' ' + mdtCompareLabel(a) + '</b>인 기록이 1건이라도 있으면 달성입니다. 진행률(%)은 목표에 가장 근접한 값으로 표시됩니다.<br>'
         : '※ 일자를 입력하면 자동으로 실적 1건으로 집계됩니다.<br>')
-    +   '※ 연동 칸의 <b>✎</b> 를 누르면 <b>🔗</b> 로 바뀌어 Task 를 고를 수 있습니다. 연동한 줄은 Task 의 <b>완료일·제목</b>을 그대로 따라갑니다 — Task 를 끝내면 실적도 저절로 채워집니다.'
+    +   '※ 연동 칸의 <b>✎</b> 를 누르면 <b>🔗</b> 로 바뀌어 Task 를 고를 수 있습니다. 목록에는 <b>완료된 Task</b> 만 나오며, 연동한 줄은 그 Task 의 <b>완료일·제목</b>을 그대로 따라갑니다.'
     + '</div>';
   return mdtPerfModalHead(m, sg, a) + head + table;
 }
@@ -1487,14 +1506,20 @@ function mdtToggleTaskPickAll(on) {
   _mdtTaskPickAll = !!on;
   if (_mdtPerfModalCtx) mdtRenderPerfModalBody(_mdtPerfModalCtx.year, _mdtPerfModalCtx.sgId, _mdtPerfModalCtx.actId);
 }
-// 이 Project 것이 먼저, 그 안에서 완료일 오름차순. 안 끝난 Task 는 뒤로.
+// 목록에는 '완료된' Task 만 올린다 — 실적은 끝낸 일을 세는 것이다.
+//  이 Project 것이 먼저, 그 안에서 완료일 오름차순.
+//  이미 걸어 둔 Task 는 완료가 풀렸더라도 목록에 남긴다(그래야 무엇이
+//  걸려 있는지 보이고, 실수로 다른 Task 로 바뀌지 않는다).
 function mdtPickableTasks(year, sgId, actId, curId) {
   function mine(t) {
     return !!(t.mdtAction && t.mdtAction.year === year
       && t.mdtAction.sgId === sgId && t.mdtAction.actionId === actId);
   }
   return mdtAllTasks()
-    .filter(function(t){ return _mdtTaskPickAll || mine(t) || t.id === curId; })
+    .filter(function(t){
+      if (t.id === curId) return true;
+      return mdtTaskDone(t) && (_mdtTaskPickAll || mine(t));
+    })
     .sort(function(p, q) {
       var pm = mine(p) ? 0 : 1, qm = mine(q) ? 0 : 1;
       if (pm !== qm) return pm - qm;
@@ -1513,7 +1538,8 @@ function mdtTaskOptionsHtml(yr, sgId, actId, e) {
     var sel = (t.id === cur); if (sel) found = true;
     var d = mdtTaskDate(t);
     opts += '<option value="' + t.id + '"' + (sel ? ' selected' : '') + '>'
-      + escMdt(mdtTaskText(t).substring(0, 40)) + (d ? ' · ' + d : ' · 미완료') + '</option>';
+      + escMdt(mdtTaskText(t).substring(0, 40))
+      + (d ? ' · ' + d : (mdtTaskDone(t) ? ' · 일자 없음' : ' · 완료 취소됨')) + '</option>';
   });
   // 지워진 Task — 골라 둔 것이 목록에 없으면 흔적을 남겨 둔다
   if (cur !== null && !found) {
