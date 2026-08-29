@@ -94,7 +94,7 @@ function getJournalEntry(key) {
         plan: ''          // 다음 주 계획
       },
       memo: '',           // 기타 메모
-      evaluation: { goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 },
+      evaluation: jnlEmptyEval(),
       savedAt: null
     };
   }
@@ -189,7 +189,7 @@ function jnlFillEntry(key) {
   jnlBuildCalendar();
   jnlBuildTracker();
   jnlRefreshWeekGrid();   // 주간 탭이면 그리드/네비 라벨 갱신
-  _jnlEval = Object.assign({ goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 }, entry.evaluation || {});
+  _jnlEval = jnlNormEval(entry.evaluation);
   jnlRenderEvalState();
   jnlUpdateSavedAt(entry.savedAt);
   jnlClearDirty();
@@ -1008,7 +1008,36 @@ function jnlCalNav(delta) {
 }
 
 // ── Weekly Review (별점) ─────────────────────
-var _jnlEval = { goal: 0, prioritization: 0, timeManagement: 0, problemSolving: 0, collaboration: 0 };
+// 항목 4종 (2026-08-28 개편) — 예전 5종에서 Prioritization 과 Time Management 를
+//  'Time&Task Management'(timeTask) 하나로 합쳤다.
+//  ⚠️ 항목을 늘리거나 줄이면 theme.css 의 .jnl-sec-eval 높이 주석도 같이 볼 것.
+var JNL_EVAL_ITEMS = [
+  { k: 'goal',           q: 'Goal Achievement' },
+  { k: 'timeTask',       q: 'Time&Task Management' },
+  { k: 'problemSolving', q: 'Problem-Solving' },
+  { k: 'collaboration',  q: 'Collaboration' }
+];
+function jnlEmptyEval() {
+  var o = {};
+  JNL_EVAL_ITEMS.forEach(function(it){ o[it.k] = 0; });
+  return o;
+}
+// 저장된 평가 → 현재 항목 구성으로 맞춘다.
+//  구버전 prioritization · timeManagement 는 평균(반올림)으로 timeTask 에 옮긴다.
+//  한쪽만 적혀 있으면 그 값을 그대로 쓴다(0 은 '안 적음'이다).
+//  옮긴 뒤 옛 키는 남기지 않는다 — 저장할 때 _jnlEval 로 통째로 덮어쓴다.
+function jnlNormEval(src) {
+  var s = src || {};
+  var out = jnlEmptyEval();
+  JNL_EVAL_ITEMS.forEach(function(it){ out[it.k] = +s[it.k] || 0; });
+  if (!out.timeTask) {
+    var pr = +s.prioritization || 0, tm = +s.timeManagement || 0;
+    if (pr && tm)       out.timeTask = Math.round((pr + tm) / 2);
+    else if (pr || tm)  out.timeTask = pr || tm;
+  }
+  return out;
+}
+var _jnlEval = jnlEmptyEval();
 
 function jnlEvalSection() {
   function starRow(k) {
@@ -1018,18 +1047,15 @@ function jnlEvalSection() {
   }
   function block(k, q) {
     return '<div class="jnl-eval-block">'
-      + '<span class="jnl-eval-q">' + q + '</span>'
+      // 이름표에 '&' 가 들어간다(Time&Task) — 날것으로 넣지 말 것
+      + '<span class="jnl-eval-q">' + escapeHtml(q) + '</span>'
       + starRow(k)
       + '</div>';
   }
   return '<div class="jnl-section jnl-sec-eval">'
     + '<div class="jnl-section-head"><div class="jnl-section-title">Weekly Review</div></div>'
     + '<div class="jnl-eval">'
-    + block('goal', 'Goal Achievement Rate')
-    + block('prioritization', 'Prioritization')
-    + block('timeManagement', 'Time Management')
-    + block('problemSolving', 'Problem-Solving')
-    + block('collaboration', 'Collaboration')
+    + JNL_EVAL_ITEMS.map(function(it){ return block(it.k, it.q); }).join('')
     + '</div>'
     + '</div>';
 }
@@ -1042,7 +1068,7 @@ function jnlPaintStars(k) {
     if ((i + 1) <= _jnlEval[k]) stars[i].classList.add('on'); else stars[i].classList.remove('on');
   }
 }
-function jnlRenderEvalState() { ['goal', 'prioritization', 'timeManagement', 'problemSolving', 'collaboration'].forEach(jnlPaintStars); }
+function jnlRenderEvalState() { JNL_EVAL_ITEMS.forEach(function(it){ jnlPaintStars(it.k); }); }
 
 // ── 토스트 ─────────────────────────────────
 

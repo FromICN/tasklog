@@ -11730,7 +11730,7 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 .mdt-perf-tbl-hd,
 .mdt-perf-tr {
   display: grid;
-  grid-template-columns: 34px 148px minmax(0, 1fr) 34px;
+  grid-template-columns: 34px 30px 148px minmax(0, 1fr) 34px;
   align-items: center;
   gap: var(--space-15);
   padding: 5px var(--space-2);
@@ -11782,7 +11782,72 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
   cursor: pointer;
 }
 .mdt-perf-del:hover { background: var(--danger-bg); color: var(--danger); }
-.mdt-perf-tbl-hint { font-size: var(--fs-2xs); color: var(--text-3); margin-top: calc(var(--space-2) * -1); }
+.mdt-perf-tbl-hint { font-size: var(--fs-2xs); color: var(--text-3); margin-top: calc(var(--space-2) * -1); line-height: 1.5; }
+
+/* ── 🔗 실적 기록 ↔ Task 연동 ──
+   줄마다 '직접 입력(✎)' 과 'Task 연동(🔗)' 을 바꿔 끼운다. */
+.mdt-perf-src {
+  width: 26px;
+  height: 22px;
+  justify-self: center;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  cursor: pointer;
+}
+.mdt-perf-src:hover { background: var(--sidebar-hover); color: var(--text-1); }
+.mdt-perf-src.on { border-color: var(--brand-primary); color: var(--brand-primary); }
+.mdt-perf-tbl-hd .c-src { text-align: center; }
+
+/* 연동 줄의 일자 — Task 의 완료일이라 손으로 못 고친다 */
+.mdt-perf-datero {
+  min-width: 0;
+  padding: 4px var(--space-15);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mdt-perf-datero.is-open { color: var(--text-3); font-style: italic; }
+
+/* 연동 줄의 내용 — Task 고르는 칸.
+   ⚠️ option·optgroup 에는 색을 칠하지 않는다 (펼친 목록이 흰 판으로 바뀐다). */
+.mdt-perf-tasksel {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  padding: 3px var(--space-1);
+  outline: none;
+}
+.mdt-perf-tasksel:focus { border-color: var(--brand-primary); }
+
+/* 연동한 Task 가 지워진 줄 */
+.mdt-perf-tr.is-gone .mdt-perf-datero,
+.mdt-perf-tr.is-gone .mdt-perf-tasksel { color: var(--text-3); }
+
+/* 표 위 '연결되지 않은 Task도 표시' 체크 */
+.mdt-perf-allchk {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+  cursor: pointer;
+  margin-bottom: calc(var(--space-2) * -1);
+}
+.mdt-perf-allchk input { accent-color: var(--brand-primary); cursor: pointer; }
 
 /* ── 습관형: 1~12월 미니 캘린더 ── */
 .mdt-12mo-cal {
@@ -11892,7 +11957,7 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 /* 실적(목표값): 값 칸이 붙은 표는 5열이 된다 */
 .mdt-perf-tbl.has-val .mdt-perf-tbl-hd,
 .mdt-perf-tbl.has-val .mdt-perf-tr {
-  grid-template-columns: 34px 148px minmax(0, 1fr) 72px 34px;
+  grid-template-columns: 34px 30px 148px minmax(0, 1fr) 72px 34px;
 }
 .mdt-perf-tbl.has-val .mdt-perf-tbl-hd .c-val { text-align: right; }
 .mdt-perf-val {
@@ -11920,7 +11985,7 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 /* ── 실적(목표): 값 + 판정 칸 ── */
 .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd,
 .mdt-perf-tbl.has-goal .mdt-perf-tr {
-  grid-template-columns: 34px 132px minmax(0, 1fr) 72px 44px 34px;
+  grid-template-columns: 34px 30px 132px minmax(0, 1fr) 72px 44px 34px;
 }
 .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd .c-val { text-align: right; }
 .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd .c-ok { text-align: center; }

@@ -765,7 +765,7 @@ html.pwa-standalone body {
 @media (max-width: 768px) {
   .mdt-perf-tbl-hd,
   .mdt-perf-tr {
-    grid-template-columns: 22px 118px minmax(0, 1fr) 26px;
+    grid-template-columns: 22px 26px 104px minmax(0, 1fr) 26px;
     gap: var(--space-1);
     padding: 5px var(--space-15);
   }
@@ -777,7 +777,7 @@ html.pwa-standalone body {
 @media (max-width: 768px) {
   .mdt-perf-tbl.has-goal .mdt-perf-tbl-hd,
   .mdt-perf-tbl.has-goal .mdt-perf-tr {
-    grid-template-columns: 20px 96px minmax(0, 1fr) 48px 34px 24px;
+    grid-template-columns: 20px 24px 78px minmax(0, 1fr) 48px 34px 24px;
     gap: var(--space-1);
   }
   /* 목표 줄에 칸이 다섯이라 좁은 화면에서는 두 줄로 접힌다 */
