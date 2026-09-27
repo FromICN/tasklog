@@ -128,6 +128,117 @@ function notesSectionLabel(task) {
 }
 function notesTaskPassesSecFilter(task) { return !_notesSecFilter[notesTaskSectionKey(task)]; }
 
+// ── 기간 필터 ──────────────────────────────
+//  from/to 는 'YYYY-MM-DD'(빈 문자열 = 열린 끝). 연도 칩은 이 둘을 그 해 1/1~12/31 로 채울 뿐이라,
+//  칩을 고른 뒤 칸을 고치면 곧바로 '직접 설정'이 된다.
+//  항목의 날짜 구간이 기간과 한 날이라도 겹치면 보인다. 날짜가 전혀 없는 항목은 기간을 걸면 빠진다.
+var _notesPeriod = { from: '', to: '' };
+
+function nbDay(iso) { if (!iso) return ''; var s = nbIsoToDateStr(iso); return s || String(iso).slice(0, 10); }
+// Task: Start~Due. 한쪽만 있으면 그 하루, 둘 다 없으면 만든 날
+function nbTaskRange(t) {
+  var s = nbDay(t.startDate), e = nbDay(t.dueDateTime);
+  if (!s && !e) { var c = nbDay(t.createdAt); return c ? [c, c] : null; }
+  s = s || e; e = e || s;
+  return s <= e ? [s, e] : [e, s];
+}
+// To Do: 자기 마감일, 없으면 상위 Task 구간
+function nbStepRange(e) { var d = nbDay(e.step.dueDateTime); return d ? [d, d] : nbTaskRange(e.task); }
+// 메모: 마감일, 없으면 쓴 날
+function nbMemoRange(n) { var d = n.dueDate || nbDay(n.createdAt); return d ? [d, d] : null; }
+
+function notesPeriodOn() { return !!(_notesPeriod.from || _notesPeriod.to); }
+function notesInPeriod(range) {
+  if (!notesPeriodOn()) return true;
+  if (!range) return false;
+  return (!_notesPeriod.to || range[0] <= _notesPeriod.to) && (!_notesPeriod.from || range[1] >= _notesPeriod.from);
+}
+// 연도 칩 목록: 지금 Web 화면에 있는 항목들의 연도 + 올해, 최신순
+function notesPeriodYears() {
+  var ys = {}; ys[new Date().getFullYear()] = 1;
+  var add = function(r){ if (r) { for (var y = +r[0].slice(0, 4); y <= +r[1].slice(0, 4); y++) ys[y] = 1; } };
+  getArchivingNotes().forEach(function(n){ add(nbMemoRange(n)); });
+  getActiveTasks().forEach(function(t){ add(nbTaskRange(t)); });
+  getActiveSteps().forEach(function(e){ add(nbStepRange(e)); });
+  return Object.keys(ys).map(Number).filter(function(y){ return y > 1900; }).sort(function(a, b){ return b - a; });
+}
+// 지금 기간이 딱 한 해 전체면 그 해, 아니면 null
+function notesPeriodYear() {
+  var f = _notesPeriod.from, t = _notesPeriod.to;
+  if (f && t && f.slice(0, 4) === t.slice(0, 4) && f.slice(5) === '01-01' && t.slice(5) === '12-31') return +f.slice(0, 4);
+  return null;
+}
+function nbDateValid(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  var p = s.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+  return d.getFullYear() === +p[0] && d.getMonth() === +p[1] - 1 && d.getDate() === +p[2];
+}
+function nbDateMask(el) {
+  var d = (el.value || '').replace(/[^0-9]/g, '').slice(0, 8);
+  var out = d.slice(0, 4);
+  if (d.length > 4) out += '-' + d.slice(4, 6);
+  if (d.length > 6) out += '-' + d.slice(6, 8);
+  el.value = out;
+  el.classList.remove('is-bad');
+}
+function notesSetPeriodYear(y, ev) {
+  if (ev) ev.stopPropagation();
+  _notesPeriod = y ? { from: y + '-01-01', to: y + '-12-31' } : { from: '', to: '' };
+  renderNoteBoard();
+  notesPeriodSync();
+}
+// 칸을 떠나거나 Enter 에서 확정. 덜 적었으면 빨갛게만 두고 지우지 않는다.
+function notesPeriodCommit(el, which) {
+  var v = (el.value || '').trim();
+  if (v !== '' && !nbDateValid(v)) { el.classList.add('is-bad'); return; }
+  _notesPeriod[which] = v;
+  // 시작이 끝보다 늦으면 둘을 바꾼다
+  if (_notesPeriod.from && _notesPeriod.to && _notesPeriod.from > _notesPeriod.to) {
+    var tmp = _notesPeriod.from; _notesPeriod.from = _notesPeriod.to; _notesPeriod.to = tmp;
+  }
+  renderNoteBoard();
+  notesPeriodSync();
+}
+// 패널을 다시 그리지 않고 칩·칸·필터 버튼 표시만 맞춘다 — 다시 그리면 옮겨 간 칸의 포커스가 날아간다
+function notesPeriodSync() {
+  var yr = notesPeriodYear(), on = notesPeriodOn();
+  document.querySelectorAll('.nb-period-chip').forEach(function(c){
+    var cy = c.getAttribute('data-year');
+    c.classList.toggle('on', cy === '' ? !on : (cy === 'custom' ? (on && !yr) : +cy === yr));
+  });
+  ['from', 'to'].forEach(function(k){
+    var el = document.getElementById('notes-pf-' + k);
+    if (el && document.activeElement !== el) { el.value = _notesPeriod[k]; el.classList.remove('is-bad'); }
+  });
+  var btn = document.getElementById('notes-search-btn');
+  if (btn) btn.classList.toggle('on', notesFilterActive());
+}
+function notesFilterActive() {
+  return !!(_notesSearchOpen || _notesSearch || Object.keys(_notesSecFilter).length > 0 || notesPeriodOn());
+}
+function notesPeriodPanelHtml() {
+  var yr = notesPeriodYear(), on = notesPeriodOn();
+  var chip = function(val, label, sel){
+    return '<button class="nb-period-chip' + (sel ? ' on' : '') + '" data-year="' + val + '"'
+      + ' onclick="notesSetPeriodYear(\'' + (val === 'custom' ? '' : val) + '\',event)">' + label + '</button>';
+  };
+  var chips = chip('', '전체', !on)
+    + notesPeriodYears().map(function(y){ return chip(String(y), y + '년', y === yr); }).join('')
+    + '<span class="nb-period-chip nb-period-custom' + (on && !yr ? ' on' : '') + '" data-year="custom">직접 설정</span>';
+  var inp = function(k, ph){
+    return '<input type="text" inputmode="numeric" maxlength="10" class="bd-colpick-search nb-period-inp" id="notes-pf-' + k + '"'
+      + ' placeholder="' + ph + '" value="' + _notesPeriod[k] + '"'
+      + ' oninput="nbDateMask(this)" onchange="notesPeriodCommit(this,\'' + k + '\')"'
+      + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();notesPeriodCommit(this,\'' + k + '\');}"'
+      + ' onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">';
+  };
+  return '<div class="wbs-titlefilter nb-period">'
+    + '<div class="wbs-titlefilter-head"><span>기간</span></div>'
+    + '<div class="nb-period-years">' + chips + '</div>'
+    + '<div class="nb-period-range">' + inp('from', '시작 YYYY-MM-DD') + '<span class="nb-period-sep">~</span>' + inp('to', '종료 YYYY-MM-DD') + '</div>'
+    + '</div>';
+}
+
 // 현재 Web 화면(미완료 Task/To Do)에 존재하는 섹션 목록
 function notesDistinctSections() {
   var present = {};
@@ -185,7 +296,7 @@ function renderNotesTools() {
   var slot = document.getElementById('topbar-mdt-year-slot');
   if (!slot) return;
   var _icon = (typeof BD_FILTER_ICON !== 'undefined') ? BD_FILTER_ICON : '🔍';
-  var _active = _notesSearchOpen || _notesSearch || Object.keys(_notesSecFilter).length > 0;
+  var _active = notesFilterActive();
   var _sval = escNb(_notesSearch).replace(/"/g, '&quot;');
   slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
     + '<button class="bd-colpick-btn' + (_active ? ' on' : '') + '" id="notes-search-btn" title="검색 · 필터" onclick="notesToggleSearch(event)">'
@@ -194,6 +305,7 @@ function renderNotesTools() {
         ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
           + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="notes-search-inp" placeholder="Memo · Task · To Do 검색"'
           + ' value="' + _sval + '" oninput="notesSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
+          + notesPeriodPanelHtml()
           + notesSecFilterPanelHtml()
           + '</div>'
         : '')
@@ -244,17 +356,18 @@ function buildNbColumn(type, title, hint) {
 
 function renderNoteBoard() {
   removeStepPickers();
-  // Archiving (메모) — 검색 적용
-  var memos = getArchivingNotes().filter(function(n){ return notesMatchesSearch(n.text); });
+  // Archiving (메모) — 기간 + 검색 적용
+  var memos = getArchivingNotes().filter(function(n){ return notesInPeriod(nbMemoRange(n)) && notesMatchesSearch(n.text); });
   _nbFillColumn('memo', memos.length, memos.map(function(n){ return buildMemoCard(n); }).join(''));
-  // TASK — 섹션 필터 + 검색 적용
+  // TASK — 섹션 필터 + 기간 + 검색 적용
   var actTasks = getActiveTasks().filter(function(t){
-    return notesTaskPassesSecFilter(t) && notesMatchesSearch(t.text);
+    return notesTaskPassesSecFilter(t) && notesInPeriod(nbTaskRange(t)) && notesMatchesSearch(t.text);
   });
   _nbFillColumn('task', actTasks.length, actTasks.map(function(t){ return buildTaskCard(t); }).join(''));
-  // TO DO — 상위 Task 섹션 필터 + 검색(To Do 또는 상위 Task명) 적용
+  // TO DO — 상위 Task 섹션 필터 + 기간 + 검색(To Do 또는 상위 Task명) 적용
   var actSteps = getActiveSteps().filter(function(e){
-    return notesTaskPassesSecFilter(e.task) && (notesMatchesSearch(e.step.text) || notesMatchesSearch(e.task.text));
+    return notesTaskPassesSecFilter(e.task) && notesInPeriod(nbStepRange(e))
+      && (notesMatchesSearch(e.step.text) || notesMatchesSearch(e.task.text));
   });
   _nbFillColumn('step', actSteps.length, actSteps.map(function(e){ return buildStepCard(e.task, e.step); }).join(''));
 }

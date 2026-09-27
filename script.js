@@ -1649,6 +1649,7 @@ function toggleStepDateForm(stepId) {
   if (!isOpen) {
     // 폼을 열면 달력을 바로 드롭다운
     if (typeof openPickerCal === 'function') openPickerCal('stepf-' + stepId);
+    revealStepCal(form);
   } else {
     if (typeof closePickerCal === 'function') closePickerCal('stepf-' + stepId);
   }
@@ -2514,6 +2515,17 @@ function rpToggleStepDateForm(stepId) {
   var host = document.getElementById('sdp-cal-' + pid);
   if (host) { host.style.display = 'block'; host.innerHTML = buildPickerCalHtml(pid); }
   form.style.display = 'block';
+  revealStepCal(form);
+}
+
+// To Do 달력이 행 아래로 펼쳐질 때 화면(패널·To Do 목록) 밖으로 잘리지 않게 스크롤해 보여 준다.
+//  'nearest' 라 이미 다 보이면 움직이지 않는다. 목록(#rp-steps-list)과 패널 본문(.rp-body)이
+//  둘 다 스크롤 칸이라 scrollIntoView 가 바깥쪽까지 차례로 맞춘다. rAF 대신 바로 부른다 —
+//  display 를 바꾼 직후라도 scrollIntoView 가 레이아웃을 강제로 계산한다.
+function revealStepCal(form) {
+  if (!form || form.style.display === 'none') return;
+  try { form.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  catch (e) { form.scrollIntoView(false); }
 }
 
 // To Do 마감일 입력: Task Due와 동일한 'YYYY-MM-DD  HH:MM' 타이핑 방식 (HH:MM 선택)

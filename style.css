@@ -12099,3 +12099,23 @@ body.light-mode .year-select,
 body.light-mode .year-select:hover {
   background-color: var(--surface);
 }
+
+/* =========================================================
+   🗓️ Web 필터 — 기간 (2026-09-28)
+   연도 칩으로 한 해를 고르고, 아래 두 칸에서 기간을 직접 고친다.
+   ========================================================= */
+.nb-period-years { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 var(--space-1) var(--space-1); max-width: 240px; }
+.nb-period-chip {
+  font-size: var(--fs-2xs); color: var(--text-2);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 2px 8px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.nb-period-chip:hover { color: var(--text-1); background: var(--surface-hover); }
+.nb-period-chip.on { color: var(--text-1); border-color: var(--text-2); font-weight: 600; }
+.nb-period-custom { cursor: default; }
+.nb-period-custom:not(.on) { display: none; }
+.nb-period-range { display: flex; align-items: center; gap: 4px; padding: 0 var(--space-1) var(--space-15); }
+.nb-period-range .nb-period-inp { flex: 1; min-width: 0; width: 100px; font-variant-numeric: tabular-nums; }
+.nb-period-range .nb-period-inp.is-bad { border-color: var(--danger); }
+.nb-period-sep { color: var(--text-3); font-size: var(--fs-xs); }
