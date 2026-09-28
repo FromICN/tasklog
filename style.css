@@ -5070,18 +5070,18 @@ body.hw-resizing { user-select: none; }
 
 /* ── Habit Tracker ── */
 /* 세로로 내려가다 높이가 다 차면 오른쪽에 다음 열이 생긴다.
-   (열 수를 고정하지 않아, 위젯을 넓히면 열이 늘고 좁히면 한 줄로 돌아온다) */
+   폭이 모자라 열을 더 못 늘리면 아래로 이어지고 #habit-body 가 스크롤한다.
+   열·행 수는 home.js 의 habitSyncColumns 가 grid-template-* 로 정한다. */
 .habit-2col {
-  display: flex;
-  flex-direction: column;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  height: 100%;
-  min-height: 0;
+  display: grid;
+  /* 기본은 한 열로 위→아래. 열 순서(column)는 JS 가 행 수를 정한 뒤에만 켠다 —
+     행 수 없이 column 으로 흐르면 항목마다 새 열이 생겨 가로로 한 줄이 된다 */
+  grid-auto-flow: row;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 0 calc(var(--space-3) + 2px);
 }
-/* 한 열의 폭 — 열이 하나면 전체를 쓰고, 여러 열이면 나눠 갖는다 */
-.habit-2col > .habit-row { width: var(--habit-col-w, 100%); box-sizing: border-box; }
+.habit-2col > .habit-row { min-width: 0; box-sizing: border-box; }
 .habit-row {
   display: flex;
   align-items: center;
@@ -11054,6 +11054,23 @@ body.light-mode .right-panel {
   flex-shrink: 0;
 }
 .fw-select:disabled { opacity: 0.65; cursor: not-allowed; }
+
+/* 두 묶음: 시계+버튼(.fw-main) / To Do 선택+오늘 완료(.fw-side)
+   세로 카드 — 위아래로 쌓고 목록이 남는 높이를 받는다.
+   가로 카드(.is-wide) — 옆으로 놓고 오른쪽 칸이 남는 폭을 받는다.
+   .fw-main 의 폭은 가로 배치일 때 focusSyncDial 이 시계 지름으로 박는다. */
+.fw-main, .fw-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-15);
+  min-width: 0;
+  min-height: 0;
+}
+.fw-main { flex: 0 0 auto; }
+.fw-side { flex: 1 1 auto; }
+.fw-wrap.is-wide { flex-direction: row; align-items: stretch; }
+.fw-wrap.is-wide .fw-main { justify-content: center; }
+.fw-wrap.is-wide .fw-side { flex: 1 1 0; }
 
 /* ── 다이얼 ── */
 .fw-dial-wrap {

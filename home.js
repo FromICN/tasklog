@@ -588,17 +588,25 @@ function renderHomeHabitWidget() {
 }
 
 // 세로로 내려가다 높이가 다 차면 오른쪽에 다음 열을 만든다.
-//  flex-wrap 이 줄바꿈은 해 주지만, 각 열의 폭은 우리가 정해 줘야
-//  칸이 고르게 나뉜다. 몇 열이 필요한지 → 가로로 몇 열이 들어가는지
-//  순서로 계산해 좁은 쪽을 택한다.
+//  폭이 모자라 더 이상 열을 못 늘리면 그때부터는 아래로 이어지고 스크롤이 생긴다.
+//    · 필요한 열 수(need) = 높이에 담기는 개수로 나눈 값
+//    · 들어가는 열 수(fit) = 폭 ÷ 한 열 최소 폭
+//    · 둘 중 작은 쪽이 열 수. need > fit 이면 한 열이 높이를 넘어 #habit-body 가 스크롤한다.
+//  격자는 grid-auto-flow: column 이라 위→아래, 왼→오 순서가 그대로 유지된다.
+//
+//  ⚠️ 높이·폭은 wrap 이 아니라 #habit-body(스크롤 칸)의 안쪽에서 잰다.
+//     wrap 은 내용만큼 늘어나므로, wrap 을 재면 '지금 배치의 높이'가 나와 되물린다.
 var HABIT_MIN_COL = 190;   // 이름 + 요일 칸 7개가 눌리지 않는 최소 폭
 function habitSyncColumns() {
-  var wrap = document.querySelector('#habit-body .habit-2col');
+  var host = document.getElementById('habit-body');
+  var wrap = host ? host.querySelector('.habit-2col') : null;
   if (!wrap) return;
   var rows = wrap.querySelectorAll('.habit-row');
   if (!rows.length) return;
 
-  var availH = wrap.clientHeight, availW = wrap.clientWidth;
+  var hcs = getComputedStyle(host);
+  var availH = host.clientHeight - (parseFloat(hcs.paddingTop) || 0) - (parseFloat(hcs.paddingBottom) || 0);
+  var availW = host.clientWidth  - (parseFloat(hcs.paddingLeft) || 0) - (parseFloat(hcs.paddingRight) || 0);
   if (availH <= 0 || availW <= 0) return;
   var rowH = rows[0].getBoundingClientRect().height || 1;
   var gap = parseFloat(getComputedStyle(wrap).columnGap) || 0;
@@ -607,9 +615,15 @@ function habitSyncColumns() {
   var need = Math.ceil(rows.length / perCol);               // 그래서 몇 열이 필요한가
   var fit = Math.max(1, Math.floor((availW + gap) / (HABIT_MIN_COL + gap)));  // 가로로 몇 열이 들어가는가
   var cols = Math.max(1, Math.min(need, fit));
+  // 한 열에 놓는 개수 — 높이가 허락하면 첫 열을 끝까지 채우고 다음 열로 넘긴다.
+  // 열이 모자라 스크롤해야 하면 가진 열에 고르게 나눈다.
+  var scroll = need > fit;
+  var inCol = scroll ? Math.ceil(rows.length / cols) : Math.min(perCol, rows.length);
 
-  var w = (availW - gap * (cols - 1)) / cols;
-  wrap.style.setProperty('--habit-col-w', w.toFixed(2) + 'px');
+  wrap.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+  wrap.style.gridTemplateRows = 'repeat(' + inCol + ', auto)';
+  wrap.style.gridAutoFlow = 'column';
+  wrap.classList.toggle('is-scroll', scroll);
 }
 
 function hpToggleHabitDay(year, sgId, actId, dateKey) {
@@ -1190,19 +1204,17 @@ function focusDialSvg(sec, running) {
 //     수렴해 시계가 커졌다 작아졌다 했다.
 //     → 늘지 않는 자식(flex-grow: 0)만 더한다. 그러면 시계 지름은 카드 크기와
 //       고정 높이 요소들만으로 정해져, 세션 상태가 바뀌어도 그대로다.
+//
+//  가로가 세로보다 길면(.is-wide) 오른쪽 칸(.fw-side)에 최소 폭 FOCUS_SIDE_MIN 을
+//  남기고, 시계는 '높이 − 버튼' 과 '폭 − 오른쪽 칸' 중 작은 쪽이 된다.
+//  카드 크기만 보고 배치를 고르므로 배치를 바꿔도 다시 뒤집히지 않는다.
+var FOCUS_SIDE_MIN = 150;   // 오른쪽 칸: To Do 이름이 읽히는 최소 폭
 function focusSyncDial() {
   var wrap = document.querySelector('#focus-body .fw-wrap');
   var dial = wrap ? wrap.querySelector('.fw-dial-wrap') : null;
-  if (!wrap || !dial) return;
-
-  var gap = parseFloat(getComputedStyle(wrap).rowGap) || 0;
-  var used = 0, others = 0;
-  Array.prototype.forEach.call(wrap.children, function (el) {
-    if (el === dial) return;
-    others++;                                   // 사이 여백은 늘어나는 칸도 차지한다
-    if (parseFloat(getComputedStyle(el).flexGrow) > 0) return;   // 남는 자리를 받는 칸 → 재지 않는다
-    used += el.getBoundingClientRect().height;
-  });
+  var main = wrap ? wrap.querySelector('.fw-main') : null;
+  var side = wrap ? wrap.querySelector('.fw-side') : null;
+  if (!wrap || !dial || !main || !side) return;
 
   // ⚠️ 남는 자리는 wrap 이 아니라 카드 바디에서 잰다.
   //    시계가 wrap 의 최소 폭을 밀어 올려서, wrap 을 재면 '지금 시계 크기'가
@@ -1210,9 +1222,38 @@ function focusSyncDial() {
   var host = document.getElementById('focus-body');
   var hcs = getComputedStyle(host);
   var availW = host.clientWidth  - (parseFloat(hcs.paddingLeft) || 0) - (parseFloat(hcs.paddingRight)  || 0);
-  var availH = host.clientHeight - (parseFloat(hcs.paddingTop)  || 0) - (parseFloat(hcs.paddingBottom) || 0)
-             - used - gap * others;
-  var size = Math.max(24, Math.min(availW, availH));
+  var availH = host.clientHeight - (parseFloat(hcs.paddingTop)  || 0) - (parseFloat(hcs.paddingBottom) || 0);
+  if (availW <= 0 || availH <= 0) return;
+
+  var gap = parseFloat(getComputedStyle(wrap).rowGap) || 0;
+  var colGap = parseFloat(getComputedStyle(wrap).columnGap) || 0;
+  // 오른쪽 칸을 떼 주고도 시계가 80px 은 남아야 옆으로 편다
+  var wide = availW > availH && (availW - colGap - FOCUS_SIDE_MIN) >= 80;
+  wrap.classList.toggle('is-wide', wide);
+  // 늘지 않는 칸(flex-grow: 0)만 더한다 — .fw-sess-list 는 남는 자리를 받는 칸이라 재지 않는다
+  var fixedH = function (box) {
+    var h = 0, n = 0;
+    Array.prototype.forEach.call(box.children, function (el) {
+      if (el === dial) return;
+      n++;                                      // 사이 여백은 늘어나는 칸도 차지한다
+      if (parseFloat(getComputedStyle(el).flexGrow) > 0) return;
+      h += el.getBoundingClientRect().height;
+    });
+    return { h: h, n: n };
+  };
+  var m = fixedH(main), sd = fixedH(side);
+
+  var size;
+  if (wide) {
+    size = Math.min(availH - m.h - gap * m.n, availW - colGap - FOCUS_SIDE_MIN);
+  } else {
+    // 세로 배치: 시계 · 버튼 · (main↔side 사이) · 선택칸 · 머리글 · 목록
+    size = Math.min(availW, availH - m.h - sd.h - gap * (m.n + 1 + sd.n - 1));
+  }
+  size = Math.max(24, size);
+
+  // 가로 배치에선 왼쪽 칸 폭 = 시계 지름 (버튼이 시계 폭에 맞춰 선다)
+  main.style.width = wide ? size.toFixed(1) + 'px' : '';
 
   var cur = parseFloat(dial.style.width) || 0;
   if (Math.abs(cur - size) < 0.5) return;    // 값이 그대로면 손대지 않는다
@@ -1262,18 +1303,24 @@ function renderFocusWidget() {
       }).join('')
     : '<div class="fw-sess-empty">오늘 끝낸 세션이 없습니다</div>';
 
-  // 시계가 남는 자리를 다 쓰고, 버튼은 그 아래에 나란히 선다.
+  // 시계가 남는 자리를 다 쓰고, 버튼은 그 아래에 나란히 선다 (.fw-main).
+  // To Do 선택·오늘 완료 목록(.fw-side)은 세로로 긴 카드에선 그 아래, 가로로 긴 카드에선
+  // 시계 오른쪽에 놓인다 — focusSyncDial 이 .is-wide 를 붙였다 뗀다.
   el.innerHTML = '<div class="fw-wrap">'
-    + '<div class="fw-dial-wrap" id="fw-dial-wrap">' + focusDialSvg(sec, running) + '</div>'
-    + '<div class="fw-btns">'
-    +   '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
-    +   '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
-    +   '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
+    + '<div class="fw-main">'
+    +   '<div class="fw-dial-wrap" id="fw-dial-wrap">' + focusDialSvg(sec, running) + '</div>'
+    +   '<div class="fw-btns">'
+    +     '<button class="fw-btn fw-btn-start" ' + (!s || running ? 'disabled' : '') + ' onclick="focusStart()">시작</button>'
+    +     '<button class="fw-btn fw-btn-pause" ' + (running ? '' : 'disabled') + ' onclick="focusPause()">정지</button>'
+    +     '<button class="fw-btn fw-btn-end" ' + (s && s.log && s.log.length ? '' : 'disabled') + ' onclick="focusEnd()">종료</button>'
+    +   '</div>'
     + '</div>'
-    + '<select class="fw-select" ' + (running ? 'disabled title="정지한 뒤에 바꿀 수 있어요"' : '')
-    +   ' onchange="focusPickSession(this.value)">' + opts + '</select>'
-    + '<div class="fw-sess-head">오늘 완료 <span class="fw-sess-count">' + sessions.length + '</span></div>'
-    + '<div class="fw-sess-list">' + sessionHtml + '</div>'
+    + '<div class="fw-side">'
+    +   '<select class="fw-select" ' + (running ? 'disabled title="정지한 뒤에 바꿀 수 있어요"' : '')
+    +     ' onchange="focusPickSession(this.value)">' + opts + '</select>'
+    +   '<div class="fw-sess-head">오늘 완료 <span class="fw-sess-count">' + sessions.length + '</span></div>'
+    +   '<div class="fw-sess-list">' + sessionHtml + '</div>'
+    + '</div>'
     + '</div>';
 
   focusSyncDial();
