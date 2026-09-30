@@ -540,7 +540,9 @@ function renderHomeMandalartWidget() {
       + '<span class="mda-pct">' + perf.pct + '%</span>'
       + '</div>';
   }).join('');
-  el.innerHTML = html;
+  // 높이가 차면 오른쪽에 다음 열 — Habit Tracker 와 같은 규칙(hwSyncFlowColumns)
+  el.innerHTML = '<div class="mda-cols hw-flow">' + html + '</div>';
+  mdaSyncColumns();
 }
 
 // ── 4. HABIT TRACKER ──────────────────────
@@ -583,25 +585,29 @@ function renderHomeHabitWidget() {
       + '<div class="habit-week">'+dots+'</div>'
       + '</div>';
   }).join('');
-  el.innerHTML = '<div class="habit-2col">' + html + '</div>';
+  el.innerHTML = '<div class="habit-2col hw-flow">' + html + '</div>';
   habitSyncColumns();
 }
 
-// 세로로 내려가다 높이가 다 차면 오른쪽에 다음 열을 만든다.
+// 세로로 내려가다 높이가 다 차면 오른쪽에 다음 열을 만든다 (Habit Tracker · Mandalart 공용).
 //  폭이 모자라 더 이상 열을 못 늘리면 그때부터는 아래로 이어지고 스크롤이 생긴다.
 //    · 필요한 열 수(need) = 높이에 담기는 개수로 나눈 값
 //    · 들어가는 열 수(fit) = 폭 ÷ 한 열 최소 폭
-//    · 둘 중 작은 쪽이 열 수. need > fit 이면 한 열이 높이를 넘어 #habit-body 가 스크롤한다.
-//  격자는 grid-auto-flow: column 이라 위→아래, 왼→오 순서가 그대로 유지된다.
+//    · 둘 중 작은 쪽이 열 수. need > fit 이면 한 열이 높이를 넘어 카드 바디가 스크롤한다.
+//  격자(.hw-flow)는 grid-auto-flow: column 이라 위→아래, 왼→오 순서가 그대로 유지된다.
 //
-//  ⚠️ 높이·폭은 wrap 이 아니라 #habit-body(스크롤 칸)의 안쪽에서 잰다.
+//  ⚠️ 높이·폭은 wrap 이 아니라 카드 바디(스크롤 칸)의 안쪽에서 잰다.
 //     wrap 은 내용만큼 늘어나므로, wrap 을 재면 '지금 배치의 높이'가 나와 되물린다.
 var HABIT_MIN_COL = 190;   // 이름 + 요일 칸 7개가 눌리지 않는 최소 폭
-function habitSyncColumns() {
-  var host = document.getElementById('habit-body');
-  var wrap = host ? host.querySelector('.habit-2col') : null;
+var MDA_MIN_COL   = 220;   // Section 이름 + 완료수 + 막대 + % 가 눌리지 않는 최소 폭
+function habitSyncColumns() { hwSyncFlowColumns('habit-body', HABIT_MIN_COL); }
+function mdaSyncColumns()   { hwSyncFlowColumns('mandalart-body', MDA_MIN_COL); }
+
+function hwSyncFlowColumns(hostId, minCol) {
+  var host = document.getElementById(hostId);
+  var wrap = host ? host.querySelector('.hw-flow') : null;
   if (!wrap) return;
-  var rows = wrap.querySelectorAll('.habit-row');
+  var rows = wrap.children;
   if (!rows.length) return;
 
   var hcs = getComputedStyle(host);
@@ -613,7 +619,7 @@ function habitSyncColumns() {
 
   var perCol = Math.max(1, Math.floor(availH / rowH));      // 한 열에 담기는 개수
   var need = Math.ceil(rows.length / perCol);               // 그래서 몇 열이 필요한가
-  var fit = Math.max(1, Math.floor((availW + gap) / (HABIT_MIN_COL + gap)));  // 가로로 몇 열이 들어가는가
+  var fit = Math.max(1, Math.floor((availW + gap) / (minCol + gap)));  // 가로로 몇 열이 들어가는가
   var cols = Math.max(1, Math.min(need, fit));
   // 한 열에 놓는 개수 — 높이가 허락하면 첫 열을 끝까지 채우고 다음 열로 넘긴다.
   // 열이 모자라 스크롤해야 하면 가진 열에 고르게 나눈다.
@@ -1535,25 +1541,61 @@ function fmtKey(d) {
 //    작게 줄여 빈칸(여백)을 남겨 두는 것도 배치의 하나로 본다.
 //  · 어떤 위젯을 띄울지는 설정 > 메뉴에서 고른다.
 // ============================================
-var HW_COLS = 6, HW_ROWS = 4;
+var HW_COLS = 6, HW_ROWS = 5;
 
-// v8 — 격자가 4×3 에서 6×4 로 넓어졌다. 예전 자리·트랙 값은 칸 수가 달라 쓸 수 없다.
-var HW_LKEY = 'home-layout-v8';
+// v9 — 격자가 6×4 에서 6×5 로 한 줄 늘었다 (2026-09-29).
+//  v8 배치는 버리지 않고 hwMigrateV8 이 옮겨 온다 — 열 수가 같아 자리는 그대로 쓸 수 있다.
+var HW_LKEY = 'home-layout-v9';
+var HW_LKEY_V8 = 'home-layout-v8';
 
 // 홈에 놓을 수 있는 위젯 목록 (기본 배치 · 기본 표시 여부 포함)
 var HOME_WIDGETS = [
   { id:'cal-widget',       title:'Calendar',      nav:null,        body:'cal-body',        render:'renderHomeCalendar',        def:{c:1,r:1,w:2,h:2}, on:true  },
   { id:'web-widget',       title:'Web',           nav:'cloud',     body:'web-body',        render:'renderHomeWebWidget',       def:{c:3,r:1,w:2,h:2}, on:true  },
   { id:'focus-widget',     title:'Focus On',      nav:null,        body:'focus-body',      render:'renderFocusWidget',         def:{c:5,r:1,w:2,h:2}, on:true  },
-  { id:'habit-widget',     title:'Habit Tracker', nav:'habit',     body:'habit-body',      render:'renderHomeHabitWidget',     def:{c:1,r:3,w:3,h:2}, on:true  },
-  { id:'mandalart-widget', title:'Mandalart',     nav:'mandalart', body:'mandalart-body',  render:'renderHomeMandalartWidget', def:{c:4,r:3,w:2,h:2}, on:true  },
-  { id:'wheel-widget',     title:'Life Wheel',    nav:'wheel',     body:'wheel-body',      render:'renderHomeLifeWheel',       def:{c:6,r:3,w:1,h:1}, on:true  },
-  { id:'gantt-widget',     title:'Gantt',         nav:'project',   body:'gantt-body',      render:'renderHomeGanttMini',       def:{c:6,r:4,w:1,h:1}, on:false },
+  { id:'habit-widget',     title:'Habit Tracker', nav:'habit',     body:'habit-body',      render:'renderHomeHabitWidget',     def:{c:1,r:3,w:3,h:3}, on:true  },
+  { id:'mandalart-widget', title:'Mandalart',     nav:'mandalart', body:'mandalart-body',  render:'renderHomeMandalartWidget', def:{c:4,r:3,w:2,h:3}, on:true  },
+  { id:'wheel-widget',     title:'Life Wheel',    nav:'wheel',     body:'wheel-body',      render:'renderHomeLifeWheel',       def:{c:6,r:3,w:1,h:2}, on:true  },
+  // 6열 5행 한 칸은 Gantt 몫으로 비워 둔다 — 격자가 꽉 차 있으면 켤 때 빈자리를 못 찾아 남과 겹친다
+  { id:'gantt-widget',     title:'Gantt',         nav:'project',   body:'gantt-body',      render:'renderHomeGanttMini',       def:{c:6,r:5,w:1,h:1}, on:false },
 ];
+// v8(6×4) 시절 기본 자리 — v8 에 자리가 저장되지 않은 위젯은 그때 이 자리에 있었다
+var HW_DEF_V8 = {
+  'habit-widget': {c:1,r:3,w:3,h:2}, 'mandalart-widget': {c:4,r:3,w:2,h:2},
+  'wheel-widget': {c:6,r:3,w:1,h:1}, 'gantt-widget': {c:6,r:4,w:1,h:1}
+};
 
 function hwDef(id) { return HOME_WIDGETS.find(function (w) { return w.id === id; }); }
 
-function hwLoadLayout() { try { return JSON.parse(localStorage.getItem(HW_LKEY)) || {}; } catch (e) { return {}; } }
+// v8 → v9: 지금 보이는 배치를 그대로 살리고, 맨 아래(4행)에 닿은 위젯만 새 5행까지 한 칸 늘린다.
+//  5행은 비어 있었으므로 겹칠 일이 없고, 빈 줄이 남지 않는다. 행 높이 몫(rows)은 4행 값을 한 번 더 붙인다.
+//  한 번 옮기면 v9 가 생기므로 다시 돌지 않는다. v8 은 되돌릴 때를 위해 지우지 않는다.
+function hwMigrateV8() {
+  var old;
+  try { old = JSON.parse(localStorage.getItem(HW_LKEY_V8)); } catch (e) { old = null; }
+  if (!old || typeof old !== 'object') return null;
+  var L = { place: {}, visible: old.visible || {} };
+  HOME_WIDGETS.forEach(function (w) {
+    var p = (old.place && old.place[w.id]) || HW_DEF_V8[w.id] || w.def;
+    p = { c: p.c, r: p.r, w: p.w, h: p.h };
+    if (p.r + p.h - 1 === 4) p.h += 1;
+    L.place[w.id] = p;
+  });
+  if (Array.isArray(old.cols) && old.cols.length === HW_COLS) L.cols = old.cols.slice();
+  if (Array.isArray(old.rows) && old.rows.length === 4) L.rows = old.rows.concat([old.rows[3]]);
+  return L;
+}
+
+function hwLoadLayout() {
+  var raw = null;
+  try { raw = localStorage.getItem(HW_LKEY); } catch (e) {}
+  if (raw == null) {
+    var mig = hwMigrateV8();
+    if (mig) { hwSaveLayout(mig); return mig; }
+    return {};
+  }
+  try { return JSON.parse(raw) || {}; } catch (e) { return {}; }
+}
 function hwSaveLayout(o) { try { localStorage.setItem(HW_LKEY, JSON.stringify(o)); } catch (e) {} }
 
 // ── 표시 여부 ──
@@ -1939,6 +1981,7 @@ function hwAddResizeGrip(card, id) {
 function hwSyncResponsive() {
   if (typeof calSyncScale === 'function') calSyncScale();
   if (typeof habitSyncColumns === 'function') habitSyncColumns();
+  if (typeof mdaSyncColumns === 'function') mdaSyncColumns();
   if (typeof focusSyncDial === 'function') focusSyncDial();
   if (typeof webSyncBoard === 'function') webSyncBoard();
   if (typeof hgwSyncWidth === 'function') hgwSyncWidth();

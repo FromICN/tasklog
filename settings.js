@@ -353,7 +353,7 @@ function buildTabMenus() {
 }
 
 // ── Home 위젯 표시 여부 ─────────────────────
-//  홈은 6×4 격자다. 여기서 켠 위젯만 격자에 올라가고,
+//  홈은 6×5 격자다. 여기서 켠 위젯만 격자에 올라가고,
 //  자리와 크기는 홈 화면에서 직접 끌어 정한다.
 function buildHomeWidgetSection() {
   if (typeof HOME_WIDGETS === 'undefined' || typeof hwVisible !== 'function') return '';
@@ -365,7 +365,7 @@ function buildHomeWidgetSection() {
   }).join('');
   return '<div class="settings-section-head" style="margin-top:22px;">Home 위젯</div>'
     + '<div class="settings-row-desc" style="margin-bottom:10px;">'
-    + '홈 화면(6×4 격자)에 올릴 위젯을 고릅니다. 자리와 크기는 홈에서'
+    + '홈 화면(6×5 격자)에 올릴 위젯을 고릅니다. 자리와 크기는 홈에서'
     + ' 머리글을 끌어 옮기고, 오른쪽 아래 모서리를 끌어 조정합니다.</div>'
     + rows
     + '<div style="margin-top:14px;">'
@@ -387,7 +387,8 @@ function settingsToggleHomeWidget(id) {
 }
 
 function settingsResetHomeWidgets() {
-  try { if (typeof HW_LKEY !== 'undefined') localStorage.removeItem(HW_LKEY); } catch (e) {}
+  // 지우지 않고 빈 배치로 덮는다 — 키가 없으면 hwLoadLayout 이 옛 v8 배치를 다시 옮겨 온다
+  try { if (typeof HW_LKEY !== 'undefined') localStorage.setItem(HW_LKEY, '{}'); } catch (e) {}
   if (typeof currentMenu !== 'undefined' && currentMenu === 'home' && typeof renderHomeView === 'function') renderHomeView();
   setSettingsTab('menus');
 }

@@ -1,6 +1,6 @@
 {
   "manifest.json": "8dd477f972b0",
-  "style.css": "a737f1d59d6e",
+  "style.css": "cad23141aeed",
   "profile-modal.css": "6199d432a913",
   "login.css": "e4d2a0107b36",
   "mobile.css": "d1770512b420",
@@ -15,7 +15,7 @@
   "calendar.js": "684254c2eb91",
   "mandalart.js": "13f461f40383",
   "lifewheel.js": "9400f0b5e144",
-  "home.js": "5bac1d66bc47",
+  "home.js": "f4eeab8fc5bc",
   "habit.js": "863576396495",
   "calpage.js": "3edfdc4eb468",
   "gantt.js": "5cfc4ac79940",
@@ -23,12 +23,12 @@
   "journal.js": "54f18709966c",
   "wbs.js": "2a2433c293bd",
   "mvv.js": "ef0bad111302",
-  "settings.js": "ffbf93e13da0",
+  "settings.js": "1d5f4a559ab0",
   "drive.js": "3d1a9d575670",
   "firestore-sync.js": "670b59055746",
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "21c05b07ad7b",
-  "pwa.js": "d97f8346531a",
+  "pwa.js": "09a7796f395c",
   "mobile-ui.js": "ff2c7494ef27"
 }

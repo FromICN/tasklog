@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20260928b'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20260929a'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -23,7 +23,7 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest.json?v=20260810a',
-  './style.css?v=20260928b',
+  './style.css?v=20260929a',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
   './mobile.css?v=20260829c',
@@ -38,7 +38,7 @@ const PRECACHE_URLS = [
   './calendar.js?v=20260731a',
   './mandalart.js?v=20260829d',
   './lifewheel.js?v=20260816e',
-  './home.js?v=20260928b',
+  './home.js?v=20260929a',
   './habit.js?v=20260824a',
   './calpage.js?v=20260730',
   './gantt.js?v=20260816b',
@@ -46,13 +46,13 @@ const PRECACHE_URLS = [
   './journal.js?v=20260829b',
   './wbs.js?v=20260817a',
   './mvv.js?v=20260722',
-  './settings.js?v=20260817j',
+  './settings.js?v=20260929a',
   './drive.js?v=20260722',
   './firestore-sync.js?v=20260813f',
   './todo.js?v=20260803a',
   './yearsync.js?v=20260722',
   './script.js?v=20260928a',
-  './pwa.js?v=20260928b',
+  './pwa.js?v=20260929a',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',
