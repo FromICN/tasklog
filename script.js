@@ -1331,28 +1331,68 @@ function toggleMdtFavKey(key) {
   saveMdtFavs(f);
 }
 
-// 가장 최근(또는 현재) 만다라트의 비어있지 않은 실행과제 목록 — 즐겨찾기 우선 정렬
-function getMdtProjects() {
+// ── Task 의 연도 (Project 연도와 맞춰 보는 기준) ──
+// Start 연도와 Due 연도. 날짜가 하나도 없으면 빈 배열 — 연도를 따질 수 없다.
+function taskDateYear(v) {
+  if (!v) return null;
+  var m = /^(\d{4})/.exec(String(v));
+  if (m) return parseInt(m[1], 10);
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? null : d.getFullYear();
+}
+function taskDateYears(startVal, dueVal) {
+  var out = [];
+  [taskDateYear(startVal), taskDateYear(dueVal)].forEach(function(y) {
+    if (y && out.indexOf(y) === -1) out.push(y);
+  });
+  return out.sort();
+}
+// Project 가 Task 의 연도(Start·Due 중 하나)와 다른 연도의 만다라트에 걸려 있으면 true
+function taskProjYearMismatch(task) {
+  if (!task || !task.mdtAction || task.mdtAction.year == null) return false;
+  var ys = taskDateYears(task.startDate, task.dueDateTime);
+  if (!ys.length) return false;
+  return ys.indexOf(parseInt(task.mdtAction.year, 10)) === -1;
+}
+
+// 만다라트의 비어있지 않은 실행과제 목록 — 즐겨찾기 우선 정렬
+//  years 를 주면 그 연도(들)의 만다라트만, 안 주면 현재(또는 가장 최근) 만다라트
+function getMdtProjects(years) {
   if (typeof loadMandalarts === 'function') loadMandalarts();
-  var mdt = null, year = null;
+  if (years && years.length) {
+    var ylist = [];
+    years.forEach(function(y) {
+      var m = (typeof getMdt === 'function') ? getMdt(y) : null;
+      if (m) mdtProjectsOf(m, ylist);
+    });
+    return mdtSortFavs(ylist);
+  }
+  var mdt = null;
   if (typeof mandalarts !== 'undefined' && mandalarts.length) {
     var yr = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear
            : (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : null;
     mdt = (yr && typeof getMdt === 'function') ? getMdt(yr) : null;
     if (!mdt) mdt = mandalarts.slice().sort(function(a, b){ return b.year - a.year; })[0];
-    if (mdt) year = mdt.year;
   }
   var list = [];
-  if (mdt) {
-    (mdt.subGoals || []).forEach(function(sg) {
-      (sg.actions || []).forEach(function(act) {
-        if (!act.text) return;
-        var key = year + ':' + sg.id + ':' + act.id;
-        list.push({ year: year, sgId: sg.id, sgText: sg.text, sgEmoji: sg.emoji,
-                    actionId: act.id, text: act.text, key: key, fav: isMdtFav(key) });
-      });
+  if (mdt) mdtProjectsOf(mdt, list);
+  return mdtSortFavs(list);
+}
+
+function mdtProjectsOf(mdt, list) {
+  var year = mdt.year;
+  (mdt.subGoals || []).forEach(function(sg) {
+    (sg.actions || []).forEach(function(act) {
+      if (!act.text) return;
+      var key = year + ':' + sg.id + ':' + act.id;
+      list.push({ year: year, sgId: sg.id, sgText: sg.text, sgEmoji: sg.emoji,
+                  actionId: act.id, text: act.text, key: key, fav: isMdtFav(key) });
     });
-  }
+  });
+  return list;
+}
+
+function mdtSortFavs(list) {
   var favs = getMdtFavs();
   list.sort(function(a, b) {
     if (a.fav && !b.fav) return -1;
@@ -1382,17 +1422,33 @@ function toggleProjDD(domId) {
   panel.style.display = 'block';
 }
 
+// 드롭다운이 붙은 Task 의 연도 — 편집 중인 폼(rp)은 아직 저장 전인 입력칸 값을 본다
+function projDDYears(domId) {
+  if (domId === 'rp-proj') {
+    return taskDateYears(parseRpDateTime('rp-start-dt').dateStr, parseRpDateTime('rp-due-dt').dateStr);
+  }
+  if (domId === 'dp-proj' && typeof detailTaskId !== 'undefined' && detailTaskId) {
+    var t = tasks.find(function(x){ return x.id === detailTaskId; });
+    if (t) return taskDateYears(t.startDate, t.dueDateTime);
+  }
+  return [];
+}
+
 function buildProjDDList(domId) {
-  var list = getMdtProjects();
+  var years = projDDYears(domId);
+  var list = getMdtProjects(years);
   var html = '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 프로젝트 없음 —</div>';
   if (!list.length) {
-    return html + '<div class="proj-dd-empty">만다라트에 등록된 실행과제가 없어요</div>';
+    return html + '<div class="proj-dd-empty">'
+      + (years.length ? years.join('·') + '년 만다라트에 등록된 Project 가 없어요' : '만다라트에 등록된 실행과제가 없어요')
+      + '</div>';
   }
+  var multi = years.length > 1;
   list.forEach(function(p) {
     html += '<div class="proj-dd-opt">'
       + '<button type="button" class="proj-dd-star' + (p.fav ? ' on' : '') + '" onclick="event.stopPropagation();projDDToggleFav(\'' + domId + '\',\'' + p.key + '\')">' + (p.fav ? '★' : '☆') + '</button>'
       + '<span class="proj-dd-opt-label" onclick="projDDSelect(\'' + domId + '\',\'' + p.key + '\')">'
-      + '<span class="proj-dd-opt-sg">' + escapeHtml((p.sgEmoji || '') + ' ' + p.sgText) + '</span>'
+      + '<span class="proj-dd-opt-sg">' + escapeHtml((multi ? p.year + ' · ' : '') + (p.sgEmoji || '') + ' ' + p.sgText) + '</span>'
       + '<span class="proj-dd-opt-txt">' + escapeHtml(p.text) + '</span>'
       + '</span></div>';
   });
@@ -1409,7 +1465,7 @@ function projDDToggleFav(domId, key) {
 function projDDSelect(domId, key) {
   var sel = null;
   if (key) {
-    var p = getMdtProjects().find(function(x){ return x.key === key; });
+    var p = getMdtProjects(projDDYears(domId)).find(function(x){ return x.key === key; });
     if (p) sel = { year: p.year, sgId: p.sgId, actionId: p.actionId, text: p.text };
   }
   var dd = document.getElementById(domId);

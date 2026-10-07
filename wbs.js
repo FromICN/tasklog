@@ -805,6 +805,16 @@ function renderWbsActionGroup(nodeId, label, taskArr, lk, ak, akText, sgId, drop
     + inner + '</div></div>';
 }
 
+// Task 이름 — Project 가 Task 의 연도(Start·Due)와 다른 연도면 빨갛게 경고
+function wbsTaskTextHtml(task) {
+  var bad = (typeof taskProjYearMismatch === 'function') && taskProjYearMismatch(task);
+  var tip = bad
+    ? '⚠️ Project 연도(' + task.mdtAction.year + ')가 Task 일자(' + taskDateYears(task.startDate, task.dueDateTime).join('·') + ')와 달라요 — 클릭해서 편집'
+    : '클릭해서 편집';
+  return '<span class="wbs-task-text' + (task.completed ? ' done' : '') + (bad ? ' wbs-yr-bad' : '') + '" data-wbs-open="' + task.id + '" title="' + wbsEsc(tip) + '">'
+    + (bad ? '⚠️ ' : '') + wbsEsc(task.text) + '</span>';
+}
+
 // 4단계: TASK / 5단계: TO-DO (steps)
 function renderWbsTask(task) {
   var nodeId   = 'wbs-t-' + task.id;
@@ -836,7 +846,7 @@ function renderWbsTask(task) {
     + '<div class="wbs-row wbs-task-row" draggable="true" data-wbs-drag-task="' + task.id + '" data-wbs-drop-task="' + task.id + '">'
     + (hasSteps ? '<span class="wbs-tog" id="tog-' + nodeId + '" data-wbs-toggle="' + nodeId + '">' + (open ? '▼' : '▶') + '</span>' : '<span class="wbs-tog-empty"></span>')
     + '<span class="wbs-cb" data-wbs-task="' + task.id + '">' + (task.completed ? '☑' : '☐') + '</span>'
-    + '<span class="wbs-task-text' + (task.completed ? ' done' : '') + '" data-wbs-open="' + task.id + '" title="클릭해서 편집">' + wbsEsc(task.text) + '</span>'
+    + wbsTaskTextHtml(task)
     + wbsColsHtml({
         prev:   wbsLinkedCol(task, 'prev'),
         next:   wbsLinkedCol(task, 'next'),

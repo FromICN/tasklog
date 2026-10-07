@@ -752,3 +752,7 @@ progress {
 /* 오늘 표시 원과 마감 점도 같은 기준으로 함께 늘고 준다 */
 #page-content .cal-cell.today .cal-num { width: var(--cal-today, 19px); height: var(--cal-today, 19px); }
 #page-content .cal-dot { width: var(--cal-dot, 3px); height: var(--cal-dot, 3px); }
+
+/* WBS — Project 가 Task 일자(Start·Due)와 다른 연도의 만다라트에 걸려 있으면 경고.
+   wbs.js wbsTaskTextHtml 이 붙인다. 완료(.done)여도 빨강이 이긴다. */
+#page-content .wbs-task-text.wbs-yr-bad { color: var(--danger); font-weight: 600; }
