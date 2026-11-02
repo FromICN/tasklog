@@ -495,7 +495,7 @@ function renderHomeMandalartWidget() {
   if (!el) return;
   if (typeof loadMandalarts === 'function') loadMandalarts();
   if (typeof mandalarts === 'undefined' || !mandalarts.length) {
-    el.innerHTML = emptyWidget('🎯', '만다라트가 없습니다.\n만다라트에서 추가해보세요');
+    el.innerHTML = emptyWidget('', '만다라트가 없습니다.\n만다라트에서 추가해보세요');
     return;
   }
   // 현재 연도(없으면 최신 연도)의 만다라트 사용
@@ -505,7 +505,7 @@ function renderHomeMandalartWidget() {
   var m = (typeof getMdt === 'function') ? getMdt(year) : null;
   if (!m) m = mandalarts[mandalarts.length - 1];
   if (!m || !m.subGoals || !m.subGoals.length) {
-    el.innerHTML = emptyWidget('🎯', '등록된 SECTION이 없습니다');
+    el.innerHTML = emptyWidget('', '등록된 SECTION이 없습니다');
     return;
   }
   // ⚠️ Mandalart 페이지의 'SECTION별 달성 현황'(buildMdtPerfDashboard)과 같은 것을 보여 준다.
@@ -531,10 +531,11 @@ function renderHomeMandalartWidget() {
         })();
     var color = sg.color || HOME_SEC_COLORS[si] || '#4F6EF7';
     var name  = (sg.text && sg.text.trim()) ? sg.text : ('Section' + (si + 1));
-    var label = (sg.emoji ? hwEsc(sg.emoji) + ' ' : '') + hwEsc(name);
+    // 위젯에는 Section 이모지(sg.emoji)를 붙이지 않는다 — 이름만 (2026-11-02).
+    //  이모지는 만다라트 페이지에서만 쓴다.
     return '<div class="mda-row" onclick="navToMenu(\'mandalart\')"'
       + ' title="' + hwEsc(name) + ' · 달성 ' + perf.done + '/' + perf.total + ' · 연간 ' + perf.pct + '%">'
-      + '<span class="mda-name">' + label + '</span>'
+      + '<span class="mda-name">' + hwEsc(name) + '</span>'
       + '<span class="mda-cnt">' + perf.done + '/' + perf.total + '</span>'
       + '<div class="mda-track"><div class="mda-fill" style="width:' + perf.pct + '%;background:' + color + ';"></div></div>'
       + '<span class="mda-pct">' + perf.pct + '%</span>'
@@ -1511,13 +1512,13 @@ function fmtTodayShort() {
   return (d.getMonth()+1) + '월 ' + d.getDate() + '일 (' + days[d.getDay()] + ')';
 }
 
-// 홈 위젯 빈 상태 플레이스홀더 (아이콘 + 메시지)
+// 홈 위젯 빈 상태 플레이스홀더 (아이콘 + 메시지). 아이콘을 비우면 메시지만.
 function emptyWidget(icon, message) {
   var msg = String(message == null ? '' : message).split('\n').map(function(line) {
     return hwEsc(line);
   }).join('<br>');
   return '<div class="hw-empty">'
-    + '<div style="font-size:24px;margin-bottom:6px;opacity:0.7;">' + (icon || '') + '</div>'
+    + (icon ? '<div style="font-size:24px;margin-bottom:6px;opacity:0.7;">' + icon + '</div>' : '')
     + '<div>' + msg + '</div>'
     + '</div>';
 }

@@ -245,7 +245,7 @@ input, textarea, select, button {
 .gm-hcell,
 .cal-dh, .cal-num,
 .cal-detail-badge,
-.mda-pct,
+.mda-pct, .mda-cnt,
 .todo-table th, .todo-table-start, .todo-table-due,
 .todo-table-priority,
 .done-date, .nav-item-label {
@@ -539,8 +539,22 @@ body .gm-bgcell.gm-today-col { background: var(--tl-seal-wash); }
 
 .mda-track { border-radius: 1px; background: var(--bg-2); }
 .mda-track > * { border-radius: 1px; background: var(--tl-pine); }
-.mda-pct { font-size: 11px; color: var(--text-2); }
-.mda-name { font-size: 12px; }
+/* Mandalart 위젯 글꼴 (2026-11-02) — 한 줄에 목소리는 둘뿐이다.
+   이름 = Pretendard 500 · 본문색 / 숫자(완료수 · %) = 고정폭 400.
+   예전에는 이름 앞 이모지 + 회색 이름 + Pretendard 완료수 + 굵은 고정폭 % 로
+   한 줄에 글꼴·굵기가 넷이라 산만했다. 이모지는 home.js 에서 뺐다.
+   이름의 Pretendard 는 body 에서 상속받는다 (style.css 의 * 규칙 참조). */
+.mda-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-1);
+  letter-spacing: -0.01em;
+}
+.mda-cnt { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.mda-pct { font-size: 11px;   font-weight: 400; color: var(--text-2); }
+/* 이름이 이미 본문색이라, 누를 수 있다는 표시는 숫자가 진해지는 것으로 */
+.mda-row:hover .mda-cnt,
+.mda-row:hover .mda-pct { color: var(--text-1); }
 
 /* 라이프휠 라벨이 카드 위쪽에서 잘리던 문제 */
 .wheel-wrap {
