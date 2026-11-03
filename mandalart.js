@@ -369,7 +369,7 @@ function renderMdtGrid(m) {
 
 // ── 세부목표 카드 (외부 1칸 = 내부 3×3) ──
 function renderSubGoalCard(m, sg) {
-  var done  = sg.actions.filter(function(a){ return a.completed; }).length;
+  var done  = sg.actions.filter(function(a){ return mdtActDone(a, m.year); }).length;
   var total = sg.actions.length;
   var color = sg.color;
 
@@ -390,10 +390,11 @@ function renderSubGoalCard(m, sg) {
     var act = orderedActs[actIdx];
     if (!act) return '<div class="mdt-inner-cell"></div>';
     // #1: 동그라미/다이아 아이콘 제거, 텍스트만 표시. 완료 시 테마컬러 명도70% 배경.
-    var doneCls = act.completed ? ' mdt-proj-done' : '';
-    var doneStyle = act.completed ? ('background:'+color+'33;') : '';
+    var isDone = mdtActDone(act, m.year);
+    var doneCls = isDone ? ' mdt-proj-done' : '';
+    var doneStyle = isDone ? ('background:'+color+'33;') : '';
     return '<div class="mdt-inner-cell mdt-proj-cell'+doneCls+'" style="'+doneStyle+'" onclick="event.stopPropagation();selectMdtAction('+m.year+','+sg.id+','+act.id+')">'
-      + '<span class="mdt-inner-text mdt-fit-text'+(act.text?'':' mdt-cell-empty')+(act.completed?' mdt-cell-done-text':'')+'" data-fit-base="12" data-year="'+m.year+'" data-sg="'+sg.id+'" data-act="'+act.id+'">'
+      + '<span class="mdt-inner-text mdt-fit-text'+(act.text?'':' mdt-cell-empty')+(isDone?' mdt-cell-done-text':'')+'" data-fit-base="12" data-year="'+m.year+'" data-sg="'+sg.id+'" data-act="'+act.id+'">'
       +   escMdt(act.text)
       + '</span>'
       + '</div>';
@@ -688,6 +689,17 @@ function mdtActPerf(a, year) {
   return { pct: pct, label: label, achieved: target > 0 && actual >= target };
 }
 
+// Project 가 '끝났나' — 손으로 체크한 완료(completed) 이거나, 실적으로 달성(achieved)했거나.
+//  ⚠️ completed 만 보면 안 된다. Section 관리화면(표)에는 완료 체크가 없고
+//     실적이 목표에 닿아 '달성' 배지가 떠도 completed 는 그대로라,
+//     만다라트 칸 배경·'달성 n/m' 이 따라오지 않았다(2026-11-03).
+function mdtActDone(a, year) {
+  if (!a) return false;
+  if (a.completed) return true;
+  var y = year || (typeof currentMdtYear !== 'undefined' && currentMdtYear) || new Date().getFullYear();
+  return !!(a.text && a.text.trim() && mdtActPerf(a, y).achieved);
+}
+
 
 function calcSgPerf(sg, year) {
   var y = year || (typeof currentMdtYear !== 'undefined' && currentMdtYear) || new Date().getFullYear();
@@ -695,7 +707,7 @@ function calcSgPerf(sg, year) {
   var pctSum = 0;
   acts.forEach(function(a) { pctSum += mdtActPerf(a, y).pct; });
   var pct = acts.length ? Math.round(pctSum / acts.length) : 0;
-  var done = sg.actions.filter(function(a){ return a.completed; }).length;
+  var done = sg.actions.filter(function(a){ return mdtActDone(a, y); }).length;
   return { pct: pct, sum: 0, target: 0, qStats: [0,0,0,0], achCount: acts.length, done: done, total: sg.actions.length };
 }
 
@@ -707,7 +719,7 @@ function calcMdtProjectProgress(m) {
     (sg.actions || []).forEach(function(a) {
       if (!a || !a.text || !a.text.trim()) return;
       total++;
-      if (a.completed) done++;
+      if (mdtActDone(a, m.year)) done++;
     });
   });
   return { done: done, total: total, pct: total ? Math.round(done / total * 100) : 0 };
@@ -781,7 +793,7 @@ function buildMdtPerfSectionHtml(m, sg) {
   var hasFinal = !!sg.smart.finalGoal;
   var smartColor = (smartFilled===5&&hasFinal) ? 'var(--success)' : smartFilled>0 ? 'var(--warning)' : 'var(--text-2)';
   var smartLabel = '&#127919; SMART ' + smartFilled + '/5' + (hasFinal ? ' &#10003;' : '');
-  var done  = sg.actions.filter(function(a){ return a.completed; }).length;
+  var done  = sg.actions.filter(function(a){ return mdtActDone(a, m.year); }).length;
   var total = sg.actions.length;
 
   var html = '<div class="mdt-perf-section">'
@@ -917,7 +929,7 @@ function openMdtCellEdit(year, sgId, actId) {
       textEl.classList.toggle('mdt-cell-empty', !act.text);
     }
     // 진행률 업데이트
-    var done = sg.actions.filter(function(a){ return a.completed; }).length;
+    var done = sg.actions.filter(function(a){ return mdtActDone(a, year); }).length;
     var progEl = document.getElementById('mdt-prog-'+year+'-'+sgId);
     if (progEl) progEl.textContent = done+'/'+sg.actions.length;
     ol.remove();
@@ -1414,6 +1426,9 @@ function mdtClosePerfModal() {
   // 그리드가 열려 있으면 달성현황 갱신
   if (_mdtPerfModalCtx && document.querySelector('.mdt-grid-table')) {
     openSgDetail(_mdtPerfModalCtx.year, _mdtPerfModalCtx.sgId);
+  } else if (_mdtPerfModalCtx) {
+    // 만다라트 화면에서 열었으면 그 칸의 달성 배경을 실적에 맞춘다
+    refreshMdtGridForAction(_mdtPerfModalCtx.year, _mdtPerfModalCtx.sgId, _mdtPerfModalCtx.actId);
   }
   _mdtPerfModalCtx = null;
 }
@@ -2092,11 +2107,12 @@ function refreshMdtGridForAction(year, sgId, actId) {
   if (textEl) {
     textEl.textContent = a.text;
     textEl.classList.toggle('mdt-cell-empty', !a.text);
-    textEl.classList.toggle('mdt-cell-done-text', !!a.completed);
+    var isDone = mdtActDone(a, year);
+    textEl.classList.toggle('mdt-cell-done-text', isDone);
     var cell = textEl.closest('.mdt-inner-cell');
     if (cell) {
-      cell.classList.toggle('mdt-proj-done', !!a.completed);
-      if (a.completed) {
+      cell.classList.toggle('mdt-proj-done', isDone);
+      if (isDone) {
         cell.style.background = mdtLighten(sg.color, 70);
         cell.style.borderColor = mdtLighten(sg.color, 60);
       } else {
@@ -2216,7 +2232,7 @@ function openMdtProjectModal(year, sgId) {
     { key:'timeBound',  icon:'⏰', label:'Time-bound', desc:'언제까지 달성할 건가요?' }
   ];
 
-  var done  = sg.actions.filter(function(a){ return a.completed; }).length;
+  var done  = sg.actions.filter(function(a){ return mdtActDone(a, year); }).length;
   var total = sg.actions.length;
   var pct   = total > 0 ? Math.round(done/total*100) : 0;
 
