@@ -24,6 +24,17 @@
 //   ▸ 삭제는 물리 삭제가 아니라 툼스톤({__deleted:true}). 30일 뒤 정리한다.
 //   ▸ 원격 변경을 반영하면 각 모듈의 loader 를 다시 돌려 메모리 사본을 갱신한다.
 //   ▸ 미러는 항목 해시로 localStorage 에 남는다 — 앱을 껐다 켜도 병합 기준점이 유지된다.
+//
+//  v3 (2026-11-04) — "내가 고친 칸만 반영된다"
+//   ▸ 서버에 쓸 때 통째로 덮어쓰지 않는다. 트랜잭션 안에서 서버 최신값을 읽어
+//     기준값·내 값과 3-way 병합한 결과를 쓴다 (_pushItems · _pushDocs).
+//     상대 변경을 아직 못 받은 기기가 써도 상대가 고친 칸이 지워지지 않는다.
+//   ▸ 오프라인이면 올리지 않는다. 변경은 localStorage 에 남았다가 연결되면 같은 경로로 간다.
+//     (SDK 오프라인 쓰기 대기열을 쓰면 재연결 때 낡은 문서가 더 최근 수정을 덮어쓴다)
+//   ▸ 메모·MVV·라이프휠도 칸 단위로 병합한다.
+//   ▸ 로그인 때 드라이브 백업으로 덮어쓰지 않는다(onSignInSync). 백업은 계속 올리되
+//     서버 값을 받은 뒤에만 올린다. 수동 복원은 그대로다.
+//   ▸ 관계없는 변경으로 화면을 다시 그리지 않고, 저장 전 입력을 지우지 않는다.
 // ============================================
 
 var FS_SCHEMA            = 2;                        // docs/_meta.schema
@@ -49,7 +60,7 @@ var FS_MIRROR_VER        = 2;
 //         기준이 없으면 "저쪽이 추가한 것"과 "이쪽이 지운 것"을 구별할 수 없다.
 var FS_ITEM_MAPS = [
   { lsKey: 'my-tasklog-data',      coll: 'tasks',     kind: 'array',  idField: 'id',   deep: true },
-  { lsKey: 'my-tasklog-notes',     coll: 'notes',     kind: 'array',  idField: 'id'               },
+  { lsKey: 'my-tasklog-notes',     coll: 'notes',     kind: 'array',  idField: 'id',   deep: true },
   { lsKey: 'my-tasklog-journal',   coll: 'logs',      kind: 'object',                  deep: true },
   { lsKey: 'my-tasklog-mandalart', coll: 'mandalart', kind: 'array',  idField: 'year', deep: true },
 ];
@@ -76,6 +87,23 @@ var FS_RELOADERS = {
   'my-tasklog-corevalues': ['loadCoreValues'],
   'tasklog-mvv-data':      ['loadMVV'],
   'app-theme':             ['initTheme'],
+};
+
+// 화면이 어떤 데이터를 쓰는가. 여기 없는 키가 바뀌면 그 화면은 다시 그리지 않는다.
+//  ⚠️ 폰에서 메모 하나 추가했다고 Work Diary 를 다시 그리면 쓰던 글이 날아간다.
+//     목록에 없는 메뉴는 예전처럼 항상 다시 그린다 — 새 화면을 만들면 여기에 더할 것.
+var FS_VIEW_DEPS = {
+  home:      ['my-tasklog-data', 'my-tasklog-notes', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
+  cloud:     ['my-tasklog-data', 'my-tasklog-notes', 'my-tasklog-mandalart'],
+  journal:   ['my-tasklog-data', 'my-tasklog-journal'],
+  mvv:       ['tasklog-mvv-data'],
+  wheel:     ['my-tasklog-mandalart', 'my-tasklog-lifewheel', 'my-tasklog-corevalues'],
+  mandalart: ['my-tasklog-data', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
+  habit:     ['my-tasklog-mandalart'],
+  todo:      ['my-tasklog-data', 'my-tasklog-mandalart', 'todoCols2', 'todoProjHidden'],
+  project:   ['my-tasklog-data', 'my-tasklog-mandalart'],
+  wbs:       ['my-tasklog-data', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
+  calendar:  ['my-tasklog-data'],
 };
 
 // localStorage 키 → 안전한 문서 ID
@@ -106,6 +134,17 @@ var _pendingDocUa   = {};    // { key: ms }
 var _preRemote      = {};    // { lsKey: {docId: {hash, at}} } 원격 반영 직전의 로컬 값
 var _lastLocalWrite = {};    // { key: ms } 사용자가 그 키를 마지막으로 쓴 시각(충돌 판정용)
 var _syncLog        = [];    // 진단용 최근 기록
+var _pendingH       = {};    // { lsKey: {docId: hash} } 그 시각에 본 로컬 내용 — 또 고치면 시각을 새로 찍는다
+var _inflight       = {};    // { lsKey: {docId:true} } 트랜잭션으로 올리는 중
+var _inflightDocs   = {};    // { key: true }
+var _echo           = {};    // { lsKey: {docId: {ua, at}} } 내 쓰기가 스냅샷으로 돌아오기를 기다리는 중
+var _echoDocs       = {};    // { key: {ua, at} }
+var _prevRaw        = {};    // { lsKey: 원격 반영 직전 저장소 문자열 } 메모리의 저장 전 수정을 살릴 때 쓴다
+var _pushFails      = 0;     // 연속 실패 횟수 (재시도 간격)
+var _fsGen          = 0;     // 로그아웃·재시작 뒤 도착한 쓰기 결과를 버리기 위한 세대 번호
+var _fsServerSeen   = {};    // { coll: true } 캐시가 아닌 서버 값을 받은 컬렉션
+var _fsFirstSynced  = false; // 이번 접속에서 모든 컬렉션의 서버 값을 받아 병합을 마쳤는가
+var _fsBackupWaiting = false;// 서버 값을 기다리느라 미룬 드라이브 백업이 있는가
 
 // ============================================
 //  🧮 유틸
@@ -481,7 +520,7 @@ function _saveMirrorSoon() {
       uid: _fsUid, schema: FS_SCHEMA, mv: FS_MIRROR_VER, m: _fsMirror,
       // 아직 서버에 못 올린 로컬 변경의 시각. 이게 없으면 앱을 껐다 켠 뒤
       // 충돌이 났을 때 로컬 시각이 0 이라 서버가 무조건 이긴다 → 방금 한 수정이 사라진다.
-      llw: _lastLocalWrite, pua: _pendingUa, pdua: _pendingDocUa
+      llw: _lastLocalWrite, pua: _pendingUa, pdua: _pendingDocUa, phs: _pendingH
     };
     try {
       localStorage.setItem(FS_MIRROR_KEY, JSON.stringify(envelope));
@@ -508,12 +547,18 @@ function _loadMirror(uid) {
       _fsMirror = {
         items:  o.m.items  || {}, itemUa: o.m.itemUa || {},
         docs:   o.m.docs   || {}, docUa:  o.m.docUa  || {},
-        base:   o.m.base   || {}
+        base:   o.m.base   || {}, docBase: o.m.docBase || {}
       };
       // 미푸시 로컬 변경의 시각을 되살린다 (앱 재시작 후에도 충돌 판정이 공정하도록)
-      _lastLocalWrite = o.llw  || {};
+      // 이번 실행에서 이미 기록한 쓰기 시각이 있으면 더 최근 값을 지킨다
+      var _llw = o.llw || {};
+      Object.keys(_lastLocalWrite).forEach(function (k) {
+        if (!_llw[k] || _lastLocalWrite[k] > _llw[k]) _llw[k] = _lastLocalWrite[k];
+      });
+      _lastLocalWrite = _llw;
       _pendingUa      = o.pua  || {};
       _pendingDocUa   = o.pdua || {};
+      _pendingH       = o.phs  || {};
       return true;
     }
   } catch (e) {}
@@ -535,12 +580,20 @@ function _isStaleOverwrite(lsKey, id, localHash) {
   return p.hash === localHash;
 }
 
-function _touchPending(lsKey, id) {
+// 그 항목의 로컬 변경을 처음 본 시각을 남긴다. 내용이 또 바뀌면 시각도 새로 찍는다
+//  (오프라인에서 오래전에 시작한 수정을 나중에 더 고쳤는데 옛 시각으로 판정되면 안 된다).
+//  ⚠️ 시각은 '항목 단위'다. 키 전체의 마지막 저장 시각을 그대로 쓰면, 새 메모 하나 저장한 것만으로
+//     오래전에 고친 다른 메모까지 방금 고친 것처럼 되어 더 최근의 다른 기기 수정을 이긴다.
+function _touchPending(lsKey, id, hash) {
   if (!_pendingUa[lsKey]) _pendingUa[lsKey] = {};
-  if (!_pendingUa[lsKey][id]) _pendingUa[lsKey][id] = Date.now();
+  if (!_pendingH[lsKey]) _pendingH[lsKey] = {};
+  if (_pendingUa[lsKey][id] && _pendingH[lsKey][id] === hash) return;
+  _pendingUa[lsKey][id] = _lastLocalWrite[lsKey] || Date.now();
+  _pendingH[lsKey][id] = hash;
 }
 function _clearPending(lsKey, id) {
   if (_pendingUa[lsKey]) delete _pendingUa[lsKey][id];
+  if (_pendingH[lsKey]) delete _pendingH[lsKey][id];
 }
 
 // ============================================
@@ -553,6 +606,7 @@ function _mergeMap(map) {
   var local  = repr.byId;
   var server = _lastServer[lsKey] || null;      // null = 아직 서버 상태를 모름
   var pend   = _pendingIds[lsKey] || {};
+  var busy   = _inflight[lsKey] || {};
   var mir    = _mirrorItems(lsKey);
   var mua    = _mirrorItemUa(lsKey);
   var mbase  = _mirrorBase(lsKey);
@@ -575,8 +629,8 @@ function _mergeMap(map) {
   Object.keys(ids).forEach(function (id) {
     var l = local[id];
 
-    // 내가 방금 쓴 것이 아직 서버에서 확정되지 않았다 → 이번 판단에서 제외
-    if (pend[id]) { if (l !== undefined) out[id] = l; return; }
+    // 내가 방금 쓴 것이 아직 확정되지 않았거나 올리는 중이다 → 이번 판단에서 제외
+    if (pend[id] || busy[id]) { if (l !== undefined) out[id] = l; return; }
 
     var sEntry = server[id];
     var s  = (sEntry && !sEntry.deleted) ? sEntry.item : undefined;
@@ -587,7 +641,7 @@ function _mergeMap(map) {
     var mBaseVal = map.deep ? mbase[id] : undefined;
 
     // 미러 = "서버가 지금 갖고 있다고 아는 상태" 로 갱신한다.
-    // (푸시하는 항목은 _queueItemOps 가 방금 올린 값으로 다시 덮어쓴다)
+    // (올리는 항목은 커밋에 성공한 뒤 _applyPushResults 가 올린 값으로 다시 덮어쓴다)
     if (sh !== null) {
       mir[id] = sh; mua[id] = (sEntry && sEntry.ua) || 0;
       if (map.deep) mbase[id] = s;
@@ -618,38 +672,33 @@ function _mergeMap(map) {
         return;
       }
       if (l !== undefined) {
-        out[id] = l; push[id] = l; pushCount++; _touchPending(lsKey, id);
+        out[id] = l; push[id] = l; pushCount++; _touchPending(lsKey, id, lh);
         return;
       }
-      push[id] = null; pushCount++;        // 진짜 삭제 → 툼스톤
+      push[id] = null; pushCount++; _touchPending(lsKey, id, null);   // 진짜 삭제 → 툼스톤
       return;
     }
 
-    // 양쪽 다 변경 — 충돌
+    // 양쪽 다 변경 — 칸 단위로 합친다
     conflicts++;
     if (l === undefined) { if (s !== undefined) { out[id] = s; restored++; } return; }  // 삭제 vs 편집 → 편집
+    _touchPending(lsKey, id, lh);
     if (s === undefined) { out[id] = l; push[id] = l; pushCount++; return; }            // 편집 vs 삭제 → 편집
     // 서버의 _ua 는 이미 서버 기준(쓴 기기가 보정해 넣었다).
     // 로컬 시각은 로컬 시계로 찍혀 있으므로 여기서 서버 기준으로 환산해 비교한다.
     var sua = (sEntry && sEntry.ua) || 0;
-    var lua = _toServerTime((_pendingUa[lsKey] && _pendingUa[lsKey][id]) || _lastLocalWrite[lsKey] || 0);
+    var lua = _toServerTime(_pendingUa[lsKey][id] || 0);
 
-    // 필드 단위 병합 — 문서 하나를 통째로 고르지 않는다.
-    //  기준값(mBaseVal)이 있어야 "저쪽이 추가"와 "이쪽이 삭제"를 구분할 수 있다.
-    //  기준이 없으면(미러가 갓 만들어졌거나 용량 때문에 비웠으면) 예전처럼 최신 우선.
-    if (map.deep && mBaseVal !== undefined) {
-      var m = _deepMerge3(mBaseVal, l, s, sua > lua);
-      out[id] = m;
-      merged3++;
-      if (!_eqVal(m, s)) { push[id] = m; pushCount++; _touchPending(lsKey, id); }
-      else _clearPending(lsKey, id);
-      // 병합 결과가 로컬과 다르면 화면 모듈이 들고 있는 낡은 사본이 되돌릴 수 있다
-      if (!_eqVal(m, l)) _markPreRemote(lsKey, id, lh);
-      return;
-    }
-
-    if (sua > lua) { out[id] = s; _markPreRemote(lsKey, id, lh); _clearPending(lsKey, id); }
-    else { out[id] = l; push[id] = l; pushCount++; }
+    //  기준값(mBaseVal)이 있으면 "저쪽이 추가"와 "이쪽이 삭제"를 구분해 정확히 합친다.
+    //  기준이 없으면(미러가 갓 만들어졌거나 용량 때문에 비웠으면) 양쪽을 다 살리는 쪽으로 합치고,
+    //  같은 칸이 다를 때만 시각이 늦은 쪽을 고른다.
+    var m = _deepMerge3(mBaseVal, l, s, sua > lua);
+    out[id] = m;
+    merged3++;
+    if (!_eqVal(m, s)) { push[id] = m; pushCount++; _touchPending(lsKey, id, _hashItem(m)); }
+    else _clearPending(lsKey, id);
+    // 병합 결과가 로컬과 다르면 화면 모듈이 들고 있는 낡은 사본이 되돌릴 수 있다
+    if (!_eqVal(m, l)) _markPreRemote(lsKey, id, lh);
   });
 
   return { out: out, order: repr.order, push: push, pushCount: pushCount,
@@ -661,34 +710,239 @@ function _applyMerged(map, r) {
   // 원래 없던 키를 빈 배열/객체로 만들어 두지 않는다 (쓸데없는 쓰기·화면 갱신 방지)
   if (!r.exists && Object.keys(r.out).length === 0) return false;
   var next = JSON.stringify(_reprToLocalValue(map, r.out, r.order));
-  if (next === localStorage.getItem(map.lsKey)) return false;
+  var _cur = localStorage.getItem(map.lsKey);
+  if (next === _cur) return false;
+  _prevRaw[map.lsKey] = _cur;
   window.__applyingRestore = true;          // setItem 훅이 '사용자 변경'으로 세지 않도록
   try { localStorage.setItem(map.lsKey, next); }
   finally { window.__applyingRestore = false; }
   return true;
 }
 
-// 푸시할 것들을 배치에 싣는다
-function _queueItemOps(map, pushSet, addOp) {
-  var mir = _mirrorItems(map.lsKey), mua = _mirrorItemUa(map.lsKey);
-  var mbase = _mirrorBase(map.lsKey);
-  var now = _serverNow();   // 다른 기기와 견줄 값이라 서버 기준으로 찍는다
-  Object.keys(pushSet).forEach(function (id) {
-    var item = pushSet[id];
-    if (item === null) {
-      // 물리 삭제 대신 툼스톤 — 다른 기기가 "내가 모르는 새 항목"으로 되살리지 않도록
-      addOp(function (b) { b.set(_collRef(map.coll).doc(id), { __deleted: true, _ua: now }); });
+// ============================================
+//  ⬆️ 서버에 쓰기 — 쓰기 직전 서버 최신값과 합친다
+// --------------------------------------------
+//  예전에는 batch.set 으로 문서를 통째로 덮어썼다. 상대 변경을 아직 못 받은 기기가 쓰면
+//  그 기기가 모르는 칸이 사라졌고, 오프라인 대기열의 낡은 문서도 재연결 때 더 최근 수정을
+//  덮어썼다. 지금은 쓰기 직전 서버 값을 읽어 기준값(마지막으로 받은 서버 값)·내 값·서버 값을
+//  비교해 바뀐 칸만 합친다.
+//
+//  ⚠️ 트랜잭션은 온라인에서만 된다. 실패해도 잃는 것은 없다 — 미러는 커밋에 성공한 뒤에만
+//     내 값으로 올라가므로, 로컬 변경은 '아직 안 올린 변경'으로 남아 다음 병합 때 다시 올라간다.
+//  ⚠️ 트랜잭션 쓰기는 SDK 의 지연 보상을 거치지 않아 커밋 직후에 낡은 스냅샷이 올 수 있다.
+//     그대로 믿으면 "원격이 옛 값으로 바뀌었다"고 판단해 화면이 되돌아간다.
+//     _echo 가 내 쓰기가 돌아올 때까지 지킨다. 그래서 _ua 는 항상 서버 값보다 크게 찍는다.
+// ============================================
+var FS_PUSH_CHUNK   = 50;          // 트랜잭션 하나에 담을 문서 수
+var FS_PUSH_TIMEOUT = 45 * 1000;   // 이 시간이 지나면 올리는 중 표시를 풀고 다시 시도한다
+var FS_ECHO_TTL_MS  = 60 * 1000;   // 그 뒤의 스냅샷은 내 쓰기 이후의 것이 확실하다
+
+function _withDeadline(p, ms, what) {
+  return Promise.race([p, new Promise(function (_, rej) {
+    setTimeout(function () { rej(new Error('시간 초과(' + what + ')')); }, ms);
+  })]);
+}
+
+// 이 문서를 서버에 어떻게 쓸지 정한다. l === null 이면 로컬에서 지운 것이다.
+//  반환 { merged:합친 값(undefined=없음), write, data, ua }
+function _resolvePush(l, base, snap, lua) {
+  var d = snap.exists ? (snap.data() || {}) : null;
+  var s = (d && !d.__deleted) ? _unwrapItem(d) : undefined;
+  var sua = d ? (d._ua || 0) : 0;
+  var ua = Math.max(_serverNow(), sua + 1);
+
+  if (l === null) {
+    if (s === undefined) return { merged: undefined, write: false, ua: sua };
+    // 삭제 vs 편집 — 내가 모르는 사이 서버가 바뀌었으면 편집을 살린다
+    if (base !== undefined && !_eqVal(base, s)) return { merged: s, write: false, ua: sua };
+    return { merged: undefined, write: true, ua: ua, data: { __deleted: true, _ua: ua } };
+  }
+
+  var merged = (s === undefined || _eqVal(base, s)) ? l : _deepMerge3(base, l, s, sua > lua);
+  var data = _sanitizeItem(merged);
+  var clean = _unwrapItem(data);
+  if (s !== undefined && _eqVal(clean, s)) return { merged: s, write: false, ua: sua };
+  data._ua = ua;
+  return { merged: clean, write: true, ua: ua, data: data };
+}
+
+// 커밋이 끝났다 — 미러·서버 상태를 맞추고, 합친 결과를 로컬에도 반영한다.
+//  바뀐 게 있으면 true (호출한 쪽이 화면을 갱신한다)
+function _applyPushResults(map, jobs, results) {
+  var lsKey = map.lsKey;
+  var mir = _mirrorItems(lsKey), mua = _mirrorItemUa(lsKey), mbase = _mirrorBase(lsKey);
+  var srv = _lastServer[lsKey] || (_lastServer[lsKey] = {});
+  var echo = _echo[lsKey] || (_echo[lsKey] = {});
+  var repr = _localRepr(map);
+  var changed = false;
+
+  jobs.forEach(function (j) {
+    var id = j.id, r = results[id], m = r.merged;
+    var sent = (j.item === null) ? undefined : j.item;
+
+    if (m === undefined) {
       delete mir[id]; delete mua[id]; delete mbase[id];
-      _logSync('삭제 ' + map.coll + '/' + id);
+      srv[id] = { deleted: true, ua: r.ua };
     } else {
-      var data = _sanitizeItem(item);
-      data._ua = now;
-      addOp(function (b) { b.set(_collRef(map.coll).doc(id), data); });
-      mir[id] = _hashItem(item); mua[id] = now;
-      // 방금 올린 값이 곧 새 기준점이다. _sanitizeItem 을 거친 형태로 저장해야
-      // 다음번에 서버에서 돌아온 값과 정확히 같은 모양이 된다(undefined 제거 등).
-      if (map.deep) mbase[id] = _unwrapItem(data);
+      mir[id] = _hashItem(m); mua[id] = r.ua; mbase[id] = m;
+      srv[id] = { item: m, ua: r.ua };
     }
+    if (r.write) echo[id] = { ua: r.ua, at: Date.now() };
+
+    var cur = repr.byId[id];
+    var untouched = _eqVal(cur, sent);
+    // 올리는 동안 또 고쳤으면 그 수정은 살리고, 합쳐져 들어온 것만 받는다
+    var next = untouched ? m : _deepMerge3(sent, cur, m, false);
+    if (!_eqVal(next, cur)) {
+      if (next === undefined) delete repr.byId[id]; else repr.byId[id] = next;
+      _markPreRemote(lsKey, id, cur === undefined ? null : _hashItem(cur));
+      changed = true;
+    }
+    if (untouched) _clearPending(lsKey, id);
+    if (r.write) _logSync((m === undefined ? '삭제 ' : '올림 ') + map.coll + '/' + id);
+  });
+
+  if (!changed) return false;
+  return _applyMerged(map, { exists: true, out: repr.byId, order: repr.order });
+}
+
+function _pushItems(map, jobs, gen) {
+  var lsKey = map.lsKey;
+  var busy = _inflight[lsKey] || (_inflight[lsKey] = {});
+  var mbase = _mirrorBase(lsKey);
+  var bases = {}, luas = {};
+  jobs.forEach(function (j) {
+    busy[j.id] = true;
+    bases[j.id] = mbase[j.id];
+    luas[j.id] = _toServerTime((_pendingUa[lsKey] && _pendingUa[lsKey][j.id]) || _lastLocalWrite[lsKey] || 0);
+  });
+  var results = {};
+  var work = db.runTransaction(function (tx) {
+    results = {};                     // 경합으로 재시도되면 처음부터 다시 계산한다
+    var refs = jobs.map(function (j) { return _collRef(map.coll).doc(j.id); });
+    return Promise.all(refs.map(function (r) { return tx.get(r); })).then(function (snaps) {
+      snaps.forEach(function (snap, i) {
+        var id = jobs[i].id;
+        var r = _resolvePush(jobs[i].item, bases[id], snap, luas[id]);
+        if (r.write) tx.set(refs[i], r.data);
+        results[id] = r;
+      });
+    });
+  });
+  return _withDeadline(work, FS_PUSH_TIMEOUT, '쓰기').then(function () {
+    jobs.forEach(function (j) { delete busy[j.id]; });
+    if (gen !== _fsGen) return [];
+    return _applyPushResults(map, jobs, results) ? [lsKey] : [];
+  }, function (e) {
+    jobs.forEach(function (j) { delete busy[j.id]; });
+    throw e;
+  });
+}
+
+function _pushDocs(jobs, gen) {
+  jobs.forEach(function (j) { _inflightDocs[j.key] = true; });
+  var results = {};
+  var work = db.runTransaction(function (tx) {
+    results = {};
+    var refs = jobs.map(function (j) { return _docRef(_docIdForKey(j.key)); });
+    return Promise.all(refs.map(function (r) { return tx.get(r); })).then(function (snaps) {
+      snaps.forEach(function (snap, i) {
+        var j = jobs[i];
+        var d = snap.exists ? (snap.data() || {}) : null;
+        var sRaw = (d && typeof d.raw === 'string') ? d.raw : null;
+        var sua = d ? (d._ua || 0) : 0;
+        var ua = Math.max(_serverNow(), sua + 1);
+        var merged, wrote = false;
+        if (j.raw === null) {
+          if (sRaw === null) merged = null;
+          else if (j.base !== null && j.base !== undefined && sRaw !== j.base) merged = sRaw;   // 삭제 vs 편집
+          else { merged = null; wrote = true; tx.delete(refs[i]); }
+        } else {
+          merged = (sRaw === null || sRaw === j.base) ? j.raw : _mergeRawDoc(j.base, j.raw, sRaw, sua > j.lua);
+          if (merged !== sRaw) {
+            wrote = true;
+            tx.set(refs[i], { key: j.key, raw: merged, _ua: ua,
+                              updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+          }
+        }
+        results[j.key] = { merged: merged, wrote: wrote, ua: wrote ? ua : sua };
+      });
+    });
+  });
+  return _withDeadline(work, FS_PUSH_TIMEOUT, '쓰기').then(function () {
+    jobs.forEach(function (j) { delete _inflightDocs[j.key]; });
+    if (gen !== _fsGen) return [];
+    var touched = [], dbase = _mirrorDocBase();
+    if (!_lastServerDocs) _lastServerDocs = {};
+    jobs.forEach(function (j) {
+      var r = results[j.key], m = r.merged;
+      _fsMirror.docs[j.key] = (m === null) ? null : _hash(m);
+      _fsMirror.docUa[j.key] = r.ua;
+      dbase[j.key] = m;
+      if (m === null) delete _lastServerDocs[j.key];
+      else _lastServerDocs[j.key] = { raw: m, ua: r.ua };
+      if (r.wrote) _echoDocs[j.key] = { ua: r.ua, at: Date.now() };
+
+      var cur = localStorage.getItem(j.key);
+      var untouched = (cur === j.raw);
+      var next = untouched ? m : _mergeRawDoc(j.raw, cur, m, false);
+      if (next !== cur) { _applyDocValue(j.key, next); touched.push(j.key); }
+      if (untouched) delete _pendingDocUa[j.key];
+    });
+    return touched;
+  }, function (e) {
+    jobs.forEach(function (j) { delete _inflightDocs[j.key]; });
+    throw e;
+  });
+}
+
+function _startPush(jobs, docJobs) {
+  if (!jobs.length && !docJobs.length) return;
+  // 오프라인이면 시도하지 않는다. 변경은 그대로 남아 있고, online 이벤트·재연결 스냅샷이 다시 부른다.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    _logSync('오프라인 — 올리기 미룸 ' + (jobs.length + docJobs.length) + '건');
+    return;
+  }
+  var gen = _fsGen, work = [], byMap = {}, i;
+  jobs.forEach(function (j) {
+    var g = byMap[j.map.lsKey] || (byMap[j.map.lsKey] = { map: j.map, list: [] });
+    g.list.push(j);
+  });
+  Object.keys(byMap).forEach(function (k) {
+    var g = byMap[k];
+    for (var n = 0; n < g.list.length; n += FS_PUSH_CHUNK) {
+      work.push(_pushItems(g.map, g.list.slice(n, n + FS_PUSH_CHUNK), gen));
+    }
+  });
+  for (i = 0; i < docJobs.length; i += FS_PUSH_CHUNK) {
+    work.push(_pushDocs(docJobs.slice(i, i + FS_PUSH_CHUNK), gen));
+  }
+
+  // 일부가 실패해도 성공한 몫은 화면까지 반영한다
+  var failed = null, touched = [];
+  Promise.all(work.map(function (p) {
+    return p.then(function (keys) { touched = touched.concat(keys); },
+                  function (e) { failed = failed || e || new Error('쓰기 실패'); });
+  })).then(function () {
+    if (gen !== _fsGen) return;
+    if (touched.length) {
+      _afterRemoteApply(touched.filter(function (k, idx) { return touched.indexOf(k) === idx; }));
+    }
+    _saveMirrorSoon();
+    if (failed) {
+      _pushFails++;
+      var wait = Math.min(60000, 5000 * Math.pow(2, _pushFails - 1));
+      console.warn('☁️ Firestore 쓰기 실패 → ' + (wait / 1000) + '초 뒤 재시도:', failed.code || failed.message || failed);
+      _logSync('쓰기 실패: ' + (failed.code || failed.message || failed));
+      setTimeout(_syncSoon, wait);
+      return;
+    }
+    _pushFails = 0;
+    localStorage.setItem('last-backup-time', new Date().toISOString());
+    updateBackupStatus();
+    if (typeof refreshSettingsBackupStatus === 'function') refreshSettingsBackupStatus();
+    console.log('☁️ Firestore 푸시 완료');
+    _syncSoon();       // 올리는 동안 또 바뀐 것이 있으면 이어서 올린다
   });
 }
 
@@ -704,70 +958,76 @@ function _applyDocValue(key, raw) {
   } finally { window.__applyingRestore = false; }
 }
 
-function _syncDocKeys(addOp) {
+function _mirrorDocBase() {
+  if (!_fsMirror.docBase) _fsMirror.docBase = {};
+  return _fsMirror.docBase;
+}
+
+// 문자열로 저장된 문서를 합친다. JSON 이면 칸 단위로, 단순 문자열(테마 등)이면 시각이 늦은 쪽.
+//  ⚠️ MVV·라이프휠은 문서 전체가 문자열 하나라, 예전에는 Mission 만 고쳐도 Vision 까지 통째로 이기고 졌다.
+function _mergeRawDoc(baseRaw, localRaw, serverRaw, serverWins) {
+  if (localRaw === serverRaw) return localRaw;
+  if (localRaw === null || localRaw === undefined) return serverRaw;
+  if (serverRaw === null || serverRaw === undefined) return localRaw;
+  function parse(raw) {
+    if (raw === null || raw === undefined) return undefined;
+    try { return JSON.parse(raw); } catch (e) { return undefined; }
+  }
+  var L = parse(localRaw), S = parse(serverRaw);
+  if ((_isPlainObj(L) && _isPlainObj(S)) || (Array.isArray(L) && Array.isArray(S))) {
+    return JSON.stringify(_deepMerge3(parse(baseRaw), L, S, serverWins));
+  }
+  return serverWins ? serverRaw : localRaw;
+}
+
+function _syncDocKeys(docJobs) {
   var touched = [];
-  var now      = _serverNow();   // 문서에 찍는 _ua — 다른 기기와 견주는 값
-  var localNow = Date.now();     // 로컬 기록용 — 비교할 때 서버 기준으로 환산한다
   var server = _lastServerDocs;              // null = 아직 모름
+  // 항목 컬렉션과 같은 이유로, 서버 상태를 보기 전에는 아무것도 올리지 않는다
+  if (server === null) return touched;
+  var dbase = _mirrorDocBase();
 
   FS_DOC_KEYS.forEach(function (key) {
-    if (_pendingDocIds[key]) return;
+    if (_pendingDocIds[key] || _inflightDocs[key]) return;
 
     var localRaw = localStorage.getItem(key);
     var lh = (localRaw === null) ? null : _hash(localRaw);
     var mh = (_fsMirror.docs[key] !== undefined) ? _fsMirror.docs[key] : null;
-
-    function pushLocal() {
-      var docId = _docIdForKey(key);
-      if (localRaw === null) {
-        addOp(function (b) { b.delete(_docRef(docId)); });
-        _fsMirror.docs[key] = null;
-      } else {
-        addOp(function (b) {
-          b.set(_docRef(docId), {
-            key: key, raw: localRaw, _ua: now,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        });
-        _fsMirror.docs[key] = lh;
-      }
-      _fsMirror.docUa[key] = now;
-      _pendingDocUa[key] = localNow;
-    }
-
-    // 항목 컬렉션과 같은 이유로, 서버 상태를 보기 전에는 아무것도 올리지 않는다
-    if (server === null) return;
+    var baseRaw = dbase[key];                // 기준값은 미러를 갱신하기 전에 집어 둔다
 
     var sEntry = server[key];
-    var sRaw = sEntry ? sEntry.raw : null;
-    var sh = (sRaw === null || sRaw === undefined) ? null : _hash(sRaw);
+    var sRaw = (sEntry && typeof sEntry.raw === 'string') ? sEntry.raw : null;
+    var sh = (sRaw === null) ? null : _hash(sRaw);
+    var sua = (sEntry && sEntry.ua) || 0;
 
-    if (lh === sh) { _fsMirror.docs[key] = sh; delete _pendingDocUa[key]; return; }
+    // 미러 = 서버가 지금 갖고 있다고 아는 상태
+    _fsMirror.docs[key] = sh; _fsMirror.docUa[key] = sua; dbase[key] = sRaw;
+
+    if (lh === sh) { delete _pendingDocUa[key]; return; }
 
     var localChanged  = (lh !== mh);
     var serverChanged = (sh !== mh);
 
     if (!localChanged && serverChanged) {
-      _applyDocValue(key, sRaw === undefined ? null : sRaw);
-      _fsMirror.docs[key] = sh;
-      _fsMirror.docUa[key] = (sEntry && sEntry.ua) || 0;
+      _applyDocValue(key, sRaw);
       touched.push(key);
       return;
     }
-    if (localChanged && !serverChanged) { pushLocal(); return; }
 
-    // 충돌 → 최신 우선 (로컬 시각은 서버 기준으로 환산해서 견준다)
-    var sua = (sEntry && sEntry.ua) || 0;
-    var lua = _toServerTime(_pendingDocUa[key] || _lastLocalWrite[key] || 0);
-    if (sua > lua) {
-      _applyDocValue(key, sRaw === undefined ? null : sRaw);
-      _fsMirror.docs[key] = sh; _fsMirror.docUa[key] = sua;
-      touched.push(key);
-      _logSync('충돌(설정) ' + key + ' → 서버 채택');
-    } else {
-      pushLocal();
-      _logSync('충돌(설정) ' + key + ' → 로컬 채택');
+    if (!_pendingDocUa[key]) _pendingDocUa[key] = Date.now();
+    var lua = _toServerTime(Math.max(_lastLocalWrite[key] || 0, _pendingDocUa[key] || 0));
+
+    if (!serverChanged) {
+      docJobs.push({ key: key, raw: localRaw, base: sRaw, lua: lua });
+      return;
     }
+
+    // 양쪽 다 바뀌었다 — 칸 단위로 합친다
+    var m = _mergeRawDoc(baseRaw, localRaw, sRaw, sua > lua);
+    if (m !== localRaw) { _applyDocValue(key, m); touched.push(key); }
+    if (m !== sRaw) docJobs.push({ key: key, raw: m, base: sRaw, lua: lua });
+    else delete _pendingDocUa[key];
+    _logSync('충돌(문서) ' + key + ' → 합침');
   });
 
   return touched;
@@ -783,18 +1043,12 @@ function _syncNow() {
   _syncing = true;
 
   var prevMirror = JSON.parse(JSON.stringify(_fsMirror));   // 실패 시 되돌리기용
-  var batch = db.batch(), ops = 0, commits = [];
-  function addOp(fn) {
-    fn(batch); ops++;
-    if (ops >= 400) { commits.push(batch.commit()); batch = db.batch(); ops = 0; }
-  }
-
-  var touched = [];
+  var jobs = [], docJobs = [], touched = [];
   try {
     FS_ITEM_MAPS.forEach(function (map) {
       var r = _mergeMap(map);
       if (_applyMerged(map, r)) touched.push(map.lsKey);
-      _queueItemOps(map, r.push, addOp);
+      Object.keys(r.push).forEach(function (id) { jobs.push({ map: map, id: id, item: r.push[id] }); });
       if (r.restored) {
         console.warn('🛟 낡은 사본이 지울 뻔한 ' + map.coll + ' 항목 ' + r.restored + '건을 되살렸습니다');
         _logSync('복구 ' + map.coll + ' ' + r.restored + '건');
@@ -804,7 +1058,7 @@ function _syncNow() {
           + (r.merged3 ? ' (필드 병합 ' + r.merged3 + '건)' : ''));
       }
     });
-    touched = touched.concat(_syncDocKeys(addOp));
+    touched = touched.concat(_syncDocKeys(docJobs));
   } catch (e) {
     console.error('☁️ 병합 중 오류:', e);
     _fsMirror = prevMirror;
@@ -814,26 +1068,29 @@ function _syncNow() {
 
   if (touched.length) _afterRemoteApply(touched);
   _saveMirrorSoon();
+  _checkFirstSynced();
 
-  if (ops > 0) commits.push(batch.commit());
   _syncing = false;
   if (_syncAgain) { _syncAgain = false; setTimeout(_syncNow, 0); }
 
-  if (!commits.length) return;
+  _startPush(jobs, docJobs);
+}
 
-  // ⚠️ 오프라인에서는 commit 이 서버 확인까지 지연된다(로컬 캐시에는 즉시 기록).
-  //    await 하지 않고, 성공 시 상태 갱신 / 실패 시 미러 롤백 후 재시도.
-  Promise.all(commits).then(function () {
-    localStorage.setItem('last-backup-time', new Date().toISOString());
-    updateBackupStatus();
-    if (typeof refreshSettingsBackupStatus === 'function') refreshSettingsBackupStatus();
-    console.log('☁️ Firestore 푸시 완료');
-  }).catch(function (e) {
-    console.error('☁️ Firestore 푸시 실패 → 잠시 후 재시도:', e);
-    _fsMirror = prevMirror;           // 실패분이 다음 병합에 다시 포함되도록 롤백
-    _saveMirrorSoon();
-    setTimeout(scheduleAutoBackup, 5000);
-  });
+// 모든 컬렉션의 서버 값을 받아 병합까지 끝났는가 — 미뤄 둔 드라이브 백업을 이때 올린다.
+//  ⚠️ 그 전에 올리면 이 기기의 낡은 상태가 '가장 최근 백업'이 된다.
+function _checkFirstSynced() {
+  if (_fsFirstSynced || !_fsServerSeen.docs) return;
+  for (var i = 0; i < FS_ITEM_MAPS.length; i++) {
+    if (!_fsServerSeen[FS_ITEM_MAPS[i].coll]) return;
+  }
+  _fsFirstSynced = true;
+  _logSync('서버 값 수신 완료');
+  if (_fsBackupWaiting) {
+    _fsBackupWaiting = false;
+    setTimeout(function () {
+      if (typeof silentBackupToDrive === 'function') silentBackupToDrive();
+    }, 1500);
+  }
 }
 
 // 리스너가 부르는 짧은 디바운스. includeMetadataChanges 를 켜면 스냅샷이 잦게 오므로
@@ -871,22 +1128,68 @@ function _isEditing() {
   return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true;
 }
 
+// 지금 다시 그리면 안 되는가 — 다시 그리면 메모리·화면의 저장 전 내용이 사라지는 경우
+function _viewBusy() {
+  if (_isEditing()) return true;
+  try {
+    if (typeof currentMenu !== 'undefined' && currentMenu === 'mandalart') {
+      // 세부 실적 페이지는 저장 버튼을 누르기 전까지 메모리에만 있다(saveActF).
+      // 다시 그리면 목록 화면으로 튕기면서 그 수정도 버려진다.
+      if (typeof mdtDirtyCards !== 'undefined' && Object.keys(mdtDirtyCards).length) return true;
+      if (document.getElementById('mdt-detail-save-btn')) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+
+function _viewDependsOn(keys) {
+  var deps = (typeof currentMenu !== 'undefined') ? FS_VIEW_DEPS[currentMenu] : null;
+  if (!deps) return true;
+  return keys.some(function (k) { return deps.indexOf(k) >= 0; });
+}
+
 var _rerenderTimer = null;
-function _rerenderCurrentView() {
+var _rerenderWanted = false;
+//  keys 를 주면 그 변경이 이 화면과 관계있을 때만 다시 그린다. 인자 없음 = 미뤄 둔 것을 다시 시도.
+function _rerenderCurrentView(keys) {
   if (_rerenderTimer) { clearTimeout(_rerenderTimer); _rerenderTimer = null; }
+  if (keys && _viewDependsOn(keys)) _rerenderWanted = true;
+  if (!_rerenderWanted) return;
   // 입력 중에 화면을 갈아끼우면 타이핑하던 내용이 날아간다 → 잠시 뒤 다시 시도
-  if (_isEditing()) { _rerenderTimer = setTimeout(_rerenderCurrentView, 3000); return; }
+  if (_viewBusy()) { _rerenderTimer = setTimeout(function () { _rerenderCurrentView(); }, 3000); return; }
+  _rerenderWanted = false;
   try {
     if (typeof MENU_RENDERERS === 'undefined' || typeof currentMenu === 'undefined') return;
+    // Web 은 보드만 다시 그린다. 페이지 전체를 그리면 작성칸 초안이 지워지고 커서도 그리로 튄다.
+    if (currentMenu === 'cloud' && typeof renderNoteBoard === 'function' && document.getElementById('nb-board')) {
+      renderNoteBoard();
+      return;
+    }
     var fn = MENU_RENDERERS[currentMenu];
     if (fn && typeof window[fn] === 'function') window[fn]();
   } catch (e) { console.warn('원격 반영 후 화면 갱신 실패:', e); }
 }
 
+// 모듈의 메모리 사본을 저장소 값으로 다시 읽는다.
+//  ⚠️ 만다라트 세부 페이지의 수정은 저장 버튼 전까지 메모리에만 있다. 그냥 다시 읽으면 사라지므로
+//     '반영 직전 저장소 / 메모리 / 새 저장소'를 합쳐 저장 전 수정을 살린다.
+function _reloadModule(key, fn) {
+  if (typeof window[fn] !== 'function') return;
+  if (key === 'my-tasklog-mandalart' && typeof mdtDirtyCards !== 'undefined'
+      && Object.keys(mdtDirtyCards).length && typeof mandalarts !== 'undefined' && _prevRaw[key]) {
+    var mem = JSON.parse(JSON.stringify(mandalarts));
+    var prior = JSON.parse(_prevRaw[key]);
+    window[fn]();
+    mandalarts = _deepMerge3(prior, mem, mandalarts, false);
+    return;
+  }
+  window[fn]();
+}
+
 function _afterRemoteApply(keys) {
   keys.forEach(function (k) {
     (FS_RELOADERS[k] || []).forEach(function (fn) {
-      try { if (typeof window[fn] === 'function') window[fn](); }
+      try { _reloadModule(k, fn); }
       catch (e) { console.warn('원격 반영 후 재적재 실패(' + fn + '):', e); }
     });
     try { document.dispatchEvent(new CustomEvent('tasklog-remote-update', { detail: { key: k } })); }
@@ -896,9 +1199,12 @@ function _afterRemoteApply(keys) {
     try { if (typeof renderTasks === 'function') renderTasks(); } catch (e) {}
     try { if (typeof updateCategoryCounts === 'function') updateCategoryCounts(); } catch (e) {}
   }
-  _rerenderCurrentView();
+  _rerenderCurrentView(keys);
   console.log('📥 원격 변경 반영:', keys.join(', '));
 }
+
+// 화면이 저장할 때 자기가 손댄 칸만 반영하려고 쓴다 (기준값 · 내 값 · 지금 값)
+function fsMerge3(base, local, remote) { return _deepMerge3(base, local, remote, false); }
 
 // ============================================
 //  📡 실시간 수신
@@ -913,17 +1219,32 @@ function _cleanupTombstones(coll, ids) {
   } catch (e) {}
 }
 
+// 내 쓰기가 아직 안 돌아온 낡은 스냅샷인가 (돌아왔거나 시간이 지났으면 지키기를 끝낸다)
+function _echoHolds(echo, id, ua) {
+  var e = echo[id];
+  if (!e) return false;
+  if (ua >= e.ua || (Date.now() - e.at) > FS_ECHO_TTL_MS) { delete echo[id]; return false; }
+  return true;
+}
+
+function _noteServerSeen(name, snap) {
+  if (snap && snap.metadata && !snap.metadata.fromCache) _fsServerSeen[name] = true;
+}
+
 function _attachListeners() {
   FS_ITEM_MAPS.forEach(function (map) {
     // ⚠️ includeMetadataChanges 가 있어야 내 쓰기가 확정된 뒤 스냅샷이 한 번 더 온다.
     //    v1 은 이게 없어서, 미확정 구간에 도착한 남의 변경이 영영 반영되지 않았다.
     var unsub = _collRef(map.coll).onSnapshot({ includeMetadataChanges: true }, function (snap) {
-      var server = {}, pend = {}, tombs = [];
+      var server = {}, pend = {}, tombs = [], seen = {};
       var cutoff = _serverNow() - FS_TOMB_TTL_MS;   // _ua 가 서버 기준이라 여기도 맞춘다
+      var echo = _echo[map.lsKey] || {}, prev = _lastServer[map.lsKey] || {};
       snap.forEach(function (doc) {
+        seen[doc.id] = 1;
         // 통째로 버리지 않는다 — 미확정인 '그 문서'만 이번 판단에서 뺀다
         if (doc.metadata.hasPendingWrites) { pend[doc.id] = true; return; }
         var d = doc.data() || {};
+        if (prev[doc.id] && _echoHolds(echo, doc.id, d._ua || 0)) { server[doc.id] = prev[doc.id]; return; }
         if (d.__deleted) {
           server[doc.id] = { deleted: true, ua: d._ua || 0 };
           if ((d._ua || 0) && (d._ua < cutoff)) tombs.push(doc.id);
@@ -931,8 +1252,15 @@ function _attachListeners() {
         }
         server[doc.id] = { item: _unwrapItem(d), ua: d._ua || 0 };
       });
+      // 방금 만든 문서가 아직 안 실린 낡은 스냅샷 — 서버에서 지워진 것으로 읽으면 안 된다
+      Object.keys(echo).forEach(function (id) {
+        if (seen[id]) return;
+        if ((Date.now() - echo[id].at) > FS_ECHO_TTL_MS) { delete echo[id]; return; }
+        if (prev[id]) server[id] = prev[id];
+      });
       _lastServer[map.lsKey] = server;
       _pendingIds[map.lsKey] = pend;
+      _noteServerSeen(map.coll, snap);
       _syncSoon();
       if (tombs.length) _cleanupTombstones(map.coll, tombs);
     }, function (err) { console.error('onSnapshot 오류(' + map.coll + '):', err); });
@@ -940,15 +1268,24 @@ function _attachListeners() {
   });
 
   var unsubDocs = _collRef('docs').onSnapshot({ includeMetadataChanges: true }, function (snap) {
-    var server = {}, pend = {};
+    var server = {}, pend = {}, seen = {};
+    var prev = _lastServerDocs || {};
     snap.forEach(function (doc) {
       var d = doc.data() || {};
       if (!d.key || FS_DOC_KEYS.indexOf(d.key) === -1) return;   // _meta 등 무시
+      seen[d.key] = 1;
       if (doc.metadata.hasPendingWrites) { pend[d.key] = true; return; }
+      if (_echoHolds(_echoDocs, d.key, d._ua || 0)) { if (prev[d.key]) server[d.key] = prev[d.key]; return; }
       server[d.key] = { raw: (typeof d.raw === 'string' ? d.raw : null), ua: d._ua || 0 };
+    });
+    Object.keys(_echoDocs).forEach(function (key) {
+      if (seen[key]) return;
+      if ((Date.now() - _echoDocs[key].at) > FS_ECHO_TTL_MS) { delete _echoDocs[key]; return; }
+      if (prev[key]) server[key] = prev[key];
     });
     _lastServerDocs = server;
     _pendingDocIds  = pend;
+    _noteServerSeen('docs', snap);
     _syncSoon();
   }, function (err) { console.error('onSnapshot 오류(docs):', err); });
   _fsUnsubs.push(unsubDocs);
@@ -1047,6 +1384,15 @@ async function startFirestoreSync(uid) {
 
   _fsUid = uid;
   _fsStarted = true;
+  _fsGen++;
+  // 다시 연결되면 미뤄 둔 변경을 올린다
+  if (!window.__fsOnlineHooked) {
+    window.__fsOnlineHooked = true;
+    if (window.addEventListener) window.addEventListener('online', function () { if (_fsStarted) _syncSoon(); });
+    if (document.addEventListener) document.addEventListener('visibilitychange', function () {
+      if (_fsStarted && document.visibilityState === 'visible') _syncSoon();
+    });
+  }
   var reused = _loadMirror(uid);
   _loadClockOffset();     // 저장해 둔 시계 보정값을 먼저 쓴다 (측정은 아래에서 비동기로)
   console.log('🔄 Firestore 동기화 시작:', uid, reused ? '(이전 기준 상태 이어받음)' : '(기준 상태 새로 만듦)');
@@ -1073,6 +1419,16 @@ function stopFirestoreSync() {
   _pendingIds = {}; _pendingDocIds = {};
   _pendingUa = {};  _pendingDocUa = {};
   _preRemote = {};
+  _pendingH = {};
+  _inflight = {}; _inflightDocs = {};
+  _echo = {}; _echoDocs = {};
+  _prevRaw = {};
+  _pushFails = 0;
+  // ⚠️ _fsBackupWaiting 은 여기서 지우지 않는다. onSignInSync 가 startFirestoreSync 보다 먼저 돌 수 있고,
+  //    시작할 때 이 함수를 한 번 부르므로 지우면 미뤄 둔 백업이 영영 안 올라간다.
+  _fsServerSeen = {}; _fsFirstSynced = false;
+  _rerenderWanted = false;
+  _fsGen++;
   _fsUid = null;
   _fsStarted = false;
 }
@@ -1111,7 +1467,11 @@ function tasklogSyncStatus() {
     };
   });
   return {
-    uid: _fsUid, 동작중: _fsStarted, 항목수: counts,
+    uid: _fsUid, 동작중: _fsStarted, 서버값수신: _fsFirstSynced, 항목수: counts,
+    올리는중: FS_ITEM_MAPS.reduce(function (n, map) {
+      return n + Object.keys(_inflight[map.lsKey] || {}).length;
+    }, Object.keys(_inflightDocs).length),
+    연속실패: _pushFails,
     시계보정: { 오프셋ms: Math.round(_fsClockOffset), 왕복ms: _fsClockRtt,
               잰시각: _fsClockAt ? new Date(_fsClockAt).toLocaleString('ko-KR') : '아직 못 잼' },
     최근기록: _syncLog.slice(-20)
@@ -1131,5 +1491,46 @@ function tasklogSyncStatus() {
       }
     } catch (e) { console.warn('가져오기 후 동기화 실패:', e); }
     return r;
+  };
+})();
+
+// ============================================
+//  ☁️ 드라이브는 이제 백업 전용이다
+// --------------------------------------------
+//  ⚠️ drive.js 의 onSignInSync 는 로그인할 때마다 가장 최근 드라이브 백업으로 데이터 전체를
+//     덮어썼고, applyBackupData 위의 훅이 그 내용을 Firestore 로 올렸다. 그래서 폰이 접속만 해도
+//     백업 이후의 수정이 서버에서 사라졌고, 폰이 올린 낡은 백업을 웹이 새로고침 때 받아 웹 수정까지
+//     지웠다. Firestore 가 원본이므로 로그인 때는 아무것도 덮어쓰지 않는다.
+//     (설정의 수동 복원 restoreFromDrive 는 확인창을 거치므로 그대로 둔다)
+//  ⚠️ 백업은 서버 값을 받은 뒤에만 올린다. 그 전에 올리면 낡은 상태가 '가장 최근 백업'이 된다.
+//  firebaseReady 가 false 면(Firestore 미설정) 예전 동작 그대로 둔다.
+// ============================================
+(function () {
+  if (typeof onSignInSync !== 'function' || typeof silentBackupToDrive !== 'function') return;
+  var _driveSignInSync = onSignInSync;
+  var _driveSilentBackup = silentBackupToDrive;
+  function firestoreOn() { return typeof firebaseReady !== 'undefined' && firebaseReady; }
+
+  silentBackupToDrive = async function () {
+    if (firestoreOn() && !_fsFirstSynced) {
+      if (!_fsBackupWaiting) {
+        _fsBackupWaiting = true;
+        // Firebase 로그인 자체가 안 되는 상황이면 로컬이 유일한 사본이다 — 1분 기다렸다가 그대로 올린다
+        setTimeout(function () {
+          if (_fsBackupWaiting && !_fsStarted) { _fsBackupWaiting = false; _driveSilentBackup(); }
+        }, 60000);
+      }
+      return;
+    }
+    return _driveSilentBackup();
+  };
+
+  onSignInSync = async function () {
+    if (!firestoreOn()) return _driveSignInSync();
+    if (!isSignedIn()) return;
+    try { sessionStorage.setItem('tasklog-synced', '1'); } catch (e) {}
+    if (typeof enableAutoBackupNow === 'function') enableAutoBackupNow();
+    window.__backupReady = true;
+    console.log('🔑 로그인 감지 → 드라이브는 백업만 사용 (Firestore 가 원본)');
   };
 })();

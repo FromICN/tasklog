@@ -146,16 +146,42 @@ function jnlMonthCalPanel() {
     + '</div>';
 }
 
-// 현재 입력값을 메모리 엔트리에 임시 저장(탭 전환 시 유실 방지)
+// ── 저장 전 입력 보관 ──────────────────────
+//  저장 버튼을 누르기 전 입력은 화면에만 있다. 다른 기기 변경이 도착해 화면을 다시 그려도
+//  지워지지 않도록, 칸에 채운 값과 달라진 것만 주차별로 따로 들고 있다.
+//  저장할 때도 이것만 쓴다 — 화면 전체를 쓰면 손대지 않은 칸이 다른 기기의 새 값을 되돌린다.
+var JNL_FIELD_KEYS = ['achievement', 'issue', 'plan'];
+var _jnlDrafts = {};                       // { 주차키: { fields:{issue:'...'}, eval:{goal:3} } }
+var _jnlLoaded = { fields: {}, eval: {} }; // 칸에 마지막으로 채운 값
+
+function jnlFieldVal(el) { return (el.tagName === 'TEXTAREA') ? el.value : el.innerHTML; }
+function jnlSetFieldVal(el, val) {
+  if (el.tagName === 'TEXTAREA') el.value = val || '';
+  else el.innerHTML = jnlNormalizeRich(val || '');
+}
+function jnlRememberLoaded() {
+  _jnlLoaded = { fields: {}, eval: Object.assign({}, _jnlEval) };
+  JNL_FIELD_KEYS.forEach(function(k) {
+    var el = document.getElementById('jnl-' + k);
+    if (el) _jnlLoaded.fields[k] = jnlFieldVal(el);
+  });
+}
+
+// 달라진 칸을 보관한다. 달라진 게 있으면 true
 function jnlCaptureCurrent() {
-  if (!_journalWeek) return;
-  var entry = getJournalEntry(_journalWeek);
-  ['achievement','issue','plan'].forEach(function(k) {
+  if (!_journalWeek) return false;
+  var d = { fields: {}, eval: {} }, any = false;
+  JNL_FIELD_KEYS.forEach(function(k) {
     var el = document.getElementById('jnl-' + k);
     if (!el) return;
-    entry.sections[k] = (el.tagName === 'TEXTAREA') ? el.value : el.innerHTML;
+    var v = jnlFieldVal(el);
+    if (v !== _jnlLoaded.fields[k]) { d.fields[k] = v; any = true; }
   });
-  entry.evaluation = Object.assign({}, _jnlEval);
+  JNL_EVAL_ITEMS.forEach(function(it) {
+    if ((_jnlEval[it.k] || 0) !== (_jnlLoaded.eval[it.k] || 0)) { d.eval[it.k] = _jnlEval[it.k] || 0; any = true; }
+  });
+  if (any) _jnlDrafts[_journalWeek] = d; else delete _jnlDrafts[_journalWeek];
+  return any;
 }
 
 function jnlSection(key, title, hint, actionBtn, rich) {
@@ -190,14 +216,29 @@ function jnlFillEntry(key) {
   jnlBuildTracker();
   jnlRefreshWeekGrid();   // 주간 탭이면 그리드/네비 라벨 갱신
   _jnlEval = jnlNormEval(entry.evaluation);
+  jnlRememberLoaded();
+  // 저장 안 한 입력이 있으면 다시 얹는다 (다시 그리기 · 주차 이동에도 남는다)
+  var draft = _jnlDrafts[key];
+  if (draft) {
+    Object.keys(draft.fields).forEach(function(k) {
+      var el = document.getElementById('jnl-' + k);
+      if (!el) return;
+      if (el.tagName === 'TEXTAREA') el.value = draft.fields[k]; else el.innerHTML = draft.fields[k];
+    });
+    Object.assign(_jnlEval, draft.eval);
+  }
   jnlRenderEvalState();
   jnlUpdateSavedAt(entry.savedAt);
-  jnlClearDirty();
+  if (draft) jnlPaintDirty(); else jnlClearDirty();
+}
+
+function jnlPaintDirty() {
+  var btn = document.getElementById('jnl-save-btn');
+  if (btn) { btn.textContent = '저장 *'; btn.style.opacity = '1'; }
 }
 
 function jnlMarkDirty() {
-  var btn = document.getElementById('jnl-save-btn');
-  if (btn) { btn.textContent = '저장 *'; btn.style.opacity = '1'; }
+  if (jnlCaptureCurrent()) jnlPaintDirty(); else jnlClearDirty();
 }
 
 function jnlClearDirty() {
@@ -219,16 +260,25 @@ function jnlUpdateSavedAt(iso) {
 
 function jnlSave() {
   if (!_journalWeek) return;
+  jnlCaptureCurrent();
   var entry = getJournalEntry(_journalWeek);
-  ['achievement','issue','plan'].forEach(function(k) {
-    var el = document.getElementById('jnl-' + k);
-    if (!el) return;
-    entry.sections[k] = (el.tagName === 'TEXTAREA') ? el.value : el.innerHTML;
-  });
-  entry.evaluation = Object.assign({}, _jnlEval);
+  var draft = _jnlDrafts[_journalWeek] || { fields: {}, eval: {} };
+  // 손댄 칸만 쓴다. 나머지는 다른 기기가 고쳤을 수 있는 저장소 값을 그대로 둔다.
+  Object.keys(draft.fields).forEach(function(k) { entry.sections[k] = draft.fields[k]; });
+  // 정규화한 값 위에 얹어 통째로 넣는다 — 옛 키(prioritization·timeManagement)가 남지 않는다
+  entry.evaluation = Object.assign(jnlNormEval(entry.evaluation), draft.eval);
   entry.savedAt = new Date().toISOString();
   entry.weekLabel = getWeekLabel(_journalWeek);
   saveJournal();
+  delete _jnlDrafts[_journalWeek];
+  // 손대지 않은 칸도 저장소 값으로 맞춘다 (그사이 다른 기기가 고친 내용)
+  JNL_FIELD_KEYS.forEach(function(k) {
+    var el = document.getElementById('jnl-' + k);
+    if (el && !(k in draft.fields)) jnlSetFieldVal(el, entry.sections[k]);
+  });
+  _jnlEval = jnlNormEval(entry.evaluation);
+  jnlRenderEvalState();
+  jnlRememberLoaded();
   jnlUpdateSavedAt(entry.savedAt);
   jnlClearDirty();
   showJnlToast('저장되었습니다');

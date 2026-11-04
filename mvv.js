@@ -73,17 +73,37 @@ function loadMVV() {
   mvvState.actionPlan = yd.actionPlan || '';
   mvvState.dirty = false;
   mvvState.saved = false;
+
+  // 자동 저장(0.8초) 전 입력은 지우지 않는다 — 다른 기기 변경이 도착해 다시 읽어도 손댄 칸은 남긴다
+  var t = mvvState._touched;
+  if (t && t.year === mvvState.year) {
+    var keys = Object.keys(t.fields);
+    keys.forEach(function(k) { mvvState[k] = t.fields[k]; });
+    if (keys.length) mvvState.dirty = true;
+  } else {
+    mvvState._touched = null;
+  }
 }
 
 function saveMVVData() {
   var store = mvvReadStore();
   if (!store.years) store.years = {};
-  store.years[String(mvvState.year)] = {
-    mission:    mvvState.mission,
-    vision:     mvvState.vision,
-    what:       mvvState.what,
-    actionPlan: mvvState.actionPlan,
+  // 손댄 칸만 쓴다. 나머지는 다른 기기가 고쳤을 수 있는 저장소 값을 그대로 둔다.
+  var y = String(mvvState.year);
+  var cur = store.years[y] || {};
+  var touched = (mvvState._touched && mvvState._touched.year === mvvState.year) ? mvvState._touched.fields : {};
+  function pick(k) { return (k in touched) ? touched[k] : (cur[k] || ''); }
+  store.years[y] = {
+    mission:    pick('mission'),
+    vision:     pick('vision'),
+    what:       pick('what'),
+    actionPlan: pick('actionPlan'),
   };
+  mvvState.mission    = store.years[y].mission;
+  mvvState.vision     = store.years[y].vision;
+  mvvState.what       = store.years[y].what;
+  mvvState.actionPlan = store.years[y].actionPlan;
+  mvvState._touched = null;
   // sectionValues는 라이프 휠과 공유 → 보존
   if (!store.sectionValues) store.sectionValues = mvvState.sectionValues || {};
   localStorage.setItem(MVV_KEY, JSON.stringify(store));
@@ -248,6 +268,10 @@ function bindMVVEvents() {
     if (!el) return;
     el.addEventListener('input', function() {
       mvvState[f.key] = this.innerHTML;
+      if (!mvvState._touched || mvvState._touched.year !== mvvState.year) {
+        mvvState._touched = { year: mvvState.year, fields: {} };
+      }
+      mvvState._touched.fields[f.key] = this.innerHTML;
       mvvMarkDirty();
       mvvScheduleAutoSave();
     });

@@ -42,9 +42,16 @@ function getNotesByType(type) {
 }
 
 // Archiving 칼럼에 표시할 메모만 (type === 'memo')
-//  기본은 최신순(createNote 가 앞에 넣는다). 드래그로 바꾼 순서가 있으면 그것을 따른다.
+//  기본은 최신순(createdAt 내림차순). 드래그로 바꾼 순서가 있으면 그것을 따른다.
+//  ⚠️ 배열 순서로 최신순을 삼으면 안 된다 (2026-11-02). createNote 는 앞에 넣지만,
+//     다른 기기·폰 위젯에서 만든 메모는 동기화(firestore-sync.js)가 배열 '뒤'에 붙여
+//     새 메모가 맨 아래로 갔다. createdAt 이 없는 옛 메모는 맨 뒤에 원래 순서대로 남는다.
 function getArchivingNotes() {
-  var memos = notesData.filter(function(n){ return n.type === 'memo'; });
+  var memos = notesData.filter(function(n){ return n.type === 'memo'; })
+    .sort(function(a, b){
+      var x = String(a.createdAt || ''), y = String(b.createdAt || '');
+      return x === y ? 0 : (x < y ? 1 : -1);
+    });
   return nbApplyManualOrder(memos, nbLoadOrder('nbMemoOrder'), function(n){ return String(n.id); }, true);
 }
 

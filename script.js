@@ -2229,6 +2229,7 @@ function openNewTaskPanel(taskId) {
   rpState.completed   = task ? !!task.completed : false;
   rpState.starred     = task ? !!task.starred : false;
   rpState.createdAt   = task ? (task.createdAt || null) : null;
+  rpState.orig        = task ? JSON.parse(JSON.stringify(task)) : null;   // 저장 때 손댄 칸을 가려내는 기준
   detailTaskId        = taskId || null;
 
   var titleEl = document.getElementById('rp-title');
@@ -2983,6 +2984,7 @@ function saveRightPanel() {
   if (rpState.taskId) {
     var task = tasks.find(function(t){ return t.id === rpState.taskId; });
     if (task) {
+      var _rpNow = JSON.parse(JSON.stringify(task));   // 패널을 연 사이 다른 기기 변경이 반영된 지금 값
       task.text        = applyCompletePrefix(name, rpState.completed, task.text);
       task.completed   = rpState.completed;
       task.starred     = rpState.starred;
@@ -3002,6 +3004,12 @@ function saveRightPanel() {
       task.prevTaskIds = rpState.prevTaskIds.slice();
       task.nextTaskIds = rpState.nextTaskIds.slice();
       if (rpState.mdtAction) task.mdtAction = rpState.mdtAction; else delete task.mdtAction;
+      // 폼 전체를 그대로 쓰면 패널을 연 사이 다른 기기가 고친 칸이 되돌아간다 — 내가 손댄 칸만 반영한다
+      if (rpState.orig && typeof fsMerge3 === 'function') {
+        var _rpMerged = fsMerge3(rpState.orig, JSON.parse(JSON.stringify(task)), _rpNow);
+        Object.keys(task).forEach(function(k){ delete task[k]; });
+        Object.assign(task, _rpMerged);
+      }
       savedTask = task;
     }
   } else {
