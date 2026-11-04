@@ -658,17 +658,11 @@ function wbsToggle(nodeId) {
   if (tog) tog.textContent = _wbsOpen[nodeId] ? '▼' : '▶';
 }
 
+// 완료 규칙([YYMMDD]·completedAt)은 toggleStep 에 있다. 여기서 따로 쓰면 WBS 에서 끝낸 To Do 만
+//  완료 날짜가 없어 Work Diary 등에서 빠진다 (2026-11-04). 할 일 체크가 toggleComplete 를 쓰는 것과 같다.
 function wbsToggleStep(taskId, stepId) {
-  if (typeof tasks === 'undefined') return;
-  var task = tasks.find(function(t){ return t.id === taskId; });
-  if (!task) return;
-  var step = task.steps.find(function(s){ return s.id === stepId; });
-  if (!step) return;
-  // 앱 공통 필드는 step.completed (구버전 step.done도 함께 갱신)
-  step.completed = !step.completed;
-  step.done = step.completed;
-  if (typeof saveTasks === 'function') saveTasks();
-  renderWbsView();
+  if (typeof toggleStep === 'function') toggleStep(taskId, stepId);
+  renderWbsView();   // 체크박스·STATUS·롤업 즉시 갱신
 }
 
 // ── 트리 빌드 (만다라트 연도별 Section → Project → TASK → TO-DO) ──

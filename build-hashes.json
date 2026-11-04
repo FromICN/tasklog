@@ -21,7 +21,7 @@
   "gantt.js": "5cfc4ac79940",
   "notes.js": "f7b8795207b3",
   "journal.js": "037b44c814d2",
-  "wbs.js": "7424571b4b65",
+  "wbs.js": "49f727b7084d",
   "mvv.js": "d21b5ecb299a",
   "settings.js": "1d5f4a559ab0",
   "drive.js": "3d1a9d575670",
@@ -29,6 +29,6 @@
   "todo.js": "a36531615484",
   "yearsync.js": "20e085b8cc42",
   "script.js": "110f2d29925d",
-  "pwa.js": "aef4b8ef35be",
+  "pwa.js": "a312a4735195",
   "mobile-ui.js": "ff2c7494ef27"
 }
