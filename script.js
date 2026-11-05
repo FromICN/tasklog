@@ -98,7 +98,7 @@ function loadTasks() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     tasks = JSON.parse(saved).map(t => {
-      const normalized = { steps: [], reminder: null, assignee: '', assignees: [], repeat: null, startDate: null, prevTaskIds: [], nextTaskIds: [], ...t };
+      const normalized = { steps: [], reminder: null, assignee: '', assignees: [], repeat: null, startDate: null, hasTime: false, startHasTime: false, prevTaskIds: [], nextTaskIds: [], ...t };
       if (!Array.isArray(normalized.prevTaskIds)) normalized.prevTaskIds = [];
       if (!Array.isArray(normalized.nextTaskIds)) normalized.nextTaskIds = [];
       // 구 버전 호환: assignee 문자열 → assignees 배열
@@ -107,10 +107,8 @@ function loadTasks() {
         normalized.assignees = [normalized.assignee];
       }
       normalized.assignee = '';
-      normalized.steps = normalized.steps.map(s => ({ dueDateTime: null, ...s, hasTime: false }));
-      // start / due / To Do 마감일은 날짜(YYYY-MM-DD)만 사용 — 기존에 저장된 HH:MM 표시는 제거
-      normalized.hasTime = false;
-      normalized.startHasTime = false;
+      // ⚠️ hasTime·startHasTime 을 여기서 지우지 말 것 — Start·Due 시간이 새로고침마다 사라진다
+      normalized.steps = normalized.steps.map(s => ({ dueDateTime: null, hasTime: false, ...s }));
       // 구 버전 호환: 상태값 보류/지연 → 연기로 통합
       if (normalized.status === '보류' || normalized.status === '지연') normalized.status = '연기';
       return normalized;
@@ -2284,16 +2282,20 @@ function buildDateSegInput(hiddenId, dateStr) {
     + '<input type="hidden" id="' + hiddenId + '" value="' + (dateStr || '') + '">'
     + '</div>';
 }
-// ── Start/Due 통합 입력: YYYY-MM-DD-HH:MM 한 칸에 타이핑 ──
+// ── Start/Due 입력: 날짜 칸 + 시간 칸. 시간을 비우면 날짜만 쓰는 Task 다 ──
+//  한 칸에 이어 치면 이미 적힌 날짜에 시간만 더하거나 지우기가 번거로워서 칸을 나눴다.
 function buildDateTimeInput(id, dateStr, timeStr) {
-  // 날짜(YYYY-MM-DD)만 입력 — 시간(HH:MM)은 사용하지 않음
-  var val = dateStr || '';
-  return '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
-    + ' inputmode="numeric" placeholder="YYYY-MM-DD" value="' + val + '"'
-    + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">';
+  return '<div class="rp-dt-pair">'
+    + '<input type="text" class="field-input rp-dtinput" id="' + id + '"'
+    + ' inputmode="numeric" placeholder="YYYY-MM-DD" value="' + (dateStr || '') + '"'
+    + ' oninput="rpDtInput(this)" onfocus="try{this.select()}catch(e){}">'
+    + '<input type="text" class="field-input rp-dtinput rp-tminput" id="' + id + '-tm"'
+    + ' inputmode="numeric" placeholder="시간" aria-label="시간 (비우면 날짜만)" value="' + (timeStr || '') + '"'
+    + ' oninput="rpTmInput(this)" onblur="rpTmBlur(this)" onfocus="try{this.select()}catch(e){}">'
+    + '</div>';
 }
 function rpDtInput(el) {
-  // 최대 8자리(YYYYMMDD)만 받아 'YYYY-MM-DD'로 포맷 — 시간 입력 제거
+  // 최대 8자리(YYYYMMDD)만 받아 'YYYY-MM-DD'로 포맷
   var d = el.value.replace(/\D/g, '').slice(0, 8);
   var out = d.slice(0, 4);
   if (d.length > 4)  out += '-' + d.slice(4, 6);
@@ -2301,6 +2303,23 @@ function rpDtInput(el) {
   el.value = out;
   if (typeof rpState !== 'undefined') rpState.dirty = true;
 }
+// 시간 칸: 숫자만 쳐도 되게 한다 (폰 숫자 자판에는 ':' 이 없다). 930 → 09:30, 1430 → 14:30
+function rpTmInput(el) {
+  var d = el.value.replace(/\D/g, '');
+  if (d && +d.charAt(0) > 2) d = '0' + d;      // 시의 첫 자리는 0~2 뿐이다
+  d = d.slice(0, 4);
+  el.value = d.length > 2 ? d.slice(0, 2) + ':' + d.slice(2) : d;
+  if (typeof rpState !== 'undefined') rpState.dirty = true;
+}
+function rpTmParse(digits) {
+  var d = String(digits || '').replace(/\D/g, '');
+  if (!d) return null;
+  if (d.length === 1) d = '0' + d;
+  var hh = Math.min(23, parseInt(d.slice(0, 2), 10) || 0);
+  var mm = d.length > 2 ? Math.min(59, parseInt((d.slice(2) + '0').slice(0, 2), 10) || 0) : 0;
+  return pad2(hh) + ':' + pad2(mm);
+}
+function rpTmBlur(el) { el.value = rpTmParse(el.value) || ''; }
 function parseRpDateTime(id) {
   var el = document.getElementById(id);
   var raw = el ? el.value.replace(/\D/g, '') : '';
@@ -2309,13 +2328,8 @@ function parseRpDateTime(id) {
   var mo = Math.min(12, Math.max(1, parseInt(raw.slice(4, 6), 10) || 1));
   var da = Math.min(31, Math.max(1, parseInt(raw.slice(6, 8), 10) || 1));
   var dateStr = y + '-' + pad2(mo) + '-' + pad2(da);
-  var timeStr = null;
-  if (raw.length >= 10) {
-    var hh = Math.min(23, parseInt(raw.slice(8, 10), 10) || 0);
-    var mm = (raw.length >= 12) ? Math.min(59, parseInt(raw.slice(10, 12), 10) || 0) : 0;
-    timeStr = pad2(hh) + ':' + pad2(mm);
-  }
-  return { dateStr: dateStr, timeStr: timeStr };
+  var tmEl = document.getElementById(id + '-tm');
+  return { dateStr: dateStr, timeStr: tmEl ? rpTmParse(tmEl.value) : null };
 }
 
 function dsegFocus(hiddenId, part, toEnd) {
@@ -2951,6 +2965,16 @@ function saveRightPanel() {
 
   var _dueDt    = parseRpDateTime('rp-due-dt');
   var _startDt  = parseRpDateTime('rp-start-dt');
+
+  // 날짜 없이 시간만 적었으면 그대로 저장하면 시간이 말없이 사라진다 → 날짜 칸을 알려 준다
+  var _noDate = !_startDt.dateStr && (document.getElementById('rp-start-dt-tm') || {}).value ? 'rp-start-dt'
+              : !_dueDt.dateStr && (document.getElementById('rp-due-dt-tm') || {}).value ? 'rp-due-dt' : null;
+  if (_noDate) {
+    var _dateEl = document.getElementById(_noDate);
+    if (_dateEl) { _dateEl.style.outline = '2px solid var(--danger)'; _dateEl.focus(); }
+    return;
+  }
+
   var dueDate   = _dueDt.dateStr   || '';
   var startDate = _startDt.dateStr || '';
   var notesVal  = (document.getElementById('rp-notes')      || {}).value  || '';
@@ -3083,6 +3107,7 @@ var _SVG = {
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
+  { id:'calendar',  icon:_SVG.calendar,  label:'Calendar',     short:'Cal'  },
   { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
   { divider:true },
   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
@@ -3095,7 +3120,7 @@ var MENUS = [
 ];
 
 // 사이드바 구분선 위치 = 표시 중인 메뉴 중 몇 번째 다음에 넣을지
-// (MENUS 기본 구성의 divider 자리와 같다 — Home · Web · WD 다음)
+// (MENUS 기본 구성의 divider 자리와 같다 — Home · Web · Calendar · WD 다음)
 var MENU_DIVIDER_AT = MENUS.findIndex(function(m) { return m.divider; });
 
 var MENU_TITLES = {
@@ -3122,10 +3147,10 @@ var MENU_VIS_KEY = { desktop: 'app-menu-visible-desktop', mobile: 'app-menu-visi
 
 // 기본값 — 저장된 값이 없을 때 쓰인다.
 //  · 데스크탑: Board 만 숨김
-//  · 모바일  : Web · Habit Tracker · Mandalart · WBS 만 표시
+//  · 모바일  : Web · Calendar · Habit Tracker · Mandalart · WBS 만 표시
 var MENU_VIS_DEFAULTS = {
-  desktop: { home:true,  cloud:true, journal:true,  mvv:true,  wheel:true,  mandalart:true, habit:true, todo:false, project:true,  wbs:true },
-  mobile:  { home:false, cloud:true, journal:false, mvv:false, wheel:false, mandalart:true, habit:true, todo:false, project:false, wbs:true },
+  desktop: { home:true,  cloud:true, calendar:true, journal:true,  mvv:true,  wheel:true,  mandalart:true, habit:true, todo:false, project:true,  wbs:true },
+  mobile:  { home:false, cloud:true, calendar:true, journal:false, mvv:false, wheel:false, mandalart:true, habit:true, todo:false, project:false, wbs:true },
 };
 
 // mobile-ui.js 와 같은 기준(768px)을 쓴다 — 두 곳이 어긋나면 폰에서
@@ -3262,7 +3287,7 @@ function initSidebar() {
   var prof = appMenuProfile();
   var vis = getMenuVis(prof);
   var items = orderedMenus(prof).filter(function(m) { return vis[m.id] !== false; });
-  // 구분선은 기본 구성과 같은 자리(위에서 세 번째 다음)에 둔다.
+  // 구분선은 기본 구성과 같은 자리(위에서 네 번째 다음)에 둔다.
   // 순서를 바꿔도 사이드바의 덩어리 나눔이 그대로 유지된다.
   if (items.length > MENU_DIVIDER_AT) items.splice(MENU_DIVIDER_AT, 0, { divider:true });
 

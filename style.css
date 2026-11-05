@@ -10162,6 +10162,12 @@ body :is(input, textarea, [contenteditable]):focus-visible {
   padding-right: var(--space-1);
 }
 .rp-dtinput::placeholder { letter-spacing: -0.2px; }
+/* Start/Due: 날짜 칸 + 시간 칸 */
+.rp-dt-pair { display: flex; gap: 4px; }
+.rp-dt-pair .rp-dtinput { flex: 1 1 auto; width: auto; min-width: 0; }
+.rp-dt-pair .rp-tminput { flex: 0 0 48px; width: 48px; }
+/* 폰은 입력칸 글자가 16px 로 커져(확대 방지) 48px 이면 잘린다 */
+@media (max-width: 768px) { .rp-dt-pair .rp-tminput { flex-basis: 68px; width: 68px; } }
 
 /* [R3 #3] 시계: 설명 문구 제거로 하단 여백 최소화 */
 .sdp-clock { gap: 6px; }

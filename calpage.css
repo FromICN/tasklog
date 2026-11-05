@@ -1,0 +1,434 @@
+/* ============================================================
+   📅 Calendar 페이지 — calpage.js 가 그리는 화면 전용
+   theme.css 뒤에 로드한다. 색은 전부 테마 토큰만 쓴다.
+   주홍(--tl-seal)은 테마 규칙대로 '지금'에만 쓴다 — 오늘 날짜와 현재 시각선.
+   ============================================================ */
+
+.tlc-page {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 4px 4px;
+  min-height: 0;
+
+  --fc-border-color: var(--tl-rule);
+  --fc-page-bg-color: var(--main-bg);
+  --fc-neutral-bg-color: var(--tl-rule-soft);
+  --fc-neutral-text-color: var(--text-3);
+  --fc-today-bg-color: transparent;
+  --fc-now-indicator-color: var(--tl-seal);
+  --fc-event-bg-color: var(--tl-pine);
+  --fc-event-border-color: var(--tl-pine);
+  --fc-event-text-color: #fff;
+  --fc-list-event-hover-bg-color: var(--surface-hover);
+  --fc-more-link-bg-color: transparent;
+  --fc-more-link-text-color: var(--text-2);
+  --fc-small-font-size: var(--fs-xs);
+}
+
+/* ── 상단 도구 ─────────────────────────────── */
+.tlc-tools {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.tlc-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
+
+.tlc-btn {
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--tl-rule);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tlc-btn:hover { background: var(--surface-hover); }
+.tlc-icon { width: 32px; padding: 0; font-size: var(--fs-xl); line-height: 1; }
+.tlc-create {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: var(--main-bg);   /* 브랜드색이 테마마다 명암이 뒤집히므로 흰색을 박지 않는다 */
+  font-weight: 600;
+}
+.tlc-create:hover { background: var(--brand-primary); opacity: .88; }
+
+.tlc-title {
+  height: 32px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tlc-title:hover { color: var(--text-2); }
+
+.tlc-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--tl-rule);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+  color: var(--text-3);
+}
+.tlc-search input {
+  width: 120px;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+}
+.tlc-search:focus-within { border-color: var(--text-2); }
+
+.tlc-seg { display: flex; border: 1px solid var(--tl-rule); border-radius: var(--radius-md); overflow: hidden; }
+.tlc-seg-btn {
+  height: 30px;
+  padding: 0 11px;
+  border: 0;
+  border-left: 1px solid var(--tl-rule);
+  background: var(--card-solid);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tlc-seg-btn:first-child { border-left: 0; }
+.tlc-seg-btn:hover { background: var(--surface-hover); }
+.tlc-seg-btn.is-on { background: var(--brand-primary); color: var(--main-bg); font-weight: 600; }
+
+/* 떠서 겹치는 것 — 비치면 뒤 글자와 겹치므로 불투명으로 칠한다 */
+.tlc-menu-wrap { position: relative; display: inline-flex; }
+.tlc-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 210px;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid var(--tl-rule);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+  box-shadow: var(--shadow-md);
+}
+.tlc-menu[hidden] { display: none; }
+.tlc-menu-right { left: auto; right: 0; }
+.tlc-menu-h {
+  margin: 8px 0 4px;
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-family: var(--tl-mono);
+}
+.tlc-menu-h:first-child { margin-top: 0; }
+.tlc-menu-note { padding: 4px 2px; color: var(--text-3); font-size: var(--fs-xs); }
+.tlc-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.tlc-check input { margin: 0; flex: 0 0 auto; }
+
+.tlc-mini-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* ── 항목 표시 ─────────────────────────────── */
+.tlc-mark {
+  flex: 0 0 auto;
+  display: inline-block;
+  box-sizing: border-box;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--tlc-c, var(--text-3));
+  border-radius: 50%;
+}
+.tlc-mark-step { width: 9px; height: 9px; border-radius: 2px; }
+.tlc-mark.is-done,
+.tlc-mark-google { background: var(--tlc-c, var(--text-3)); }
+
+.tlc-ev {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0 3px;
+  color: var(--text-1);
+  font-size: var(--fs-xs);
+  line-height: 18px;
+}
+.tlc-tt { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tlc-time { flex: 0 0 auto; color: var(--text-2); font-family: var(--tl-mono); font-size: var(--fs-2xs); }
+.tlc-is-done .tlc-tt { color: var(--text-3); text-decoration: line-through; }
+.tlc-k-step .tlc-tt { color: var(--text-2); }
+
+/* ── FullCalendar 덮어쓰기 ─────────────────── */
+.tlc-body { position: relative; flex: 1 1 auto; min-height: 0; }
+.tlc-body > [hidden] { display: none !important; }
+.tlc-fc { height: 100%; color: var(--text-1); font-size: var(--fs-sm); }
+
+.tlc-fc a { color: inherit; text-decoration: none; }
+/* 머리글·종일 칸은 본문과 줄을 맞추려고 빈 스크롤바 자리를 갖는다. 화살표까지 그리면 지저분하다 */
+.tlc-fc .fc-scroller::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.tlc-fc .fc-day-sat,
+.tlc-fc .fc-day-sun { background: var(--tl-weekend); }
+
+.tlc-fc .fc-col-header-cell { font-weight: 400; }
+.tlc-fc .fc-col-header-cell-cushion {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+}
+.tlc-fc .fc-dayGridMonth-view .fc-col-header-cell-cushion { font-family: var(--tl-mono); }
+
+.tlc-dnum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--text-2);
+  font-family: var(--tl-mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.tlc-dnum.is-first { min-width: 0; font-family: inherit; font-weight: 600; }
+.tlc-dnum.is-now { min-width: 22px; background: var(--tl-seal); color: #fff; font-weight: 600; }
+.fc-col-header-cell .tlc-dnum { min-width: 26px; height: 26px; font-size: var(--fs-md); }
+.tlc-head-dow { font-size: var(--fs-2xs); color: var(--text-3); }
+
+.tlc-fc .fc-daygrid-day-top { justify-content: center; }
+.tlc-fc .fc-daygrid-day-number { padding: 2px; }
+.tlc-fc .fc-timegrid-axis-cushion,
+.tlc-fc .fc-timegrid-slot-label-cushion {
+  color: var(--text-3);
+  font-family: var(--tl-mono);
+  font-size: var(--fs-2xs);
+}
+.tlc-fc .fc-timegrid-axis-cushion { font-family: inherit; }
+.tlc-fc .fc-timegrid-slot-minor { border-top-style: none; }
+.tlc-fc .fc-daygrid-more-link { color: var(--text-2); font-size: var(--fs-2xs); }
+.tlc-fc .fc-daygrid-more-link:hover { background: var(--surface-hover); }
+.tlc-fc .fc-popover { box-shadow: var(--shadow-md); }
+.tlc-fc .fc-popover-header { color: var(--text-2); font-size: var(--fs-xs); background: var(--surface-hover); }
+
+/* Task·To Do — 칠하지 않고 한 줄로. 눌리는 것임을 hover 로 알린다 */
+.tlc-fc .fc-event.tlc-item { cursor: pointer; }
+.tlc-fc .fc-event.tlc-item:hover { background: var(--surface-hover) !important; }
+.tlc-fc .fc-timegrid-event.tlc-item {
+  background: color-mix(in srgb, var(--tlc-c, var(--text-3)) 20%, var(--main-bg)) !important;
+  border-left: 3px solid var(--tlc-c, var(--text-3)) !important;
+}
+/* 시간 칸 안에서는 시각 한 줄 + 제목 여러 줄 — 한 줄에 몰면 제목이 거의 안 보인다 */
+.tlc-fc .fc-timegrid-event .tlc-ev { flex-wrap: wrap; align-items: center; align-content: flex-start; height: 100%; overflow: hidden; line-height: 15px; }
+.tlc-fc .fc-timegrid-event .tlc-tt { flex: 1 1 100%; white-space: normal; }
+.tlc-fc .fc-event.tlc-google { cursor: pointer; }
+.tlc-fc .fc-daygrid-event { font-size: var(--fs-xs); }
+.tlc-fc .fc-daygrid-dot-event .fc-event-title { font-weight: 400; color: var(--text-1); }
+.tlc-fc .fc-daygrid-dot-event .fc-event-time { color: var(--text-2); }
+.tlc-fc .fc-daygrid-dot-event:hover { background: var(--surface-hover); }
+
+/* 목록 보기 */
+.tlc-fc .fc-list { border-color: var(--tl-rule); }
+/* 점은 항목 안에 직접 그린다. 칸을 display:none 하면 날짜 줄의 colspan 과 어긋나
+   표 너비 계산이 무너져 시간 칸이 폭의 1/3 을 먹는다 → 칸은 남기고 폭만 없앤다 */
+.tlc-fc .fc-list-event-graphic { width: 0; padding: 0 !important; }
+.tlc-fc .fc-list-event-dot { display: none; }
+.tlc-fc .fc-list-event { cursor: pointer; }
+/* 긴 제목이 표를 넓히지 않게 — 자동 표에서 말줄임을 쓰려면 max-width:0 이 필요하다 */
+.tlc-fc .fc-list-event-title { width: 100%; max-width: 0; padding: 6px 8px; }
+.tlc-fc .fc-list-event-time {
+  padding: 6px 8px 6px 10px;
+  color: var(--text-3);
+  font-family: var(--tl-mono);
+  font-size: var(--fs-xs);
+}
+.tlc-fc .fc-list-event-title .tlc-ev { font-size: var(--fs-sm); }
+.tlc-fc .fc-list-day-cushion { padding: 5px 10px; font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+.tlc-fc .fc-list-empty { background: transparent; color: var(--text-3); }
+
+/* ── 연도 보기 ─────────────────────────────── */
+.tlc-year, .tlc-results { height: 100%; overflow-y: auto; }
+.tlc-year-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 18px 22px;
+  padding: 2px 2px 12px;
+}
+.tlc-ymonth-t {
+  display: block;
+  margin: 0 0 6px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+.tlc-ymonth-t:hover { color: var(--text-2); }
+
+.tlc-mg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.tlc-mg-dow { padding-bottom: 2px; color: var(--text-3); font-size: var(--fs-2xs); text-align: center; }
+.tlc-mg-d {
+  aspect-ratio: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--tl-mono);
+  font-size: var(--fs-2xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.tlc-mg-d:hover { background: var(--surface-hover); }
+.tlc-mg-d.lvl-1 { background: var(--tl-pine-wash); color: var(--text-1); }
+.tlc-mg-d.lvl-2 { background: color-mix(in srgb, var(--tl-pine) 34%, transparent); color: var(--text-1); }
+.tlc-mg-d.lvl-3 { background: color-mix(in srgb, var(--tl-pine) 58%, transparent); color: var(--text-1); }
+.tlc-mg-d.is-sel { outline: 1.5px solid var(--text-1); outline-offset: -1.5px; }
+.tlc-mg-d.is-now { background: var(--tl-seal); color: #fff; font-weight: 600; }
+
+/* ── 검색 결과 ─────────────────────────────── */
+.tlc-empty { padding: 40px 0; color: var(--text-3); font-size: var(--fs-sm); text-align: center; }
+.tlc-res-sum { padding: 2px 4px 8px; color: var(--text-3); font-size: var(--fs-xs); }
+.tlc-res-day {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 6px 4px;
+  background: var(--main-bg);
+  border-bottom: 1px solid var(--tl-rule-soft);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.tlc-res {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.tlc-res:hover { background: var(--surface-hover); }
+.tlc-res-time { flex: 0 0 44px; color: var(--text-3); font-family: var(--tl-mono); font-size: var(--fs-xs); }
+.tlc-res-parent {
+  flex: 0 1 30%;
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* ── 구글 일정 요약 ────────────────────────── */
+.tlc-pop {
+  position: fixed;
+  z-index: 3000;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--tl-rule);
+  border-radius: var(--radius-md);
+  background: var(--card-solid);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+}
+.tlc-pop-title {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tlc-pop-row { margin-top: 4px; overflow-wrap: anywhere; }
+.tlc-pop-dim { color: var(--text-3); font-size: var(--fs-xs); }
+.tlc-pop-desc { max-height: 120px; overflow-y: auto; color: var(--text-2); white-space: pre-wrap; }
+.tlc-pop-link { display: inline-block; margin-top: 10px; color: var(--text-2); font-size: var(--fs-xs); text-decoration: underline; }
+
+/* ── 폰 ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .tlc-page { padding: 4px 0 0; gap: 8px; }
+  .tlc-group-nav, .tlc-group-side { width: 100%; }
+  .tlc-create-label { display: none; }
+  .tlc-create { width: 36px; padding: 0; font-size: var(--fs-xl); line-height: 1; }
+  .tlc-btn, .tlc-seg-btn, .tlc-search { height: 36px; min-height: 36px; }
+  .tlc-icon { width: 36px; }
+  .tlc-title { font-size: var(--fs-md); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .tlc-group-nav .tlc-menu-wrap { min-width: 0; }
+  /* 보기 버튼은 다섯 개가 다 보여야 한다 — 줄어드는 쪽은 검색칸이다 */
+  .tlc-search { flex: 1 1 0; min-width: 0; }
+  .tlc-search input { width: 100%; }
+  .tlc-seg { flex: 0 0 auto; }
+  .tlc-seg-btn { padding: 0 9px; }
+  /* 월·주 칸이 50px 뿐이라 원 표시가 글자 자리를 먹는다 → 얇은 색 띠로 바꾼다 */
+  .tlc-fc .fc-dayGridMonth-view .tlc-ev,
+  .tlc-fc .fc-timeGridWeek-view .tlc-ev { gap: 3px; padding: 0 1px; font-size: var(--fs-2xs); line-height: 16px; }
+  .tlc-fc .fc-timeGridWeek-view .tlc-time { display: none; }   /* 칸 위치가 곧 시각이다 */
+  .tlc-fc .fc-dayGridMonth-view .tlc-mark,
+  .tlc-fc .fc-timeGridWeek-view .tlc-mark {
+    width: 3px;
+    height: 12px;
+    border: 0;
+    border-radius: 1px;
+    background: var(--tlc-c, var(--text-3));
+  }
+  .tlc-fc .fc-dayGridMonth-view .fc-daygrid-event { margin-left: 1px; margin-right: 1px; font-size: var(--fs-2xs); }
+  /* 구글 시간 일정: 시각까지 적으면 제목이 한 글자도 안 남는다 */
+  .tlc-fc .fc-dayGridMonth-view .fc-daygrid-dot-event .fc-event-time { display: none; }
+  .tlc-fc .fc-dayGridMonth-view .fc-daygrid-event-dot { margin: 0 2px; border-width: 3px; }
+  .tlc-fc .fc-dayGridMonth-view .tlc-time { display: none; }
+  .tlc-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 14px; }
+  .tlc-res { min-height: 40px; }
+}
