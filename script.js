@@ -162,10 +162,70 @@ function applyDonePrefix(text, done) {
   return text.replace(/^\[\d{6}\] /, '');
 }
 
+// ============================================
+//  📅 일정 (kind:'event')
+//  Task 와 같은 문서·같은 화면이다. 다른 점은 끝나면 저절로 완료된다는 것뿐이다.
+//  autoDone = '자동 완료를 이미 판단했다'. 사용자가 체크를 풀어 둔 일정을 다시 완료시키지 않으려고 둔다.
+// ============================================
+function eventEndMs(t) {
+  var raw = t.dueDateTime || t.startDate;
+  if (!raw) return null;
+  var d = new Date(raw);
+  if (isNaN(d.getTime())) return null;
+  if (!t.hasTime) d.setHours(23, 59, 59, 0);
+  return d.getTime();
+}
+// ⚠️ 완료 표시는 지금 시각이 아니라 종료 시각에서 계산한다.
+//    여러 기기가 같은 일정을 동시에 처리해도 값이 같아 서로 덮어쓰지 않는다.
+function eventStampDone(t, endMs) {
+  var d = new Date(endMs);
+  var stamp = '[' + String(d.getFullYear()).slice(2) + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '] ';
+  t.text = stamp + String(t.text || '').replace(/^\[\d{6}\]\s?/, '');
+  t.completed = true;
+  t.completedAt = d.toISOString();
+  delete t.wdTimed; delete t.wdLogAt;
+}
+function autoCompletePastEvents() {
+  if (!Array.isArray(tasks)) return 0;
+  var now = Date.now(), n = 0;
+  tasks.forEach(function (t) {
+    if (t.kind !== 'event' || t.completed || t.autoDone) return;
+    var end = eventEndMs(t);
+    if (end === null || end > now) return;
+    eventStampDone(t, end);
+    t.autoDone = true;
+    n++;
+  });
+  if (n) saveTasks();
+  return n;
+}
+// 일정 시각을 바꾼 뒤 — 자동 완료였던 것은 새 시각에 맞춘다
+function eventAfterTimeChange(t) {
+  if (t.kind !== 'event') { delete t.autoDone; return; }
+  var end = eventEndMs(t);
+  if (end === null) return;
+  if (end > Date.now()) {
+    if (t.completed && t.autoDone) {
+      t.completed = false;
+      t.text = String(t.text || '').replace(/^\[\d{6}\]\s?/, '');
+      delete t.completedAt; delete t.wdTimed; delete t.wdLogAt;
+    }
+    delete t.autoDone;
+  } else if (t.completed && t.autoDone) {
+    eventStampDone(t, end);
+  }
+}
+function autoCompleteTick() {
+  if (!autoCompletePastEvents()) return;
+  if (typeof _rerenderCurrentView === 'function') _rerenderCurrentView(['my-tasklog-data']);
+  else renderTasks();
+}
+
 function toggleComplete(id) {
   const task = tasks.find(t => t.id === id);
   if (!task) return;
   task.completed = !task.completed;
+  if (!task.completed && task.kind === 'event') task.autoDone = true;   // 풀어 둔 일정을 다시 자동 완료하지 않는다
 
   if (task.completed) {
     // 완료 처리: [YYMMDD] 접두사 추가 (중복 방지) + 완료 시각 기록
@@ -2210,10 +2270,17 @@ var RP_EI_DESC   = { DO:'지금 바로', SCHEDULE:'일정 예약', DELEGATE:'다
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
 var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--info)', '취소':'var(--text-3)' };
 
-function openNewTaskPanel(taskId) {
+// opts: { kind:'event', date:'YYYY-MM-DD' } — 새로 만들 때만 쓴다 (Calendar 의 만들기)
+function openNewTaskPanel(taskId, opts) {
   rpState.taskId = taskId || null;
   rpState.dirty  = false;
   var task = taskId ? tasks.find(function(t){ return t.id === taskId; }) : null;
+  rpState.kind     = (task && task.kind === 'event') ? 'event' : 'task';
+  rpState.allDay   = task ? (!task.hasTime && !task.startHasTime) : true;
+  rpState.workOpen = rpState.kind !== 'event';
+  rpState.newDate  = (!task && opts && opts.date) || null;
+  rpState.preFill  = null;
+  rpState.postFill = null;
   rpState.eisenhower = task ? (task.eisenhower || null) : null;
   rpState.status     = task ? (task.status     || '대기') : '대기';
   rpState.steps       = task ? (task.steps || []).map(function(s){ return Object.assign({}, s); }) : [];
@@ -2235,6 +2302,8 @@ function openNewTaskPanel(taskId) {
 
   var body = document.getElementById('rp-body');
   if (body) { body.classList.remove('rp-body--detail'); body.innerHTML = buildRpForm(task); }
+  rpSyncForm();
+  if (!task && opts && opts.kind === 'event') rpSetKind('event');
   _projDDCallbacks['rp-proj'] = function(sel){
     rpState.mdtAction = sel; rpState.dirty = true;
     // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
@@ -2295,6 +2364,7 @@ function buildDateTimeInput(id, dateStr, timeStr) {
     + '</div>';
 }
 function rpDtInput(el) {
+  el.style.outline = '';
   // 최대 8자리(YYYYMMDD)만 받아 'YYYY-MM-DD'로 포맷
   var d = el.value.replace(/\D/g, '').slice(0, 8);
   var out = d.slice(0, 4);
@@ -2368,9 +2438,92 @@ function dsegSync(hiddenId) {
   }
 }
 
+// ── Task · 일정 전환 ──
+function _rpDtValues() {
+  var v = function (id) { return (document.getElementById(id) || {}).value || ''; };
+  return { sd: v('rp-start-dt'), st: v('rp-start-dt-tm'), dd: v('rp-due-dt'), dt: v('rp-due-dt-tm') };
+}
+function _rpDtApply(o) {
+  var set = function (id, val) { var el = document.getElementById(id); if (el) el.value = val; };
+  set('rp-start-dt', o.sd); set('rp-start-dt-tm', o.st); set('rp-due-dt', o.dd); set('rp-due-dt-tm', o.dt);
+}
+// 시간 칸이 비어 있으면 일정 기본값으로 채운다: 시작은 다음 정시(오늘이 아니면 09:00), 끝은 +1시간
+function rpFillEventTimes() {
+  var cur = _rpDtValues();
+  if (cur.st || cur.dt) return;
+  var today = toDateInputVal(new Date());
+  var dateStr = parseRpDateTime('rp-start-dt').dateStr || today;
+  var s = new Date(dateStr + 'T09:00:00');
+  if (dateStr === today) { s = new Date(); s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1); }
+  var e = new Date(s.getTime() + 3600000);
+  var endDate = toDateInputVal(e), curEnd = parseRpDateTime('rp-due-dt').dateStr;
+  _rpDtApply({
+    sd: toDateInputVal(s), st: toTimeInputVal(s),
+    dd: (curEnd && curEnd > endDate) ? curEnd : endDate,   // 끝 날짜가 이미 더 뒤면 여러 날 일정이다
+    dt: toTimeInputVal(e),
+  });
+}
+function rpSetKind(kind) {
+  if (rpState.kind === kind) return;
+  rpState.kind = kind;
+  rpState.workOpen = kind !== 'event';
+  if (rpState.taskId) {
+    rpState.dirty = true;      // 있던 일은 유형만 바꾼다. 날짜·시간은 건드리지 않는다
+  } else if (kind === 'event') {
+    rpState.preFill = _rpDtValues();
+    rpState.allDay = false;
+    rpFillEventTimes();
+    rpState.postFill = _rpDtValues();
+  } else if (rpState.preFill && JSON.stringify(_rpDtValues()) === JSON.stringify(rpState.postFill)) {
+    _rpDtApply(rpState.preFill);   // 손대지 않았으면 채웠던 값을 되돌린다
+    rpState.allDay = true;
+  }
+  rpSyncForm();
+}
+function rpSetAllDay(on) {
+  rpState.allDay = !!on;
+  rpState.dirty = true;
+  if (!on && rpState.kind === 'event') rpFillEventTimes();
+  rpSyncForm();
+}
+function rpToggleWork() {
+  rpState.workOpen = !rpState.workOpen;
+  rpSyncForm();
+}
+// 접어 두어도 안에 뭐가 있는지는 보이게 한다
+function rpWorkSummary() {
+  var parts = [];
+  if (rpState.steps.length) parts.push('To Do ' + rpState.steps.length);
+  if (rpState.eisenhower) parts.push(RP_EI_NAME[rpState.eisenhower] || rpState.eisenhower);
+  if (rpState.status && rpState.status !== '대기') parts.push(rpState.status);
+  if (rpState.assignees.length) parts.push('Coworker ' + rpState.assignees.length);
+  if (rpState.upstreamDepts.length) parts.push('UpStream ' + rpState.upstreamDepts.length);
+  return parts.join(' · ');
+}
+function rpSyncForm() {
+  var ev = rpState.kind === 'event';
+  function text(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+  text('rp-title', (ev ? '일정 ' : 'Task ') + (rpState.taskId ? '수정' : '생성'));
+  text('rp-name-label', ev ? '일정' : 'Task');
+  text('rp-due-label', ev ? 'End' : 'Due');
+  var nameEl = document.getElementById('rp-task-name');
+  if (nameEl) nameEl.placeholder = ev ? '일정 제목을 입력하세요' : '할 일을 입력하세요';
+  document.querySelectorAll('.rp-kind-btn').forEach(function (b) {
+    b.classList.toggle('is-on', b.getAttribute('data-kind') === rpState.kind);
+  });
+  var allDayEl = document.getElementById('rp-allday');
+  if (allDayEl) allDayEl.checked = !!rpState.allDay;
+  var cols = document.querySelector('.rp-dt-cols');
+  if (cols) cols.classList.toggle('is-allday', !!rpState.allDay);
+  var work = document.getElementById('rp-work');
+  if (work) work.classList.toggle('is-open', !!rpState.workOpen);
+  text('rp-work-arrow', rpState.workOpen ? '▾' : '▸');
+  text('rp-work-sum', rpState.workOpen ? '' : rpWorkSummary());
+}
+
 function buildRpForm(task) {
   var name       = task ? (task.completed ? task.text : task.text.replace(/^\[\d{6}\] /, '')) : '';
-  var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : toDateInputVal(new Date());
+  var startStr   = task ? (task.startDate ? toDateInputVal(task.startDate) : '') : (rpState.newDate || toDateInputVal(new Date()));
   var dueStr     = (task && task.dueDateTime) ? toDateInputVal(task.dueDateTime) : '';
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
   var startTimeStr = (task && task.startDate && task.startHasTime) ? toTimeInputVal(task.startDate) : '';
@@ -2445,8 +2598,13 @@ function buildRpForm(task) {
       + '<button class="rp-delete-btn" onclick="rpDeleteTask()" title="삭제">🗑️ 삭제</button></div>';
   }
 
+  // 위쪽 = Task·일정 공통 / 아래 '작업 관리' = Task 에서 펼침, 일정에서 접힘
   return '<div class="rp-form">'
-    + '<div class="field-group"><label class="field-label">Task</label>'
+    + '<div class="rp-kind" role="group" aria-label="유형">'
+    + '<button type="button" class="rp-kind-btn" data-kind="task" onclick="rpSetKind(\'task\')">Task</button>'
+    + '<button type="button" class="rp-kind-btn" data-kind="event" onclick="rpSetKind(\'event\')">일정</button>'
+    + '</div>'
+    + '<div class="field-group"><label class="field-label" id="rp-name-label">Task</label>'
     + '<div class="rp-task-row">'
     + '<div class="task-check rp-task-check'+(rpState.completed?' is-done':'')+'" onclick="rpToggleComplete()" title="완료 여부"></div>'
     + '<input class="field-input" id="rp-task-name" placeholder="할 일을 입력하세요" value="'+rpEsc(name)+'" oninput="rpState.dirty=true">'
@@ -2454,19 +2612,26 @@ function buildRpForm(task) {
     + '<div class="rp-dt-cols">'
     + '<div class="field-group rp-dt-col"><label class="field-label">Start</label>'
     + buildDateTimeInput('rp-start-dt', startStr, startTimeStr) + '</div>'
-    + '<div class="field-group rp-dt-col"><label class="field-label">Due</label>'
+    + '<div class="field-group rp-dt-col"><label class="field-label" id="rp-due-label">Due</label>'
     + buildDateTimeInput('rp-due-dt', dueStr, dueTimeStr) + '</div>'
     + '</div>'
+    + '<label class="rp-allday"><input type="checkbox" id="rp-allday" onchange="rpSetAllDay(this.checked)">종일</label>'
+    + '<div class="field-group"><label class="field-label">Project</label>'
+    + buildProjectDropdown('rp-proj', rpState.mdtAction || null) + '</div>'
+    + '<div class="field-group"><label class="field-label">Location</label>'
+    + '<input class="field-input" id="rp-location" placeholder="장소" value="'+rpEsc(task ? (task.location || '') : '')+'" oninput="rpState.dirty=true"></div>'
+    + '<div class="field-group"><label class="field-label">Memo</label>'
+    + '<textarea class="field-textarea" id="rp-notes" placeholder="\uba54\ubaa8\ub97c \uc785\ub825\ud558\uc138\uc694" rows="3" oninput="rpState.dirty=true">'+rpEsc(notesVal)+'</textarea></div>'
+    + '<div class="rp-work" id="rp-work">'
+    + '<button type="button" class="rp-work-head" onclick="rpToggleWork()"><span id="rp-work-arrow">▾</span>작업 관리<span class="rp-work-sum" id="rp-work-sum"></span></button>'
+    + '<div class="rp-work-body">'
     + todoHtml
     + eiHtml
     + statusHtml
     + coworkerHtml
     + upstreamHtml
-    + '<div class="field-group"><label class="field-label">Project</label>'
-    + buildProjectDropdown('rp-proj', rpState.mdtAction || null) + '</div>'
     + depHtml
-    + '<div class="field-group"><label class="field-label">Memo</label>'
-    + '<textarea class="field-textarea" id="rp-notes" placeholder="\uba54\ubaa8\ub97c \uc785\ub825\ud558\uc138\uc694" rows="3" oninput="rpState.dirty=true">'+rpEsc(notesVal)+'</textarea></div>'
+    + '</div></div>'
     + editFooter
     + '</div>';
 }
@@ -2955,6 +3120,24 @@ function closeRightPanel() {
   rpState.dirty = false; rpState.taskId = null;
 }
 
+// 일정은 시작·끝이 늘 같이 있다. 한쪽만 적었으면 채우고, 끝이 시작보다 앞이면 저장하지 않는다.
+function rpNormalizeEvent(sd, st, dd, dt) {
+  if (!sd && !dd) return { error: 'rp-start-dt' };
+  if (!sd) sd = dd;
+  if (!dd) dd = sd;
+  if (st && !dt) {
+    var e = new Date(new Date(sd + 'T' + st + ':00').getTime() + 3600000);
+    dt = toTimeInputVal(e);
+    if (toDateInputVal(e) > dd) dd = toDateInputVal(e);
+  } else if (dt && !st) {
+    var s = new Date(new Date(dd + 'T' + dt + ':00').getTime() - 3600000);
+    st = toTimeInputVal(s);
+    if (toDateInputVal(s) < sd) sd = toDateInputVal(s);
+  }
+  var before = st ? (dd + 'T' + dt) < (sd + 'T' + st) : dd < sd;
+  return before ? { error: 'rp-due-dt' } : { sd: sd, st: st, dd: dd, dt: dt };
+}
+
 function saveRightPanel() {
   var nameEl = document.getElementById('rp-task-name');
   var name   = nameEl ? nameEl.value.trim() : '';
@@ -2966,20 +3149,29 @@ function saveRightPanel() {
   var _dueDt    = parseRpDateTime('rp-due-dt');
   var _startDt  = parseRpDateTime('rp-start-dt');
 
-  // 날짜 없이 시간만 적었으면 그대로 저장하면 시간이 말없이 사라진다 → 날짜 칸을 알려 준다
-  var _noDate = !_startDt.dateStr && (document.getElementById('rp-start-dt-tm') || {}).value ? 'rp-start-dt'
-              : !_dueDt.dateStr && (document.getElementById('rp-due-dt-tm') || {}).value ? 'rp-due-dt' : null;
-  if (_noDate) {
-    var _dateEl = document.getElementById(_noDate);
+  var _allDay = !!rpState.allDay;
+  function _markDate(id) {
+    var _dateEl = document.getElementById(id);
     if (_dateEl) { _dateEl.style.outline = '2px solid var(--danger)'; _dateEl.focus(); }
-    return;
   }
+  // 날짜 없이 시간만 적었으면 그대로 저장하면 시간이 말없이 사라진다 → 날짜 칸을 알려 준다
+  var _noDate = _allDay ? null
+              : !_startDt.dateStr && (document.getElementById('rp-start-dt-tm') || {}).value ? 'rp-start-dt'
+              : !_dueDt.dateStr && (document.getElementById('rp-due-dt-tm') || {}).value ? 'rp-due-dt' : null;
+  if (_noDate) { _markDate(_noDate); return; }
 
   var dueDate   = _dueDt.dateStr   || '';
   var startDate = _startDt.dateStr || '';
   var notesVal  = (document.getElementById('rp-notes')      || {}).value  || '';
-  var dueTime   = _dueDt.timeStr;
-  var startTime = _startDt.timeStr;
+  var dueTime   = _allDay ? null : _dueDt.timeStr;
+  var startTime = _allDay ? null : _startDt.timeStr;
+  var isEvent   = rpState.kind === 'event';
+  var locationVal = ((document.getElementById('rp-location') || {}).value || '').trim();
+  if (isEvent) {
+    var _ev = rpNormalizeEvent(startDate, startTime, dueDate, dueTime);
+    if (_ev.error) { _markDate(_ev.error); return; }
+    startDate = _ev.sd; startTime = _ev.st; dueDate = _ev.dd; dueTime = _ev.dt;
+  }
   var upstreamDepts = rpState.upstreamDepts.slice();
   var upstreamDeptVal = upstreamDepts.join(', ');
 
@@ -3028,12 +3220,16 @@ function saveRightPanel() {
       task.prevTaskIds = rpState.prevTaskIds.slice();
       task.nextTaskIds = rpState.nextTaskIds.slice();
       if (rpState.mdtAction) task.mdtAction = rpState.mdtAction; else delete task.mdtAction;
+      if (isEvent) task.kind = 'event'; else delete task.kind;
+      if (locationVal) task.location = locationVal; else delete task.location;
       // 폼 전체를 그대로 쓰면 패널을 연 사이 다른 기기가 고친 칸이 되돌아간다 — 내가 손댄 칸만 반영한다
       if (rpState.orig && typeof fsMerge3 === 'function') {
         var _rpMerged = fsMerge3(rpState.orig, JSON.parse(JSON.stringify(task)), _rpNow);
         Object.keys(task).forEach(function(k){ delete task[k]; });
         Object.assign(task, _rpMerged);
       }
+      if (isEvent && rpState.orig && rpState.orig.completed && !rpState.completed) task.autoDone = true;   // 체크를 풀었다
+      eventAfterTimeChange(task);
       savedTask = task;
     }
   } else {
@@ -3052,6 +3248,8 @@ function saveRightPanel() {
       mdtAction: rpState.mdtAction || null,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
     };
+    if (isEvent) newTask.kind = 'event';
+    if (locationVal) newTask.location = locationVal;
     tasks.push(newTask);
     savedTask = newTask;
   }
@@ -3069,6 +3267,7 @@ function saveRightPanel() {
       else { o.prevTaskIds = o.prevTaskIds.filter(function(x){ return x !== myId; }); }
     });
     if (savedTask.reminder) scheduleReminder(savedTask);
+    if (isEvent) autoCompletePastEvents();    // 지난 일정을 적어 넣은 경우
     saveTasks();
   }
 
@@ -3428,6 +3627,9 @@ function bootApp() {
   if (typeof initTheme === 'function') initTheme();
   if (typeof initSettings === 'function') initSettings();
   loadTasks();
+  autoCompletePastEvents();
+  setInterval(autoCompleteTick, 60000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) autoCompleteTick(); });
   if (typeof appBootYearSync === 'function') appBootYearSync();
   initSidebar();
   initSidebarCollapse();

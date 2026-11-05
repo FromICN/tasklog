@@ -10162,6 +10162,19 @@ body :is(input, textarea, [contenteditable]):focus-visible {
   padding-right: var(--space-1);
 }
 .rp-dtinput::placeholder { letter-spacing: -0.2px; }
+/* Task·일정 통일 폼 */
+.rp-kind { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.rp-kind-btn { height: 30px; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm); cursor: pointer; }
+.rp-kind-btn + .rp-kind-btn { border-left: 1px solid var(--border); }
+.rp-kind-btn.is-on { background: var(--brand-primary); color: var(--main-bg); font-weight: 600; }
+.rp-allday { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--text-2); font-size: var(--fs-sm); cursor: pointer; }
+.rp-allday input { margin: 0; }
+.rp-dt-cols.is-allday .rp-tminput { display: none; }
+.rp-work { display: flex; flex-direction: column; gap: var(--space-35); padding-top: var(--space-2); border-top: 1px solid var(--border); }
+.rp-work-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 2px 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; text-align: left; cursor: pointer; }
+.rp-work-sum { margin-left: auto; min-width: 0; overflow: hidden; color: var(--text-3); font-size: var(--fs-xs); font-weight: 400; white-space: nowrap; text-overflow: ellipsis; }
+.rp-work-body { display: flex; flex-direction: column; gap: var(--space-35); }
+.rp-work:not(.is-open) .rp-work-body { display: none; }
 /* Start/Due: 날짜 칸 + 시간 칸 */
 .rp-dt-pair { display: flex; gap: 4px; }
 .rp-dt-pair .rp-dtinput { flex: 1 1 auto; width: auto; min-width: 0; }

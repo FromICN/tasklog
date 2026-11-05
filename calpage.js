@@ -71,7 +71,7 @@ function _calInitialView() {
 // ── 무엇을 보여 줄지 (기기별) ──
 function calShow() {
   var s = _calLoad('cal-show', {});
-  return { task: s.task !== false, todo: s.todo !== false, done: s.done === true };
+  return { event: s.event !== false, task: s.task !== false, todo: s.todo !== false, done: s.done === true };
 }
 function calSetShow(key, on) {
   var s = calShow();
@@ -107,13 +107,26 @@ function _calTaskPlace(t) {
   }
   return { date: due, hasTime: !!t.hasTime, anchor: 'due' };
 }
+// 일정은 시작~끝을 그대로 막대로 그린다. 종일의 끝은 FullCalendar 규칙대로 다음 날 0시(포함 안 함)다.
+function _calEventSpan(t) {
+  var s = new Date(t.startDate || t.dueDateTime), e = new Date(t.dueDateTime || t.startDate);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+  if (t.hasTime || t.startHasTime) {
+    return { date: s, end: e > s ? e : new Date(s.getTime() + 3600000), hasTime: true };
+  }
+  var endDay = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
+  return { date: new Date(s.getFullYear(), s.getMonth(), s.getDate()), end: endDay, hasTime: false };
+}
 function calCollectItems() {
   var out = [];
   mdtAllTasks().forEach(function (t) {
     var color = calTaskColor(t);
-    var place = _calTaskPlace(t);
-    if (place) {
-      out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed, color: color });
+    if (t.kind === 'event') {
+      var span = _calEventSpan(t);
+      if (span) out.push({ kind: 'event', taskId: t.id, title: _calCleanTitle(t.text), date: span.date, end: span.end, hasTime: span.hasTime, done: !!t.completed, color: color });
+    } else {
+      var place = _calTaskPlace(t);
+      if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed, color: color });
     }
     (t.steps || []).forEach(function (s) {
       if (!s.dueDateTime) return;
@@ -126,12 +139,26 @@ function calCollectItems() {
   return out;
 }
 function calItemVisible(it, show) {
+  // ⚠️ 일정은 끝나면 저절로 완료되므로 '완료 숨김'을 걸지 않는다 — 걸면 지난 일정이 달력에서 사라진다
+  if (it.kind === 'event') return show.event;
   if (it.kind === 'task' && !show.task) return false;
   if (it.kind === 'step' && !show.todo) return false;
   if (it.done && !show.done) return false;
   return true;
 }
 function _calItemToFc(it) {
+  if (it.kind === 'event') {
+    return {
+      id: 'e' + it.taskId,
+      title: it.title,
+      start: it.hasTime ? it.date : _calKey(it.date),
+      end: it.hasTime ? it.end : _calKey(it.end),
+      allDay: !it.hasTime,
+      backgroundColor: it.color, borderColor: it.color, textColor: _calInk(it.color),
+      classNames: ['tlc-event'].concat(it.done ? ['tlc-is-done'] : []),
+      extendedProps: { kind: 'event', taskId: it.taskId, done: it.done, color: it.color },
+    };
+  }
   return {
     id: it.kind === 'task' ? ('t' + it.taskId) : ('s' + it.taskId + '_' + it.stepId),
     title: it.title,
@@ -336,7 +363,7 @@ function calFcEvents(start, end) {
   var show = calShow(), out = [];
   calCollectItems().forEach(function (it) {
     if (!calItemVisible(it, show)) return;
-    if (it.date < start || it.date >= end) return;
+    if (it.date >= end || (it.end || new Date(it.date.getTime() + 1)) <= start) return;
     out.push(_calItemToFc(it));
   });
   calGItems().forEach(function (ev) {
@@ -398,7 +425,7 @@ function calEnsureFc() {
     },
     eventContent: function (arg) {
       var p = arg.event.extendedProps, isList = arg.view.type.indexOf('list') === 0;
-      if (p.kind === 'google' && !isList) return true;   // 구글 일정은 기본 막대 그대로
+      if ((p.kind === 'google' || p.kind === 'event') && !isList) return true;   // 일정은 기본 막대 그대로
       var time = (!isList && arg.timeText) ? '<span class="tlc-time">' + _calEsc(arg.timeText) + '</span>' : '';   // 목록은 시간 칸이 따로 있다
       return { html: '<span class="tlc-ev">' + _calMarkHtml(p.kind, p.color, p.done) + time + '<span class="tlc-tt">' + _calEsc(arg.event.title) + '</span></span>' };
     },
@@ -434,7 +461,7 @@ function _calIso(d) { return _calKey(d) + 'T' + _calPad(d.getHours()) + ':' + _c
 function _calFindItem(p) {
   var t = mdtAllTasks().find(function (x) { return x.id === p.taskId; });
   if (!t) return null;
-  if (p.kind === 'task') return { obj: t, task: t };
+  if (p.kind !== 'step') return { obj: t, task: t };   // Task·일정은 문서 자체다
   var s = (t.steps || []).find(function (x) { return x.id === p.stepId; });
   return s ? { obj: s, task: t } : null;
 }
@@ -443,7 +470,21 @@ function calMoveItem(ev) {
   var found = _calFindItem(p);
   if (!found) return false;
   var d = ev.start, key = _calKey(d), obj = found.obj;
-  if (p.kind === 'task' && (p.anchor === 'start' || p.anchor === 'both')) {
+  if (p.kind === 'event') {
+    if (ev.allDay) {
+      // 종일의 끝은 포함하지 않는 다음 날 0시다 → 마지막 날로 되돌린다. 시간 칸에서 끌어온 것은 끝이 없다.
+      var lastDay = ev.end ? new Date(ev.end.getFullYear(), ev.end.getMonth(), ev.end.getDate() - 1) : d;
+      obj.startDate = key + 'T09:00:00';
+      obj.dueDateTime = _calKey(lastDay) + 'T09:00:00';
+    } else {
+      obj.startDate = _calIso(d);
+      obj.dueDateTime = _calIso(ev.end || new Date(d.getTime() + 3600000));
+    }
+    obj.startHasTime = !ev.allDay;
+    obj.hasTime = !ev.allDay;
+    eventAfterTimeChange(obj);
+    autoCompletePastEvents();
+  } else if (p.kind === 'task' && (p.anchor === 'start' || p.anchor === 'both')) {
     obj.startDate = ev.allDay ? (key + 'T09:00:00') : _calIso(d);
     obj.startHasTime = !ev.allDay;
     if (obj.dueDateTime) {
@@ -469,7 +510,7 @@ function calOpenEvent(taskId) {
 }
 function calCreate() {
   calCloseMenus();
-  if (typeof openNewTaskPanel === 'function') openNewTaskPanel(null);
+  if (typeof openNewTaskPanel === 'function') openNewTaskPanel(null, { kind: 'event', date: _calKey(_cal.date) });
 }
 // 목록 보기: 이번 해 전체를 그리므로 오늘(또는 고른 날)로 맞춰 준다
 function calScrollList() {
@@ -636,6 +677,7 @@ function calRenderShowMenu() {
       }).join('')
     : '<div class="tlc-menu-note">Google 로그인 후 표시됩니다</div>';
   el.innerHTML = '<div class="tlc-menu-h">TaskLog</div>'
+    + row(show.event, 'calSetShow(\'event\',this.checked)', _calMarkHtml('event', 'var(--text-2)', false), '일정')
     + row(show.task, 'calSetShow(\'task\',this.checked)', _calMarkHtml('task', 'var(--text-2)', false), 'Task')
     + row(show.todo, 'calSetShow(\'todo\',this.checked)', _calMarkHtml('step', 'var(--text-2)', false), 'To Do')
     + row(show.done, 'calSetShow(\'done\',this.checked)', _calMarkHtml('task', 'var(--text-2)', true), '완료 항목')
@@ -647,7 +689,13 @@ function calYearCounts(year) {
   var show = calShow(), counts = {};
   function add(d) { var k = _calKey(d); counts[k] = (counts[k] || 0) + 1; }
   calCollectItems().forEach(function (it) {
-    if (it.date.getFullYear() === year && calItemVisible(it, show)) add(it.date);
+    if (!calItemVisible(it, show)) return;
+    if (it.kind !== 'event') { if (it.date.getFullYear() === year) add(it.date); return; }
+    var day = new Date(it.date.getFullYear(), it.date.getMonth(), it.date.getDate());
+    for (var n = 0; day < it.end && n < 92; n++) {
+      if (day.getFullYear() === year) add(day);
+      day.setDate(day.getDate() + 1);
+    }
   });
   calGItems().forEach(function (ev) {
     var span = _calGSpan(ev), d = new Date(span[0]);
