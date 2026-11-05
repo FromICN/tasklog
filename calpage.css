@@ -404,6 +404,29 @@
 .tlc-pop-dim { color: var(--text-3); font-size: var(--fs-xs); }
 .tlc-pop-desc { max-height: 120px; overflow-y: auto; color: var(--text-2); white-space: pre-wrap; }
 .tlc-pop-link { display: inline-block; margin-top: 10px; color: var(--text-2); font-size: var(--fs-xs); text-decoration: underline; }
+.tlc-pop-kind { margin-top: -4px; color: var(--text-3); font-size: var(--fs-2xs); font-family: var(--tl-mono); }
+.tlc-pop-done { color: var(--text-3); text-decoration: line-through; }
+.tlc-pop-actions { display: flex; gap: 6px; margin-top: 12px; }
+.tlc-pop-actions .tlc-btn { flex: 1 1 0; height: 30px; padding: 0 6px; }
+.tlc-pop-actions .tlc-pop-del { color: var(--danger); }
+
+/* ── 빠른 입력 ─────────────────────────────── */
+.tlc-pop.tlc-quick { display: flex; flex-direction: column; gap: 8px; width: 320px; max-height: none; overflow: visible; }
+.tlc-q-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tlc-q-kind { display: grid; grid-template-columns: 1fr 1fr; width: 130px; border: 1px solid var(--tl-rule); border-radius: var(--radius-md); overflow: hidden; }
+.tlc-q-kind button { height: 26px; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-xs); cursor: pointer; }
+.tlc-q-kind button + button { border-left: 1px solid var(--tl-rule); }
+.tlc-q-kind button.is-on { background: var(--brand-primary); color: var(--main-bg); font-weight: 600; }
+.tlc-q-x { width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-xl); line-height: 1; cursor: pointer; }
+.tlc-q-name { width: 100%; box-sizing: border-box; }
+.tlc-q-row { display: flex; align-items: center; gap: 4px; }
+.tlc-q-lbl { flex: 0 0 34px; color: var(--text-3); font-size: var(--fs-xs); }
+.tlc-q-row .rp-dtinput { flex: 1 1 auto; width: auto; min-width: 0; }
+.tlc-q-row .rp-tminput { flex: 0 0 52px; width: 52px; }
+.tlc-quick.is-allday .rp-tminput { display: none; }
+.tlc-q-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; }
+/* 끌어서 고르는 자리 */
+.tlc-page { --fc-highlight-color: rgba(var(--accent-rgb), .22); }
 
 /* ── 폰 ─────────────────────────────────────── */
 @media (max-width: 768px) {
@@ -439,4 +462,8 @@
   .tlc-fc .fc-dayGridMonth-view .tlc-time { display: none; }
   .tlc-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 14px; }
   .tlc-res { min-height: 40px; }
+  .tlc-q-row .rp-tminput { flex-basis: 68px; width: 68px; }   /* 폰은 입력칸 글자가 16px 로 커진다 */
+  .tlc-q-lbl { flex-basis: 38px; }
+  .tlc-pop-actions .tlc-btn { height: 36px; }
+  .tlc-q-foot .tlc-btn { width: auto; padding: 0 14px; font-size: var(--fs-sm); }   /* 위쪽 '+' 버튼 규칙을 물려받지 않게 */
 }

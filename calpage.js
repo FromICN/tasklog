@@ -155,6 +155,7 @@ function _calItemToFc(it) {
       end: it.hasTime ? it.end : _calKey(it.end),
       allDay: !it.hasTime,
       backgroundColor: it.color, borderColor: it.color, textColor: _calInk(it.color),
+      durationEditable: true,
       classNames: ['tlc-event'].concat(it.done ? ['tlc-is-done'] : []),
       extendedProps: { kind: 'event', taskId: it.taskId, done: it.done, color: it.color },
     };
@@ -167,6 +168,7 @@ function _calItemToFc(it) {
     allDay: !it.hasTime,
     backgroundColor: 'transparent',
     borderColor: 'transparent',
+    durationEditable: it.anchor === 'both',   // 시작~마감이 칸으로 그려지는 Task 만 길이를 바꾼다
     classNames: ['tlc-item', 'tlc-k-' + it.kind].concat(it.done ? ['tlc-is-done'] : []),
     extendedProps: { kind: it.kind, taskId: it.taskId, stepId: it.stepId, parent: it.parent || '', done: it.done, color: it.color, anchor: it.anchor || 'due' },
   };
@@ -461,7 +463,19 @@ function calEnsureFc() {
     navLinks: true,
     navLinkDayClick: function (date) { calGoDate(_calKey(date), 'day'); },
     editable: true,
-    eventDurationEditable: false,
+    eventDurationEditable: false,        // 길이는 일정·시간 칸 Task 만 항목별로 켠다
+    selectable: true,
+    selectMirror: true,
+    selectLongPressDelay: 400,
+    unselectCancel: '.tlc-pop',
+    select: function (info) { _cal.selectAt = Date.now(); calQuickFromRange(info.start, info.end, info.allDay, info.jsEvent); },
+    // 터치에서는 탭이 select 가 되지 않는다(길게 눌러야 한다). 마우스는 select 가 먼저 와서 여기서 거른다
+    dateClick: function (info) {
+      if (Date.now() - (_cal.selectAt || 0) < 400) return;
+      var end = new Date(info.date.getTime() + (info.allDay ? 86400000 : 1800000));
+      calQuickFromRange(info.date, end, info.allDay, info.jsEvent);
+    },
+    eventResize: function (info) { if (!calMoveItem(info.event)) info.revert(); },
     moreLinkContent: function (arg) { return '+' + arg.num; },
     views: {
       // 종일 칸은 3줄까지만. 위쪽을 다 먹으면 시간 칸이 안 보인다
@@ -509,7 +523,7 @@ function calEnsureFc() {
       info.jsEvent.preventDefault();
       var p = info.event.extendedProps;
       if (p.kind === 'google') calGooglePop(p.g, info.el);
-      else calOpenEvent(p.taskId);
+      else calItemPop(p, info.el);
     },
     eventDrop: function (info) { if (!calMoveItem(info.event)) info.revert(); },
     datesSet: function () {
@@ -580,6 +594,242 @@ function calMoveItem(ev) {
 function calOpenEvent(taskId) {
   if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
 }
+
+// ── 빠른 입력 (달력 빈칸) ───────────────────────────────────
+//  제목·시간·Project 만 받는다. 나머지는 '옵션 더보기'로 오른쪽 패널에 이어서 적는다.
+function _calPointRect(jsEvent) {
+  var t = jsEvent && (jsEvent.changedTouches ? jsEvent.changedTouches[0] : jsEvent);
+  var x = t && t.clientX != null ? t.clientX : window.innerWidth / 2;
+  var y = t && t.clientY != null ? t.clientY : window.innerHeight / 3;
+  return { left: x, right: x, top: y, bottom: y };
+}
+function calQuickFromRange(start, end, allDay, jsEvent) {
+  var v;
+  if (allDay) {
+    v = { sd: _calKey(start), st: '', dd: _calKey(new Date(end.getTime() - 1)), dt: '' };
+  } else {
+    // 한 칸만 눌렀으면 구글처럼 30분 단위에 맞춰 1시간으로 잡는다. 끌어서 고른 범위는 그대로 둔다
+    var e = end;
+    if (end - start <= 1800000) {
+      start = new Date(start);
+      start.setMinutes(start.getMinutes() < 30 ? 0 : 30, 0, 0);
+      e = new Date(start.getTime() + 3600000);
+    }
+    v = {
+      sd: _calKey(start), st: _calPad(start.getHours()) + ':' + _calPad(start.getMinutes()),
+      dd: _calKey(e), dt: _calPad(e.getHours()) + ':' + _calPad(e.getMinutes()),
+    };
+  }
+  calQuickOpen(v, allDay, _calPointRect(jsEvent));
+}
+function calQuickOpen(v, allDay, rect) {
+  // 적던 제목이 있으면 다른 칸을 눌러도 날짜만 바꾼다
+  var prevName = _calEl('tlc-q-name');
+  var keepName = prevName ? prevName.value : '';
+  if (!prevName) { _cal.qKind = 'event'; _cal.qProject = null; }
+  _cal.qAllDay = !!allDay;
+  var html = '<div class="tlc-q-head">'
+    +   '<div class="tlc-q-kind" role="group" aria-label="유형">'
+    +     '<button type="button" data-kind="event" onclick="calQuickSetKind(\'event\')">일정</button>'
+    +     '<button type="button" data-kind="task" onclick="calQuickSetKind(\'task\')">Task</button>'
+    +   '</div>'
+    +   '<button type="button" class="tlc-q-x" onclick="calQuickClose()" aria-label="닫기">×</button>'
+    + '</div>'
+    + '<input class="field-input tlc-q-name" id="tlc-q-name" placeholder="제목" autocomplete="off" value="' + _calEsc(keepName) + '"'
+    +   ' oninput="this.style.outline=\'\'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();calQuickSave();}">'
+    + '<div class="tlc-q-row"><span class="tlc-q-lbl">Start</span>' + _calQDate('tlc-q-sd', v.sd) + _calQTime('tlc-q-st', v.st) + '</div>'
+    + '<div class="tlc-q-row"><span class="tlc-q-lbl" id="tlc-q-endlbl">End</span>' + _calQDate('tlc-q-dd', v.dd) + _calQTime('tlc-q-dt', v.dt) + '</div>'
+    + '<label class="rp-allday"><input type="checkbox" id="tlc-q-allday" onchange="calQuickSetAllDay(this.checked)">종일</label>'
+    + buildProjectDropdown('tlc-q-proj', _cal.qProject)
+    + '<div class="tlc-q-foot">'
+    +   '<button type="button" class="tlc-btn" onclick="calQuickMore()">옵션 더보기</button>'
+    +   '<button type="button" class="tlc-btn tlc-create" onclick="calQuickSave()">저장</button>'
+    + '</div>';
+  var el = _calPopShow(html, rect, 'tlc-quick');
+  _projDDCallbacks['tlc-q-proj'] = function (sel) { _cal.qProject = sel; };
+  calQuickSync();
+  var nameEl = _calEl('tlc-q-name');
+  if (nameEl) { try { nameEl.focus({ preventScroll: true }); } catch (e) { nameEl.focus(); } }
+  return el;
+}
+function _calQDate(id, val) {
+  return '<input class="field-input rp-dtinput" id="' + id + '" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" value="' + _calEsc(val) + '"'
+    + ' oninput="nbDateMask(this);this.style.outline=\'\'" onfocus="try{this.select()}catch(e){}">';
+}
+function _calQTime(id, val) {
+  return '<input class="field-input rp-dtinput rp-tminput" id="' + id + '" inputmode="numeric" placeholder="시간" value="' + _calEsc(val) + '"'
+    + ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onfocus="try{this.select()}catch(e){}">';
+}
+function calQuickSync() {
+  var pop = document.querySelector('.tlc-pop.tlc-quick');
+  if (!pop) return;
+  pop.classList.toggle('is-allday', !!_cal.qAllDay);
+  var check = _calEl('tlc-q-allday');
+  if (check) check.checked = !!_cal.qAllDay;
+  var lbl = _calEl('tlc-q-endlbl');
+  if (lbl) lbl.textContent = _cal.qKind === 'event' ? 'End' : 'Due';
+  pop.querySelectorAll('.tlc-q-kind button').forEach(function (b) {
+    b.classList.toggle('is-on', b.getAttribute('data-kind') === _cal.qKind);
+  });
+}
+function calQuickSetKind(kind) {
+  _cal.qKind = kind;
+  calQuickSync();
+}
+// 시간 칸이 비어 있으면 9시~10시로 채운다. 오늘이면 다음 정시부터.
+function calQuickSetAllDay(on) {
+  _cal.qAllDay = !!on;
+  var st = _calEl('tlc-q-st'), dt = _calEl('tlc-q-dt');
+  if (!on && st && dt && !st.value && !dt.value) {
+    var sd = _calEl('tlc-q-sd'), dd = _calEl('tlc-q-dd');
+    var today = _calKey(new Date()), day = sd.value || today;
+    var s = (day === today) ? new Date() : new Date(day + 'T09:00:00');
+    if (day === today) { s.setMinutes(0, 0, 0); s.setHours(s.getHours() + 1); }
+    var e = new Date(s.getTime() + 3600000);
+    sd.value = _calKey(s);
+    st.value = _calPad(s.getHours()) + ':' + _calPad(s.getMinutes());
+    if (!dd.value || dd.value <= _calKey(e)) dd.value = _calKey(e);
+    dt.value = _calPad(e.getHours()) + ':' + _calPad(e.getMinutes());
+  }
+  calQuickSync();
+}
+// 입력칸의 값을 읽어 저장할 모양으로 정리한다. 잘못됐으면 { bad:id } 를 돌려준다.
+function _calQuickRead() {
+  var val = function (id) { return ((_calEl(id) || {}).value || '').trim(); };
+  var sd = val('tlc-q-sd'), dd = val('tlc-q-dd');
+  if (sd && !nbDateValid(sd)) return { bad: 'tlc-q-sd' };
+  if (dd && !nbDateValid(dd)) return { bad: 'tlc-q-dd' };
+  var st = _cal.qAllDay ? null : rpTmParse(val('tlc-q-st'));
+  var dt = _cal.qAllDay ? null : rpTmParse(val('tlc-q-dt'));
+  if (_cal.qKind === 'event') {
+    var n = rpNormalizeEvent(sd, st, dd, dt);
+    if (n.error) return { bad: n.error === 'rp-due-dt' ? 'tlc-q-dd' : 'tlc-q-sd' };
+    sd = n.sd; st = n.st; dd = n.dd; dt = n.dt;
+  }
+  return { sd: sd, st: st, dd: dd, dt: dt };
+}
+function _calQuickMark(id) {
+  var el = _calEl(id);
+  if (el) { el.style.outline = '2px solid var(--danger)'; el.focus(); }
+}
+function calQuickSave() {
+  var nameEl = _calEl('tlc-q-name');
+  var name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { _calQuickMark('tlc-q-name'); return; }
+  var r = _calQuickRead();
+  if (r.bad) { _calQuickMark(r.bad); return; }
+  var doc = newTaskDoc({
+    text: name,
+    kind: _cal.qKind === 'event' ? 'event' : null,
+    startDate: r.sd ? (r.sd + 'T' + (r.st || '09:00') + ':00') : null,
+    startHasTime: !!(r.sd && r.st),
+    dueDateTime: r.dd ? (r.dd + 'T' + (r.dt || '09:00') + ':00') : null,
+    hasTime: !!(r.dd && r.dt),
+    mdtAction: _cal.qProject,
+  });
+  tasks.push(doc);
+  if (doc.kind === 'event') autoCompletePastEvents();
+  saveTasks();
+  if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
+  calQuickClose(true);
+  calRefresh();
+}
+function calQuickMore() {
+  var nameEl = _calEl('tlc-q-name');
+  var val = function (id) { return ((_calEl(id) || {}).value || '').trim(); };
+  var opts = {
+    kind: _cal.qKind, allDay: _cal.qAllDay, name: nameEl ? nameEl.value.trim() : '', mdtAction: _cal.qProject,
+    values: { sd: val('tlc-q-sd'), st: rpTmParse(val('tlc-q-st')) || '', dd: val('tlc-q-dd'), dt: rpTmParse(val('tlc-q-dt')) || '' },
+  };
+  calQuickClose(true);
+  openNewTaskPanel(null, opts);
+}
+function calQuickClose(force) {
+  calPopClose(force === true);
+}
+// 빠른 입력의 연도에 맞는 Project 만 고른다
+function calQuickYears() {
+  var val = function (id) { return ((_calEl(id) || {}).value || '').trim(); };
+  return taskDateYears(val('tlc-q-sd'), val('tlc-q-dd'));
+}
+
+// ── 요약창 (Task · 일정 · To Do) ──
+function _calFmtWhen(iso, timed) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + CAL_DOW[d.getDay()] + ')'
+    + (timed ? ' ' + _calPad(d.getHours()) + ':' + _calPad(d.getMinutes()) : '');
+}
+function _calItemWhen(p, found) {
+  var o = found.obj;
+  if (p.kind === 'step') return _calFmtWhen(o.dueDateTime, o.hasTime);
+  var s = o.startDate ? _calFmtWhen(o.startDate, o.startHasTime) : '';
+  var e = o.dueDateTime ? _calFmtWhen(o.dueDateTime, o.hasTime) : '';
+  if (s && e) {
+    if (s === e) return s;
+    if (_calKey(new Date(o.startDate)) === _calKey(new Date(o.dueDateTime)) && o.hasTime) {
+      var de = new Date(o.dueDateTime);
+      return s + ' – ' + _calPad(de.getHours()) + ':' + _calPad(de.getMinutes());
+    }
+    return s + ' – ' + e;
+  }
+  return s || e;
+}
+function _calProjectLine(t) {
+  var a = t.mdtAction;
+  if (!a || !a.text) return '';
+  var sec = '';
+  try {
+    var m = getMdt(parseInt(a.year, 10));
+    var sg = m && (m.subGoals || []).find(function (x) { return x.id === a.sgId; });
+    if (sg && sg.text) sec = sg.text + ' › ';
+  } catch (e) {}
+  return sec + a.text;
+}
+function calItemPop(p, anchor) {
+  var found = _calFindItem(p);
+  if (!found) return;
+  var t = found.task, o = found.obj, isStep = p.kind === 'step';
+  var done = isStep ? !!o.completed : !!t.completed;
+  var kindLabel = isStep ? 'To Do' : (t.kind === 'event' ? '일정' : 'Task');
+  var rows = '<div class="tlc-pop-row">' + _calEsc(_calItemWhen(p, found)) + '</div>';
+  var proj = _calProjectLine(t);
+  if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
+  if (isStep) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(_calCleanTitle(t.text)) + '</div>';
+  if (!isStep && t.location) rows += '<div class="tlc-pop-row">' + _calEsc(t.location) + '</div>';
+  if (!isStep && t.notes) rows += '<div class="tlc-pop-row tlc-pop-desc">' + _calEsc(String(t.notes).slice(0, 500)) + '</div>';
+  if (!isStep && (t.steps || []).length) {
+    var finished = t.steps.filter(function (s) { return s.completed; }).length;
+    rows += '<div class="tlc-pop-row tlc-pop-dim">To Do ' + finished + '/' + t.steps.length + '</div>';
+  }
+  var ids = t.id + ',' + (isStep ? o.id : 'null');
+  var html = '<div class="tlc-pop-title">' + _calMarkHtml(p.kind, p.color || calTaskColor(t), done)
+    + '<span class="' + (done ? 'tlc-pop-done' : '') + '">' + _calEsc(_calCleanTitle(o.text)) + '</span></div>'
+    + '<div class="tlc-pop-kind">' + kindLabel + (done ? ' · 완료' : '') + '</div>'
+    + rows
+    + '<div class="tlc-pop-actions">'
+    +   '<button type="button" class="tlc-btn" onclick="calPopDone(' + ids + ')">' + (done ? '완료 취소' : '완료') + '</button>'
+    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + t.id + ')">수정</button>'
+    +   '<button type="button" class="tlc-btn tlc-pop-del" onclick="calPopDelete(' + ids + ')">삭제</button>'
+    + '</div>';
+  _calPopShow(html, anchor.getBoundingClientRect());
+}
+function calPopDone(taskId, stepId) {
+  calPopClose(true);
+  if (stepId === null) toggleComplete(taskId);
+  else toggleStep(taskId, stepId);
+}
+function calPopEdit(taskId) {
+  calPopClose(true);
+  calOpenEvent(taskId);
+}
+function calPopDelete(taskId, stepId) {
+  if (!confirm(stepId === null ? '이 항목을 삭제하시겠습니까?' : '이 To Do 를 삭제하시겠습니까?')) return;
+  calPopClose(true);
+  if (stepId === null) deleteTaskLinked(taskId);
+  else deleteStep(taskId, stepId);
+}
+
 function calCreate() {
   calCloseMenus();
   if (typeof openNewTaskPanel === 'function') openNewTaskPanel(null, { kind: 'event', date: _calKey(_cal.date) });
@@ -894,15 +1144,42 @@ function calResultClick(i, btn) {
   var r = _cal.results[i];
   if (!r) return;
   if (r.kind === 'google') calGooglePop(r.g, btn);
-  else calOpenEvent(r.taskId);
+  else calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color }, btn);
+}
+
+// ── 떠 있는 창 (요약 · 빠른 입력) ──
+//  force 가 아니면 빠른 입력에 적던 제목이 있을 때 닫지 않는다 — 바깥을 잘못 눌러 날아가면 안 된다.
+function calPopClose(force) {
+  var name = _calEl('tlc-q-name');
+  if (!force && name && name.value.trim()) return;
+  document.querySelectorAll('.tlc-pop').forEach(function (el) { el.remove(); });
+  if (_cal.fc) { try { _cal.fc.unselect(); } catch (e) {} }
+}
+function _calPopShow(html, rect, cls) {
+  var old = document.querySelector('.tlc-pop');
+  if (old) old.remove();
+  var el = document.createElement('div');
+  el.className = 'tlc-pop' + (cls ? ' ' + cls : '');
+  el.innerHTML = html;
+  document.body.appendChild(el);
+  _cal.popAt = Date.now();
+  var w = el.offsetWidth, h = el.offsetHeight, x, y;
+  if (window.innerWidth <= 768) {
+    // 폰: 누른 자리 옆에 띄우면 자판에 가려진다 → 화면 위쪽 가운데
+    x = (window.innerWidth - w) / 2;
+    y = Math.max(8, Math.min(window.innerHeight - h - 8, Math.round(window.innerHeight * 0.08)));
+  } else {
+    x = Math.max(8, Math.min(window.innerWidth - w - 8, rect.left));
+    y = rect.bottom + 6;
+    if (y + h > window.innerHeight - 8) y = Math.max(8, rect.top - h - 6);
+  }
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  return el;
 }
 
 // ── 구글 일정 요약 (읽기 전용) ──
-function calPopClose() {
-  document.querySelectorAll('.tlc-pop').forEach(function (el) { el.remove(); });
-}
 function calGooglePop(ev, anchor) {
-  calPopClose();
   var span = _calGSpan(ev), s = span[0], e = span[1];
   function day(d) { return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + CAL_DOW[d.getDay()] + ')'; }
   function hm(d) { return _calPad(d.getHours()) + ':' + _calPad(d.getMinutes()); }
@@ -915,21 +1192,13 @@ function calGooglePop(ev, anchor) {
   }
   var cal = calGStore().cals.find(function (c) { return c.id === ev.cal; });
   var link = /^https:\/\//.test(ev.link || '') ? ev.link : '';
-  var el = document.createElement('div');
-  el.className = 'tlc-pop';
-  el.innerHTML = '<div class="tlc-pop-title">' + _calMarkHtml('google', ev.color, true) + '<span>' + _calEsc(ev.title) + '</span></div>'
+  _calPopShow('<div class="tlc-pop-title">' + _calMarkHtml('google', ev.color, true) + '<span>' + _calEsc(ev.title) + '</span></div>'
     + '<div class="tlc-pop-row">' + _calEsc(when) + '</div>'
     + (cal ? '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(cal.name) + ' · 읽기 전용</div>' : '')
     + (ev.loc ? '<div class="tlc-pop-row">' + _calEsc(ev.loc) + '</div>' : '')
     + (ev.desc ? '<div class="tlc-pop-row tlc-pop-desc">' + _calEsc(ev.desc) + '</div>' : '')
-    + (link ? '<a class="tlc-pop-link" href="' + _calEsc(link) + '" target="_blank" rel="noopener">Google 캘린더에서 열기</a>' : '');
-  document.body.appendChild(el);
-  var r = anchor.getBoundingClientRect();
-  var w = el.offsetWidth, h = el.offsetHeight;
-  var y = r.bottom + 6;
-  if (y + h > window.innerHeight - 8) y = Math.max(8, r.top - h - 6);
-  el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + 'px';
-  el.style.top = y + 'px';
+    + (link ? '<a class="tlc-pop-link" href="' + _calEsc(link) + '" target="_blank" rel="noopener">Google 캘린더에서 열기</a>' : ''),
+    anchor.getBoundingClientRect());
 }
 
 // ── 본문 전환 ──
@@ -997,7 +1266,7 @@ function renderCalendarView() {
   if (_calEl('tlc-body')) { calRefresh(); return; }
 
   calDestroyFc();
-  calPopClose();
+  calPopClose(true);
   _cal.menu = null;
   if (!_cal.view) {
     _cal.view = _calInitialView();
@@ -1018,11 +1287,12 @@ function renderCalendarView() {
 // 상단 메뉴·요약 창은 바깥을 누르면 닫는다
 document.addEventListener('mousedown', function (e) {
   if (!e.target || !e.target.closest) return;
-  if (!e.target.closest('.tlc-pop')) calPopClose();
+  // 터치는 탭이 끝나고 나서 가짜 mousedown 이 한 번 더 온다. 방금 연 창을 그것으로 닫지 않는다.
+  if (!e.target.closest('.tlc-pop') && Date.now() - (_cal.popAt || 0) > 500) calPopClose();
   if (_cal.menu && !e.target.closest('.tlc-menu-wrap')) calCloseMenus();
 });
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape') return;
-  calPopClose();
+  calPopClose(true);      // Esc 는 분명한 취소다 — 적던 제목이 있어도 닫는다
   if (_cal.menu) calCloseMenus();
 });

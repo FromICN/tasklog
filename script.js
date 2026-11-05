@@ -225,7 +225,8 @@ function toggleComplete(id) {
   const task = tasks.find(t => t.id === id);
   if (!task) return;
   task.completed = !task.completed;
-  if (!task.completed && task.kind === 'event') task.autoDone = true;   // 풀어 둔 일정을 다시 자동 완료하지 않는다
+  // 이미 끝난 일정의 체크를 풀면 다시 자동 완료하지 않는다. 아직 안 끝난 일정은 끝날 때 완료되어야 하므로 표시하지 않는다
+  if (!task.completed && task.kind === 'event' && eventEndMs(task) <= Date.now()) task.autoDone = true;
 
   if (task.completed) {
     // 완료 처리: [YYMMDD] 접두사 추가 (중복 방지) + 완료 시각 기록
@@ -1485,6 +1486,7 @@ function projDDYears(domId) {
   if (domId === 'rp-proj') {
     return taskDateYears(parseRpDateTime('rp-start-dt').dateStr, parseRpDateTime('rp-due-dt').dateStr);
   }
+  if (domId === 'tlc-q-proj' && typeof calQuickYears === 'function') return calQuickYears();
   if (domId === 'dp-proj' && typeof detailTaskId !== 'undefined' && detailTaskId) {
     var t = tasks.find(function(x){ return x.id === detailTaskId; });
     if (t) return taskDateYears(t.startDate, t.dueDateTime);
@@ -2286,7 +2288,7 @@ function openNewTaskPanel(taskId, opts) {
   rpState.steps       = task ? (task.steps || []).map(function(s){ return Object.assign({}, s); }) : [];
   rpState.assignees   = task ? (task.assignees || []).slice() : [];
   rpState.upstreamDepts = task ? (Array.isArray(task.upstreamDepts) ? task.upstreamDepts.slice() : (task.upstreamDept ? [task.upstreamDept] : [])) : [];
-  rpState.mdtAction   = task ? (task.mdtAction || null) : null;
+  rpState.mdtAction   = task ? (task.mdtAction || null) : ((opts && opts.mdtAction) || null);
   rpState.reminder    = task ? (task.reminder || null) : null;
   rpState.repeat      = task ? (task.repeat || null) : null;
   rpState.prevTaskIds = task ? (Array.isArray(task.prevTaskIds) ? task.prevTaskIds.slice() : []) : [];
@@ -2303,7 +2305,19 @@ function openNewTaskPanel(taskId, opts) {
   var body = document.getElementById('rp-body');
   if (body) { body.classList.remove('rp-body--detail'); body.innerHTML = buildRpForm(task); }
   rpSyncForm();
-  if (!task && opts && opts.kind === 'event') rpSetKind('event');
+  if (!task && opts && opts.values) {
+    // 달력 빠른 입력의 '옵션 더보기' — 거기 적은 값을 그대로 잇는다
+    rpState.kind = opts.kind === 'event' ? 'event' : 'task';
+    rpState.workOpen = rpState.kind !== 'event';
+    rpState.allDay = !!opts.allDay;
+    _rpDtApply(opts.values);
+    var _rpName = document.getElementById('rp-task-name');
+    if (_rpName && opts.name) _rpName.value = opts.name;
+    rpState.dirty = true;
+    rpSyncForm();
+  } else if (!task && opts && opts.kind === 'event') {
+    rpSetKind('event');
+  }
   _projDDCallbacks['rp-proj'] = function(sel){
     rpState.mdtAction = sel; rpState.dirty = true;
     // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
@@ -2374,11 +2388,14 @@ function rpDtInput(el) {
   if (typeof rpState !== 'undefined') rpState.dirty = true;
 }
 // 시간 칸: 숫자만 쳐도 되게 한다 (폰 숫자 자판에는 ':' 이 없다). 930 → 09:30, 1430 → 14:30
-function rpTmInput(el) {
+function rpTmMask(el) {
   var d = el.value.replace(/\D/g, '');
   if (d && +d.charAt(0) > 2) d = '0' + d;      // 시의 첫 자리는 0~2 뿐이다
   d = d.slice(0, 4);
   el.value = d.length > 2 ? d.slice(0, 2) + ':' + d.slice(2) : d;
+}
+function rpTmInput(el) {
+  rpTmMask(el);
   if (typeof rpState !== 'undefined') rpState.dirty = true;
 }
 function rpTmParse(digits) {
@@ -3061,21 +3078,24 @@ function rpSetDep(dir, val) {
   rpState.dirty = true;
 }
 
+// 삭제 + 양방향 연계 정리 (rp-form · 달력 요약창)
+function deleteTaskLinked(id) {
+  tasks.forEach(function(o){
+    if (o.prevTaskIds) o.prevTaskIds = o.prevTaskIds.filter(function(x){ return x !== id; });
+    if (o.nextTaskIds) o.nextTaskIds = o.nextTaskIds.filter(function(x){ return x !== id; });
+  });
+  deleteTask(id);
+}
 // ── 삭제 (rp-form) ──
 function rpDeleteTask() {
   if (!rpState.taskId) return;
   if (!confirm('이 작업을 삭제하시겠습니까?')) return;
   var id = rpState.taskId;
-  // 양방향 연계 정리
-  tasks.forEach(function(o){
-    if (o.prevTaskIds) o.prevTaskIds = o.prevTaskIds.filter(function(x){ return x !== id; });
-    if (o.nextTaskIds) o.nextTaskIds = o.nextTaskIds.filter(function(x){ return x !== id; });
-  });
   rpState.dirty = false;
   rpState.taskId = null; detailTaskId = null;
   var panel = document.getElementById('right-panel');
   if (panel) panel.classList.remove('open');
-  deleteTask(id);
+  deleteTaskLinked(id);
   var _fnName = MENU_RENDERERS[currentMenu];
   if (_fnName && typeof window[_fnName] === 'function') window[_fnName]();
   updateCategoryCounts();
@@ -3120,6 +3140,25 @@ function closeRightPanel() {
   rpState.dirty = false; rpState.taskId = null;
 }
 
+// 새 Task·일정 문서의 모양은 여기 한 곳에서 정한다 (오른쪽 패널 · 달력 빠른 입력)
+function newTaskDoc(o) {
+  var doc = {
+    id: Date.now(), text: o.text,
+    completed: !!o.completed, starred: !!o.starred,
+    createdAt: new Date().toISOString(),
+    dueDateTime: o.dueDateTime || null, hasTime: !!o.hasTime,
+    startDate: o.startDate || null, startHasTime: !!o.startHasTime,
+    eisenhower: o.eisenhower || null, status: o.status || '대기', notes: o.notes || '',
+    steps: o.steps || [], reminder: o.reminder || null, assignee: '', assignees: o.assignees || [],
+    repeat: o.repeat || null,
+    upstreamDepts: o.upstreamDepts || [], upstreamDept: o.upstreamDept || '',
+    mdtAction: o.mdtAction || null,
+    prevTaskIds: o.prevTaskIds || [], nextTaskIds: o.nextTaskIds || [],
+  };
+  if (o.kind === 'event') doc.kind = 'event';
+  if (o.location) doc.location = o.location;
+  return doc;
+}
 // 일정은 시작·끝이 늘 같이 있다. 한쪽만 적었으면 채우고, 끝이 시작보다 앞이면 저장하지 않는다.
 function rpNormalizeEvent(sd, st, dd, dt) {
   if (!sd && !dd) return { error: 'rp-start-dt' };
@@ -3233,23 +3272,21 @@ function saveRightPanel() {
       savedTask = task;
     }
   } else {
-    var newTask = {
-      id: Date.now(), text: applyCompletePrefix(name, rpState.completed, ''),
+    var newTask = newTaskDoc({
+      text: applyCompletePrefix(name, rpState.completed, ''),
       completed: rpState.completed, starred: rpState.starred,
-      createdAt: new Date().toISOString(),
       dueDateTime: dueDateTime, hasTime: hasTime,
       startDate: startDate ? (startTime ? startDate+'T'+startTime+':00' : startDate+'T09:00:00') : null,
       startHasTime: !!(startDate && startTime),
       eisenhower: rpState.eisenhower, status: rpState.status, notes: notesVal,
-      steps: rpState.steps, reminder: reminderVal, assignee: '', assignees: rpState.assignees.slice(),
+      steps: rpState.steps, reminder: reminderVal, assignees: rpState.assignees.slice(),
       repeat: rpState.repeat || null,
       upstreamDepts: upstreamDepts,
       upstreamDept: upstreamDeptVal,
       mdtAction: rpState.mdtAction || null,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
-    };
-    if (isEvent) newTask.kind = 'event';
-    if (locationVal) newTask.location = locationVal;
+      kind: isEvent ? 'event' : null, location: locationVal,
+    });
     tasks.push(newTask);
     savedTask = newTask;
   }
