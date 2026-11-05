@@ -266,6 +266,7 @@ function boardColPickerPanel() {
       + '<span>' + c.label + '</span></label>';
   }).join('');
   return '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+    + appPeriodNoteHtml()
     + '<div class="bd-colpick-search-wrap">'
     + '<span class="bd-colpick-search-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>'
     + '<input type="text" class="bd-colpick-search" id="bd-colpick-search" placeholder="전체 검색..." value="' + escapeHtml(_boardSearch || '') + '"'
@@ -359,12 +360,18 @@ function boardDistinctVals(key) {
   var col = BOARD_COLS.filter(function(c){ return c.key === key; })[0];
   if (!col) return [];
   var set = {};
-  boardAllEntries().forEach(function(e){ set[boardFilterDisplayVal(col, e)] = true; });
+  boardAllEntries().filter(boardPassesPeriod).forEach(function(e){ set[boardFilterDisplayVal(col, e)] = true; });
   return Object.keys(set).sort(function(a, b) {
     if (a === '(없음)') return 1;
     if (b === '(없음)') return -1;
     return a.localeCompare(b, 'ko');
   });
+}
+
+// 표시 기간 (설정 > 화면). Start·Due 는 여기서 거르므로 컬럼 필터를 두지 않는다
+function boardPassesPeriod(e) {
+  if (e.step) return appPeriodHit(appStepRange(e.task, e.step), !e.step.completed && !e.task.completed);
+  return appPeriodHit(appTaskRange(e.task), !e.task.completed);
 }
 
 function boardPassesFilters(e) {
@@ -381,8 +388,9 @@ function boardPassesFilters(e) {
 // ── 헤더 셀 (텍스트 클릭=필터 드롭다운 · 오른쪽 ▲▼=정렬) ──
 function boardTh(col) {
   var key = col.key;
-  var open = (_boardFilterOpen === key);
-  var filterOn = _boardFilters[key] && Object.keys(_boardFilters[key]).length > 0;
+  var canFilter = (key !== 'start' && key !== 'due');   // 기간은 표시 기간이 맡는다. 정렬은 그대로
+  var open = canFilter && (_boardFilterOpen === key);
+  var filterOn = canFilter && _boardFilters[key] && Object.keys(_boardFilters[key]).length > 0;
   var panel = '';
   if (open) {
     var ex = _boardFilters[key] || {};
@@ -405,7 +413,9 @@ function boardTh(col) {
   // 항목 텍스트(헤더 셀) 자체 클릭 → 필터 드롭박스 (정렬 버튼/패널 클릭은 제외)
   return '<th class="bd-th bd-th-' + key + '" id="bd-th-' + key + '" data-cr-key="' + key + '" style="position:sticky;top:0;"'
     + ' ondragover="boardColDragOver(event)" ondrop="boardColDrop(\'' + key + '\',event)"'
-    + ' title="클릭: 표시 항목 필터 · 드래그: 순서 변경" onclick="boardToggleFilterPanel(\'' + key + '\',event)">'
+    + (canFilter
+        ? ' title="클릭: 표시 항목 필터 · 드래그: 순서 변경" onclick="boardToggleFilterPanel(\'' + key + '\',event)">'
+        : ' title="드래그: 순서 변경 · 기간은 설정 > 화면의 표시 기간에서 고릅니다">')
     + '<span class="bd-th-label' + (filterOn ? ' bd-filter-on' : '') + '" draggable="true"'
     + ' ondragstart="boardColDragStart(\'' + key + '\',event)">' + col.label + '</span>'
     + '<span class="bd-sortbtns">'
@@ -482,13 +492,13 @@ function buildBoardTable() {
     return '<div class="todo-empty">등록된 Task가 없어요 ✨</div>';
   }
 
-  var visible = entries.filter(boardPassesFilters).filter(boardMatchesSearch);
+  var visible = entries.filter(boardPassesPeriod).filter(boardPassesFilters).filter(boardMatchesSearch);
   var vcols = boardVisibleCols();
   var head = '<thead><tr>' + vcols.map(boardTh).join('') + '</tr></thead>';
 
   if (!visible.length) {
     return '<div class="todo-table-wrap"><table class="todo-table bd-table">' + head
-      + '<tbody><tr><td colspan="' + vcols.length + '" style="text-align:center;padding:30px;color:var(--text-3);">표시할 항목이 없어요. 헤더를 클릭해 필터를 확인하세요.</td></tr></tbody>'
+      + '<tbody><tr><td colspan="' + vcols.length + '" style="text-align:center;padding:30px;color:var(--text-3);">표시할 항목이 없어요. 헤더 필터와 표시 기간(' + escapeHtml(appPeriodLabel()) + ')을 확인하세요.</td></tr></tbody>'
       + '</table></div>';
   }
 

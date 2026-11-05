@@ -70,8 +70,7 @@ function renderWbsTitleYear() {
   }).join('');
   opts += '<option value="__new__">+ 새 연도 추가</option>';
   opts += '<option value="__delete__">🗑 현재 연도 삭제</option>';
-  // 연도 선택 + 검색창 (검색창은 연도 선택 오른쪽)
-  // 연도 선택은 제거 — 연도 필터는 START/DUE 컬럼 헤더에서 처리
+  // 기간은 설정 > 화면의 표시 기간이 맡는다 (패널에 한 줄로 알려 준다)
   var _titleFilterActive = Object.keys(_wbsTitleFilter).length > 0;
   var _panelOn = _wbsSearchOpen || _wbsSearch || _titleFilterActive;
   slot.innerHTML = '<div class="wbs-title-tools" style="position:relative;">'
@@ -79,6 +78,7 @@ function renderWbsTitleYear() {
     + (typeof BD_FILTER_ICON !== 'undefined' ? BD_FILTER_ICON : '\uD83D\uDD0D') + '</button>'
     + (_wbsSearchOpen
         ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+          + appPeriodNoteHtml()
           + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="wbs-search-inp" placeholder="Task \u00B7 To Do \uAC80\uC0C9"'
           + ' value="' + wbsEsc(_wbsSearch) + '" oninput="wbsSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
           + wbsTitleFilterPanelHtml()
@@ -110,8 +110,7 @@ function wbsTaskYear(task) {
 }
 
 function wbsTaskPassesFilter(task) {
-  // 연도 제한 없이 전체 표시 — 연도 선택은 START/DUE 컬럼 필터로 이동
-  return true;
+  return appPeriodHit(appTaskRange(task), !task.completed);   // 표시 기간 (설정 > 화면)
 }
 
 // ── 라이브 연계 (WBS ↔ LifeWheel · Mandalart 실시간 동기화) ──
@@ -323,14 +322,7 @@ function wbsColDisplayVal(task, key) {
   return v === '' ? '(없음)' : v;
 }
 
-// 필터용 값: START/DUE 는 '연도'(YYYY년) 단위로 묶는다. 그 외(STATUS)는 표시값 그대로.
 function wbsColFilterVal(task, key) {
-  if (key === 'start' || key === 'due') {
-    var d = (key === 'start') ? task.startDate : task.dueDateTime;
-    if (!d) return '(없음)';
-    var yr = new Date(d).getFullYear();
-    return isNaN(yr) ? '(없음)' : (yr + '년');
-  }
   return wbsColDisplayVal(task, key);
 }
 
@@ -362,18 +354,15 @@ function wbsDistinctVals(key) {
   (typeof tasks !== 'undefined' ? tasks : []).filter(wbsTaskPassesFilter).forEach(function(t) {
     set[wbsColFilterVal(t, key)] = true;
   });
-  var yrRe = /^(\d{4})년$/;
   return Object.keys(set).sort(function(a, b) {
     if (a === '(없음)') return 1;
     if (b === '(없음)') return -1;
-    var ma = yrRe.exec(a), mb = yrRe.exec(b);
-    if (ma && mb) return (+mb[1]) - (+ma[1]);   // 연도: 최신 연도 먼저
     return a.localeCompare(b, 'ko');
   });
 }
 
 function wbsPassesColFilters(task) {
-  var keys = ['prev', 'next', 'start', 'due', 'status'];
+  var keys = ['prev', 'next', 'status'];   // Start·Due 는 표시 기간이 맡는다
   for (var i = 0; i < keys.length; i++) {
     var ex = _wbsColFilters[keys[i]];
     if (ex && ex[wbsColFilterVal(task, keys[i])]) return false;
@@ -474,9 +463,10 @@ function wbsRefreshTree() {
 function wbsHeadCell(key, label, cls, filterable) {
   var upOn = (_wbsSort.key === key && _wbsSort.dir === 'asc');
   var dnOn = (_wbsSort.key === key && _wbsSort.dir === 'desc');
-  var filterOn = _wbsColFilters[key] && Object.keys(_wbsColFilters[key]).length > 0;
+  var canFilter = filterable && key !== 'start' && key !== 'due';   // 끌어서 순서 바꾸기·정렬은 그대로 둔다
+  var filterOn = canFilter && _wbsColFilters[key] && Object.keys(_wbsColFilters[key]).length > 0;
   var panel = '';
-  if (filterable && _wbsFilterOpen === key) {
+  if (canFilter && _wbsFilterOpen === key) {
     var ex = _wbsColFilters[key] || {};
     var items = wbsDistinctVals(key).map(function(v) {
       var checked = ex[v] ? '' : ' checked';
@@ -497,7 +487,9 @@ function wbsHeadCell(key, label, cls, filterable) {
     + (filterable ? ' draggable="true" ondragstart="wbsColDragStart(\'' + key + '\',event)"' : '')
     + '>' + label + '</span>';
   var thOnclick = filterable
-    ? ' title="클릭: 표시 항목 필터 · 드래그: 순서 변경" onclick="wbsToggleFilterPanel(\'' + key + '\',event)"'
+    ? (canFilter
+        ? ' title="클릭: 표시 항목 필터 · 드래그: 순서 변경" onclick="wbsToggleFilterPanel(\'' + key + '\',event)"'
+        : ' title="드래그: 순서 변경 · 기간은 설정 > 화면의 표시 기간에서 고릅니다"')
       + ' ondragover="wbsColDragOver(event)" ondrop="wbsColDrop(\'' + key + '\',event)"'
     : '';
   return '<span class="' + cls + ' wbs-head-cell" id="wbs-th-' + key + '" style="position:relative;"' + thOnclick + '>'

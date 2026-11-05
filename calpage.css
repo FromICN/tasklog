@@ -51,6 +51,7 @@
   white-space: nowrap;
 }
 .tlc-btn:hover { background: var(--surface-hover); }
+.tlc-btn:disabled { color: var(--text-3); opacity: .5; cursor: default; }
 .tlc-icon { width: 32px; padding: 0; font-size: var(--fs-xl); line-height: 1; }
 .tlc-create {
   background: var(--brand-primary);
@@ -331,7 +332,9 @@
 
 /* ── 검색 결과 ─────────────────────────────── */
 .tlc-empty { padding: 40px 0; color: var(--text-3); font-size: var(--fs-sm); text-align: center; }
-.tlc-res-sum { padding: 2px 4px 8px; color: var(--text-3); font-size: var(--fs-xs); }
+.tlc-res-sum { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px 8px; color: var(--text-3); font-size: var(--fs-xs); }
+.tlc-res-more { padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-xs); text-decoration: underline; cursor: pointer; }
+.tlc-empty .tlc-res-more { margin-top: 8px; }
 .tlc-res-day {
   position: sticky;
   top: 0;

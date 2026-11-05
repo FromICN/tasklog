@@ -3590,6 +3590,7 @@ function navToMenu(id) {
       dateEl.textContent = now.getFullYear() + '년 ' + (now.getMonth()+1) + '월 ' + now.getDate() + '일 (' + days[now.getDay()] + ')';
     } else {
       dateEl.textContent = '';
+      if (typeof appPeriodSyncLabel === 'function') appPeriodSyncLabel();
     }
   }
 

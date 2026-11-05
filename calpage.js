@@ -13,7 +13,7 @@ var CAL_VIEWS = [
   { id: 'week',  label: '주',   fc: 'timeGridWeek' },
   { id: 'month', label: '월',   fc: 'dayGridMonth' },
   { id: 'year',  label: '연',   fc: null           },
-  { id: 'list',  label: '목록', fc: 'listYear'     },
+  { id: 'list',  label: '목록', fc: 'listPeriod'   },
 ];
 var CAL_DOW = ['일', '월', '화', '수', '목', '금', '토'];
 var CAL_NO_PROJECT_COLOR = 'var(--text-3)';
@@ -183,18 +183,19 @@ var CAL_GCAL_DEFAULT_NAMES = ['공공의 자아'];
 var CAL_GCAL_KEEP_YEARS = 6;
 var _calG = { store: null, listed: false, palette: null, busy: {}, failedAt: {} };
 
-// 한 해에 약 56KB 다. 지난 해들을 넘겨 보다 저장소가 차면 동기화까지 막히므로 최근에 받은 해만 남긴다.
-function calGTrimCache() {
-  var ev = calGStore().ev, latest = {};
+// 한 해에 약 56KB 다. 저장소가 차면 동기화까지 막히므로 저장할 때는 최근에 받은 해만 담는다.
+// ⚠️ 메모리에서는 지우지 않는다. 표시 기간이 6년을 넘을 때 지운 해를 다시 받고 또 지우기를 반복하게 된다.
+function calGCacheForSave() {
+  var store = calGStore(), ev = store.ev, latest = {}, out = {};
   Object.keys(ev).forEach(function (k) {
     var y = k.split('|').pop();
     latest[y] = Math.max(latest[y] || 0, ev[k].at || 0);
   });
-  var old = Object.keys(latest).sort(function (a, b) { return latest[b] - latest[a]; }).slice(CAL_GCAL_KEEP_YEARS);
-  if (!old.length) return;
+  var keep = Object.keys(latest).sort(function (a, b) { return latest[b] - latest[a]; }).slice(0, CAL_GCAL_KEEP_YEARS);
   Object.keys(ev).forEach(function (k) {
-    if (old.indexOf(k.split('|').pop()) >= 0) delete ev[k];
+    if (keep.indexOf(k.split('|').pop()) >= 0) out[k] = ev[k];
   });
+  return { cals: store.cals, ev: out };
 }
 
 function calGStore() {
@@ -298,8 +299,7 @@ async function calGLoadYear(year) {
     _calG.busy[key] = false;
   }
   if (changed) {
-    calGTrimCache();
-    _calSave(CAL_GCAL_CACHE_KEY, calGStore());
+    _calSave(CAL_GCAL_CACHE_KEY, calGCacheForSave());
     if (typeof currentMenu !== 'undefined' && currentMenu === 'calendar') calRefresh();
   }
 }
@@ -358,22 +358,86 @@ function _calGToFc(ev) {
   };
 }
 
+// ── 표시 기간 (설정 > 화면) ──
+//  목록·연도·검색에만 건다. 일·주·월 칸은 보는 날짜를 그대로 보여 준다 — 2015년으로 넘어갔는데
+//  칸이 비어 있으면 고장처럼 보인다.
+function _calInPeriod(s, e) {            // e 는 포함하지 않는 끝
+  return appPeriodHit([_calKey(s), _calKey(new Date(e.getTime() - 1))]);
+}
+function _calItemEnd(it) { return it.end || new Date(it.date.getTime() + 1); }
+// 목록 보기의 범위. 끝이 열려 있거나 전체면 가진 데이터의 연도까지 넓힌다.
+function calPeriodBounds() {
+  var rs = appPeriodRanges();
+  var from = rs ? rs.reduce(function (a, r) { return r[0] < a ? r[0] : a; }, rs[0][0]) : '0000-01-01';
+  var to   = rs ? rs.reduce(function (a, r) { return r[1] > a ? r[1] : a; }, rs[0][1]) : '9999-12-31';
+  var y = new Date().getFullYear(), minY = y, maxY = y;
+  if (from === '0000-01-01' || to === '9999-12-31') {
+    calCollectItems().forEach(function (it) {
+      minY = Math.min(minY, it.date.getFullYear());
+      maxY = Math.max(maxY, _calItemEnd(it).getFullYear());
+    });
+    calGItems().forEach(function (ev) {
+      var span = _calGSpan(ev);
+      minY = Math.min(minY, span[0].getFullYear());
+      maxY = Math.max(maxY, span[1].getFullYear());
+    });
+    if (from === '0000-01-01') from = minY + '-01-01';
+    if (to === '9999-12-31') to = maxY + '-12-31';
+  }
+  var p = from.split('-'), q = to.split('-');
+  return { start: new Date(+p[0], +p[1] - 1, +p[2]), end: new Date(+q[0], +q[1] - 1, +q[2] + 1) };
+}
+// 연도 보기에서 갈 수 있는 해 (오름차순). 끝이 열려 있거나 전체면 null = 어디든.
+function calYearAllowed() {
+  var p = appPeriod();
+  if (p.mode === 'year') return [new Date().getFullYear()];
+  if (p.mode === 'years') return p.years;
+  if (p.mode === 'range' && p.from && p.to) {
+    var out = [];
+    for (var y = +p.from.slice(0, 4); y <= +p.to.slice(0, 4); y++) out.push(y);
+    return out;
+  }
+  return null;
+}
+function calYearShown() {
+  var y = _cal.date.getFullYear(), a = calYearAllowed();
+  if (!a || a.indexOf(y) >= 0) return y;
+  return a.reduce(function (best, v) { return Math.abs(v - y) < Math.abs(best - y) ? v : best; }, a[0]);
+}
+function calYearStep(dir) {
+  var y = calYearShown(), a = calYearAllowed();
+  if (!a) return y + dir;
+  var i = a.indexOf(y) + dir;
+  return (i >= 0 && i < a.length) ? a[i] : null;
+}
+
 // ── FullCalendar ──
 function calFcEvents(start, end) {
-  var show = calShow(), out = [];
+  var show = calShow(), out = [], listing = _cal.view === 'list';
   calCollectItems().forEach(function (it) {
     if (!calItemVisible(it, show)) return;
-    if (it.date >= end || (it.end || new Date(it.date.getTime() + 1)) <= start) return;
+    var itEnd = _calItemEnd(it);
+    if (it.date >= end || itEnd <= start) return;
+    if (listing && !_calInPeriod(it.date, itEnd)) return;
     out.push(_calItemToFc(it));
   });
   calGItems().forEach(function (ev) {
     var span = _calGSpan(ev);
-    if (span[0] < end && span[1] > start) out.push(_calGToFc(ev));
+    if (span[0] >= end || span[1] <= start) return;
+    if (listing && !_calInPeriod(span[0], span[1])) return;
+    out.push(_calGToFc(ev));
   });
   return out;
 }
 function _calMarkHtml(kind, color, done) {
   return '<i class="tlc-mark tlc-mark-' + kind + (done ? ' is-done' : '') + '" style="--tlc-c:' + _calEsc(color) + '"></i>';
+}
+// 여러 해를 함께 볼 때는 날짜 줄에 연도까지 적는다
+function _calListDayFormat() {
+  var b = calPeriodBounds();
+  var multi = b.start.getFullYear() !== new Date(b.end.getTime() - 1).getFullYear();
+  return multi ? { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }
+               : { month: 'long', day: 'numeric', weekday: 'short' };
 }
 function calEnsureFc() {
   if (_cal.fc) return _cal.fc;
@@ -404,7 +468,14 @@ function calEnsureFc() {
       timeGrid: { dayMaxEvents: false, dayMaxEventRows: 3 },
       timeGridDay: { titleFormat: { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' } },
       // 끝 시각까지 적으면 시간 칸이 폰 폭의 1/3 을 먹는다. 끝 시각은 눌렀을 때 요약에서 본다
-      listYear: { listDayFormat: { month: 'long', day: 'numeric', weekday: 'short' }, listDaySideFormat: false, displayEventEnd: false },
+      // 범위는 표시 기간을 따른다. 기간을 바꾸면 인스턴스를 다시 만든다(calSyncBody)
+      listPeriod: {
+        type: 'list',
+        visibleRange: calPeriodBounds,
+        listDayFormat: _calListDayFormat(),
+        listDaySideFormat: false,
+        displayEventEnd: false,
+      },
     },
     dayHeaderContent: function (arg) {
       // ⚠️ FullCalendar 는 true 를 돌려줘야 기본 내용을 그린다. undefined 면 빈칸이 된다.
@@ -442,7 +513,8 @@ function calEnsureFc() {
     },
     eventDrop: function (info) { if (!calMoveItem(info.event)) info.revert(); },
     datesSet: function () {
-      _cal.date = _cal.fc.getDate();
+      // 목록은 표시 기간에 맞춰 날짜를 끌어당긴다. 받아 적으면 달력 칸으로 돌아왔을 때 엉뚱한 해로 간다
+      if (_cal.view !== 'list') _cal.date = _cal.fc.getDate();
       calSyncTools();
     },
     eventsSet: function () {
@@ -536,8 +608,8 @@ function calToolsHtml() {
     + '<div class="tlc-group tlc-group-nav">'
     +   '<button type="button" class="tlc-btn tlc-create" onclick="calCreate()" aria-label="만들기"><span aria-hidden="true">+</span><span class="tlc-create-label"> 만들기</span></button>'
     +   '<button type="button" class="tlc-btn" onclick="calToday()">오늘</button>'
-    +   '<button type="button" class="tlc-btn tlc-icon" onclick="calStep(-1)" aria-label="이전">‹</button>'
-    +   '<button type="button" class="tlc-btn tlc-icon" onclick="calStep(1)" aria-label="다음">›</button>'
+    +   '<button type="button" class="tlc-btn tlc-icon" id="tlc-prev" onclick="calStep(-1)" aria-label="이전">‹</button>'
+    +   '<button type="button" class="tlc-btn tlc-icon" id="tlc-next" onclick="calStep(1)" aria-label="다음">›</button>'
     +   '<span class="tlc-menu-wrap">'
     +     '<button type="button" class="tlc-title" id="tlc-title" onclick="calToggleMenu(\'mini\')" aria-label="날짜 고르기"></button>'
     +     '<div class="tlc-menu" id="tlc-menu-mini" hidden></div>'
@@ -561,11 +633,16 @@ function calSyncTools() {
   if (title) {
     var text;
     if (_cal.query) text = '검색 결과';
-    else if (_cal.view === 'year') text = _cal.date.getFullYear() + '년';
-    else if (_cal.view === 'list') text = _cal.date.getFullYear() + '년 목록';
+    else if (_cal.view === 'year') text = calYearShown() + '년';
+    else if (_cal.view === 'list') text = appPeriodLabel() + ' 목록';
     else text = _cal.fc ? _cal.fc.view.title : '';
     title.textContent = text + ' ▾';
   }
+  // 연도 보기는 표시 기간 밖으로 나가지 않는다
+  var inYear = !_cal.query && _cal.view === 'year';
+  var prev = _calEl('tlc-prev'), next = _calEl('tlc-next');
+  if (prev) prev.disabled = inYear && calYearStep(-1) === null;
+  if (next) next.disabled = inYear && calYearStep(1) === null;
   document.querySelectorAll('.tlc-seg-btn').forEach(function (b) {
     b.classList.toggle('is-on', !_cal.query && b.getAttribute('data-view') === _cal.view);
   });
@@ -582,8 +659,20 @@ function calStep(dir) {
   calCloseMenus();
   _calClearSearch();
   if (_cal.view === 'year') {
-    _cal.date = new Date(_cal.date.getFullYear() + dir, _cal.date.getMonth(), 1);
+    var nextYear = calYearStep(dir);
+    if (nextYear === null) return;
+    _cal.date = new Date(nextYear, _cal.date.getMonth(), 1);
     calRefresh();
+    return;
+  }
+  if (_cal.view === 'list') {
+    // 목록은 표시 기간 전체를 한 번에 그린다 → 화살표는 앞뒤 달로 스크롤한다
+    var target = new Date(_cal.date.getFullYear(), _cal.date.getMonth() + dir, 1);
+    var bounds = calPeriodBounds();
+    if (target >= bounds.end || new Date(target.getFullYear(), target.getMonth() + 1, 1) <= bounds.start) return;
+    _cal.date = target;
+    _cal.scrollTo = _calKey(target);
+    calScrollList();
     return;
   }
   var fc = calEnsureFc();
@@ -687,7 +776,10 @@ function calRenderShowMenu() {
 // ── 연도 보기 ──
 function calYearCounts(year) {
   var show = calShow(), counts = {};
-  function add(d) { var k = _calKey(d); counts[k] = (counts[k] || 0) + 1; }
+  function add(d) {
+    var k = _calKey(d);
+    if (appPeriodHit([k, k])) counts[k] = (counts[k] || 0) + 1;
+  }
   calCollectItems().forEach(function (it) {
     if (!calItemVisible(it, show)) return;
     if (it.kind !== 'event') { if (it.date.getFullYear() === year) add(it.date); return; }
@@ -710,7 +802,7 @@ function calYearCounts(year) {
 function calRenderYear() {
   var el = _calEl('tlc-year');
   if (!el) return;
-  var y = _cal.date.getFullYear();
+  var y = calYearShown();
   var counts = calYearCounts(y), html = '';
   for (var m = 0; m < 12; m++) {
     html += '<section class="tlc-ymonth">'
@@ -728,12 +820,18 @@ function calSearchInput(v) {
   if (_cal.queryTimer) clearTimeout(_cal.queryTimer);
   _cal.queryTimer = setTimeout(function () {
     _cal.query = String(v || '').trim();
+    if (!_cal.query) _cal.queryAll = false;
     calRefresh();
   }, 150);
+}
+function calSearchToggleAll() {
+  _cal.queryAll = !_cal.queryAll;
+  calRefresh();
 }
 function _calClearSearch() {
   if (_cal.queryTimer) { clearTimeout(_cal.queryTimer); _cal.queryTimer = null; }
   _cal.query = '';
+  _cal.queryAll = false;
   var s = _calEl('tlc-search');
   if (s) s.value = '';
 }
@@ -745,9 +843,18 @@ function calRenderResults() {
   var rows = calCollectItems().filter(function (it) { return it.title.toLowerCase().indexOf(q) >= 0; });
   calGItems().forEach(function (ev) {
     if (ev.title.toLowerCase().indexOf(q) >= 0) {
-      rows.push({ kind: 'google', g: ev, title: ev.title, date: _calGSpan(ev)[0], hasTime: !ev.allDay, done: false, color: ev.color });
+      var span = _calGSpan(ev);
+      rows.push({ kind: 'google', g: ev, title: ev.title, date: span[0], end: span[1], hasTime: !ev.allDay, done: false, color: ev.color });
     }
   });
+  // 표시 기간 안만 보여 주고, 밖에 더 있으면 그 수를 알려 넓힐 수 있게 한다
+  var inside = rows.filter(function (r) { return _calInPeriod(r.date, _calItemEnd(r)); });
+  var outside = rows.length - inside.length;
+  if (!_cal.queryAll) rows = inside;
+  var outsideNote = outside
+    ? ('<button type="button" class="tlc-res-more" onclick="calSearchToggleAll()">'
+        + (_cal.queryAll ? '표시 기간(' + _calEsc(appPeriodLabel()) + ') 안만 보기' : '표시 기간 밖 ' + outside + '건 더 보기') + '</button>')
+    : '';
   rows.sort(function (a, b) { return a.date - b.date; });
   var total = rows.length;
   if (total > CAL_RESULT_MAX) {
@@ -758,11 +865,11 @@ function calRenderResults() {
   }
   _cal.results = rows;
   if (!rows.length) {
-    el.innerHTML = '<div class="tlc-empty">검색 결과가 없습니다</div>';
+    el.innerHTML = '<div class="tlc-empty">표시 기간(' + _calEsc(appPeriodLabel()) + ')에 검색 결과가 없습니다' + (outsideNote ? '<br>' + outsideNote : '') + '</div>';
     return;
   }
   var todayKey = _calKey(new Date()), lastKey = '', html = '';
-  html += '<div class="tlc-res-sum">' + total + '건' + (total > CAL_RESULT_MAX ? ' · 오늘에서 가까운 ' + CAL_RESULT_MAX + '건만 표시' : '') + '</div>';
+  html += '<div class="tlc-res-sum">' + total + '건' + (total > CAL_RESULT_MAX ? ' · 오늘에서 가까운 ' + CAL_RESULT_MAX + '건만 표시' : '') + outsideNote + '</div>';
   rows.forEach(function (r, i) {
     var key = _calKey(r.date);
     if (key !== lastKey) {
@@ -833,6 +940,14 @@ function calSyncBody() {
   fcEl.hidden = mode !== 'fc';
   yearEl.hidden = mode !== 'year';
   resEl.hidden = mode !== 'search';
+  // 표시 기간이 바뀌면 목록 범위가 달라지므로 인스턴스를 다시 만든다
+  var sig = JSON.stringify(appPeriod());
+  if (_cal.fc && _cal.periodSig !== sig) {
+    try { _cal.fc.destroy(); } catch (e) {}
+    _cal.fc = null;
+    if (_cal.view === 'list') _cal.scrollTo = _calKey(new Date());
+  }
+  _cal.periodSig = sig;
   if (mode === 'fc') {
     var had = !!_cal.fc;
     var fc = calEnsureFc();

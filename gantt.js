@@ -314,6 +314,7 @@ function renderGanttTools() {
     + _icon + '</button>'
     + (_ganttSearchOpen
         ? '<div class="bd-colpick-panel" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();">'
+          + appPeriodNoteHtml()
           + '<div class="bd-colpick-search-wrap"><input type="text" class="bd-colpick-search" id="gantt-search-inp" placeholder="Task · To Do 검색"'
           + ' value="' + _sval + '" oninput="ganttSetSearch(this.value)" onclick="event.stopPropagation();" onmousedown="event.stopPropagation();"></div>'
           + ganttSecFilterPanelHtml()
@@ -352,6 +353,7 @@ function renderGanttView() {
   // 이번 달에 걸치는 진행 중 TASK (홈과 동일: 완료 항목 제외)
   var monthTasks = tasks.filter(function(t) {
     if (t.completed) return false;
+    if (!appPeriodHit(appTaskRange(t), true)) return false;   // 표시 기간 (설정 > 화면)
     var s = t.startDate   ? new Date(t.startDate)   : null;
     var e = t.dueDateTime ? new Date(t.dueDateTime) : null;
     if (s && e) return s <= mE && e >= mS;
@@ -376,7 +378,7 @@ function renderGanttView() {
 
   if (!vis.length) {
     content.innerHTML = '<div class="gantt-page">' + navHtml
-      + emptyWidget('📊', '이번 달 진행 중인 Task가 없습니다') + '</div>';
+      + emptyWidget('📊', '이번 달 진행 중인 Task가 없습니다 (표시 기간 ' + appPeriodLabel() + ')') + '</div>';
     return;
   }
 

@@ -273,7 +273,8 @@ function buildTabDisplay() {
     + buildFontSizeBtn('small', '작게')
     + buildFontSizeBtn('medium', '보통')
     + buildFontSizeBtn('large', '크게')
-    + '</div>';
+    + '</div>'
+    + buildPeriodSection();
 }
 
 function buildThemePreview(label, icon, dark, isDark) {
@@ -823,4 +824,182 @@ function weekLeadOffset(dowSun) {
 // 표시 컬럼 인덱스(0~6) → 실제 요일(0=일). 주말 색상 판정용
 function weekColDow(colIdx) {
   return appWeekStart() === 'mon' ? (colIdx + 1) % 7 : colIdx;
+}
+
+// ============================================
+//  📅 표시 기간 — Board · WBS · Web · Gantt · Calendar(목록·연도·검색)가 같은 기준을 쓴다
+//  이 기기에만 저장한다(FS_DOC_KEYS 에 넣지 말 것). PC 에서 잠깐 여러 해를 봐도 폰은 그대로다.
+//  { mode:'year' }                 올해 (기본, 해가 바뀌면 저절로 따라간다)
+//  { mode:'years', years:[2024] }  고른 연도들
+//  { mode:'range', from, to }      직접 기간 ('YYYY-MM-DD', 빈 값 = 열린 끝)
+//  { mode:'all' }                  전체
+// ============================================
+var APP_PERIOD_KEY = 'app-display-period';
+var APP_PERIOD_MENUS = ['todo', 'wbs', 'cloud', 'project'];
+var _appPeriodCache = null;
+
+function appPeriod() {
+  if (_appPeriodCache) return _appPeriodCache;
+  var p = null;
+  try { p = JSON.parse(localStorage.getItem(APP_PERIOD_KEY)); } catch (e) {}
+  var out = { mode: 'year' };
+  if (p && p.mode === 'all') out = { mode: 'all' };
+  else if (p && p.mode === 'years' && Array.isArray(p.years) && p.years.length) {
+    out = { mode: 'years', years: p.years.map(Number).filter(Boolean).sort(function (a, b) { return a - b; }) };
+  } else if (p && p.mode === 'range' && (p.from || p.to)) {
+    out = { mode: 'range', from: p.from || '', to: p.to || '' };
+  }
+  _appPeriodCache = out;
+  return out;
+}
+function appSetPeriod(p) {
+  _appPeriodCache = null;
+  try { localStorage.setItem(APP_PERIOD_KEY, JSON.stringify(p)); } catch (e) {}
+  appPeriodSyncLabel();
+  if (typeof currentMenu === 'undefined') return;
+  // Web 은 보드만 다시 그린다. 페이지 전체를 그리면 작성칸 초안이 지워진다
+  if (currentMenu === 'cloud' && typeof renderNoteBoard === 'function' && document.getElementById('nb-board')) { renderNoteBoard(); return; }
+  if (currentMenu !== 'calendar' && APP_PERIOD_MENUS.indexOf(currentMenu) < 0) return;
+  var fn = (typeof MENU_RENDERERS !== 'undefined') ? MENU_RENDERERS[currentMenu] : null;
+  if (fn && typeof window[fn] === 'function') window[fn]();
+}
+// 기간을 'YYYY-MM-DD' 구간들로 편다. 전체면 null.
+function appPeriodRanges() {
+  var p = appPeriod(), y = new Date().getFullYear();
+  if (p.mode === 'all') return null;
+  if (p.mode === 'range') return [[p.from || '0000-01-01', p.to || '9999-12-31']];
+  return (p.mode === 'years' ? p.years : [y]).map(function (v) { return [v + '-01-01', v + '-12-31']; });
+}
+// range = [시작, 끝] 날짜 문자열. 항목의 구간이 기간과 하루라도 겹치면 보인다. 날짜가 없으면 전체일 때만 보인다.
+// open = 아직 끝내지 않은 일. 지금이 들어 있는 기간에서는 지난 일도 남긴다 — 해가 바뀌었다고 밀린 일이 사라지면 안 된다.
+function appPeriodHit(range, open) {
+  var rs = appPeriodRanges();
+  if (!rs) return true;
+  if (!range) return false;
+  for (var i = 0; i < rs.length; i++) {
+    if (range[0] <= rs[i][1] && range[1] >= rs[i][0]) return true;
+  }
+  if (!open) return false;
+  var today = _appDay(new Date());
+  if (range[1] >= today) return false;
+  return rs.some(function (r) { return r[0] <= today && today <= r[1]; });
+}
+function _appDay(v) {
+  if (!v) return '';
+  var d = (v instanceof Date) ? v : new Date(v);
+  if (isNaN(d.getTime())) return String(v).slice(0, 10);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Task: Start~Due. 한쪽만 있으면 그 하루, 둘 다 없으면 만든 날
+function appTaskRange(t) {
+  var s = _appDay(t.startDate), e = _appDay(t.dueDateTime);
+  if (!s && !e) { var c = _appDay(t.createdAt); return c ? [c, c] : null; }
+  s = s || e; e = e || s;
+  return s <= e ? [s, e] : [e, s];
+}
+// To Do: 자기 마감일, 없으면 상위 Task 구간
+function appStepRange(task, step) {
+  var d = _appDay(step.dueDateTime);
+  return d ? [d, d] : appTaskRange(task);
+}
+function appPeriodLabel() {
+  var p = appPeriod();
+  if (p.mode === 'all') return '전체';
+  if (p.mode === 'years') return p.years.join('·') + '년';
+  if (p.mode === 'range') return (p.from || '처음') + ' ~ ' + (p.to || '끝');
+  return new Date().getFullYear() + '년';
+}
+function appPeriodSyncLabel() {
+  var el = document.getElementById('topbar-date');
+  if (!el || typeof currentMenu === 'undefined' || currentMenu === 'home') return;
+  el.textContent = APP_PERIOD_MENUS.indexOf(currentMenu) >= 0 ? ('표시 기간 ' + appPeriodLabel()) : '';
+}
+// 검색·필터 패널에 넣는 한 줄 — 왜 안 보이는지, 어디서 바꾸는지 알려 준다
+function appPeriodNoteHtml() {
+  return '<div class="app-period-note"><span>표시 기간</span><b>' + sEsc(appPeriodLabel()) + '</b>'
+    + '<button type="button" onclick="appOpenPeriodSettings(event)">변경</button></div>';
+}
+function appOpenPeriodSettings(ev) {
+  if (ev) ev.stopPropagation();
+  settingsState.tab = 'display';
+  if (document.getElementById('settings-overlay')) setSettingsTab('display');
+  else openSettings();
+  var el = document.getElementById('set-period');
+  if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+}
+// 고를 수 있는 연도: 올해 + Task·메모·만다라트에 있는 연도, 최신순
+function appPeriodYearOptions() {
+  var ys = {};
+  ys[new Date().getFullYear()] = 1;
+  function add(r) { if (r) { for (var y = +r[0].slice(0, 4); y <= +r[1].slice(0, 4); y++) ys[y] = 1; } }
+  try { if (typeof mdtAllTasks === 'function') mdtAllTasks().forEach(function (t) { add(appTaskRange(t)); }); } catch (e) {}
+  try { if (typeof getArchivingNotes === 'function') getArchivingNotes().forEach(function (n) { add(nbMemoRange(n)); }); } catch (e) {}
+  try { if (typeof mandalarts !== 'undefined' && Array.isArray(mandalarts)) mandalarts.forEach(function (m) { if (m && m.year) ys[m.year] = 1; }); } catch (e) {}
+  return Object.keys(ys).map(Number).filter(function (y) { return y > 1900 && y < 3000; }).sort(function (a, b) { return b - a; });
+}
+
+// ── 설정 > 화면 > 표시 기간 ──
+function buildPeriodSection() {
+  return '<div class="settings-section-head">표시 기간</div>'
+    + '<div class="set-period" id="set-period">' + buildPeriodInner() + '</div>';
+}
+function buildPeriodInner() {
+  var p = appPeriod();
+  function seg(mode, label) {
+    return '<button type="button" class="menuvis-seg' + (p.mode === mode ? ' active' : '') + '" onclick="settingsSetPeriodMode(\'' + mode + '\')">' + label + '</button>';
+  }
+  var html = '<div class="menuvis-segs">' + seg('year', '올해') + seg('years', '연도 선택') + seg('range', '직접 기간') + seg('all', '전체') + '</div>';
+  if (p.mode === 'years') {
+    html += '<div class="nb-period-years">' + appPeriodYearOptions().map(function (y) {
+      return '<button type="button" class="nb-period-chip' + (p.years.indexOf(y) >= 0 ? ' on' : '') + '" onclick="settingsTogglePeriodYear(' + y + ')">' + y + '년</button>';
+    }).join('') + '</div>';
+  } else if (p.mode === 'range') {
+    function inp(k, ph) {
+      return '<input type="text" inputmode="numeric" maxlength="10" class="field-input nb-period-inp" placeholder="' + ph + '" value="' + (p[k] || '') + '"'
+        + ' oninput="nbDateMask(this)" onchange="settingsPeriodCommit(this,\'' + k + '\')"'
+        + ' onkeydown="if(event.key===\'Enter\'){event.preventDefault();settingsPeriodCommit(this,\'' + k + '\');}">';
+    }
+    html += '<div class="nb-period-range">' + inp('from', '시작 YYYY-MM-DD') + '<span class="nb-period-sep">~</span>' + inp('to', '종료 YYYY-MM-DD') + '</div>';
+  }
+  html += '<div class="settings-row-desc set-period-desc">Board · WBS · Web · Gantt와 Calendar의 목록·연도·검색에 적용됩니다. 일·주·월 달력 칸은 보는 날짜를 그대로 보여 줍니다. 끝내지 않은 지난 일은 기간 밖이어도 Board · WBS · Web · Gantt에 남습니다. 이 기기에만 저장됩니다.</div>';
+  return html;
+}
+function _settingsPeriodRefresh() {
+  var el = document.getElementById('set-period');
+  if (el) el.innerHTML = buildPeriodInner();
+}
+function settingsSetPeriodMode(mode) {
+  var y = new Date().getFullYear(), cur = appPeriod(), next = { mode: mode };
+  if (mode === 'years') next.years = (cur.mode === 'years') ? cur.years : [y];
+  if (mode === 'range') {
+    next.from = (cur.mode === 'range') ? cur.from : (y + '-01-01');
+    next.to   = (cur.mode === 'range') ? cur.to   : (y + '-12-31');
+  }
+  appSetPeriod(next);
+  _settingsPeriodRefresh();
+}
+function settingsTogglePeriodYear(y) {
+  var cur = appPeriod();
+  var years = (cur.mode === 'years') ? cur.years.slice() : [];
+  var i = years.indexOf(y);
+  if (i >= 0) { if (years.length === 1) return; years.splice(i, 1); }   // 한 해는 남긴다
+  else years.push(y);
+  appSetPeriod({ mode: 'years', years: years });
+  _settingsPeriodRefresh();
+}
+// 칸을 떠나거나 Enter 에서 확정. 덜 적었으면 빨갛게만 두고 지우지 않는다.
+function settingsPeriodCommit(el, which) {
+  var v = (el.value || '').trim();
+  if (v !== '' && !nbDateValid(v)) { el.classList.add('is-bad'); return; }
+  var cur = appPeriod();
+  var next = { mode: 'range', from: cur.from || '', to: cur.to || '' };
+  next[which] = v;
+  if (next.from && next.to && next.from > next.to) { var t = next.from; next.from = next.to; next.to = t; }
+  appSetPeriod(next);
+  // 다음 칸으로 옮겨 간 포커스를 잃지 않게 값만 맞춘다
+  var inputs = document.querySelectorAll('#set-period .nb-period-inp');
+  if (inputs.length === 2) {
+    if (document.activeElement !== inputs[0]) inputs[0].value = next.from;
+    if (document.activeElement !== inputs[1]) inputs[1].value = next.to;
+  }
 }

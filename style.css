@@ -12141,9 +12141,17 @@ body.light-mode .year-select:hover {
 }
 
 /* =========================================================
-   🗓️ Web 필터 — 기간 (2026-09-28)
-   연도 칩으로 한 해를 고르고, 아래 두 칸에서 기간을 직접 고친다.
+   🗓️ 표시 기간 — 설정 > 화면 (2026-11-05, 예전 Web 기간 필터의 칩·칸을 그대로 쓴다)
    ========================================================= */
+.set-period { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-1); }
+.set-period .nb-period-years { max-width: none; padding: 0; }
+.set-period .nb-period-chip { padding: 4px 10px; font-size: var(--fs-xs); }
+.set-period .nb-period-range { padding: 0; }
+.set-period-desc { line-height: 1.5; }
+/* 검색·필터 패널의 '표시 기간' 한 줄 */
+.app-period-note { display: flex; align-items: center; gap: 6px; padding: 4px var(--space-1) var(--space-1); color: var(--text-3); font-size: var(--fs-xs); white-space: nowrap; }
+.app-period-note b { min-width: 0; overflow: hidden; color: var(--text-1); font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+.app-period-note button { margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-xs); text-decoration: underline; cursor: pointer; }
 .nb-period-years { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 var(--space-1) var(--space-1); max-width: 240px; }
 .nb-period-chip {
   font-size: var(--fs-2xs); color: var(--text-2);

@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261105s'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261105v'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -23,13 +23,13 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest.json?v=20260810a',
-  './style.css?v=20261105q',
+  './style.css?v=20261105t',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
   './mobile.css?v=20260829c',
   './fonts/pretendard.css?v=20260809a',
   './theme.css?v=20261102b',
-  './calpage.css?v=20261105q',
+  './calpage.css?v=20261105t',
   './config.js?v=20260810a',
   './firebase-init.js?v=20260808a',
   './colresize.js?v=20260722',
@@ -42,19 +42,19 @@ const PRECACHE_URLS = [
   './home.js?v=20261102a',
   './habit.js?v=20260824a',
   './fullcalendar.min.js?v=6.1.22',
-  './calpage.js?v=20261105s',
-  './gantt.js?v=20260816b',
-  './notes.js?v=20261104a',
+  './calpage.js?v=20261105v',
+  './gantt.js?v=20261105t',
+  './notes.js?v=20261105t',
   './journal.js?v=20261104a',
-  './wbs.js?v=20261104b',
+  './wbs.js?v=20261105t',
   './mvv.js?v=20261104a',
-  './settings.js?v=20260929a',
+  './settings.js?v=20261105u',
   './drive.js?v=20260722',
   './firestore-sync.js?v=20261104a',
-  './todo.js?v=20260803a',
+  './todo.js?v=20261105t',
   './yearsync.js?v=20260722',
-  './script.js?v=20261105r',
-  './pwa.js?v=20261105s',
+  './script.js?v=20261105t',
+  './pwa.js?v=20261105v',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',
