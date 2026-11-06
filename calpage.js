@@ -216,16 +216,27 @@ function _calEventSpan(t) {
   var endDay = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
   return { date: new Date(s.getFullYear(), s.getMonth(), s.getDate()), end: endDay, hasTime: false };
 }
-function calCollectItems() {
+// from·to(끝 미포함)를 주면 반복의 앞날 회차까지 펼친다. 안 주면 문서가 있는 것만 — 범위를 재는 calPeriodBounds 용이다.
+function calCollectItems(from, to) {
   var out = [];
+  var fromKey = from ? _calKey(from) : null, toKey = to ? _calKey(new Date(to.getTime() - 1)) : null;
   mdtAllTasks().forEach(function (t) {
     var color = calTaskColor(t), keys = _calItemKeys(t);
-    if (t.kind === 'event') {
-      var span = _calEventSpan(t);
-      if (span) out.push({ kind: 'event', taskId: t.id, title: _calCleanTitle(t.text), date: span.date, end: span.end, hasTime: span.hasTime, done: !!t.completed, color: color, keys: keys });
-    } else {
-      var place = _calTaskPlace(t);
-      if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed, color: color, keys: keys });
+    var recur = recurIs(t), occ = recur ? recurKeyOf(t) : null;
+    function push(doc, key) {
+      var title = _calCleanTitle(t.text), base = { taskId: t.id, title: title, color: color, keys: keys, occ: key, recur: recur };
+      if (t.kind === 'event') {
+        var span = _calEventSpan(doc);
+        if (span) out.push(Object.assign(base, { kind: 'event', date: span.date, end: span.end, hasTime: span.hasTime, done: !!doc.completed }));
+      } else {
+        var place = _calTaskPlace(doc);
+        if (place) out.push(Object.assign(base, { kind: 'task', date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!doc.completed }));
+      }
+    }
+    push(t, occ);
+    if (recur && fromKey) {
+      // 여러 날짜에 걸치는 회차는 범위 앞에서 시작해 걸칠 수 있다
+      recurOccurrences(t, recurAdd(fromKey, -recurSpanDays(t)), toKey).forEach(function (k) { push(recurOccLite(t, k), k); });
     }
     (t.steps || []).forEach(function (s) {
       if (!s.dueDateTime) return;
@@ -247,9 +258,10 @@ function calItemVisible(it, show) {
   return true;
 }
 function _calItemToFc(it) {
+  var occId = it.recur ? ('_' + it.occ) : '';
   if (it.kind === 'event') {
     return {
-      id: 'e' + it.taskId,
+      id: 'e' + it.taskId + occId,
       title: it.title,
       start: it.hasTime ? it.date : _calKey(it.date),
       end: it.hasTime ? it.end : _calKey(it.end),
@@ -257,11 +269,11 @@ function _calItemToFc(it) {
       backgroundColor: it.color, borderColor: it.color, textColor: _calInk(it.color),
       durationEditable: true,
       classNames: ['tlc-event'].concat(it.done ? ['tlc-is-done'] : []),
-      extendedProps: { kind: 'event', taskId: it.taskId, done: it.done, color: it.color },
+      extendedProps: { kind: 'event', taskId: it.taskId, done: it.done, color: it.color, occ: it.occ, recur: it.recur },
     };
   }
   return {
-    id: it.kind === 'task' ? ('t' + it.taskId) : ('s' + it.taskId + '_' + it.stepId),
+    id: it.kind === 'task' ? ('t' + it.taskId + occId) : ('s' + it.taskId + '_' + it.stepId),
     title: it.title,
     start: it.hasTime ? it.date : _calKey(it.date),
     end: it.end || undefined,
@@ -270,7 +282,7 @@ function _calItemToFc(it) {
     borderColor: 'transparent',
     durationEditable: it.anchor === 'both',   // 시작~마감이 칸으로 그려지는 Task 만 길이를 바꾼다
     classNames: ['tlc-item', 'tlc-k-' + it.kind].concat(it.done ? ['tlc-is-done'] : []),
-    extendedProps: { kind: it.kind, taskId: it.taskId, stepId: it.stepId, parent: it.parent || '', done: it.done, color: it.color, anchor: it.anchor || 'due' },
+    extendedProps: { kind: it.kind, taskId: it.taskId, stepId: it.stepId, parent: it.parent || '', done: it.done, color: it.color, anchor: it.anchor || 'due', occ: it.occ, recur: it.recur },
   };
 }
 
@@ -516,7 +528,7 @@ function calYearStep(dir) {
 // ── FullCalendar ──
 function calFcEvents(start, end) {
   var show = calShow(), out = [], listing = _cal.view === 'list';
-  calCollectItems().forEach(function (it) {
+  calCollectItems(start, end).forEach(function (it) {
     if (!calItemVisible(it, show)) return;
     var itEnd = _calItemEnd(it);
     if (it.date >= end || itEnd <= start) return;
@@ -575,7 +587,7 @@ function calEnsureFc() {
       var end = new Date(info.date.getTime() + (info.allDay ? 86400000 : 1800000));
       calQuickFromRange(info.date, end, info.allDay, info.jsEvent);
     },
-    eventResize: function (info) { if (!calMoveItem(info.event)) info.revert(); },
+    eventResize: function (info) { calDropItem(info); },
     moreLinkContent: function (arg) { return '+' + arg.num; },
     views: {
       // 종일 칸은 3줄까지만. 위쪽을 다 먹으면 시간 칸이 안 보인다
@@ -625,7 +637,7 @@ function calEnsureFc() {
       if (p.kind === 'google') calGooglePop(p.g, info.el);
       else calItemPop(p, info.el);
     },
-    eventDrop: function (info) { if (!calMoveItem(info.event)) info.revert(); },
+    eventDrop: function (info) { calDropItem(info); },
     datesSet: function () {
       // 목록은 표시 기간에 맞춰 날짜를 끌어당긴다. 받아 적으면 달력 칸으로 돌아왔을 때 엉뚱한 해로 간다
       if (_cal.view !== 'list') _cal.date = _cal.fc.getDate();
@@ -651,48 +663,85 @@ function _calFindItem(p) {
   var s = (t.steps || []).find(function (x) { return x.id === p.stepId; });
   return s ? { obj: s, task: t } : null;
 }
-function calMoveItem(ev) {
-  var p = ev.extendedProps;
-  var found = _calFindItem(p);
-  if (!found) return false;
-  var d = ev.start, key = _calKey(d), obj = found.obj;
+// 시각을 문서에 적는다. start·end·allDay 는 달력에서 놓은 값이다.
+function _calApplyMove(obj, p, d, end, allDay) {
+  var key = _calKey(d);
   if (p.kind === 'event') {
-    if (ev.allDay) {
+    if (allDay) {
       // 종일의 끝은 포함하지 않는 다음 날 0시다 → 마지막 날로 되돌린다. 시간 칸에서 끌어온 것은 끝이 없다.
-      var lastDay = ev.end ? new Date(ev.end.getFullYear(), ev.end.getMonth(), ev.end.getDate() - 1) : d;
+      var lastDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1) : d;
       obj.startDate = key + 'T09:00:00';
       obj.dueDateTime = _calKey(lastDay) + 'T09:00:00';
     } else {
       obj.startDate = _calIso(d);
-      obj.dueDateTime = _calIso(ev.end || new Date(d.getTime() + 3600000));
+      obj.dueDateTime = _calIso(end || new Date(d.getTime() + 3600000));
     }
-    obj.startHasTime = !ev.allDay;
-    obj.hasTime = !ev.allDay;
+    obj.startHasTime = !allDay;
+    obj.hasTime = !allDay;
     eventAfterTimeChange(obj);
-    autoCompletePastEvents();
   } else if (p.kind === 'task' && (p.anchor === 'start' || p.anchor === 'both')) {
-    obj.startDate = ev.allDay ? (key + 'T09:00:00') : _calIso(d);
-    obj.startHasTime = !ev.allDay;
+    obj.startDate = allDay ? (key + 'T09:00:00') : _calIso(d);
+    obj.startHasTime = !allDay;
     if (obj.dueDateTime) {
-      var timedEnd = (!ev.allDay && p.anchor === 'both' && ev.end) ? ev.end : null;
+      var timedEnd = (!allDay && p.anchor === 'both' && end) ? end : null;
       obj.dueDateTime = timedEnd ? _calIso(timedEnd) : (key + 'T09:00:00');
       obj.hasTime = !!timedEnd;
     }
   } else {
-    obj.dueDateTime = ev.allDay ? (key + 'T09:00:00') : _calIso(d);
-    obj.hasTime = !ev.allDay;
+    obj.dueDateTime = allDay ? (key + 'T09:00:00') : _calIso(d);
+    obj.hasTime = !allDay;
     // Start 보다 앞으로 옮기면 기간이 뒤집혀 Gantt 막대가 사라진다 → Start 를 따라 당긴다
     if (p.kind === 'task' && obj.startDate && String(obj.startDate).slice(0, 10) > key) {
       obj.startDate = key + String(obj.startDate).slice(10);
     }
   }
+}
+function _calAfterMove() {
+  autoCompletePastEvents();
   if (typeof saveTasks === 'function') saveTasks();
   if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
   calRefresh();
+}
+function calMoveItem(ev) {
+  var p = ev.extendedProps;
+  var found = _calFindItem(p);
+  if (!found) return false;
+  _calApplyMove(found.obj, p, ev.start, ev.end, ev.allDay);
+  _calAfterMove();
   return true;
 }
-function calOpenEvent(taskId) {
-  if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
+// 끌어 옮기기·길이 조절. 반복 회차는 어디까지 바꿀지 먼저 묻는다.
+function calDropItem(info) {
+  var p = info.event.extendedProps, found = _calFindItem(p);
+  if (p.kind !== 'step' && p.recur && found && recurIs(found.task)) {
+    var noun = recurNoun(found.task);
+    recurAskScope({ title: '반복 ' + noun + ' 수정', noun: noun, scopes: recurScopesFor(found.task, p.occ, true) }, function (scope) {
+      if (!scope) { info.revert(); return; }
+      calMoveRecurring(info.event, scope);
+    });
+    return;
+  }
+  if (!calMoveItem(info.event)) info.revert();
+}
+function calMoveRecurring(ev, scope) {
+  var p = ev.extendedProps, found = _calFindItem(p);
+  if (!found) return;
+  var m = found.task, key = p.occ, cur = recurKeyOf(m), target = m, d = ev.start, end = ev.end;
+  if (scope === 'this') target = recurDetach(m, key);
+  else if (scope === 'following' && key !== cur) target = recurSplit(m, key);
+  else if (key !== cur) {
+    // 다른 회차를 끌었으면 옮긴 만큼을 지금 회차에 적용한다
+    var off = recurDays(cur) - recurDays(key);
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + off, d.getHours(), d.getMinutes());
+    if (end) end = new Date(end.getFullYear(), end.getMonth(), end.getDate() + off, end.getHours(), end.getMinutes());
+  }
+  var before = recurKeyOf(target);
+  _calApplyMove(target, p, d, end, ev.allDay);
+  recurAfterMove(target, before);
+  _calAfterMove();
+}
+function calOpenEvent(taskId, occ) {
+  if (typeof openDetailPanel === 'function') openDetailPanel(taskId, occ);
 }
 
 // ── 빠른 입력 (달력 빈칸) ───────────────────────────────────
@@ -897,40 +946,61 @@ function calItemPop(p, anchor) {
   var found = _calFindItem(p);
   if (!found) return;
   var t = found.task, o = found.obj, isStep = p.kind === 'step';
-  var done = isStep ? !!o.completed : !!t.completed;
+  // 반복의 앞날 회차는 문서가 없다 — 그 회차의 사본으로 보여 준다
+  var occ = (!isStep && recurIs(t)) ? (p.occ || recurKeyOf(t)) : null;
+  if (occ && occ !== recurKeyOf(t)) { o = recurOccDoc(t, occ); found = { obj: o, task: t }; }
+  var done = !!o.completed;
   var kindLabel = isStep ? 'To Do' : (t.kind === 'event' ? '일정' : 'Task');
   var rows = '<div class="tlc-pop-row">' + _calEsc(_calItemWhen(p, found)) + '</div>';
+  if (occ) rows += '<div class="tlc-pop-row tlc-pop-dim"><span class="recur-mark">↻</span>' + _calEsc(recurDescribe(t.rrule, occ)) + '</div>';
   var proj = _calProjectLine(t);
   if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
   if (isStep) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(_calCleanTitle(t.text)) + '</div>';
   if (!isStep && t.location) rows += '<div class="tlc-pop-row">' + _calEsc(t.location) + '</div>';
   if (!isStep && t.notes) rows += '<div class="tlc-pop-row tlc-pop-desc">' + _calEsc(String(t.notes).slice(0, 500)) + '</div>';
-  if (!isStep && (t.steps || []).length) {
-    var finished = t.steps.filter(function (s) { return s.completed; }).length;
-    rows += '<div class="tlc-pop-row tlc-pop-dim">To Do ' + finished + '/' + t.steps.length + '</div>';
+  if (!isStep && (o.steps || []).length) {
+    var finished = o.steps.filter(function (s) { return s.completed; }).length;
+    rows += '<div class="tlc-pop-row tlc-pop-dim">To Do ' + finished + '/' + o.steps.length + '</div>';
   }
-  var ids = t.id + ',' + (isStep ? o.id : 'null');
+  var occArg = occ ? ",'" + occ + "'" : '';
+  var ids = t.id + ',' + (isStep ? o.id : 'null') + occArg;
   var html = '<div class="tlc-pop-title">' + _calMarkHtml(p.kind, p.color || calTaskColor(t), done)
     + '<span class="' + (done ? 'tlc-pop-done' : '') + '">' + _calEsc(_calCleanTitle(o.text)) + '</span></div>'
     + '<div class="tlc-pop-kind">' + kindLabel + (done ? ' · 완료' : '') + '</div>'
     + rows
     + '<div class="tlc-pop-actions">'
     +   '<button type="button" class="tlc-btn" onclick="calPopDone(' + ids + ')">' + (done ? '완료 취소' : '완료') + '</button>'
-    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + t.id + ')">수정</button>'
+    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + t.id + occArg + ')">수정</button>'
     +   '<button type="button" class="tlc-btn tlc-pop-del" onclick="calPopDelete(' + ids + ')">삭제</button>'
     + '</div>';
   _calPopShow(html, anchor.getBoundingClientRect());
 }
-function calPopDone(taskId, stepId) {
+function calPopDone(taskId, stepId, occ) {
   calPopClose(true);
-  if (stepId === null) toggleComplete(taskId);
-  else toggleStep(taskId, stepId);
+  if (stepId !== null) { toggleStep(taskId, stepId); return; }
+  var m = occ ? mdtAllTasks().find(function (x) { return x.id === taskId; }) : null;
+  if (m && recurIs(m) && occ !== recurKeyOf(m)) {
+    // 앞날 회차를 미리 끝낸다 — 그 회차만 떼어 내서 완료한다
+    toggleComplete(recurDetach(m, occ).id);
+    return;
+  }
+  toggleComplete(taskId);
 }
-function calPopEdit(taskId) {
+function calPopEdit(taskId, occ) {
   calPopClose(true);
-  calOpenEvent(taskId);
+  calOpenEvent(taskId, occ);
 }
-function calPopDelete(taskId, stepId) {
+function calPopDelete(taskId, stepId, occ) {
+  var m = (occ && stepId === null) ? mdtAllTasks().find(function (x) { return x.id === taskId; }) : null;
+  if (m && recurIs(m)) {
+    calPopClose(true);
+    recurAskDelete(m, occ, function () {
+      if (typeof renderTasks === 'function') renderTasks();
+      if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
+      calRefresh();
+    });
+    return;
+  }
   if (!confirm(stepId === null ? '이 항목을 삭제하시겠습니까?' : '이 To Do 를 삭제하시겠습니까?')) return;
   calPopClose(true);
   if (stepId === null) deleteTaskLinked(taskId);
@@ -1149,7 +1219,7 @@ function calYearCounts(year) {
     var k = _calKey(d);
     if (appPeriodHit([k, k])) counts[k] = (counts[k] || 0) + 1;
   }
-  calCollectItems().forEach(function (it) {
+  calCollectItems(new Date(year, 0, 1), new Date(year + 1, 0, 1)).forEach(function (it) {
     if (!calItemVisible(it, show)) return;
     if (it.kind !== 'event') { if (it.date.getFullYear() === year) add(it.date); return; }
     var day = new Date(it.date.getFullYear(), it.date.getMonth(), it.date.getDate());
@@ -1209,7 +1279,8 @@ function calRenderResults() {
   if (!el) return;
   var q = _cal.query.toLowerCase();
   // 검색은 숨겨 둔 완료 항목까지 찾는다 — '그거 언제 했더라' 를 찾으려고 쓰는 것이다
-  var rows = calCollectItems().filter(function (it) { return it.title.toLowerCase().indexOf(q) >= 0; });
+  var bounds = calPeriodBounds();   // 반복의 앞날 회차는 표시 기간 안만 펼친다 (끝이 없는 규칙이 있다)
+  var rows = calCollectItems(bounds.start, bounds.end).filter(function (it) { return it.title.toLowerCase().indexOf(q) >= 0; });
   calGItems().forEach(function (ev) {
     if (ev.title.toLowerCase().indexOf(q) >= 0) {
       var span = _calGSpan(ev);
@@ -1263,7 +1334,7 @@ function calResultClick(i, btn) {
   var r = _cal.results[i];
   if (!r) return;
   if (r.kind === 'google') calGooglePop(r.g, btn);
-  else calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color }, btn);
+  else calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color, occ: r.occ }, btn);
 }
 
 // ── 떠 있는 창 (요약 · 빠른 입력) ──

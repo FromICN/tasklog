@@ -435,7 +435,7 @@ function renderGanttView() {
       + (_hasSteps ? '<span class="gm-toggle" onclick="ganttToggleTask(' + task.id + ',event)">' + (_open ? '\u25be' : '\u25b8') + '</span>' : '<span class="gm-toggle-empty"></span>')
       + progressCircleSvg(pct, color)
       + '<div class="gm-info">'
-      + '<div class="gm-name" title="' + hwEsc(label) + '">' + hwEsc(shortLabel) + '</div>'
+      + '<div class="gm-name" title="' + hwEsc(label) + '">' + recurMarkHtml(task) + hwEsc(shortLabel) + '</div>'
       + '</div>'
       + '</div>'
       + '<div class="gm-grid">'

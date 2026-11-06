@@ -90,6 +90,8 @@ function renderDoneTitle(obj, query) {
 // ============================================
 
 function saveTasks() {
+  // 어느 화면에서 완료했든 반복 Task 는 여기서 다음 회차로 넘어간다 (recur.js)
+  if (typeof recurSweep === 'function') recurSweep();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   if (typeof scheduleAutoBackup === 'function') scheduleAutoBackup();
 }
@@ -189,13 +191,14 @@ function autoCompletePastEvents() {
   if (!Array.isArray(tasks)) return 0;
   var now = Date.now(), n = 0;
   tasks.forEach(function (t) {
-    if (t.kind !== 'event' || t.completed || t.autoDone) return;
+    if (t.kind !== 'event' || t.completed || t.autoDone || recurIs(t)) return;
     var end = eventEndMs(t);
     if (end === null || end > now) return;
     eventStampDone(t, end);
     t.autoDone = true;
     n++;
   });
+  n += recurSweep();
   if (n) saveTasks();
   return n;
 }
@@ -1359,10 +1362,10 @@ function buildStepsHtml(task) {
 }
 
 // 상세창 = 생성창과 동일한 통합 템플릿(수정 모드)으로 통일
-function openDetailPanel(id) {
+function openDetailPanel(id, occ) {
   var task = tasks.find(function(t){ return t.id === id; });
   if (!task) return;
-  openNewTaskPanel(id);
+  openNewTaskPanel(id, occ ? { occ: occ } : null);
   renderTasks();
 }
 
@@ -2277,6 +2280,15 @@ function openNewTaskPanel(taskId, opts) {
   rpState.taskId = taskId || null;
   rpState.dirty  = false;
   var task = taskId ? tasks.find(function(t){ return t.id === taskId; }) : null;
+  // 반복: 폼에는 고른 회차의 값을 보여 준다. 어디에 쓸지는 저장할 때 묻는다 (saveRightPanel)
+  var _repRule = task && recurIs(task) ? task.rrule : null;
+  rpState.recur = null;
+  if (_repRule) {
+    var _repCur = recurKeyOf(task), _repKey = (opts && opts.occ) || _repCur;
+    rpState.recur = { masterId: task.id, key: _repKey, scope: null };
+    task = recurOccDoc(task, _repKey);
+  }
+  rpRepInit(task, _repRule);
   rpState.kind     = (task && task.kind === 'event') ? 'event' : 'task';
   rpState.allDay   = task ? (!task.hasTime && !task.startHasTime) : true;
   rpState.workOpen = rpState.kind !== 'event';
@@ -2318,6 +2330,7 @@ function openNewTaskPanel(taskId, opts) {
   } else if (!task && opts && opts.kind === 'event') {
     rpSetKind('event');
   }
+  rpState.sig0 = rpFormSig();
   _projDDCallbacks['rp-proj'] = function(sel){
     rpState.mdtAction = sel; rpState.dirty = true;
     // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
@@ -2386,6 +2399,7 @@ function rpDtInput(el) {
   if (d.length > 6)  out += '-' + d.slice(6, 8);
   el.value = out;
   if (typeof rpState !== 'undefined') rpState.dirty = true;
+  if (el.id === 'rp-start-dt' || el.id === 'rp-due-dt') rpRepSync();   // '매주 월요일' 문구가 날짜를 따라간다
 }
 // 시간 칸: 숫자만 쳐도 되게 한다 (폰 숫자 자판에는 ':' 이 없다). 930 → 09:30, 1430 → 14:30
 function rpTmMask(el) {
@@ -2536,6 +2550,17 @@ function rpSyncForm() {
   if (work) work.classList.toggle('is-open', !!rpState.workOpen);
   text('rp-work-arrow', rpState.workOpen ? '▾' : '▸');
   text('rp-work-sum', rpState.workOpen ? '' : rpWorkSummary());
+  rpRepSync();
+}
+// 패널을 연 뒤 무엇을 고쳤는지 본다. 반복 문서에서 아무것도 안 고쳤으면 범위를 묻지 않는다.
+//  To Do 체크와 완료 체크는 따로 본다 — 그것만 바꿨으면 지금 회차에 그냥 쓴다.
+function rpFormSig() {
+  var v = function (id) { return (document.getElementById(id) || {}).value || ''; };
+  return JSON.stringify([
+    v('rp-task-name').replace(/^\[\d{6}\] /, ''), _rpDtValues(), !!rpState.allDay, v('rp-location'), v('rp-notes'), rpState.kind,
+    rpState.mdtAction, rpState.eisenhower, rpState.status, rpState.assignees, rpState.upstreamDepts, rpState.prevTaskIds, rpState.nextTaskIds,
+    rpState.steps.map(function (s) { return [s.id, String(s.text || '').replace(/^\[\d{6}\]\s?/, ''), s.dueDateTime || null]; }),
+  ]);
 }
 
 function buildRpForm(task) {
@@ -2633,6 +2658,7 @@ function buildRpForm(task) {
     + buildDateTimeInput('rp-due-dt', dueStr, dueTimeStr) + '</div>'
     + '</div>'
     + '<label class="rp-allday"><input type="checkbox" id="rp-allday" onchange="rpSetAllDay(this.checked)">종일</label>'
+    + '<div class="field-group rp-rep"><label class="field-label" for="rp-rep-sel">Repeat</label><div class="rp-rep-body" id="rp-rep-body"></div></div>'
     + '<div class="field-group"><label class="field-label">Project</label>'
     + buildProjectDropdown('rp-proj', rpState.mdtAction || null) + '</div>'
     + '<div class="field-group"><label class="field-label">Location</label>'
@@ -3089,6 +3115,21 @@ function deleteTaskLinked(id) {
 // ── 삭제 (rp-form) ──
 function rpDeleteTask() {
   if (!rpState.taskId) return;
+  if (rpState.recur) {
+    var _m = tasks.find(function (t) { return t.id === rpState.recur.masterId; });
+    if (_m && recurIs(_m)) {
+      recurAskDelete(_m, rpState.recur.key, function () {
+        rpState.dirty = false;
+        rpState.taskId = null; rpState.recur = null; detailTaskId = null;
+        var _p = document.getElementById('right-panel');
+        if (_p) _p.classList.remove('open');
+        var _fn = MENU_RENDERERS[currentMenu];
+        if (_fn && typeof window[_fn] === 'function') window[_fn]();
+        updateCategoryCounts();
+      });
+      return;
+    }
+  }
   if (!confirm('이 작업을 삭제하시겠습니까?')) return;
   var id = rpState.taskId;
   rpState.dirty = false;
@@ -3157,6 +3198,7 @@ function newTaskDoc(o) {
   };
   if (o.kind === 'event') doc.kind = 'event';
   if (o.location) doc.location = o.location;
+  if (o.rrule) doc.rrule = o.rrule;
   return doc;
 }
 // 일정은 시작·끝이 늘 같이 있다. 한쪽만 적었으면 채우고, 끝이 시작보다 앞이면 저장하지 않는다.
@@ -3211,6 +3253,67 @@ function saveRightPanel() {
     if (_ev.error) { _markDate(_ev.error); return; }
     startDate = _ev.sd; startTime = _ev.st; dueDate = _ev.dd; dueTime = _ev.dt;
   }
+  // ── 반복 ──
+  var _repBase = isEvent ? (startDate || dueDate) : (dueDate || startDate);
+  var _rep = recurRepBuild(rpState.rep, _repBase || null);
+  if (_rep.error) { _markDate(_rep.error); return; }
+  if (_rep.rule && !_repBase) { _markDate('rp-due-dt'); return; }   // 날짜 없이는 반복할 수 없다
+  // 달력은 Task 를 Due 에 놓는다. Start 만 있으면 반복해도 달력에 아무것도 안 보인다 → Due 를 같은 날로 채운다
+  if (_rep.rule && !isEvent && !dueDate) dueDate = startDate;
+  var _rec = rpState.recur, _recMaster = null;
+  if (_rec) {
+    _recMaster = tasks.find(function (t) { return t.id === _rec.masterId; });
+    if (!_recMaster || !recurIs(_recMaster)) _rec = rpState.recur = null;    // 패널을 연 사이 다른 기기가 끝냈다
+  }
+  if (_rec && !_rec.scope) {
+    var _repChanged = rpRepChanged();
+    if (!_repChanged && rpFormSig() === rpState.sig0) {
+      // 내용을 안 고쳤다. 완료·To Do 체크만 바꿨으면 그 회차에 쓰고, 그것도 아니면 그냥 닫는다.
+      var _stepsSame = JSON.stringify(rpState.steps) === JSON.stringify(rpState.orig.steps || []);
+      if (_stepsSame && !!rpState.completed === !!rpState.orig.completed) {
+        rpState.dirty = false;
+        closeRightPanel();
+        return;
+      }
+      _rec.scope = _rec.key === recurKeyOf(_recMaster) ? 'all' : 'this';
+    } else {
+      var _noun = isEvent ? '일정' : 'Task';
+      recurAskScope({ title: '반복 ' + _noun + ' 수정', noun: _noun, scopes: recurScopesFor(_recMaster, _rec.key, !_repChanged) }, function (scope) {
+        if (!scope) return;
+        _rec.scope = scope;
+        saveRightPanel();
+      });
+      return;
+    }
+  }
+  // 고른 범위에 따라 실제로 쓸 문서를 정한다. 그 뒤로는 보통 저장과 같다.
+  var _recBefore = null, _recMoved = 0;
+  if (_rec) {
+    var _recCur = recurKeyOf(_recMaster);
+    if (_repBase) _recMoved = recurDays(_repBase) - recurDays(_rec.key);
+    if (_rec.scope === 'this') {
+      var _linksSame = JSON.stringify([rpState.prevTaskIds, rpState.nextTaskIds]) === JSON.stringify([rpState.orig.prevTaskIds || [], rpState.orig.nextTaskIds || []]);
+      var _x = recurDetach(_recMaster, _rec.key);
+      if (_linksSame) { rpState.prevTaskIds = []; rpState.nextTaskIds = []; }
+      rpState.taskId = _x.id;
+      rpState.orig = JSON.parse(JSON.stringify(_x));
+    } else if (_rec.scope === 'following' && _rec.key !== _recCur) {
+      var _n = recurSplit(_recMaster, _rec.key);
+      rpState.taskId = _n.id;
+      rpState.orig = JSON.parse(JSON.stringify(_n));
+    } else {
+      // 마스터에 쓴다. 다른 회차에서 열었으면 고친 만큼을 '지금 회차'에 옮겨 적는다.
+      var _recOff = recurDays(_recCur) - recurDays(_rec.key);
+      if (_recOff) {
+        if (startDate) startDate = recurAdd(startDate, _recOff);
+        if (dueDate) dueDate = recurAdd(dueDate, _recOff);
+        rpState.steps = _recMaster.steps || [];     // 폼의 To Do 는 그 회차의 사본이다
+      }
+      rpState.taskId = _recMaster.id;
+      rpState.orig = JSON.parse(JSON.stringify(_recMaster));
+      if (_rec.scope === 'all') _recBefore = rpState.orig;
+    }
+  }
   var upstreamDepts = rpState.upstreamDepts.slice();
   var upstreamDeptVal = upstreamDepts.join(', ');
 
@@ -3261,6 +3364,12 @@ function saveRightPanel() {
       if (rpState.mdtAction) task.mdtAction = rpState.mdtAction; else delete task.mdtAction;
       if (isEvent) task.kind = 'event'; else delete task.kind;
       if (locationVal) task.location = locationVal; else delete task.location;
+      if (_rep.rule && !(_rec && _rec.scope === 'this')) {
+        task.rrule = _rep.rule;
+        delete task.recurOf; delete task.recurKey;      // 떨어져 나온 회차에 다시 반복을 걸면 새 시리즈다
+      } else {
+        delete task.rrule; delete task.exdates;
+      }
       // 폼 전체를 그대로 쓰면 패널을 연 사이 다른 기기가 고친 칸이 되돌아간다 — 내가 손댄 칸만 반영한다
       if (rpState.orig && typeof fsMerge3 === 'function') {
         var _rpMerged = fsMerge3(rpState.orig, JSON.parse(JSON.stringify(task)), _rpNow);
@@ -3268,6 +3377,11 @@ function saveRightPanel() {
         Object.assign(task, _rpMerged);
       }
       if (isEvent && rpState.orig && rpState.orig.completed && !rpState.completed) task.autoDone = true;   // 체크를 풀었다
+      if (task.rrule) {
+        if (_rec && _rec.scope !== 'this') recurShiftExdates(task, _recMoved);
+        recurFirstOn(task);
+      }
+      if (_recBefore) recurPropagate(task, _recBefore);
       eventAfterTimeChange(task);
       savedTask = task;
     }
@@ -3285,8 +3399,9 @@ function saveRightPanel() {
       upstreamDept: upstreamDeptVal,
       mdtAction: rpState.mdtAction || null,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
-      kind: isEvent ? 'event' : null, location: locationVal,
+      kind: isEvent ? 'event' : null, location: locationVal, rrule: _rep.rule,
     });
+    recurFirstOn(newTask);
     tasks.push(newTask);
     savedTask = newTask;
   }
@@ -3308,7 +3423,7 @@ function saveRightPanel() {
     saveTasks();
   }
 
-  rpState.dirty = false; rpState.taskId = null; detailTaskId = null;
+  rpState.dirty = false; rpState.taskId = null; rpState.recur = null; detailTaskId = null;
   var panel = document.getElementById('right-panel');
   if (panel) panel.classList.remove('open');
 

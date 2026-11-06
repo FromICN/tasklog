@@ -10170,6 +10170,26 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .rp-allday { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--text-2); font-size: var(--fs-sm); cursor: pointer; }
 .rp-allday input { margin: 0; }
 .rp-dt-cols.is-allday .rp-tminput { display: none; }
+/* 반복 */
+.rp-rep-body { display: flex; flex-direction: column; gap: 6px; }
+.rp-rep-row { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: var(--fs-sm); }
+.rp-rep-row select { flex: 1 1 0; min-width: 0; }
+.rp-rep-row .rp-rep-num { flex: 0 0 52px; width: 52px; text-align: center; }
+.rp-rep-row .rp-rep-until { flex: 1 1 0; min-width: 0; width: auto; }
+.rp-rep-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.rp-rep-day { height: 32px; padding: 0; border: 1px solid var(--tl-rule); border-radius: var(--radius-md); background: transparent; color: var(--text-2); font-family: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.rp-rep-day.is-on { border-color: var(--brand-primary); background: var(--brand-primary); color: var(--main-bg); font-weight: 600; }
+.recur-mark { margin-right: 4px; color: var(--text-3); font-weight: 400; }
+/* 반복 범위를 묻는 창 — 오른쪽 패널(1100) 위에 뜬다 */
+.recur-dlg-wrap { position: fixed; inset: 0; z-index: 5000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .45); }
+.recur-dlg { width: 300px; max-width: 100%; box-sizing: border-box; padding: 16px; border: 1px solid var(--tl-rule); border-radius: var(--radius-md); background: var(--card-solid); box-shadow: var(--shadow-md); color: var(--text-1); }
+.recur-dlg-t { margin-bottom: 10px; font-size: var(--fs-md); font-weight: 600; }
+.recur-dlg-opt { display: flex; align-items: center; gap: 8px; padding: 8px 2px; font-size: var(--fs-sm); cursor: pointer; }
+.recur-dlg-opt input { margin: 0; flex: 0 0 auto; }
+.recur-dlg-note { margin-top: 4px; color: var(--text-3); font-size: var(--fs-xs); }
+.recur-dlg-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.recur-dlg-btn { min-width: 64px; height: 34px; padding: 0 12px; border: 1px solid var(--tl-rule); border-radius: var(--radius-md); background: transparent; color: var(--text-1); font-family: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.recur-dlg-btn.is-main { border-color: var(--brand-primary); background: var(--brand-primary); color: var(--main-bg); font-weight: 600; }
 .rp-work { display: flex; flex-direction: column; gap: var(--space-35); padding-top: var(--space-2); border-top: 1px solid var(--border); }
 .rp-work-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 2px 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; text-align: left; cursor: pointer; }
 .rp-work-sum { margin-left: auto; min-width: 0; overflow: hidden; color: var(--text-3); font-size: var(--fs-xs); font-weight: 400; white-space: nowrap; text-overflow: ellipsis; }
