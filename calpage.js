@@ -71,13 +71,112 @@ function _calInitialView() {
 // ── 무엇을 보여 줄지 (기기별) ──
 function calShow() {
   var s = _calLoad('cal-show', {});
-  return { event: s.event !== false, task: s.task !== false, todo: s.todo !== false, done: s.done === true };
+  return { event: s.event !== false, task: s.task !== false, todo: s.todo !== false, done: s.done === true, filter: calFilter() };
 }
 function calSetShow(key, on) {
-  var s = calShow();
+  var s = _calLoad('cal-show', {});
   s[key] = !!on;
   _calSave('cal-show', s);
   calRefresh();
+}
+
+// ── Section·Project 필터 (이 기기 전용) ──
+//  { s:{'2026:3':true}, p:{'2026:3:12':true}, none:true } = 숨긴 것들. 기본은 다 보인다.
+//  키에 연도를 넣는다 — 같은 번호의 Section 이라도 해마다 다른 만다라트다.
+function calFilter() {
+  var f = _calLoad('cal-filter', {});
+  return { s: f.s || {}, p: f.p || {}, none: f.none === true };
+}
+function calFilterActive() {
+  var f = calFilter();
+  return f.none || Object.keys(f.s).length > 0 || Object.keys(f.p).length > 0;
+}
+function _calFilterSave(f) {
+  _calSave('cal-filter', f);
+  calRefresh();
+}
+function _calItemKeys(t) {
+  var a = t.mdtAction || t.mdtGoal;
+  if (!a || a.sgId === null || a.sgId === undefined) return { none: true };
+  var s = a.year + ':' + a.sgId;
+  var act = t.mdtAction;
+  return { s: s, p: (act && act.actionId !== null && act.actionId !== undefined) ? (s + ':' + act.actionId) : null };
+}
+function _calFilterHides(keys, f) {
+  if (keys.none) return f.none;
+  return !!(f.s[keys.s] || (keys.p && f.p[keys.p]));
+}
+// Section 을 켜면 그 아래 숨겨 둔 Project 도 함께 켠다 — 안 그러면 켰는데도 일부가 안 보인다
+function calFilterSection(key, on) {
+  var f = calFilter();
+  if (on) {
+    delete f.s[key];
+    Object.keys(f.p).forEach(function (k) { if (k.indexOf(key + ':') === 0) delete f.p[k]; });
+  } else {
+    f.s[key] = true;
+  }
+  _calFilterSave(f);
+}
+function calFilterProject(key, on) {
+  var f = calFilter();
+  if (on) delete f.p[key]; else f.p[key] = true;
+  _calFilterSave(f);
+}
+function calFilterNone(on) {
+  var f = calFilter();
+  f.none = !on;
+  _calFilterSave(f);
+}
+function calFilterReset() {
+  _calFilterSave({ s: {}, p: {}, none: false });
+}
+function calFilterToggleOpen(key) {
+  _cal.filterOpen = _cal.filterOpen || {};
+  _cal.filterOpen[key] = !_cal.filterOpen[key];
+  calRenderShowMenu();
+}
+// 필터 목록에 보여 줄 해: 지금 보는 범위에 걸치면서 만다라트가 있는 해
+function calFilterYears() {
+  var from, to;
+  if (_cal.view === 'year') { from = to = calYearShown(); }
+  else if (_cal.view === 'list') {
+    var b = calPeriodBounds();
+    from = b.start.getFullYear(); to = new Date(b.end.getTime() - 1).getFullYear();
+  } else if (_cal.fc) {
+    from = _cal.fc.view.activeStart.getFullYear(); to = new Date(_cal.fc.view.activeEnd.getTime() - 1).getFullYear();
+  } else { from = to = _cal.date.getFullYear(); }
+  var out = [];
+  for (var y = to; y >= from; y--) if (typeof getMdt === 'function' && getMdt(y)) out.push(y);
+  return out;
+}
+function calFilterHtml() {
+  var f = calFilter(), years = calFilterYears(), open = _cal.filterOpen || {}, html = '';
+  if (!years.length) html += '<div class="tlc-menu-note">이 기간의 만다라트가 없습니다</div>';
+  years.forEach(function (y) {
+    if (years.length > 1) html += '<div class="tlc-f-year">' + y + '년</div>';
+    (getMdt(y).subGoals || []).forEach(function (sg) {
+      var acts = (sg.actions || []).filter(function (a) { return a.text && String(a.text).trim(); });
+      var key = y + ':' + sg.id;
+      var hiddenP = acts.filter(function (a) { return f.p[key + ':' + a.id]; }).length;
+      var color = getSectionThemeColor(sg.id - 1, y);
+      html += '<div class="tlc-f-row">'
+        + '<label class="tlc-check"><input type="checkbox"' + (f.s[key] ? '' : ' checked') + (!f.s[key] && hiddenP ? ' data-mixed="1"' : '')
+        +   ' onchange="calFilterSection(\'' + key + '\',this.checked)">'
+        +   _calMarkHtml('event', color, true) + '<span class="tlc-f-name">' + _calEsc(sg.text || ('Section ' + sg.id)) + '</span></label>'
+        + (acts.length ? '<button type="button" class="tlc-f-arrow" aria-label="Project 펼치기" onclick="calFilterToggleOpen(\'' + key + '\')">' + (open[key] ? '▾' : '▸') + '</button>' : '')
+        + '</div>';
+      if (open[key]) {
+        acts.forEach(function (a) {
+          var pk = key + ':' + a.id;
+          html += '<label class="tlc-check tlc-f-proj"><input type="checkbox"' + ((f.s[key] || f.p[pk]) ? '' : ' checked') + (f.s[key] ? ' disabled' : '')
+            + ' onchange="calFilterProject(\'' + pk + '\',this.checked)"><span class="tlc-f-name">' + _calEsc(a.text) + '</span></label>';
+        });
+      }
+    });
+  });
+  html += '<label class="tlc-check"><input type="checkbox"' + (f.none ? '' : ' checked') + ' onchange="calFilterNone(this.checked)">'
+    + _calMarkHtml('event', CAL_NO_PROJECT_COLOR, true) + '<span class="tlc-f-name">Project 없음</span></label>';
+  return html;
 }
 
 // ── Task·To Do → 달력 항목 ──
@@ -120,25 +219,26 @@ function _calEventSpan(t) {
 function calCollectItems() {
   var out = [];
   mdtAllTasks().forEach(function (t) {
-    var color = calTaskColor(t);
+    var color = calTaskColor(t), keys = _calItemKeys(t);
     if (t.kind === 'event') {
       var span = _calEventSpan(t);
-      if (span) out.push({ kind: 'event', taskId: t.id, title: _calCleanTitle(t.text), date: span.date, end: span.end, hasTime: span.hasTime, done: !!t.completed, color: color });
+      if (span) out.push({ kind: 'event', taskId: t.id, title: _calCleanTitle(t.text), date: span.date, end: span.end, hasTime: span.hasTime, done: !!t.completed, color: color, keys: keys });
     } else {
       var place = _calTaskPlace(t);
-      if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed, color: color });
+      if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed, color: color, keys: keys });
     }
     (t.steps || []).forEach(function (s) {
       if (!s.dueDateTime) return;
       var sd = new Date(s.dueDateTime);
       if (isNaN(sd.getTime())) return;
       // Task 를 닫았으면 그 아래 To Do 도 끝난 것으로 본다
-      out.push({ kind: 'step', taskId: t.id, stepId: s.id, title: _calCleanTitle(s.text), parent: _calCleanTitle(t.text), date: sd, hasTime: !!s.hasTime, done: !!s.completed || !!t.completed, color: color });
+      out.push({ kind: 'step', taskId: t.id, stepId: s.id, title: _calCleanTitle(s.text), parent: _calCleanTitle(t.text), date: sd, hasTime: !!s.hasTime, done: !!s.completed || !!t.completed, color: color, keys: keys });
     });
   });
   return out;
 }
 function calItemVisible(it, show) {
+  if (_calFilterHides(it.keys, show.filter)) return false;
   // ⚠️ 일정은 끝나면 저절로 완료되므로 '완료 숨김'을 걸지 않는다 — 걸면 지난 일정이 달력에서 사라진다
   if (it.kind === 'event') return show.event;
   if (it.kind === 'task' && !show.task) return false;
@@ -604,6 +704,13 @@ function _calPointRect(jsEvent) {
   return { left: x, right: x, top: y, bottom: y };
 }
 function calQuickFromRange(start, end, allDay, jsEvent) {
+  // 메뉴를 닫으려고 바깥을 누른 것이면 새 일정 창까지 열지 않는다.
+  // 터치는 이쪽이 먼저 오고(가짜 mousedown 이 뒤에 온다), 마우스는 mousedown 으로 닫힌 직후에 온다.
+  if (_cal.menu || Date.now() - (_cal.menuClosedAt || 0) < 500) {
+    calCloseMenus();
+    if (_cal.fc) { try { _cal.fc.unselect(); } catch (e) {} }
+    return;
+  }
   var v;
   if (allDay) {
     v = { sd: _calKey(start), st: '', dd: _calKey(new Date(end.getTime() - 1)), dt: '' };
@@ -871,7 +978,7 @@ function calToolsHtml() {
     +     '<input type="search" id="tlc-search" placeholder="검색" aria-label="일정 검색" oninput="calSearchInput(this.value)">'
     +   '</label>'
     +   '<span class="tlc-menu-wrap">'
-    +     '<button type="button" class="tlc-btn" onclick="calToggleMenu(\'show\')">표시 ▾</button>'
+    +     '<button type="button" class="tlc-btn" id="tlc-show-btn" onclick="calToggleMenu(\'show\')">표시 ▾</button>'
     +     '<div class="tlc-menu tlc-menu-right" id="tlc-menu-show" hidden></div>'
     +   '</span>'
     +   '<div class="tlc-seg" role="group" aria-label="보기">' + views + '</div>'
@@ -887,6 +994,12 @@ function calSyncTools() {
     else if (_cal.view === 'list') text = appPeriodLabel() + ' 목록';
     else text = _cal.fc ? _cal.fc.view.title : '';
     title.textContent = text + ' ▾';
+  }
+  // 뭔가 숨겨 두었으면 버튼에 표시한다 — 안 보이는 이유를 찾아 헤매지 않게
+  var showBtn = _calEl('tlc-show-btn');
+  if (showBtn) {
+    var sh = calShow();
+    showBtn.classList.toggle('is-filtering', calFilterActive() || !sh.event || !sh.task || !sh.todo);
   }
   // 연도 보기는 표시 기간 밖으로 나가지 않는다
   var inYear = !_cal.query && _cal.view === 'year';
@@ -1015,12 +1128,18 @@ function calRenderShowMenu() {
         return row(calGEnabled(c), 'calGSetEnabled(\'' + _calEsc(c.id) + '\',this.checked)', _calMarkHtml('google', c.color, true), _calEsc(c.name));
       }).join('')
     : '<div class="tlc-menu-note">Google 로그인 후 표시됩니다</div>';
+  var keepScroll = el.scrollTop;   // 체크할 때마다 다시 그리므로 보던 자리를 지킨다
   el.innerHTML = '<div class="tlc-menu-h">TaskLog</div>'
     + row(show.event, 'calSetShow(\'event\',this.checked)', _calMarkHtml('event', 'var(--text-2)', false), '일정')
     + row(show.task, 'calSetShow(\'task\',this.checked)', _calMarkHtml('task', 'var(--text-2)', false), 'Task')
     + row(show.todo, 'calSetShow(\'todo\',this.checked)', _calMarkHtml('step', 'var(--text-2)', false), 'To Do')
     + row(show.done, 'calSetShow(\'done\',this.checked)', _calMarkHtml('task', 'var(--text-2)', true), '완료 항목')
+    + '<div class="tlc-menu-h tlc-f-head"><span>Section · Project</span>'
+    +   (calFilterActive() ? '<button type="button" class="tlc-f-reset" onclick="calFilterReset()">전체 보기</button>' : '')
+    + '</div>' + calFilterHtml()
     + '<div class="tlc-menu-h">Google 캘린더 (읽기 전용)</div>' + google;
+  el.querySelectorAll('input[data-mixed]').forEach(function (i) { i.indeterminate = true; });
+  el.scrollTop = keepScroll;
 }
 
 // ── 연도 보기 ──
@@ -1289,7 +1408,7 @@ document.addEventListener('mousedown', function (e) {
   if (!e.target || !e.target.closest) return;
   // 터치는 탭이 끝나고 나서 가짜 mousedown 이 한 번 더 온다. 방금 연 창을 그것으로 닫지 않는다.
   if (!e.target.closest('.tlc-pop') && Date.now() - (_cal.popAt || 0) > 500) calPopClose();
-  if (_cal.menu && !e.target.closest('.tlc-menu-wrap')) calCloseMenus();
+  if (_cal.menu && !e.target.closest('.tlc-menu-wrap')) { calCloseMenus(); _cal.menuClosedAt = Date.now(); }
 });
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape') return;

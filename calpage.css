@@ -150,6 +150,18 @@
   cursor: pointer;
 }
 .tlc-check input { margin: 0; flex: 0 0 auto; }
+/* Section·Project 필터 */
+#tlc-menu-show { width: 260px; max-width: calc(100vw - 24px); box-sizing: border-box; }
+.tlc-btn.is-filtering { border-color: var(--text-2); font-weight: 600; }
+.tlc-f-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tlc-f-reset { padding: 0; border: 0; background: transparent; color: var(--text-2); font-family: inherit; font-size: var(--fs-2xs); text-decoration: underline; cursor: pointer; }
+.tlc-f-year { margin-top: 6px; color: var(--text-2); font-size: var(--fs-xs); font-weight: 600; }
+.tlc-f-row { display: flex; align-items: center; gap: 4px; }
+.tlc-f-row .tlc-check { flex: 1 1 auto; min-width: 0; }
+.tlc-f-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tlc-f-arrow { flex: 0 0 auto; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: var(--text-3); font-size: var(--fs-xs); cursor: pointer; }
+.tlc-f-arrow:hover { color: var(--text-1); }
+.tlc-f-proj { padding-left: 18px; color: var(--text-2); font-size: var(--fs-xs); }
 
 .tlc-mini-head {
   display: flex;
@@ -443,6 +455,12 @@
   .tlc-search input { width: 100%; }
   .tlc-seg { flex: 0 0 auto; }
   .tlc-seg-btn { padding: 0 9px; }
+  /* 표시 메뉴: 버튼에 붙이면 왼쪽이 화면 밖으로 나간다 → 도구 줄 전체 폭에 맞춘다 */
+  .tlc-group-side { position: relative; }
+  .tlc-group-side .tlc-menu-wrap { position: static; }
+  #tlc-menu-show { left: 0; right: 0; width: auto; max-width: none; }
+  #tlc-menu-show .tlc-check { padding: 7px 2px; }
+  #tlc-menu-show .tlc-f-arrow { width: 36px; height: 32px; }
   /* 월·주 칸이 50px 뿐이라 원 표시가 글자 자리를 먹는다 → 얇은 색 띠로 바꾼다 */
   .tlc-fc .fc-dayGridMonth-view .tlc-ev,
   .tlc-fc .fc-timeGridWeek-view .tlc-ev { gap: 3px; padding: 0 1px; font-size: var(--fs-2xs); line-height: 16px; }
