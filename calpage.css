@@ -437,6 +437,8 @@
 .tlc-q-row .rp-tminput { flex: 0 0 52px; width: 52px; }
 .tlc-quick.is-allday .rp-tminput { display: none; }
 .tlc-q-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.tlc-key-row { display: flex; align-items: center; gap: 10px; padding: 3px 0; color: var(--text-2); font-size: var(--fs-sm); }
+.tlc-key { flex: 0 0 124px; color: var(--text-1); font-family: var(--tl-mono); font-size: var(--fs-xs); }
 /* 끌어서 고르는 자리 */
 .tlc-page { --fc-highlight-color: rgba(var(--accent-rgb), .22); }
 

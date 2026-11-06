@@ -219,6 +219,7 @@ function eventAfterTimeChange(t) {
   }
 }
 function autoCompleteTick() {
+  alertTick();
   if (!autoCompletePastEvents()) return;
   if (typeof _rerenderCurrentView === 'function') _rerenderCurrentView(['my-tasklog-data']);
   else renderTasks();
@@ -2302,6 +2303,7 @@ function openNewTaskPanel(taskId, opts) {
   rpState.upstreamDepts = task ? (Array.isArray(task.upstreamDepts) ? task.upstreamDepts.slice() : (task.upstreamDept ? [task.upstreamDept] : [])) : [];
   rpState.mdtAction   = task ? (task.mdtAction || null) : ((opts && opts.mdtAction) || null);
   rpState.reminder    = task ? (task.reminder || null) : null;
+  rpState.alertMin    = (task && task.alertMin !== undefined) ? task.alertMin : null;
   rpState.repeat      = task ? (task.repeat || null) : null;
   rpState.prevTaskIds = task ? (Array.isArray(task.prevTaskIds) ? task.prevTaskIds.slice() : []) : [];
   rpState.nextTaskIds = task ? (Array.isArray(task.nextTaskIds) ? task.nextTaskIds.slice() : []) : [];
@@ -2551,6 +2553,7 @@ function rpSyncForm() {
   text('rp-work-arrow', rpState.workOpen ? '▾' : '▸');
   text('rp-work-sum', rpState.workOpen ? '' : rpWorkSummary());
   rpRepSync();
+  rpAlertSync();
 }
 // 패널을 연 뒤 무엇을 고쳤는지 본다. 반복 문서에서 아무것도 안 고쳤으면 범위를 묻지 않는다.
 //  To Do 체크와 완료 체크는 따로 본다 — 그것만 바꿨으면 지금 회차에 그냥 쓴다.
@@ -2558,7 +2561,7 @@ function rpFormSig() {
   var v = function (id) { return (document.getElementById(id) || {}).value || ''; };
   return JSON.stringify([
     v('rp-task-name').replace(/^\[\d{6}\] /, ''), _rpDtValues(), !!rpState.allDay, v('rp-location'), v('rp-notes'), rpState.kind,
-    rpState.mdtAction, rpState.eisenhower, rpState.status, rpState.assignees, rpState.upstreamDepts, rpState.prevTaskIds, rpState.nextTaskIds,
+    rpState.mdtAction, rpState.eisenhower, rpState.status, rpState.assignees, rpState.upstreamDepts, rpState.prevTaskIds, rpState.nextTaskIds, rpState.alertMin,
     rpState.steps.map(function (s) { return [s.id, String(s.text || '').replace(/^\[\d{6}\]\s?/, ''), s.dueDateTime || null]; }),
   ]);
 }
@@ -2659,6 +2662,7 @@ function buildRpForm(task) {
     + '</div>'
     + '<label class="rp-allday"><input type="checkbox" id="rp-allday" onchange="rpSetAllDay(this.checked)">종일</label>'
     + '<div class="field-group rp-rep"><label class="field-label" for="rp-rep-sel">Repeat</label><div class="rp-rep-body" id="rp-rep-body"></div></div>'
+    + '<div class="field-group"><label class="field-label" for="rp-alert">Alert</label><select class="field-input" id="rp-alert" onchange="rpAlertPick(this.value)"></select></div>'
     + '<div class="field-group"><label class="field-label">Project</label>'
     + buildProjectDropdown('rp-proj', rpState.mdtAction || null) + '</div>'
     + '<div class="field-group"><label class="field-label">Location</label>'
@@ -3199,6 +3203,7 @@ function newTaskDoc(o) {
   if (o.kind === 'event') doc.kind = 'event';
   if (o.location) doc.location = o.location;
   if (o.rrule) doc.rrule = o.rrule;
+  if (o.alertMin !== null && o.alertMin !== undefined) doc.alertMin = o.alertMin;
   return doc;
 }
 // 일정은 시작·끝이 늘 같이 있다. 한쪽만 적었으면 채우고, 끝이 시작보다 앞이면 저장하지 않는다.
@@ -3364,6 +3369,8 @@ function saveRightPanel() {
       if (rpState.mdtAction) task.mdtAction = rpState.mdtAction; else delete task.mdtAction;
       if (isEvent) task.kind = 'event'; else delete task.kind;
       if (locationVal) task.location = locationVal; else delete task.location;
+      if (rpState.alertMin !== null && rpState.alertMin !== undefined && (startDate || dueDate)) task.alertMin = rpState.alertMin;
+      else delete task.alertMin;
       if (_rep.rule && !(_rec && _rec.scope === 'this')) {
         task.rrule = _rep.rule;
         delete task.recurOf; delete task.recurKey;      // 떨어져 나온 회차에 다시 반복을 걸면 새 시리즈다
@@ -3400,6 +3407,7 @@ function saveRightPanel() {
       mdtAction: rpState.mdtAction || null,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
       kind: isEvent ? 'event' : null, location: locationVal, rrule: _rep.rule,
+      alertMin: (startDate || dueDate) ? rpState.alertMin : null,
     });
     recurFirstOn(newTask);
     tasks.push(newTask);

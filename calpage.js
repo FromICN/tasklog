@@ -953,6 +953,7 @@ function calItemPop(p, anchor) {
   var kindLabel = isStep ? 'To Do' : (t.kind === 'event' ? '일정' : 'Task');
   var rows = '<div class="tlc-pop-row">' + _calEsc(_calItemWhen(p, found)) + '</div>';
   if (occ) rows += '<div class="tlc-pop-row tlc-pop-dim"><span class="recur-mark">↻</span>' + _calEsc(recurDescribe(t.rrule, occ)) + '</div>';
+  if (!isStep && alertHas(o)) rows += '<div class="tlc-pop-row tlc-pop-dim">알림 ' + _calEsc(alertLabel(o)) + '</div>';
   var proj = _calProjectLine(t);
   if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
   if (isStep) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(_calCleanTitle(t.text)) + '</div>';
@@ -1433,6 +1434,25 @@ function calRefresh() {
   calSyncBody();
   if (_cal.menu === 'show') calRenderShowMenu();
 }
+// 폰: 좌우로 밀어 앞뒤 기간으로. 목록은 한 줄로 이어지므로 밀 일이 없다.
+//  항목을 끌려면 길게 눌러야 하므로 빠르게 미는 것과 겹치지 않는다.
+function calWatchSwipe() {
+  var body = _calEl('tlc-body');
+  if (!body) return;
+  var sx = null, sy = 0, st = 0;
+  body.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) { sx = null; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now();
+  }, { passive: true });
+  body.addEventListener('touchend', function (e) {
+    if (sx === null) return;
+    var c = e.changedTouches[0], dx = c.clientX - sx, dy = c.clientY - sy, fromEdge = sx < 24 || sx > window.innerWidth - 24, quick = Date.now() - st < 600;
+    sx = null;
+    if (window.innerWidth > 768 || fromEdge || !quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    if (_cal.view === 'list' || _cal.query || _cal.menu || document.querySelector('.tlc-pop, .fc-event-dragging')) return;
+    calStep(dx < 0 ? 1 : -1);
+  }, { passive: true });
+}
 function calWatchSize() {
   var body = _calEl('tlc-body');
   if (!body || typeof ResizeObserver !== 'function') return;
@@ -1471,6 +1491,7 @@ function renderCalendarView() {
   var search = _calEl('tlc-search');
   if (search) search.value = _cal.query;
   calWatchSize();
+  calWatchSwipe();
   calSyncBody();
 }
 
@@ -1485,4 +1506,41 @@ document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape') return;
   calPopClose(true);      // Esc 는 분명한 취소다 — 적던 제목이 있어도 닫는다
   if (_cal.menu) calCloseMenus();
+});
+
+// ── 단축키 (구글 캘린더와 같은 글자) ──
+//  ⚠️ e.key 가 아니라 e.code 로 본다. 한글 입력 상태에서는 e.key 가 'ㅇ' 이나 'Process' 로 와서 아무것도 안 눌린다.
+var CAL_KEYS = {
+  KeyD: function () { calSetView('day'); }, KeyW: function () { calSetView('week'); }, KeyM: function () { calSetView('month'); },
+  KeyY: function () { calSetView('year'); }, KeyA: function () { calSetView('list'); },
+  KeyT: function () { calToday(); }, KeyJ: function () { calStep(1); }, KeyN: function () { calStep(1); },
+  KeyK: function () { calStep(-1); }, KeyP: function () { calStep(-1); }, KeyC: function () { calCreate(); },
+};
+var CAL_KEY_HELP = [['T', '오늘'], ['D · W · M · Y · A', '일 · 주 · 월 · 연 · 목록'], ['J · N', '다음'], ['K · P', '이전'], ['C', '만들기'], ['/', '검색'], ['?', '이 도움말'], ['Esc', '닫기']];
+function calKeyHelp() {
+  var html = '<div class="tlc-pop-title"><span>단축키</span></div>'
+    + CAL_KEY_HELP.map(function (k) { return '<div class="tlc-key-row"><span class="tlc-key">' + k[0] + '</span><span>' + k[1] + '</span></div>'; }).join('');
+  var x = window.innerWidth / 2 - 130;
+  _calPopShow(html, { left: x, right: x, top: 90, bottom: 90 });
+}
+document.addEventListener('keydown', function (e) {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || !_calEl('tlc-body')) return;
+  var t = e.target;
+  if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+  // 다른 창이 떠 있으면 그 창이 먼저다
+  if (document.getElementById('recur-dlg') || document.getElementById('settings-overlay')) return;
+  var panel = document.getElementById('right-panel');
+  if (panel && panel.classList.contains('open')) return;
+  if (e.code === 'Slash' || e.key === '/' || e.key === '?') {
+    e.preventDefault();
+    if (e.shiftKey || e.key === '?') { calKeyHelp(); return; }
+    var box = _calEl('tlc-search');
+    if (box) box.focus();
+    return;
+  }
+  var fn = e.shiftKey ? null : CAL_KEYS[e.code];
+  if (!fn) return;
+  e.preventDefault();
+  calPopClose(true);
+  fn();
 });
