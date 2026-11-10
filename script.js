@@ -115,6 +115,7 @@ function loadTasks() {
       //  지우는 것도 '내가 고친 칸'으로 서버에 올라가므로, 옛 APK·옛 탭이 이 문서를 다시 일정·반복으로 다루지 않는다.
       delete normalized.kind; delete normalized.autoDone;
       delete normalized.rrule; delete normalized.exdates;
+      delete normalized.alertMin;    // Task 알림도 같은 날 없앴다 — 옛 APK 가 폰 알람을 다시 걸지 않게
       return normalized;
     });
   }
@@ -2229,13 +2230,15 @@ function openNewTaskPanel(taskId, opts) {
   rpState.newDue   = (!task && opts && opts.due) || null;
   rpState.eisenhower = task ? (task.eisenhower || null) : null;
   rpState.status     = task ? (task.status     || '대기') : '대기';
-  rpState.steps       = task ? (task.steps || []).map(function(s){ return Object.assign({}, s); }) : [];
+  // 깊은 사본 — 수행 시간(slots)은 배열이라 얕게 복사하면 저장 전에 원본이 바뀐다
+  rpState.steps       = task ? JSON.parse(JSON.stringify(task.steps || [])) : [];
+  rpState.calBar      = task ? !!task.calBar : false;
+  _rpTimeOpen         = null;
   rpState.assignees   = task ? (task.assignees || []).slice() : [];
   rpState.upstreamDepts = task ? (Array.isArray(task.upstreamDepts) ? task.upstreamDepts.slice() : (task.upstreamDept ? [task.upstreamDept] : [])) : [];
   rpState.mdtAction   = task ? (task.mdtAction || null) : ((opts && opts.mdtAction) || null);
   rpState.reminder    = task ? (task.reminder || null) : null;
-  rpState.alertMin    = (task && task.alertMin !== undefined) ? task.alertMin : null;
-  rpState.repeat      = task ? (task.repeat || null) : null;
+  rpState.repeat     = task ? (task.repeat || null) : null;
   rpState.prevTaskIds = task ? (Array.isArray(task.prevTaskIds) ? task.prevTaskIds.slice() : []) : [];
   rpState.nextTaskIds = task ? (Array.isArray(task.nextTaskIds) ? task.nextTaskIds.slice() : []) : [];
   rpState.completed   = task ? !!task.completed : false;
@@ -2431,7 +2434,13 @@ function rpSyncForm() {
   if (work) work.classList.toggle('is-open', !!rpState.workOpen);
   text('rp-work-arrow', rpState.workOpen ? '▾' : '▸');
   text('rp-work-sum', rpState.workOpen ? '' : rpWorkSummary());
-  rpAlertSync();
+  var barEl = document.getElementById('rp-calbar');
+  if (barEl) barEl.checked = !!rpState.calBar;
+}
+// 달력에 Start~Due 를 막대로 그릴지 (2026-11-10). 기본은 Due 날 한 줄이다.
+function rpSetCalBar(on) {
+  rpState.calBar = !!on;
+  rpState.dirty = true;
 }
 
 function buildRpForm(task) {
@@ -2511,8 +2520,8 @@ function buildRpForm(task) {
       + '<button class="rp-delete-btn" onclick="rpDeleteTask()" title="삭제">🗑️ 삭제</button></div>';
   }
 
-  // 위쪽 = Task·일정 공통 / 아래 '작업 관리' = Task 에서 펼침, 일정에서 접힘
-  // 순서 (2026-11-10 사용자 요청): 종일 → Task 이름 → Start·Due → 작업 관리 → Alert · Project · Location · Memo
+  // 순서 (2026-11-10 사용자 요청): 종일 → Task 이름 → Start·Due(+ 달력 막대) → 작업 관리 → Project · Location · Memo
+  //  Alert 칸은 같은 날 사용자 요청으로 없앴다 (Task 알림을 쓰지 않는다).
   return '<div class="rp-form">'
     + '<label class="rp-allday"><input type="checkbox" id="rp-allday" onchange="rpSetAllDay(this.checked)">종일</label>'
     + '<div class="field-group"><label class="field-label" id="rp-name-label">Task</label>'
@@ -2526,6 +2535,7 @@ function buildRpForm(task) {
     + '<div class="field-group rp-dt-col"><label class="field-label" id="rp-due-label">Due</label>'
     + buildDateTimeInput('rp-due-dt', dueStr, dueTimeStr) + '</div>'
     + '</div>'
+    + '<label class="rp-allday rp-calbar"><input type="checkbox" id="rp-calbar" onchange="rpSetCalBar(this.checked)">달력에 Start~Due 막대로 표시</label>'
     + '<div class="rp-work" id="rp-work">'
     + '<button type="button" class="rp-work-head" onclick="rpToggleWork()"><span id="rp-work-arrow">▾</span>작업 관리<span class="rp-work-sum" id="rp-work-sum"></span></button>'
     + '<div class="rp-work-body">'
@@ -2536,7 +2546,6 @@ function buildRpForm(task) {
     + upstreamHtml
     + depHtml
     + '</div></div>'
-    + '<div class="field-group"><label class="field-label" for="rp-alert">Alert</label><select class="field-input" id="rp-alert" onchange="rpAlertPick(this.value)"></select></div>'
     + '<div class="field-group"><label class="field-label">Project</label>'
     + buildProjectDropdown('rp-proj', rpState.mdtAction || null) + '</div>'
     + '<div class="field-group"><label class="field-label">Location</label>'
@@ -2579,11 +2588,15 @@ function rpBuildStepsHtml() {
       + '</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
+      + '<button class="step-cal-btn step-time-btn'+(stepSlotMin(s)?' has-date':'')+(_rpTimeOpen===s.id?' is-open':'')+'" onclick="event.stopPropagation();rpToggleStepTimeForm('+s.id+')" title="수행 시간">'
+      + rpStepTimeLabel(s)
+      + '</button>'
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
       + (hasDate ? '📅 '+formatDueDate(s.dueDateTime, false) : '📅')
       + '</button>'
       + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button></div>'
-      + dateForm;
+      + dateForm
+      + rpStepTimeFormHtml(s);
   }).join('');
 }
 
@@ -2635,6 +2648,114 @@ function rpSaveStepText(stepId, el) {
 
   rpState.dirty = true;
   rpRefreshSteps();   // 툴팁(전체 일시)·표시 갱신
+}
+
+// ============================================
+//  ⏱ To Do 수행 시간 (2026-11-10)
+//  To Do 하나를 여러 날 나눠 한 시간을 적는다. step.slots = [{ id, start, end, fs? }]
+//   · start·end 는 이 기기 시각의 'YYYY-MM-DDTHH:MM:00' (Task 의 dueDateTime 과 같은 모양)
+//   · fs = Focus On 세션 표시(그 세션의 종료 시각). 세션 기록을 지우면 그 줄들도 같이 지운다
+//  완료와는 상관없다 — 완료는 Task 수정에서 손으로 체크한다.
+//  Work Diary 그리드는 이 줄마다 블록 하나를 그린다. 수행 시간이 없는 완료 To Do 는 예전처럼 완료 시각에 그린다.
+// ============================================
+function slotLocal(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+    + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':00';
+}
+function slotDate(str) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(str || ''));
+  return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], 0, 0) : null;
+}
+function stepSlots(s) { return (s && Array.isArray(s.slots)) ? s.slots : []; }
+function slotMin(sl) {
+  var a = slotDate(sl && sl.start), b = slotDate(sl && sl.end);
+  return (a && b && b > a) ? Math.round((b - a) / 60000) : 0;
+}
+function stepSlotMin(s) { return stepSlots(s).reduce(function (n, sl) { return n + slotMin(sl); }, 0); }
+function fmtWorkMin(min) {
+  min = Math.max(0, Math.round(min || 0));
+  var h = Math.floor(min / 60), m = min % 60;
+  return h ? (h + 'h' + (m ? ' ' + m + 'm' : '')) : (m + 'm');
+}
+function newSlotId() { return Date.now() + Math.floor(Math.random() * 1000); }
+
+// ── 패널의 수행 시간 칸 (rpState.steps 사본을 고친다 — 저장 버튼을 눌러야 반영) ──
+var _rpTimeOpen = null;   // 펼쳐 둔 To Do id. 목록을 다시 그려도 열린 채로 둔다
+function rpStepTimeLabel(s) {
+  var min = stepSlotMin(s);
+  return min ? '⏱ ' + fmtWorkMin(min) : '⏱';
+}
+function rpStepTimeFormHtml(s) {
+  var rows = stepSlots(s).slice().sort(function (x, y) { return String(x.start).localeCompare(String(y.start)); }).map(function (sl) {
+    var a = slotDate(sl.start), b = slotDate(sl.end);
+    var d = a ? toDateInputVal(a) : '', ts = a ? toTimeInputVal(a) : '', te = b ? toTimeInputVal(b) : '';
+    var next = (a && b && toDateInputVal(b) !== d) ? '<span class="rp-slot-next" title="다음 날 끝남">+1</span>' : '';
+    return '<div class="rp-slot" data-slot="' + sl.id + '">'
+      + '<input class="field-input rp-dtinput rp-slot-d" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" value="' + d + '"'
+      +   ' oninput="rpDtInput(this)" onchange="rpSlotEdit(' + s.id + ',' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
+      + '<input class="field-input rp-dtinput rp-tminput rp-slot-s" inputmode="numeric" placeholder="시작" value="' + ts + '"'
+      +   ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onchange="rpSlotEdit(' + s.id + ',' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
+      + '<span class="rp-slot-sep">~</span>'
+      + '<input class="field-input rp-dtinput rp-tminput rp-slot-e" inputmode="numeric" placeholder="끝" value="' + te + '"'
+      +   ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onchange="rpSlotEdit(' + s.id + ',' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
+      + next
+      + '<button type="button" class="rp-slot-del" onclick="rpSlotDelete(' + s.id + ',' + sl.id + ')" title="이 수행 시간 지우기">✕</button>'
+      + '</div>';
+  }).join('');
+  var min = stepSlotMin(s);
+  return '<div class="rp-slot-form" id="rp-step-time-form-' + s.id + '"' + (_rpTimeOpen === s.id ? '' : ' style="display:none;"')
+    + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();">'
+    + (rows || '<div class="rp-slot-empty">아직 적은 수행 시간이 없습니다</div>')
+    + '<div class="rp-slot-foot">'
+    +   '<button type="button" class="rp-slot-add" onclick="rpSlotAdd(' + s.id + ')">+ 수행 시간</button>'
+    +   (min ? '<span class="rp-slot-sum">합계 ' + fmtWorkMin(min) + '</span>' : '')
+    + '</div></div>';
+}
+function rpToggleStepTimeForm(stepId) {
+  _rpTimeOpen = (_rpTimeOpen === stepId) ? null : stepId;
+  rpRefreshSteps();
+  if (_rpTimeOpen !== null) revealStepCal(document.getElementById('rp-step-time-form-' + stepId));
+}
+// 새 줄: 오늘, 지금을 30분 단위로 내린 시각부터 1시간
+function rpSlotAdd(stepId) {
+  var s = rpState.steps.find(function (x) { return x.id === stepId; });
+  if (!s) return;
+  var a = new Date(); a.setMinutes(a.getMinutes() < 30 ? 0 : 30, 0, 0);
+  var b = new Date(a.getTime() + 3600000);
+  if (!Array.isArray(s.slots)) s.slots = [];
+  s.slots.push({ id: newSlotId(), start: slotLocal(a), end: slotLocal(b) });
+  _rpTimeOpen = stepId;
+  rpState.dirty = true;
+  rpRefreshSteps();
+}
+function rpSlotDelete(stepId, slotId) {
+  var s = rpState.steps.find(function (x) { return x.id === stepId; });
+  if (!s || !Array.isArray(s.slots)) return;
+  s.slots = s.slots.filter(function (sl) { return sl.id !== slotId; });
+  if (!s.slots.length) delete s.slots;
+  rpState.dirty = true;
+  rpRefreshSteps();
+}
+// 칸을 고치면 바로 그 줄에 쓴다. 잘못 적었으면 빨갛게만 두고 예전 값을 지킨다.
+//  끝이 시작보다 이르면 다음 날 끝난 것으로 본다 (밤 11시 ~ 새벽 1시).
+function rpSlotEdit(stepId, slotId) {
+  var s = rpState.steps.find(function (x) { return x.id === stepId; });
+  var sl = s && stepSlots(s).find(function (x) { return x.id === slotId; });
+  var row = document.querySelector('#rp-step-time-form-' + stepId + ' .rp-slot[data-slot="' + slotId + '"]');
+  if (!sl || !row) return;
+  var dEl = row.querySelector('.rp-slot-d'), sEl = row.querySelector('.rp-slot-s'), eEl = row.querySelector('.rp-slot-e');
+  var dv = dEl.value.trim(), sv = rpTmParse(sEl.value), ev = rpTmParse(eEl.value);
+  var okD = /^\d{4}-\d{2}-\d{2}$/.test(dv) && !isNaN(new Date(dv + 'T00:00:00').getTime());
+  dEl.style.outline = okD ? '' : '2px solid var(--danger)';
+  sEl.style.outline = sv ? '' : '2px solid var(--danger)';
+  eEl.style.outline = (ev && ev !== sv) ? '' : '2px solid var(--danger)';
+  if (!okD || !sv || !ev || ev === sv) return;
+  var a = slotDate(dv + 'T' + sv), b = slotDate(dv + 'T' + ev);
+  if (b <= a) b = new Date(b.getTime() + 86400000);
+  sl.start = slotLocal(a);
+  sl.end = slotLocal(b);
+  rpState.dirty = true;
+  rpRefreshSteps();
 }
 
 // [YYMMDD] 6자리가 유효한 날짜인지 검사
@@ -3050,7 +3171,7 @@ function newTaskDoc(o) {
     prevTaskIds: o.prevTaskIds || [], nextTaskIds: o.nextTaskIds || [],
   };
   if (o.location) doc.location = o.location;
-  if (o.alertMin !== null && o.alertMin !== undefined) doc.alertMin = o.alertMin;
+  if (o.calBar) doc.calBar = true;
   return doc;
 }
 
@@ -3131,8 +3252,7 @@ function saveRightPanel() {
       task.nextTaskIds = rpState.nextTaskIds.slice();
       if (rpState.mdtAction) task.mdtAction = rpState.mdtAction; else delete task.mdtAction;
       if (locationVal) task.location = locationVal; else delete task.location;
-      if (rpState.alertMin !== null && rpState.alertMin !== undefined && (startDate || dueDate)) task.alertMin = rpState.alertMin;
-      else delete task.alertMin;
+      if (rpState.calBar) task.calBar = true; else delete task.calBar;
       // 폼 전체를 그대로 쓰면 패널을 연 사이 다른 기기가 고친 칸이 되돌아간다 — 내가 손댄 칸만 반영한다
       if (rpState.orig && typeof fsMerge3 === 'function') {
         var _rpMerged = fsMerge3(rpState.orig, JSON.parse(JSON.stringify(task)), _rpNow);
@@ -3155,8 +3275,7 @@ function saveRightPanel() {
       upstreamDept: upstreamDeptVal,
       mdtAction: rpState.mdtAction || null,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
-      location: locationVal,
-      alertMin: (startDate || dueDate) ? rpState.alertMin : null,
+      location: locationVal, calBar: rpState.calBar,
     });
     tasks.push(newTask);
     savedTask = newTask;
@@ -3535,9 +3654,8 @@ function bootApp() {
   if (typeof initTheme === 'function') initTheme();
   if (typeof initSettings === 'function') initSettings();
   loadTasks();
-  // 웹 알림은 탭이 열려 있을 때 1분마다 본다 (alert.js). 폰 앱은 안드로이드 알람이 울린다.
-  setInterval(alertTick, 60000);
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) alertTick(); });
+  // Task 알림(alert.js)은 2026-11-10 사용자 요청으로 없앴다. 이 기기에 남은 울린 기록도 치운다.
+  try { localStorage.removeItem('alert-fired'); } catch (e) {}
   if (typeof appBootYearSync === 'function') appBootYearSync();
   initSidebar();
   initSidebarCollapse();

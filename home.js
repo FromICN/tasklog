@@ -927,9 +927,11 @@ function hwbAddMemo() {
 //  --------------------------------------------
 //  · 세션은 아직 끝나지 않은 To Do 전체에서 고른다
 //  · 시작 / 정지 / 종료 — 누른 시각을 하나도 빠짐없이 기록한다
-//  · 종료하면 그 순간에 To Do 가 완료 처리되고, 완료 시각과 집중 시간이
-//    Work Diary 주간 그리드에 그대로 얹힌다(completedAt · wdDurMin).
-//  · 오늘 끝낸 세션은 아래 목록에 쌓인다. 지우면 그 To Do 는 미완으로 돌아간다.
+//  · 종료하면 실제로 잰 구간(시작~정지)이 그 To Do 의 수행 시간(step.slots)으로 남는다.
+//    Work Diary 주간 그리드가 그 줄마다 블록을 그린다.
+//  · 완료는 하지 않는다 (2026-11-10 사용자 결정) — 완료는 Task 수정에서 손으로 체크한다.
+//    예전에는 종료 = 완료였고 completedAt · wdDurMin 을 썼다. 그때 남은 값은 그대로 둔다.
+//  · 오늘 기록한 세션은 아래 목록에 쌓인다. 지우면 그 세션의 수행 시간만 지워진다.
 //
 //  진행 중인 세션은 localStorage 에 둔다 — 다른 메뉴에 갔다 와도,
 //  새로고침을 해도 재던 시간이 이어진다.
@@ -1050,8 +1052,8 @@ function focusPause() {
   renderFocusWidget();
 }
 
-// 종료 = '지금' 이 To Do 를 끝냈다는 뜻.
-//  완료 체크 + 완료 시각 + 집중 시간(분)을 함께 남겨 Work Diary 가 바로 받는다.
+// 종료 = 이번 세션을 마친다. 잰 구간마다 수행 시간 한 줄씩 남긴다. 완료는 하지 않는다.
+//  1분이 안 되는 구간은 버린다(정지를 잘못 누른 것). 분 단위로 잘라 적는다.
 function focusEnd() {
   var s = focusLoad();
   if (!s) return;
@@ -1064,26 +1066,24 @@ function focusEnd() {
 
   var task = (typeof tasks !== 'undefined') ? tasks.find(function(t){ return t.id === s.taskId; }) : null;
   var step = task && task.steps ? task.steps.find(function(x){ return String(x.id) === String(s.stepId); }) : null;
-  if (step) {
-    step.completed = true;
-    if (typeof applyDonePrefix === 'function') step.text = applyDonePrefix(step.text, true);
-    // 완료 '그 순간'의 시각 (다른 화면의 '완료 시각' 표시가 이 값을 쓴다)
-    step.completedAt = nowIso;
-    // 집중한 만큼을 블록 길이로 (Work Diary 최소 단위 10분)
-    step.wdDurMin = Math.max(10, Math.round(sec / 60));
-    // Work Diary 그리드는 블록을 '시작 시각'에서 아래로 그린다.
-    //  completedAt 을 그대로 두면 종료 시각에서 블록이 시작해, 실제로 일한
-    //  시간대보다 한 칸 뒤에 얹힌다 → 끝이 종료 시각에 닿도록 앞당겨 놓는다.
-    var wdStart = new Date(new Date(nowIso).getTime() - step.wdDurMin * 60000);
-    step.wdTimed = true;
-    step.wdLogAt = wdStart.toISOString();
-    // 이 세션의 버튼 기록을 To Do 에 붙여 둔다 — 목록에서 지울 때도 이걸 본다
+  if (step && typeof slotLocal === 'function') {
+    if (!Array.isArray(step.slots)) step.slots = [];
+    s.segments.forEach(function(seg, i) {
+      var a = new Date(seg.start), b = new Date(seg.end || nowIso);
+      if (isNaN(a.getTime()) || isNaN(b.getTime()) || b - a < 60000) return;   // 실제로 잰 길이로 판단한다
+      a.setSeconds(0, 0); b.setSeconds(0, 0);
+      if (b - a < 60000) b = new Date(a.getTime() + 60000);
+      step.slots.push({ id: newSlotId() + i, start: slotLocal(a), end: slotLocal(b), fs: nowIso });
+    });
+    if (!step.slots.length) delete step.slots;
+    // 버튼 기록은 예전처럼 To Do 에 붙여 둔다 — 아래 목록과 지우기가 이걸 본다 (fs 로 수행 시간과 이어진다)
     if (!Array.isArray(step.focusSessions)) step.focusSessions = [];
     step.focusSessions.push({ endedAt: nowIso, durSec: sec, log: s.log });
     if (typeof saveTasks === 'function') saveTasks();
   }
 
-  focusSave(null);
+  // 같은 To Do 를 이어서 잴 수 있게 골라 둔 채로 비운다 (끝내지 않았으므로 목록에 그대로 있다)
+  focusSave(step ? { taskId: s.taskId, stepId: s.stepId, text: step.text, taskText: s.taskText, running: false, segments: [], log: [] } : null);
   focusRefreshSiblings();
 }
 
@@ -1104,19 +1104,17 @@ function focusTodaySessions() {
   return out;
 }
 
-// 세션 삭제 = 그 완료를 되돌린다. To Do 는 미완으로 돌아간다.
+// 세션 삭제 = 그 세션이 남긴 수행 시간을 지운다. 완료 여부는 건드리지 않는다 (완료는 Task 수정에서 한다).
+//  2026-11-10 전의 세션은 수행 시간 없이 완료로 남았으므로, 지워도 기록 한 줄만 없어진다.
 function focusDeleteSession(taskId, stepId, idx) {
   var task = (typeof tasks !== 'undefined') ? tasks.find(function(t){ return t.id === taskId; }) : null;
   var step = task && task.steps ? task.steps.find(function(x){ return String(x.id) === String(stepId); }) : null;
   if (!step || !Array.isArray(step.focusSessions)) return;
-  step.focusSessions.splice(idx, 1);
-  // 남은 세션이 없으면 '완료' 자체를 되돌린다.
-  // (한 To Do 를 여러 번 나눠 잰 경우, 마지막 기록을 지울 때만 미완으로 간다)
-  if (!step.focusSessions.length) {
-    step.completed = false;
-    if (typeof applyDonePrefix === 'function') step.text = applyDonePrefix(step.text, false);
-    delete step.completedAt; delete step.wdTimed; delete step.wdLogAt; delete step.wdDurMin;
-    delete step.focusSessions;
+  var gone = step.focusSessions.splice(idx, 1)[0];
+  if (!step.focusSessions.length) delete step.focusSessions;
+  if (gone && Array.isArray(step.slots)) {
+    step.slots = step.slots.filter(function(sl) { return sl.fs !== gone.endedAt; });
+    if (!step.slots.length) delete step.slots;
   }
   if (typeof saveTasks === 'function') saveTasks();
   focusRefreshSiblings();
@@ -1304,11 +1302,11 @@ function renderFocusWidget() {
           + '<span class="fw-sess-time">' + focusFmtClock(f.endedAt) + '</span>'
           + '<span class="fw-sess-txt" title="' + hwEsc(focusCleanText(f.text)) + '">' + hwEsc(focusCleanText(f.text)) + '</span>'
           + '<span class="fw-sess-dur">' + focusFmtDur(f.durSec) + '</span>'
-          + '<button class="fw-sess-del" title="기록 삭제 — 이 To Do는 미완으로 돌아갑니다"'
+          + '<button class="fw-sess-del" title="기록 삭제 — 이 세션의 수행 시간을 지웁니다"'
           + ' onclick="focusDeleteSession(' + f.taskId + ',\'' + f.stepId + '\',' + f.idx + ')">✕</button>'
           + '</div>';
       }).join('')
-    : '<div class="fw-sess-empty">오늘 끝낸 세션이 없습니다</div>';
+    : '<div class="fw-sess-empty">오늘 기록한 세션이 없습니다</div>';
 
   // 시계가 남는 자리를 다 쓰고, 버튼은 그 아래에 나란히 선다 (.fw-main).
   // To Do 선택·오늘 완료 목록(.fw-side)은 세로로 긴 카드에선 그 아래, 가로로 긴 카드에선
@@ -1325,7 +1323,7 @@ function renderFocusWidget() {
     + '<div class="fw-side">'
     +   '<select class="fw-select" ' + (running ? 'disabled title="정지한 뒤에 바꿀 수 있어요"' : '')
     +     ' onchange="focusPickSession(this.value)">' + opts + '</select>'
-    +   '<div class="fw-sess-head">오늘 완료 <span class="fw-sess-count">' + sessions.length + '</span></div>'
+    +   '<div class="fw-sess-head">오늘 기록 <span class="fw-sess-count">' + sessions.length + '</span></div>'
     +   '<div class="fw-sess-list">' + sessionHtml + '</div>'
     + '</div>'
     + '</div>';

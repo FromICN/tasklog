@@ -207,12 +207,21 @@ function _calTaskPlace(t) {
   }
   return { date: due, hasTime: !!t.hasTime, anchor: 'due' };
 }
-// 문서마다 Task 한 줄 + 날짜가 있는 To Do 들. 범위로 거르는 것은 FullCalendar 와 부르는 쪽이 한다.
+// 'Start~Due 막대' 를 켠 Task (2026-11-10, Task 수정의 체크 `calBar`) — 날짜가 다를 때만 종일 막대로 그린다.
+//  끝은 FullCalendar 규칙대로 Due 다음 날 0시(포함 안 함)다. 같은 날이면 위 규칙대로 둔다.
+//  ⚠️ 폰 월간 위젯은 Schedule.java month() 가 같은 규칙으로 막대를 만든다.
+function _calTaskBar(t) {
+  if (!t.calBar || !t.startDate || !t.dueDateTime) return null;
+  var s = new Date(t.startDate), e = new Date(t.dueDateTime);
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || _calKey(s) >= _calKey(e)) return null;
+  return { date: new Date(s.getFullYear(), s.getMonth(), s.getDate()), end: new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1), hasTime: false, anchor: 'bar' };
+}
+// 문서마다 Task 한 줄(또는 막대) + 날짜가 있는 To Do 들. 범위로 거르는 것은 FullCalendar 와 부르는 쪽이 한다.
 function calCollectItems() {
   var out = [];
   mdtAllTasks().forEach(function (t) {
     var color = calTaskColor(t), keys = _calItemKeys(t);
-    var place = _calTaskPlace(t);
+    var place = _calTaskBar(t) || _calTaskPlace(t);
     if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), color: color, keys: keys, date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed });
     (t.steps || []).forEach(function (s) {
       if (!s.dueDateTime) return;
@@ -232,6 +241,19 @@ function calItemVisible(it, show) {
   return true;
 }
 function _calItemToFc(it) {
+  if (it.anchor === 'bar') {
+    return {
+      id: 't' + it.taskId,
+      title: it.title,
+      start: _calKey(it.date),
+      end: _calKey(it.end),
+      allDay: true,
+      backgroundColor: it.color, borderColor: it.color, textColor: _calInk(it.color),
+      durationEditable: true,   // 끝을 끌면 Due 가 바뀐다
+      classNames: ['tlc-bar'].concat(it.done ? ['tlc-is-done'] : []),
+      extendedProps: { kind: 'task', taskId: it.taskId, done: it.done, color: it.color, anchor: 'bar' },
+    };
+  }
   return {
     id: it.kind === 'task' ? ('t' + it.taskId) : ('s' + it.taskId + '_' + it.stepId),
     title: it.title,
@@ -582,7 +604,7 @@ function calEnsureFc() {
     },
     eventContent: function (arg) {
       var p = arg.event.extendedProps, isList = arg.view.type.indexOf('list') === 0;
-      if (p.kind === 'google' && !isList) return true;   // 구글 일정은 기본 막대 그대로
+      if ((p.kind === 'google' || p.anchor === 'bar') && !isList) return true;   // 구글 일정 · Task 막대는 기본 막대 그대로
       var time = (!isList && arg.timeText) ? '<span class="tlc-time">' + _calEsc(arg.timeText) + '</span>' : '';   // 목록은 시간 칸이 따로 있다
       return { html: '<span class="tlc-ev">' + _calMarkHtml(p.kind, p.color, p.done) + time + '<span class="tlc-tt">' + _calEsc(arg.event.title) + '</span></span>' };
     },
@@ -626,6 +648,18 @@ function _calFindItem(p) {
 // 시각을 문서에 적는다. start·end·allDay 는 달력에서 놓은 값이다.
 function _calApplyMove(obj, p, d, end, allDay) {
   var key = _calKey(d);
+  if (p.anchor === 'bar') {
+    // 막대: 시작 날은 놓은 날, 끝은 막대 끝(포함 안 함) 전날. 시간 칸에 놓았으면 길이(날수)를 지킨다.
+    //  시각(T09:00 등)은 그대로 둔다 — 날짜만 옮긴다.
+    var s0 = new Date(obj.startDate), e0 = new Date(obj.dueDateTime);
+    var days = Math.round((new Date(e0.getFullYear(), e0.getMonth(), e0.getDate()) - new Date(s0.getFullYear(), s0.getMonth(), s0.getDate())) / 86400000);
+    var ns = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var ne = (allDay && end) ? new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1) : new Date(ns.getFullYear(), ns.getMonth(), ns.getDate() + Math.max(0, days));
+    if (ne < ns) ne = ns;
+    obj.startDate = _calKey(ns) + String(obj.startDate).slice(10);
+    obj.dueDateTime = _calKey(ne) + String(obj.dueDateTime).slice(10);
+    return;
+  }
   if (p.kind === 'task' && (p.anchor === 'start' || p.anchor === 'both')) {
     obj.startDate = allDay ? (key + 'T09:00:00') : _calIso(d);
     obj.startHasTime = !allDay;
@@ -850,7 +884,7 @@ function calItemPop(p, anchor) {
   var done = !!o.completed;
   var kindLabel = isStep ? 'To Do' : 'Task';
   var rows = '<div class="tlc-pop-row">' + _calEsc(_calItemWhen(p, found)) + '</div>';
-  if (!isStep && alertHas(o)) rows += '<div class="tlc-pop-row tlc-pop-dim">알림 ' + _calEsc(alertLabel(o)) + '</div>';
+  if (isStep && typeof stepSlotMin === 'function' && stepSlotMin(o)) rows += '<div class="tlc-pop-row tlc-pop-dim">수행 시간 ' + _calEsc(fmtWorkMin(stepSlotMin(o))) + '</div>';
   var proj = _calProjectLine(t);
   if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
   if (isStep) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(_calCleanTitle(t.text)) + '</div>';
@@ -1102,7 +1136,14 @@ function calYearCounts(year) {
     if (appPeriodHit([k, k])) counts[k] = (counts[k] || 0) + 1;
   }
   calCollectItems().forEach(function (it) {
-    if (calItemVisible(it, show) && it.date.getFullYear() === year) add(it.date);
+    if (!calItemVisible(it, show)) return;
+    if (it.anchor !== 'bar') { if (it.date.getFullYear() === year) add(it.date); return; }
+    // 막대는 걸친 날마다 센다 (구글 일정과 같다)
+    var day = new Date(it.date);
+    for (var n = 0; day < it.end && n < 366; n++) {
+      if (day.getFullYear() === year) add(day);
+      day.setDate(day.getDate() + 1);
+    }
   });
   calGItems().forEach(function (ev) {
     var span = _calGSpan(ev), d = new Date(span[0]);

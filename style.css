@@ -10168,6 +10168,25 @@ body :is(input, textarea, [contenteditable]):focus-visible {
 .rp-allday { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--text-2); font-size: var(--fs-sm); cursor: pointer; }
 .rp-allday input { margin: 0; }
 .rp-dt-cols.is-allday .rp-tminput { display: none; }
+/* To Do 수행 시간 (2026-11-10) — ⏱ 버튼 아래로 펼친다 */
+.step-time-btn { margin-right: 4px; }
+.step-time-btn.is-open { opacity: 1; border-color: var(--brand-primary); color: var(--brand-primary); }
+.rp-slot-form { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 8px; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.rp-slot { display: flex; align-items: center; gap: 3px; }
+.rp-slot .field-input { padding-left: 2px; padding-right: 2px; }
+.rp-slot .rp-slot-d { flex: 1 1 auto; width: auto; min-width: 0; }
+.rp-slot .rp-tminput { flex: 0 0 50px; width: 50px; }
+.rp-slot-sep { color: var(--text-3); font-size: var(--fs-sm); }
+.rp-slot-next { color: var(--text-3); font-size: var(--fs-2xs); font-family: var(--tl-mono); }
+.rp-slot-del { flex: 0 0 auto; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--text-3); cursor: pointer; }
+.rp-slot-del:hover { color: var(--danger); }
+.rp-slot-empty { color: var(--text-3); font-size: var(--fs-xs); }
+.rp-slot-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rp-slot-add { height: 28px; padding: 0 10px; border: 1px dashed var(--border); border-radius: var(--radius-md); background: transparent; color: var(--text-2); font-size: var(--fs-xs); cursor: pointer; }
+.rp-slot-add:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+.rp-slot-sum { color: var(--text-2); font-size: var(--fs-xs); font-family: var(--tl-mono); }
+/* Work Diary — 수행 시간 없이 완료 시각으로만 그린 블록은 점선으로 구분한다 */
+.jnlw-ev.jnlw-ev-done { border-left-style: dashed !important; }   /* 왼쪽 선은 인라인 style 이 칠한다 */
 .rp-work { display: flex; flex-direction: column; gap: var(--space-35); padding-top: var(--space-2); border-top: 1px solid var(--border); }
 .rp-work-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 2px 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-sm); font-weight: 600; text-align: left; cursor: pointer; }
 .rp-work-sum { margin-left: auto; min-width: 0; overflow: hidden; color: var(--text-3); font-size: var(--fs-xs); font-weight: 400; white-space: nowrap; text-overflow: ellipsis; }

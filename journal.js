@@ -415,6 +415,53 @@ function jnlCollectWeekGridItems(weekKey) {
   return out;
 }
 
+// 주간 그리드에 올릴 블록 (2026-11-10 — To Do 수행 시간)
+//  · 수행 시간(step.slots)이 있는 To Do 는 그 줄마다 블록 하나. 완료 여부와 상관없다.
+//  · 수행 시간이 없는 '완료된' To Do 는 예전처럼 완료 시각에 블록 하나(종일이면 아래 칩) — 지난 기록을 그대로 보여 준다.
+//    이 블록을 끌거나 늘리면 그 자리로 수행 시간 한 줄이 생기고(wd* 값은 지운다), 이후로는 수행 시간으로 그린다.
+//  · 그리드의 하루는 07:00 ~ 다음 날 06:59 다. 수행 시간은 시작 시각에서 7시간을 빼서 어느 칸인지 정한다.
+//  ⚠️ 완료일([YYMMDD])·completedAt 은 그리드에서 바꾸지 않는다 — 완료는 Task 수정에서 한다.
+//     '이번 주 완료 불러오기'는 예전 함수(jnlCollectWeekGridItems)를 그대로 쓴다.
+function jnlSlotBlock(sl, mondayMid) {
+  var a = (typeof slotDate === 'function') ? slotDate(sl.start) : null;
+  if (!a) return null;
+  var shifted = new Date(a.getTime() - JNLW_WIN_START * 3600000);
+  shifted.setHours(0, 0, 0, 0);
+  var di = Math.round((shifted - mondayMid) / 86400000);
+  if (di < 0 || di > 6) return null;
+  var startLin = jnlwClockToLin(a.getHours(), a.getMinutes());
+  var durMin = Math.max(JNLW_MIN_DUR, slotMin(sl));
+  return { day: di, startLin: startLin, durMin: durMin, endLin: Math.min(1440, startLin + durMin), hour: a.getHours(), min: a.getMinutes(), dt: a };
+}
+function jnlCollectWeekBlocks(weekKey) {
+  var out = [];
+  if (typeof tasks === 'undefined' || !Array.isArray(tasks)) return out;
+  var r = getWeekRange(weekKey);
+  var mondayMid = new Date(r.start); mondayMid.setHours(0, 0, 0, 0);
+  var legacy = jnlCollectWeekGridItems(weekKey).filter(function (it) { return it.type === 'todo'; });
+  tasks.forEach(function (t) {
+    var color = (typeof getGanttColor === 'function') ? getGanttColor(t) : 'var(--brand-primary)';
+    (t.steps || []).forEach(function (s) {
+      var slots = (typeof stepSlots === 'function') ? stepSlots(s) : [];
+      if (!slots.length) {
+        legacy.forEach(function (it) { if (it.taskId === t.id && it.stepId === s.id) { it.slotId = null; out.push(it); } });
+        return;
+      }
+      slots.forEach(function (sl) {
+        var b = jnlSlotBlock(sl, mondayMid);
+        if (!b) return;
+        out.push({
+          type: 'todo', taskId: t.id, stepId: s.id, slotId: sl.id,
+          text: jnlCleanText(s.text), taskText: jnlCleanText(t.text), color: color,
+          day: b.day, timed: true, hour: b.hour, min: b.min, dt: b.dt,
+          startLin: b.startLin, durMin: b.durMin, endLin: b.endLin,
+        });
+      });
+    });
+  });
+  return out;
+}
+
 // 하루치 timed 항목 레인 배치(겹침 나란히)
 function jnlwLayoutDay(dayItems) {
   dayItems.sort(function (a, b) { return a.startLin - b.startLin || a.endLin - b.endLin; });
@@ -444,19 +491,21 @@ function jnlwBlockHTML(it, totalH) {
   var safe = jnlEscape(it.text || '');
   var parent = jnlEscape(it.taskText || '');
   var sid = (it.stepId == null) ? 'null' : it.stepId;
-  var tip = (parent ? parent + ' › ' : '') + safe;
-  return '<div class="jnlw-ev" data-task="' + it.taskId + '" data-step="' + sid + '"'
+  var slid = (it.slotId == null) ? 'null' : it.slotId;
+  var range = jnlwFmtLin(it.startLin) + '~' + jnlwFmtLin(it.endLin % 1440);
+  var tip = (parent ? parent + ' › ' : '') + safe + ' · ' + range + (it.slotId == null ? ' (완료 시각)' : '');
+  return '<div class="jnlw-ev' + (it.slotId == null ? ' jnlw-ev-done' : '') + '" data-task="' + it.taskId + '" data-step="' + sid + '" data-slot="' + slid + '"'
     + ' style="top:' + topPx.toFixed(1) + 'px;height:' + hPx.toFixed(1) + 'px;left:calc(' + left + '% + 1px);width:calc(' + w + '% - 3px);'
     + 'border-left:3px solid ' + it.color + ';"'
     + ' title="' + tip + '"'
-    + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',false)">'
-    + '<div class="jnlw-ev-rz jnlw-ev-rz-top" onpointerdown="jnlwRzDown(event,\'top\',' + it.taskId + ',' + sid + ')"></div>'
+    + ' onpointerdown="jnlwEvDown(event,' + it.taskId + ',' + sid + ',false,' + slid + ')">'
+    + '<div class="jnlw-ev-rz jnlw-ev-rz-top" onpointerdown="jnlwRzDown(event,\'top\',' + it.taskId + ',' + sid + ',' + slid + ')"></div>'
     + '<div class="jnlw-ev-in">'
     // 그리드에는 To Do 만 올라오므로 'ToDo' 배지는 늘 같은 말이다 → 자리만 차지해서 뺐다
     + '<span class="jnlw-ev-head"><span class="jnlw-ev-txt">' + safe + '</span></span>'
     + (parent ? '<span class="jnlw-ev-parent">' + parent + '</span>' : '')
     + '</div>'
-    + '<div class="jnlw-ev-rz jnlw-ev-rz-bot" onpointerdown="jnlwRzDown(event,\'bot\',' + it.taskId + ',' + sid + ')"></div>'
+    + '<div class="jnlw-ev-rz jnlw-ev-rz-bot" onpointerdown="jnlwRzDown(event,\'bot\',' + it.taskId + ',' + sid + ',' + slid + ')"></div>'
     + '</div>';
 }
 
@@ -481,7 +530,7 @@ function jnlBuildWeekGrid() {
   // (열 순서: 거터 · 월 화 수 목 금 · 토 일)
   var cols = '52px repeat(5, minmax(0, 1fr)) repeat(2, minmax(0, 0.5fr))';
 
-  var items = jnlCollectWeekGridItems(_journalWeek).filter(function (it) { return it.type === 'todo'; });
+  var items = jnlCollectWeekBlocks(_journalWeek);
   var timedByDay = [], alldayByDay = [];
   for (var i = 0; i < 7; i++) { timedByDay.push([]); alldayByDay.push([]); }
   items.forEach(function (it) { (it.timed ? timedByDay[it.day] : alldayByDay[it.day]).push(it); });
@@ -611,47 +660,58 @@ function jnlwPreview(hit, p) {
   }
 }
 
-// 값의 그리드 값을 확정하고 완료일(일자/시간)과 동기화
-function jnlwApply(obj, day, timed, startLin, durMin) {
+// 블록을 놓은 자리를 수행 시간으로 적는다 (2026-11-10).
+//  수행 시간 블록이면 그 줄을 고치고, 완료 시각 블록(수행 시간 없음)이면 그 자리로 새 줄을 만든다.
+//  그리드의 하루는 07:00 에 시작하므로 07:00 전 시각은 다음 날이다.
+//  완료일([YYMMDD])·completedAt 은 건드리지 않는다 — 완료는 Task 수정에서 한다.
+function jnlwApply(p, day, startLin, durMin) {
+  var obj = p.obj;
   var r = getWeekRange(_journalWeek);
-  var base = new Date(r.start); base.setHours(0, 0, 0, 0); base.setDate(base.getDate() + day);
-  if (timed) {
-    var c = jnlwLinToClock(startLin);
-    base.setHours(c.h, c.m, 0, 0);
-    obj.wdLogAt = base.toISOString(); obj.wdTimed = true;
-    obj.wdDurMin = Math.max(JNLW_MIN_DUR, durMin || obj.wdDurMin || 60);
+  var a = new Date(r.start); a.setHours(0, 0, 0, 0); a.setDate(a.getDate() + day);
+  var c = jnlwLinToClock(startLin);
+  a.setHours(c.h, c.m, 0, 0);
+  if (c.h < JNLW_WIN_START) a.setDate(a.getDate() + 1);
+  var b = new Date(a.getTime() + Math.max(JNLW_MIN_DUR, durMin || 60) * 60000);
+  var sl = (p.slotId != null) ? stepSlots(obj).find(function (x) { return x.id === p.slotId; }) : null;
+  if (sl) {
+    sl.start = slotLocal(a); sl.end = slotLocal(b);
   } else {
-    base.setHours(12, 0, 0, 0);
-    obj.wdLogAt = base.toISOString(); obj.wdTimed = false;
+    if (!Array.isArray(obj.slots)) obj.slots = [];
+    obj.slots.push({ id: newSlotId(), start: slotLocal(a), end: slotLocal(b) });
+    delete obj.wdTimed; delete obj.wdLogAt; delete obj.wdDurMin;   // 이제 수행 시간으로 그린다
   }
-  // 그리드에서 세팅한 일자를 완료일([YYMMDD])과 동기화
-  obj.text = jnlSetCompletedDatePrefix(obj.text, base);
-  // 그리드 배치 일시를 To Do 완료시각(completedAt)에도 반영 → Task 수정 표시([MMDD]·툴팁)와 상호 동기화
-  obj.completedAt = base.toISOString();
   if (typeof saveTasks === 'function') saveTasks();
   jnlRefreshWeekGrid();
 }
 
-// 이동 시작 (블록 본문 / 종일 칩 공통)
-function jnlwEvDown(e, taskId, stepId, srcAllday) {
+// 블록의 지금 시작(선형 분)·길이 — 수행 시간이면 그 줄에서, 아니면 완료 시각 배치에서
+function jnlwBlockSpan(obj, slotId) {
+  if (slotId != null) {
+    var sl = stepSlots(obj).find(function (x) { return x.id === slotId; });
+    var a = sl ? slotDate(sl.start) : null;
+    if (!a) return null;
+    return { startLin: jnlwClockToLin(a.getHours(), a.getMinutes()), durMin: Math.max(JNLW_MIN_DUR, slotMin(sl)) };
+  }
+  var info = jnlItemLogInfo(obj);
+  if (!info || !info.timed || !info.date) return null;
+  return { startLin: jnlwClockToLin(info.date.getHours(), info.date.getMinutes()), durMin: Math.max(JNLW_MIN_DUR, obj.wdTimed ? (obj.wdDurMin || 60) : 60) };
+}
+
+// 이동 시작 (블록 본문 / 종일 칩 공통). slotId 가 null 이면 완료 시각 블록이다.
+function jnlwEvDown(e, taskId, stepId, srcAllday, slotId) {
   if (e.button != null && e.button !== 0) return;
   var obj = jnlFindObj(taskId, (stepId === 'null') ? null : stepId);
   if (!obj) return;
+  if (slotId === undefined || slotId === 'null') slotId = null;
   var el = e.currentTarget;
-  var grabLin = 0, origStartLin = 0;
+  var grabLin = 0, span = jnlwBlockSpan(obj, slotId);
   if (!srcAllday) {
     var col = el.closest('.jnlw-daycol');
-    if (col) {
-      // 시작 위치(분)는 실제 배치정보로 계산 — wdLogAt이 없을 수 있음(완료 직후/Task에서 완료일 수정 → completedAt만 존재)
-      var infoD = jnlItemLogInfo(obj);
-      var eff = (infoD && infoD.date) ? infoD.date : (obj.wdLogAt ? new Date(obj.wdLogAt) : null);
-      origStartLin = eff ? jnlwClockToLin(eff.getHours(), eff.getMinutes()) : 0;
-      grabLin = jnlwLinAt(col.getBoundingClientRect(), e.clientY) - origStartLin;
-    }
+    if (col && span) grabLin = jnlwLinAt(col.getBoundingClientRect(), e.clientY) - span.startLin;
   }
-  _jnlwPtr = { mode: 'move', taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj, el: el,
+  _jnlwPtr = { mode: 'move', taskId: taskId, stepId: (stepId === 'null') ? null : stepId, slotId: slotId, obj: obj, el: el,
     x0: e.clientX, y0: e.clientY, moved: false, srcAllday: srcAllday,
-    durMin: (obj.wdTimed ? (obj.wdDurMin || 60) : 60), grabLin: grabLin,
+    durMin: span ? span.durMin : 60, grabLin: grabLin,
     color: (el && el.style && el.style.borderLeftColor) || 'var(--brand-primary)' };
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
   document.addEventListener('pointermove', jnlwPtrMove);
@@ -660,19 +720,19 @@ function jnlwEvDown(e, taskId, stepId, srcAllday) {
 }
 
 // 리사이즈 시작
-function jnlwRzDown(e, edge, taskId, stepId) {
+function jnlwRzDown(e, edge, taskId, stepId, slotId) {
   e.stopPropagation();
   if (e.button != null && e.button !== 0) return;
   var obj = jnlFindObj(taskId, (stepId === 'null') ? null : stepId);
-  var info = obj ? jnlItemLogInfo(obj) : null;
-  if (!obj || !info || !info.timed || !info.date) return;   // completedAt로 timed인 항목도 리사이즈 허용
+  if (slotId === undefined || slotId === 'null') slotId = null;
+  var span = obj ? jnlwBlockSpan(obj, slotId) : null;
+  if (!obj || !span) return;
   var block = e.currentTarget.closest('.jnlw-ev');
   var col = block ? block.closest('.jnlw-daycol') : null;
   if (!col) return;
-  var d = info.date;                                         // wdLogAt이 없어도 실제 배치 시각 사용
-  var startLin = jnlwClockToLin(d.getHours(), d.getMinutes());
-  var endLin = Math.min(1440, startLin + Math.max(JNLW_MIN_DUR, obj.wdDurMin || 60));
-  _jnlwPtr = { mode: 'resize', edge: edge, taskId: taskId, stepId: (stepId === 'null') ? null : stepId, obj: obj,
+  var startLin = span.startLin;
+  var endLin = Math.min(1440, startLin + span.durMin);
+  _jnlwPtr = { mode: 'resize', edge: edge, taskId: taskId, stepId: (stepId === 'null') ? null : stepId, slotId: slotId, obj: obj,
     el: block, col: col, startLin: startLin, endLin: endLin, day: parseInt(col.getAttribute('data-day'), 10) };
   try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
   document.addEventListener('pointermove', jnlwPtrMove);
@@ -728,17 +788,14 @@ function jnlwPtrUp(e) {
   if (p.mode === 'move') {
     if (!p.moved) { jnlwOpen(p.taskId); return; }     // 이동 없으면 상세 열기
     var hit = jnlwHitTest(e.clientX, e.clientY);
-    if (!hit) { jnlRefreshWeekGrid(); return; }
-    if (hit.kind === 'allday') {
-      jnlwApply(p.obj, hit.day, false);
-    } else {
-      var startLin = jnlwSnap(hit.lin - (p.srcAllday ? 0 : p.grabLin), 0, 1440 - JNLW_SNAP);
-      jnlwApply(p.obj, hit.day, true, startLin, p.durMin);
-    }
+    // 수행 시간은 시각이 있어야 한다 — 종일 칸에 놓으면 제자리로 돌린다
+    if (!hit || hit.kind === 'allday') { jnlRefreshWeekGrid(); return; }
+    var startLin = jnlwSnap(hit.lin - (p.srcAllday ? 0 : p.grabLin), 0, 1440 - JNLW_SNAP);
+    jnlwApply(p, hit.day, startLin, p.durMin);
   } else if (p.mode === 'resize') {
     var start = (p.newStart != null) ? p.newStart : p.startLin;
     var end = (p.newEnd != null) ? p.newEnd : p.endLin;
-    jnlwApply(p.obj, p.day, true, start, Math.max(JNLW_MIN_DUR, end - start));
+    jnlwApply(p, p.day, start, Math.max(JNLW_MIN_DUR, end - start));
   }
 }
 
