@@ -2448,9 +2448,11 @@ function rpSetCalBar(on) {
   rpState.dirty = true;
   rpSyncForm();
 }
-// 아이콘 (16px, 선 굵기 2, currentColor) — 종일 = 해, 막대 = 달력 위의 가로 막대
-var RP_ICO_ALLDAY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">'
-  + '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+// 아이콘 (16px, 선 굵기 2, currentColor)
+//  종일 = 24시간 순환 시계 — 한 바퀴 도는 화살표 원 안에 시곗바늘 (2026-11-10 사용자 요청: 해는 직관적이지 않다)
+//  막대 = 달력 위의 가로 막대
+var RP_ICO_ALLDAY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<path d="M18.01 5.99A8.5 8.5 0 1 1 12 3.5"/><path d="M9.6 1.3 12.2 3.5 9.6 5.7"/><path d="M12 7.5V12l3 2"/></svg>';
 var RP_ICO_CALBAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
   + '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><rect x="6" y="13" width="12" height="4" rx="1" fill="currentColor" stroke="none"/></svg>';
 
