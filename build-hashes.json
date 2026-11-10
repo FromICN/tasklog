@@ -1,6 +1,6 @@
 {
   "manifest.json": "8dd477f972b0",
-  "style.css": "d7364bf537e9",
+  "style.css": "5d7e65b952fe",
   "profile-modal.css": "6199d432a913",
   "login.css": "e4d2a0107b36",
   "mobile.css": "d1770512b420",
@@ -30,7 +30,7 @@
   "firestore-sync.js": "7452cf29c868",
   "todo.js": "e76a52cb7eb5",
   "yearsync.js": "20e085b8cc42",
-  "script.js": "71ccc26a67e6",
-  "pwa.js": "0b71edfd1655",
+  "script.js": "8295d23e5b87",
+  "pwa.js": "8e18f2e613af",
   "mobile-ui.js": "ff2c7494ef27"
 }

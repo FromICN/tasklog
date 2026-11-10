@@ -2423,25 +2423,36 @@ function rpWorkSummary() {
   if (rpState.upstreamDepts.length) parts.push('UpStream ' + rpState.upstreamDepts.length);
   return parts.join(' · ');
 }
+// Task 줄 오른쪽 아이콘 단추 — 켜짐을 색과 aria-pressed 로 보여 준다
+function rpSyncIcoBtn(id, on) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('is-on', !!on);
+  el.setAttribute('aria-pressed', on ? 'true' : 'false');
+}
 function rpSyncForm() {
   function text(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
   text('rp-title', 'Task ' + (rpState.taskId ? '수정' : '생성'));
-  var allDayEl = document.getElementById('rp-allday');
-  if (allDayEl) allDayEl.checked = !!rpState.allDay;
+  rpSyncIcoBtn('rp-allday', rpState.allDay);
   var cols = document.querySelector('.rp-dt-cols');
   if (cols) cols.classList.toggle('is-allday', !!rpState.allDay);
   var work = document.getElementById('rp-work');
   if (work) work.classList.toggle('is-open', !!rpState.workOpen);
   text('rp-work-arrow', rpState.workOpen ? '▾' : '▸');
   text('rp-work-sum', rpState.workOpen ? '' : rpWorkSummary());
-  var barEl = document.getElementById('rp-calbar');
-  if (barEl) barEl.checked = !!rpState.calBar;
+  rpSyncIcoBtn('rp-calbar', rpState.calBar);
 }
 // 달력에 Start~Due 를 막대로 그릴지 (2026-11-10). 기본은 Due 날 한 줄이다.
 function rpSetCalBar(on) {
   rpState.calBar = !!on;
   rpState.dirty = true;
+  rpSyncForm();
 }
+// 아이콘 (16px, 선 굵기 2, currentColor) — 종일 = 해, 막대 = 달력 위의 가로 막대
+var RP_ICO_ALLDAY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">'
+  + '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+var RP_ICO_CALBAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+  + '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><rect x="6" y="13" width="12" height="4" rx="1" fill="currentColor" stroke="none"/></svg>';
 
 function buildRpForm(task) {
   var name       = task ? (task.completed ? task.text : task.text.replace(/^\[\d{6}\] /, '')) : '';
@@ -2520,11 +2531,15 @@ function buildRpForm(task) {
       + '<button class="rp-delete-btn" onclick="rpDeleteTask()" title="삭제">🗑️ 삭제</button></div>';
   }
 
-  // 순서 (2026-11-10 사용자 요청): 종일 → Task 이름 → Start·Due(+ 달력 막대) → 작업 관리 → Project · Location · Memo
+  // 순서 (2026-11-10 사용자 요청): Task 이름 → Start·Due → 작업 관리 → Project · Location · Memo
+  //  종일 · 달력 막대는 'Task' 이름표 줄 오른쪽 끝의 아이콘 단추다 (같은 날 사용자 요청 — 체크박스가 한 줄씩 먹었다).
   //  Alert 칸은 같은 날 사용자 요청으로 없앴다 (Task 알림을 쓰지 않는다).
   return '<div class="rp-form">'
-    + '<label class="rp-allday"><input type="checkbox" id="rp-allday" onchange="rpSetAllDay(this.checked)">종일</label>'
-    + '<div class="field-group"><label class="field-label" id="rp-name-label">Task</label>'
+    + '<div class="field-group"><div class="rp-name-head"><label class="field-label" id="rp-name-label">Task</label>'
+    +   '<div class="rp-ico-toggles">'
+    +     '<button type="button" class="rp-ico-btn" id="rp-allday" aria-pressed="false" aria-label="종일" title="종일 — 시간 없이 날짜만" onclick="rpSetAllDay(!rpState.allDay)">' + RP_ICO_ALLDAY + '</button>'
+    +     '<button type="button" class="rp-ico-btn" id="rp-calbar" aria-pressed="false" aria-label="달력에 막대로 표시" title="달력에 Start~Due 막대로 표시" onclick="rpSetCalBar(!rpState.calBar)">' + RP_ICO_CALBAR + '</button>'
+    +   '</div></div>'
     + '<div class="rp-task-row">'
     + '<div class="task-check rp-task-check'+(rpState.completed?' is-done':'')+'" onclick="rpToggleComplete()" title="완료 여부"></div>'
     + '<input class="field-input" id="rp-task-name" placeholder="할 일을 입력하세요" value="'+rpEsc(name)+'" oninput="rpState.dirty=true">'
@@ -2535,7 +2550,6 @@ function buildRpForm(task) {
     + '<div class="field-group rp-dt-col"><label class="field-label" id="rp-due-label">Due</label>'
     + buildDateTimeInput('rp-due-dt', dueStr, dueTimeStr) + '</div>'
     + '</div>'
-    + '<label class="rp-allday rp-calbar"><input type="checkbox" id="rp-calbar" onchange="rpSetCalBar(this.checked)">달력에 Start~Due 막대로 표시</label>'
     + '<div class="rp-work" id="rp-work">'
     + '<button type="button" class="rp-work-head" onclick="rpToggleWork()"><span id="rp-work-arrow">▾</span>작업 관리<span class="rp-work-sum" id="rp-work-sum"></span></button>'
     + '<div class="rp-work-body">'

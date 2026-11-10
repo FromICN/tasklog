@@ -10164,7 +10164,15 @@ body :is(input, textarea, [contenteditable]):focus-visible {
   padding-right: var(--space-1);
 }
 .rp-dtinput::placeholder { letter-spacing: -0.2px; }
-/* Task 입력 폼 — 종일 체크는 맨 위 (2026-11-10) */
+/* Task 이름표 줄 — 오른쪽 끝에 종일 · 달력 막대 아이콘 단추 (2026-11-10) */
+.rp-name-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rp-ico-toggles { display: flex; align-items: center; gap: 4px; }
+.rp-ico-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: transparent; color: var(--text-3); cursor: pointer; transition: color var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast); }
+.rp-ico-btn:hover { color: var(--brand-primary); border-color: var(--brand-primary); }
+/* --brand-primary-bg 는 이 테마에 정의돼 있지 않다 → 켜짐 채움은 브랜드 색을 섞어 만든다 */
+.rp-ico-btn.is-on { background: color-mix(in srgb, var(--brand-primary) 16%, transparent); color: var(--brand-primary); border-color: var(--brand-primary); }
+.rp-ico-btn svg { display: block; }
+/* 종일 체크 — 달력 빠른 입력 머리 줄에서 쓴다 */
 .rp-allday { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--text-2); font-size: var(--fs-sm); cursor: pointer; }
 .rp-allday input { margin: 0; }
 .rp-dt-cols.is-allday .rp-tminput { display: none; }
