@@ -186,7 +186,7 @@
 }
 .tlc-mark-step { width: 9px; height: 9px; border-radius: 2px; }
 .tlc-mark.is-done,
-.tlc-mark-event,
+.tlc-mark-section,
 .tlc-mark-google { background: var(--tlc-c, var(--text-3)); }
 
 .tlc-ev {
@@ -269,11 +269,7 @@
 /* 시간 칸 안에서는 시각 한 줄 + 제목 여러 줄 — 한 줄에 몰면 제목이 거의 안 보인다 */
 .tlc-fc .fc-timegrid-event .tlc-ev { flex-wrap: wrap; align-items: center; align-content: flex-start; height: 100%; overflow: hidden; line-height: 15px; }
 .tlc-fc .fc-timegrid-event .tlc-tt { flex: 1 1 100%; white-space: normal; }
-.tlc-fc .fc-event.tlc-google,
-.tlc-fc .fc-event.tlc-event { cursor: pointer; }
-/* 끝난 일정은 지우지 않고 흐리게 — 달력은 지난 일도 보여 주는 자리다 */
-.tlc-fc .fc-event.tlc-event.tlc-is-done { opacity: .6; }
-.tlc-fc .fc-list-event.tlc-event.tlc-is-done .tlc-tt { text-decoration: none; }
+.tlc-fc .fc-event.tlc-google { cursor: pointer; }
 .tlc-fc .fc-daygrid-event { font-size: var(--fs-xs); }
 .tlc-fc .fc-daygrid-dot-event .fc-event-title { font-weight: 400; color: var(--text-1); }
 .tlc-fc .fc-daygrid-dot-event .fc-event-time { color: var(--text-2); }
@@ -425,10 +421,7 @@
 /* ── 빠른 입력 ─────────────────────────────── */
 .tlc-pop.tlc-quick { display: flex; flex-direction: column; gap: 8px; width: 320px; max-height: none; overflow: visible; }
 .tlc-q-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.tlc-q-kind { display: grid; grid-template-columns: 1fr 1fr; width: 130px; border: 1px solid var(--tl-rule); border-radius: var(--radius-md); overflow: hidden; }
-.tlc-q-kind button { height: 26px; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-xs); cursor: pointer; }
-.tlc-q-kind button + button { border-left: 1px solid var(--tl-rule); }
-.tlc-q-kind button.is-on { background: var(--brand-primary); color: var(--main-bg); font-weight: 600; }
+.tlc-q-head .rp-allday { align-self: center; }
 .tlc-q-x { width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-xl); line-height: 1; cursor: pointer; }
 .tlc-q-name { width: 100%; box-sizing: border-box; }
 .tlc-q-row { display: flex; align-items: center; gap: 4px; }

@@ -5,7 +5,8 @@
 //     한 해 1000건을 칸마다 글자로 찍으면 읽을 수 없어서, 연도 보기는 양만 칠한다.
 //   · Task = Due 날짜에 한 줄 / To Do = 자기 마감일에 한 줄 / 완료는 기본 숨김
 //     Task 203건이 모두 Start·Due 를 갖고 있어 막대로 그리면 달력이 덮인다.
-//   · Google 일정 = 읽기 전용. 가져오기를 하기 전까지 보기만 한다.
+//   · Google 일정 = 읽기 전용. 가져오기를 하기 전까지 보기만 한다. 가져오면 Task 로 등록한다.
+//   · TaskLog 의 '일정'(kind:'event')과 반복은 2026-11-10 에 없앴다 — 달력에 그리는 것은 Task 와 To Do 뿐이다.
 // =============================================================
 
 var CAL_VIEWS = [
@@ -71,7 +72,7 @@ function _calInitialView() {
 // ── 무엇을 보여 줄지 (기기별) ──
 function calShow() {
   var s = _calLoad('cal-show', {});
-  return { event: s.event !== false, task: s.task !== false, todo: s.todo !== false, done: s.done === true, filter: calFilter() };
+  return { task: s.task !== false, todo: s.todo !== false, done: s.done === true, filter: calFilter() };
 }
 function calSetShow(key, on) {
   var s = _calLoad('cal-show', {});
@@ -162,7 +163,7 @@ function calFilterHtml() {
       html += '<div class="tlc-f-row">'
         + '<label class="tlc-check"><input type="checkbox"' + (f.s[key] ? '' : ' checked') + (!f.s[key] && hiddenP ? ' data-mixed="1"' : '')
         +   ' onchange="calFilterSection(\'' + key + '\',this.checked)">'
-        +   _calMarkHtml('event', color, true) + '<span class="tlc-f-name">' + _calEsc(sg.text || ('Section ' + sg.id)) + '</span></label>'
+        +   _calMarkHtml('section', color, true) + '<span class="tlc-f-name">' + _calEsc(sg.text || ('Section ' + sg.id)) + '</span></label>'
         + (acts.length ? '<button type="button" class="tlc-f-arrow" aria-label="Project 펼치기" onclick="calFilterToggleOpen(\'' + key + '\')">' + (open[key] ? '▾' : '▸') + '</button>' : '')
         + '</div>';
       if (open[key]) {
@@ -175,7 +176,7 @@ function calFilterHtml() {
     });
   });
   html += '<label class="tlc-check"><input type="checkbox"' + (f.none ? '' : ' checked') + ' onchange="calFilterNone(this.checked)">'
-    + _calMarkHtml('event', CAL_NO_PROJECT_COLOR, true) + '<span class="tlc-f-name">Project 없음</span></label>';
+    + _calMarkHtml('section', CAL_NO_PROJECT_COLOR, true) + '<span class="tlc-f-name">Project 없음</span></label>';
   return html;
 }
 
@@ -206,38 +207,13 @@ function _calTaskPlace(t) {
   }
   return { date: due, hasTime: !!t.hasTime, anchor: 'due' };
 }
-// 일정은 시작~끝을 그대로 막대로 그린다. 종일의 끝은 FullCalendar 규칙대로 다음 날 0시(포함 안 함)다.
-function _calEventSpan(t) {
-  var s = new Date(t.startDate || t.dueDateTime), e = new Date(t.dueDateTime || t.startDate);
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
-  if (t.hasTime || t.startHasTime) {
-    return { date: s, end: e > s ? e : new Date(s.getTime() + 3600000), hasTime: true };
-  }
-  var endDay = new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1);
-  return { date: new Date(s.getFullYear(), s.getMonth(), s.getDate()), end: endDay, hasTime: false };
-}
-// from·to(끝 미포함)를 주면 반복의 앞날 회차까지 펼친다. 안 주면 문서가 있는 것만 — 범위를 재는 calPeriodBounds 용이다.
-function calCollectItems(from, to) {
+// 문서마다 Task 한 줄 + 날짜가 있는 To Do 들. 범위로 거르는 것은 FullCalendar 와 부르는 쪽이 한다.
+function calCollectItems() {
   var out = [];
-  var fromKey = from ? _calKey(from) : null, toKey = to ? _calKey(new Date(to.getTime() - 1)) : null;
   mdtAllTasks().forEach(function (t) {
     var color = calTaskColor(t), keys = _calItemKeys(t);
-    var recur = recurIs(t), occ = recur ? recurKeyOf(t) : null;
-    function push(doc, key) {
-      var title = _calCleanTitle(t.text), base = { taskId: t.id, title: title, color: color, keys: keys, occ: key, recur: recur };
-      if (t.kind === 'event') {
-        var span = _calEventSpan(doc);
-        if (span) out.push(Object.assign(base, { kind: 'event', date: span.date, end: span.end, hasTime: span.hasTime, done: !!doc.completed }));
-      } else {
-        var place = _calTaskPlace(doc);
-        if (place) out.push(Object.assign(base, { kind: 'task', date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!doc.completed }));
-      }
-    }
-    push(t, occ);
-    if (recur && fromKey) {
-      // 여러 날짜에 걸치는 회차는 범위 앞에서 시작해 걸칠 수 있다
-      recurOccurrences(t, recurAdd(fromKey, -recurSpanDays(t)), toKey).forEach(function (k) { push(recurOccLite(t, k), k); });
-    }
+    var place = _calTaskPlace(t);
+    if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), color: color, keys: keys, date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed });
     (t.steps || []).forEach(function (s) {
       if (!s.dueDateTime) return;
       var sd = new Date(s.dueDateTime);
@@ -250,30 +226,14 @@ function calCollectItems(from, to) {
 }
 function calItemVisible(it, show) {
   if (_calFilterHides(it.keys, show.filter)) return false;
-  // ⚠️ 일정은 끝나면 저절로 완료되므로 '완료 숨김'을 걸지 않는다 — 걸면 지난 일정이 달력에서 사라진다
-  if (it.kind === 'event') return show.event;
   if (it.kind === 'task' && !show.task) return false;
   if (it.kind === 'step' && !show.todo) return false;
   if (it.done && !show.done) return false;
   return true;
 }
 function _calItemToFc(it) {
-  var occId = it.recur ? ('_' + it.occ) : '';
-  if (it.kind === 'event') {
-    return {
-      id: 'e' + it.taskId + occId,
-      title: it.title,
-      start: it.hasTime ? it.date : _calKey(it.date),
-      end: it.hasTime ? it.end : _calKey(it.end),
-      allDay: !it.hasTime,
-      backgroundColor: it.color, borderColor: it.color, textColor: _calInk(it.color),
-      durationEditable: true,
-      classNames: ['tlc-event'].concat(it.done ? ['tlc-is-done'] : []),
-      extendedProps: { kind: 'event', taskId: it.taskId, done: it.done, color: it.color, occ: it.occ, recur: it.recur },
-    };
-  }
   return {
-    id: it.kind === 'task' ? ('t' + it.taskId + occId) : ('s' + it.taskId + '_' + it.stepId),
+    id: it.kind === 'task' ? ('t' + it.taskId) : ('s' + it.taskId + '_' + it.stepId),
     title: it.title,
     start: it.hasTime ? it.date : _calKey(it.date),
     end: it.end || undefined,
@@ -282,7 +242,7 @@ function _calItemToFc(it) {
     borderColor: 'transparent',
     durationEditable: it.anchor === 'both',   // 시작~마감이 칸으로 그려지는 Task 만 길이를 바꾼다
     classNames: ['tlc-item', 'tlc-k-' + it.kind].concat(it.done ? ['tlc-is-done'] : []),
-    extendedProps: { kind: it.kind, taskId: it.taskId, stepId: it.stepId, parent: it.parent || '', done: it.done, color: it.color, anchor: it.anchor || 'due', occ: it.occ, recur: it.recur },
+    extendedProps: { kind: it.kind, taskId: it.taskId, stepId: it.stepId, parent: it.parent || '', done: it.done, color: it.color, anchor: it.anchor || 'due' },
   };
 }
 
@@ -528,7 +488,7 @@ function calYearStep(dir) {
 // ── FullCalendar ──
 function calFcEvents(start, end) {
   var show = calShow(), out = [], listing = _cal.view === 'list';
-  calCollectItems(start, end).forEach(function (it) {
+  calCollectItems().forEach(function (it) {
     if (!calItemVisible(it, show)) return;
     var itEnd = _calItemEnd(it);
     if (it.date >= end || itEnd <= start) return;
@@ -622,7 +582,7 @@ function calEnsureFc() {
     },
     eventContent: function (arg) {
       var p = arg.event.extendedProps, isList = arg.view.type.indexOf('list') === 0;
-      if ((p.kind === 'google' || p.kind === 'event') && !isList) return true;   // 일정은 기본 막대 그대로
+      if (p.kind === 'google' && !isList) return true;   // 구글 일정은 기본 막대 그대로
       var time = (!isList && arg.timeText) ? '<span class="tlc-time">' + _calEsc(arg.timeText) + '</span>' : '';   // 목록은 시간 칸이 따로 있다
       return { html: '<span class="tlc-ev">' + _calMarkHtml(p.kind, p.color, p.done) + time + '<span class="tlc-tt">' + _calEsc(arg.event.title) + '</span></span>' };
     },
@@ -659,27 +619,14 @@ function _calIso(d) { return _calKey(d) + 'T' + _calPad(d.getHours()) + ':' + _c
 function _calFindItem(p) {
   var t = mdtAllTasks().find(function (x) { return x.id === p.taskId; });
   if (!t) return null;
-  if (p.kind !== 'step') return { obj: t, task: t };   // Task·일정은 문서 자체다
+  if (p.kind !== 'step') return { obj: t, task: t };   // Task 는 문서 자체다
   var s = (t.steps || []).find(function (x) { return x.id === p.stepId; });
   return s ? { obj: s, task: t } : null;
 }
 // 시각을 문서에 적는다. start·end·allDay 는 달력에서 놓은 값이다.
 function _calApplyMove(obj, p, d, end, allDay) {
   var key = _calKey(d);
-  if (p.kind === 'event') {
-    if (allDay) {
-      // 종일의 끝은 포함하지 않는 다음 날 0시다 → 마지막 날로 되돌린다. 시간 칸에서 끌어온 것은 끝이 없다.
-      var lastDay = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate() - 1) : d;
-      obj.startDate = key + 'T09:00:00';
-      obj.dueDateTime = _calKey(lastDay) + 'T09:00:00';
-    } else {
-      obj.startDate = _calIso(d);
-      obj.dueDateTime = _calIso(end || new Date(d.getTime() + 3600000));
-    }
-    obj.startHasTime = !allDay;
-    obj.hasTime = !allDay;
-    eventAfterTimeChange(obj);
-  } else if (p.kind === 'task' && (p.anchor === 'start' || p.anchor === 'both')) {
+  if (p.kind === 'task' && (p.anchor === 'start' || p.anchor === 'both')) {
     obj.startDate = allDay ? (key + 'T09:00:00') : _calIso(d);
     obj.startHasTime = !allDay;
     if (obj.dueDateTime) {
@@ -697,7 +644,6 @@ function _calApplyMove(obj, p, d, end, allDay) {
   }
 }
 function _calAfterMove() {
-  autoCompletePastEvents();
   if (typeof saveTasks === 'function') saveTasks();
   if (typeof renderSidebarCalendar === 'function') renderSidebarCalendar();
   calRefresh();
@@ -710,38 +656,12 @@ function calMoveItem(ev) {
   _calAfterMove();
   return true;
 }
-// 끌어 옮기기·길이 조절. 반복 회차는 어디까지 바꿀지 먼저 묻는다.
+// 끌어 옮기기·길이 조절
 function calDropItem(info) {
-  var p = info.event.extendedProps, found = _calFindItem(p);
-  if (p.kind !== 'step' && p.recur && found && recurIs(found.task)) {
-    var noun = recurNoun(found.task);
-    recurAskScope({ title: '반복 ' + noun + ' 수정', noun: noun, scopes: recurScopesFor(found.task, p.occ, true) }, function (scope) {
-      if (!scope) { info.revert(); return; }
-      calMoveRecurring(info.event, scope);
-    });
-    return;
-  }
   if (!calMoveItem(info.event)) info.revert();
 }
-function calMoveRecurring(ev, scope) {
-  var p = ev.extendedProps, found = _calFindItem(p);
-  if (!found) return;
-  var m = found.task, key = p.occ, cur = recurKeyOf(m), target = m, d = ev.start, end = ev.end;
-  if (scope === 'this') target = recurDetach(m, key);
-  else if (scope === 'following' && key !== cur) target = recurSplit(m, key);
-  else if (key !== cur) {
-    // 다른 회차를 끌었으면 옮긴 만큼을 지금 회차에 적용한다
-    var off = recurDays(cur) - recurDays(key);
-    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + off, d.getHours(), d.getMinutes());
-    if (end) end = new Date(end.getFullYear(), end.getMonth(), end.getDate() + off, end.getHours(), end.getMinutes());
-  }
-  var before = recurKeyOf(target);
-  _calApplyMove(target, p, d, end, ev.allDay);
-  recurAfterMove(target, before);
-  _calAfterMove();
-}
-function calOpenEvent(taskId, occ) {
-  if (typeof openDetailPanel === 'function') openDetailPanel(taskId, occ);
+function calOpenEvent(taskId) {
+  if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
 }
 
 // ── 빠른 입력 (달력 빈칸) ───────────────────────────────────
@@ -782,20 +702,17 @@ function calQuickOpen(v, allDay, rect) {
   // 적던 제목이 있으면 다른 칸을 눌러도 날짜만 바꾼다
   var prevName = _calEl('tlc-q-name');
   var keepName = prevName ? prevName.value : '';
-  if (!prevName) { _cal.qKind = 'event'; _cal.qProject = null; }
+  if (!prevName) _cal.qProject = null;
   _cal.qAllDay = !!allDay;
+  // 종일은 제목 칸 위에 둔다 — 오른쪽 패널과 같은 순서 (2026-11-10)
   var html = '<div class="tlc-q-head">'
-    +   '<div class="tlc-q-kind" role="group" aria-label="유형">'
-    +     '<button type="button" data-kind="event" onclick="calQuickSetKind(\'event\')">일정</button>'
-    +     '<button type="button" data-kind="task" onclick="calQuickSetKind(\'task\')">Task</button>'
-    +   '</div>'
+    +   '<label class="rp-allday"><input type="checkbox" id="tlc-q-allday" onchange="calQuickSetAllDay(this.checked)">종일</label>'
     +   '<button type="button" class="tlc-q-x" onclick="calQuickClose()" aria-label="닫기">×</button>'
     + '</div>'
-    + '<input class="field-input tlc-q-name" id="tlc-q-name" placeholder="제목" autocomplete="off" value="' + _calEsc(keepName) + '"'
+    + '<input class="field-input tlc-q-name" id="tlc-q-name" placeholder="Task 제목" autocomplete="off" value="' + _calEsc(keepName) + '"'
     +   ' oninput="this.style.outline=\'\'" onkeydown="if(event.key===\'Enter\'){event.preventDefault();calQuickSave();}">'
     + '<div class="tlc-q-row"><span class="tlc-q-lbl">Start</span>' + _calQDate('tlc-q-sd', v.sd) + _calQTime('tlc-q-st', v.st) + '</div>'
-    + '<div class="tlc-q-row"><span class="tlc-q-lbl" id="tlc-q-endlbl">End</span>' + _calQDate('tlc-q-dd', v.dd) + _calQTime('tlc-q-dt', v.dt) + '</div>'
-    + '<label class="rp-allday"><input type="checkbox" id="tlc-q-allday" onchange="calQuickSetAllDay(this.checked)">종일</label>'
+    + '<div class="tlc-q-row"><span class="tlc-q-lbl">Due</span>' + _calQDate('tlc-q-dd', v.dd) + _calQTime('tlc-q-dt', v.dt) + '</div>'
     + buildProjectDropdown('tlc-q-proj', _cal.qProject)
     + '<div class="tlc-q-foot">'
     +   '<button type="button" class="tlc-btn" onclick="calQuickMore()">옵션 더보기</button>'
@@ -822,15 +739,6 @@ function calQuickSync() {
   pop.classList.toggle('is-allday', !!_cal.qAllDay);
   var check = _calEl('tlc-q-allday');
   if (check) check.checked = !!_cal.qAllDay;
-  var lbl = _calEl('tlc-q-endlbl');
-  if (lbl) lbl.textContent = _cal.qKind === 'event' ? 'End' : 'Due';
-  pop.querySelectorAll('.tlc-q-kind button').forEach(function (b) {
-    b.classList.toggle('is-on', b.getAttribute('data-kind') === _cal.qKind);
-  });
-}
-function calQuickSetKind(kind) {
-  _cal.qKind = kind;
-  calQuickSync();
 }
 // 시간 칸이 비어 있으면 9시~10시로 채운다. 오늘이면 다음 정시부터.
 function calQuickSetAllDay(on) {
@@ -857,11 +765,6 @@ function _calQuickRead() {
   if (dd && !nbDateValid(dd)) return { bad: 'tlc-q-dd' };
   var st = _cal.qAllDay ? null : rpTmParse(val('tlc-q-st'));
   var dt = _cal.qAllDay ? null : rpTmParse(val('tlc-q-dt'));
-  if (_cal.qKind === 'event') {
-    var n = rpNormalizeEvent(sd, st, dd, dt);
-    if (n.error) return { bad: n.error === 'rp-due-dt' ? 'tlc-q-dd' : 'tlc-q-sd' };
-    sd = n.sd; st = n.st; dd = n.dd; dt = n.dt;
-  }
   return { sd: sd, st: st, dd: dd, dt: dt };
 }
 function _calQuickMark(id) {
@@ -876,7 +779,6 @@ function calQuickSave() {
   if (r.bad) { _calQuickMark(r.bad); return; }
   var doc = newTaskDoc({
     text: name,
-    kind: _cal.qKind === 'event' ? 'event' : null,
     startDate: r.sd ? (r.sd + 'T' + (r.st || '09:00') + ':00') : null,
     startHasTime: !!(r.sd && r.st),
     dueDateTime: r.dd ? (r.dd + 'T' + (r.dt || '09:00') + ':00') : null,
@@ -884,7 +786,6 @@ function calQuickSave() {
     mdtAction: _cal.qProject,
   });
   tasks.push(doc);
-  if (doc.kind === 'event') autoCompletePastEvents();
   saveTasks();
   if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
   calQuickClose(true);
@@ -894,7 +795,7 @@ function calQuickMore() {
   var nameEl = _calEl('tlc-q-name');
   var val = function (id) { return ((_calEl(id) || {}).value || '').trim(); };
   var opts = {
-    kind: _cal.qKind, allDay: _cal.qAllDay, name: nameEl ? nameEl.value.trim() : '', mdtAction: _cal.qProject,
+    allDay: _cal.qAllDay, name: nameEl ? nameEl.value.trim() : '', mdtAction: _cal.qProject,
     values: { sd: val('tlc-q-sd'), st: rpTmParse(val('tlc-q-st')) || '', dd: val('tlc-q-dd'), dt: rpTmParse(val('tlc-q-dt')) || '' },
   };
   calQuickClose(true);
@@ -909,7 +810,7 @@ function calQuickYears() {
   return taskDateYears(val('tlc-q-sd'), val('tlc-q-dd'));
 }
 
-// ── 요약창 (Task · 일정 · To Do) ──
+// ── 요약창 (Task · To Do) ──
 function _calFmtWhen(iso, timed) {
   var d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -946,13 +847,9 @@ function calItemPop(p, anchor) {
   var found = _calFindItem(p);
   if (!found) return;
   var t = found.task, o = found.obj, isStep = p.kind === 'step';
-  // 반복의 앞날 회차는 문서가 없다 — 그 회차의 사본으로 보여 준다
-  var occ = (!isStep && recurIs(t)) ? (p.occ || recurKeyOf(t)) : null;
-  if (occ && occ !== recurKeyOf(t)) { o = recurOccDoc(t, occ); found = { obj: o, task: t }; }
   var done = !!o.completed;
-  var kindLabel = isStep ? 'To Do' : (t.kind === 'event' ? '일정' : 'Task');
+  var kindLabel = isStep ? 'To Do' : 'Task';
   var rows = '<div class="tlc-pop-row">' + _calEsc(_calItemWhen(p, found)) + '</div>';
-  if (occ) rows += '<div class="tlc-pop-row tlc-pop-dim"><span class="recur-mark">↻</span>' + _calEsc(recurDescribe(t.rrule, occ)) + '</div>';
   if (!isStep && alertHas(o)) rows += '<div class="tlc-pop-row tlc-pop-dim">알림 ' + _calEsc(alertLabel(o)) + '</div>';
   var proj = _calProjectLine(t);
   if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
@@ -963,54 +860,39 @@ function calItemPop(p, anchor) {
     var finished = o.steps.filter(function (s) { return s.completed; }).length;
     rows += '<div class="tlc-pop-row tlc-pop-dim">To Do ' + finished + '/' + o.steps.length + '</div>';
   }
-  var occArg = occ ? ",'" + occ + "'" : '';
-  var ids = t.id + ',' + (isStep ? o.id : 'null') + occArg;
+  var ids = t.id + ',' + (isStep ? o.id : 'null');
   var html = '<div class="tlc-pop-title">' + _calMarkHtml(p.kind, p.color || calTaskColor(t), done)
     + '<span class="' + (done ? 'tlc-pop-done' : '') + '">' + _calEsc(_calCleanTitle(o.text)) + '</span></div>'
     + '<div class="tlc-pop-kind">' + kindLabel + (done ? ' · 완료' : '') + '</div>'
     + rows
     + '<div class="tlc-pop-actions">'
     +   '<button type="button" class="tlc-btn" onclick="calPopDone(' + ids + ')">' + (done ? '완료 취소' : '완료') + '</button>'
-    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + t.id + occArg + ')">수정</button>'
+    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + t.id + ')">수정</button>'
     +   '<button type="button" class="tlc-btn tlc-pop-del" onclick="calPopDelete(' + ids + ')">삭제</button>'
     + '</div>';
   _calPopShow(html, anchor.getBoundingClientRect());
 }
-function calPopDone(taskId, stepId, occ) {
+function calPopDone(taskId, stepId) {
   calPopClose(true);
   if (stepId !== null) { toggleStep(taskId, stepId); return; }
-  var m = occ ? mdtAllTasks().find(function (x) { return x.id === taskId; }) : null;
-  if (m && recurIs(m) && occ !== recurKeyOf(m)) {
-    // 앞날 회차를 미리 끝낸다 — 그 회차만 떼어 내서 완료한다
-    toggleComplete(recurDetach(m, occ).id);
-    return;
-  }
   toggleComplete(taskId);
 }
-function calPopEdit(taskId, occ) {
+function calPopEdit(taskId) {
   calPopClose(true);
-  calOpenEvent(taskId, occ);
+  calOpenEvent(taskId);
 }
-function calPopDelete(taskId, stepId, occ) {
-  var m = (occ && stepId === null) ? mdtAllTasks().find(function (x) { return x.id === taskId; }) : null;
-  if (m && recurIs(m)) {
-    calPopClose(true);
-    recurAskDelete(m, occ, function () {
-      if (typeof renderTasks === 'function') renderTasks();
-      if (typeof updateCategoryCounts === 'function') updateCategoryCounts();
-      calRefresh();
-    });
-    return;
-  }
+function calPopDelete(taskId, stepId) {
   if (!confirm(stepId === null ? '이 항목을 삭제하시겠습니까?' : '이 To Do 를 삭제하시겠습니까?')) return;
   calPopClose(true);
   if (stepId === null) deleteTaskLinked(taskId);
   else deleteStep(taskId, stepId);
 }
 
+// 만들기 — 보고 있는 날짜로 Start·Due 를 채운다. Due 가 없으면 달력에 안 보인다.
 function calCreate() {
   calCloseMenus();
-  if (typeof openNewTaskPanel === 'function') openNewTaskPanel(null, { kind: 'event', date: _calKey(_cal.date) });
+  var key = _calKey(_cal.date);
+  if (typeof openNewTaskPanel === 'function') openNewTaskPanel(null, { date: key, due: key });
 }
 // 목록 보기: 이번 해 전체를 그리므로 오늘(또는 고른 날)로 맞춰 준다
 function calScrollList() {
@@ -1201,7 +1083,6 @@ function calRenderShowMenu() {
     : '<div class="tlc-menu-note">Google 로그인 후 표시됩니다</div>';
   var keepScroll = el.scrollTop;   // 체크할 때마다 다시 그리므로 보던 자리를 지킨다
   el.innerHTML = '<div class="tlc-menu-h">TaskLog</div>'
-    + row(show.event, 'calSetShow(\'event\',this.checked)', _calMarkHtml('event', 'var(--text-2)', false), '일정')
     + row(show.task, 'calSetShow(\'task\',this.checked)', _calMarkHtml('task', 'var(--text-2)', false), 'Task')
     + row(show.todo, 'calSetShow(\'todo\',this.checked)', _calMarkHtml('step', 'var(--text-2)', false), 'To Do')
     + row(show.done, 'calSetShow(\'done\',this.checked)', _calMarkHtml('task', 'var(--text-2)', true), '완료 항목')
@@ -1220,14 +1101,8 @@ function calYearCounts(year) {
     var k = _calKey(d);
     if (appPeriodHit([k, k])) counts[k] = (counts[k] || 0) + 1;
   }
-  calCollectItems(new Date(year, 0, 1), new Date(year + 1, 0, 1)).forEach(function (it) {
-    if (!calItemVisible(it, show)) return;
-    if (it.kind !== 'event') { if (it.date.getFullYear() === year) add(it.date); return; }
-    var day = new Date(it.date.getFullYear(), it.date.getMonth(), it.date.getDate());
-    for (var n = 0; day < it.end && n < 92; n++) {
-      if (day.getFullYear() === year) add(day);
-      day.setDate(day.getDate() + 1);
-    }
+  calCollectItems().forEach(function (it) {
+    if (calItemVisible(it, show) && it.date.getFullYear() === year) add(it.date);
   });
   calGItems().forEach(function (ev) {
     var span = _calGSpan(ev), d = new Date(span[0]);
@@ -1280,8 +1155,7 @@ function calRenderResults() {
   if (!el) return;
   var q = _cal.query.toLowerCase();
   // 검색은 숨겨 둔 완료 항목까지 찾는다 — '그거 언제 했더라' 를 찾으려고 쓰는 것이다
-  var bounds = calPeriodBounds();   // 반복의 앞날 회차는 표시 기간 안만 펼친다 (끝이 없는 규칙이 있다)
-  var rows = calCollectItems(bounds.start, bounds.end).filter(function (it) { return it.title.toLowerCase().indexOf(q) >= 0; });
+  var rows = calCollectItems().filter(function (it) { return it.title.toLowerCase().indexOf(q) >= 0; });
   calGItems().forEach(function (ev) {
     if (ev.title.toLowerCase().indexOf(q) >= 0) {
       var span = _calGSpan(ev);
@@ -1335,7 +1209,7 @@ function calResultClick(i, btn) {
   var r = _cal.results[i];
   if (!r) return;
   if (r.kind === 'google') calGooglePop(r.g, btn);
-  else calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color, occ: r.occ }, btn);
+  else calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color }, btn);
 }
 
 // ── 떠 있는 창 (요약 · 빠른 입력) ──
@@ -1528,7 +1402,7 @@ document.addEventListener('keydown', function (e) {
   var t = e.target;
   if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
   // 다른 창이 떠 있으면 그 창이 먼저다
-  if (document.getElementById('recur-dlg') || document.getElementById('settings-overlay')) return;
+  if (document.getElementById('settings-overlay')) return;
   var panel = document.getElementById('right-panel');
   if (panel && panel.classList.contains('open')) return;
   if (e.code === 'Slash' || e.key === '/' || e.key === '?') {

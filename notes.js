@@ -349,7 +349,7 @@ function buildTaskCard(task) {
     + '<div class="nb-card-strip" style="background:var(--success);"></div>'
     + '<div class="nb-card-body">'
     + '<div class="nb-card-topline">'
-    + '<div class="nb-card-textwrap"><span class="nb-card-text">'+recurMarkHtml(task)+escNb(task.text)+'</span>'+progBadge+'</div>'
+    + '<div class="nb-card-textwrap"><span class="nb-card-text">'+escNb(task.text)+'</span>'+progBadge+'</div>'
     + dueBadge
     + '</div>'
     + projHtml

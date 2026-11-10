@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261106l'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261110c'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -23,13 +23,13 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest.json?v=20260810a',
-  './style.css?v=20261106h',
+  './style.css?v=20261110c',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
   './mobile.css?v=20260829c',
   './fonts/pretendard.css?v=20260809a',
   './theme.css?v=20261102b',
-  './calpage.css?v=20261106l',
+  './calpage.css?v=20261110b',
   './config.js?v=20260810a',
   './firebase-init.js?v=20260808a',
   './colresize.js?v=20260722',
@@ -41,21 +41,21 @@ const PRECACHE_URLS = [
   './lifewheel.js?v=20260816e',
   './home.js?v=20261102a',
   './habit.js?v=20260824a',
-  './recur.js?v=20261106k',
+  './alert.js?v=20261110a',
   './fullcalendar.min.js?v=6.1.22',
-  './calpage.js?v=20261106l',
-  './gantt.js?v=20261106h',
-  './notes.js?v=20261106h',
+  './calpage.js?v=20261110b',
+  './gantt.js?v=20261110b',
+  './notes.js?v=20261110b',
   './journal.js?v=20261104a',
-  './wbs.js?v=20261106h',
+  './wbs.js?v=20261110b',
   './mvv.js?v=20261104a',
   './settings.js?v=20261105u',
   './drive.js?v=20260722',
   './firestore-sync.js?v=20261104a',
-  './todo.js?v=20261106h',
+  './todo.js?v=20261110b',
   './yearsync.js?v=20260722',
-  './script.js?v=20261106k',
-  './pwa.js?v=20261106l',
+  './script.js?v=20261110b',
+  './pwa.js?v=20261110c',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',

@@ -798,7 +798,7 @@ function wbsTaskTextHtml(task) {
     ? '⚠️ Project 연도(' + task.mdtAction.year + ')가 Task 일자(' + taskDateYears(task.startDate, task.dueDateTime).join('·') + ')와 달라요 — 클릭해서 편집'
     : '클릭해서 편집';
   return '<span class="wbs-task-text' + (task.completed ? ' done' : '') + (bad ? ' wbs-yr-bad' : '') + '" data-wbs-open="' + task.id + '" title="' + wbsEsc(tip) + '">'
-    + (bad ? '⚠️ ' : '') + recurMarkHtml(task) + wbsEsc(task.text) + '</span>';
+    + (bad ? '⚠️ ' : '') + wbsEsc(task.text) + '</span>';
 }
 
 // 4단계: TASK / 5단계: TO-DO (steps)

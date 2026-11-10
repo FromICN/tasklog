@@ -150,7 +150,7 @@ var BOARD_COLS = [
     cell:function(e){ return '<td class="todo-table-title bd-td-todo"' + (e.step ? ' title="' + escapeHtml(e.step.text) + '"' : '') + '>' + (e.step ? escapeHtml(e.step.text) : todoEmptyCell()) + '</td>'; } },
   { key:'task',     label:'Task',
     val:function(e){ return (e.task.text || '').replace(/^\[\d{6}\] /,''); },
-    cell:function(e){ return '<td class="todo-table-title bd-td-task" title="' + escapeHtml(e.task.text) + '">' + recurMarkHtml(e.task) + escapeHtml(e.task.text) + '</td>'; } },
+    cell:function(e){ return '<td class="todo-table-title bd-td-task" title="' + escapeHtml(e.task.text) + '">' + escapeHtml(e.task.text) + '</td>'; } },
   { key:'project',  label:'Project',
     val:function(e){ return todoProjectKey(e.task); },
     cell:function(e){ var em = todoProjectEmoji(e.task); return '<td class="todo-table-proj">' + (em ? em : todoEmptyCell()) + '</td>'; } },
