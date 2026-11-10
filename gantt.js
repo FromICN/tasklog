@@ -2,7 +2,10 @@
 //  📊 Gantt 차트 뷰
 //  gm-* 클래스 기반 렌더링 엔진.
 //  - 진행률 원 / 일자 바 / 하위 to-do 서브로우 / 오늘 세로선
-//  - 연도 선택은 타이틀 영역(전역 연도, appSetYear)으로 이동
+//  - 2026-11-10: 사이드바 메뉴에서 Calendar 의 보기 탭으로 옮겼다.
+//    그리는 자리는 calpage.js 의 #tlc-gantt, 검색·필터 버튼은 #tlc-gantt-tools 다.
+//    보는 달은 Calendar 가 정한다(calRenderGantt 가 ganttYear·ganttMonth 를 채운다) —
+//    예전처럼 전역 연도(appSetYear)를 바꾸지 않는다. 오늘·‹ › 는 Calendar 도구 줄의 것을 쓴다.
 //
 //  아래 gm* 상수·헬퍼는 예전에 home.js 의 Gantt 미니 위젯이 갖고 있었다.
 //  홈이 Web 위젯으로 바뀌면서 쓰는 곳이 여기뿐이라 이리로 옮겼다.
@@ -64,6 +67,7 @@ function buildGanttSubRows(task, mS, mE, daysInMonth, color, bgCellsHtml) {
 }
 
 var ganttMonth = new Date().getMonth();
+var ganttYear = new Date().getFullYear();
 
 var GANTT_COLORS = [
   '#3b82f6','#ef4444','#f59e0b','#10b981',
@@ -136,34 +140,8 @@ function getGanttColor(task) {
   return '#3b82f6';
 }
 
-// 현재 연도(전역 연도 동기화)
-function ganttYearVal() {
-  return (typeof appGetYear === 'function') ? appGetYear() : new Date().getFullYear();
-}
-
-// ── 월 이동 (연 경계는 전역 연도로 전환) ──
-function ganttPrev() {
-  ganttMonth--;
-  if (ganttMonth < 0) {
-    ganttMonth = 11;
-    if (typeof appSetYear === 'function') { appSetYear(ganttYearVal() - 1); return; }
-  }
-  renderGanttView();
-}
-function ganttNext() {
-  ganttMonth++;
-  if (ganttMonth > 11) {
-    ganttMonth = 0;
-    if (typeof appSetYear === 'function') { appSetYear(ganttYearVal() + 1); return; }
-  }
-  renderGanttView();
-}
-function ganttToday() {
-  ganttMonth = new Date().getMonth();
-  var ty = new Date().getFullYear();
-  if (typeof appSetYear === 'function' && ganttYearVal() !== ty) { appSetYear(ty); return; }
-  renderGanttView();
-}
+// 보는 연도 — Calendar 가 정한다 (월 이동도 Calendar 의 ‹ › · 오늘 · 날짜 고르기가 한다)
+function ganttYearVal() { return ganttYear; }
 
 function getTaskProgress(task) {
   var steps = task.steps || [];
@@ -259,7 +237,13 @@ function ganttDistinctSections(baseTasks) {
   return keys.map(function(k){ return { key: k, label: (k === '_') ? '📂 미분류' : present[k] }; });
 }
 
-function ganttSetSearch(val) { _ganttSearch = (val || '').trim(); renderGanttView(); }
+// 검색어를 칠 때는 본문만 다시 그린다. 검색칸까지 새로 만들면 커서와 한글 조합이 글자마다 끊긴다.
+var _ganttKeepTools = false;
+function ganttSetSearch(val) {
+  _ganttSearch = (val || '').trim();
+  _ganttKeepTools = true;
+  try { renderGanttView(); } finally { _ganttKeepTools = false; }
+}
 function ganttToggleSearch(ev) {
   if (ev) ev.stopPropagation();
   _ganttSearchOpen = !_ganttSearchOpen;
@@ -302,8 +286,11 @@ function ganttSecFilterPanelHtml() {
     + '</div>';
 }
 
+// 검색·필터 버튼 자리 — Calendar 도구 줄 (Gantt 탭일 때만 보인다)
+function ganttToolsSlot() { return document.getElementById('tlc-gantt-tools'); }
+
 function renderGanttTools() {
-  var slot = document.getElementById('topbar-mdt-year-slot');
+  var slot = ganttToolsSlot();
   if (!slot) return;
   var esc = (typeof escNb === 'function') ? escNb : function(s){ return String(s == null ? '' : s); };
   var _icon = (typeof BD_FILTER_ICON !== 'undefined') ? BD_FILTER_ICON : '🔍';
@@ -326,15 +313,15 @@ function renderGanttTools() {
 document.addEventListener('click', function(e) {
   if (!_ganttSearchOpen) return;
   var btn = document.getElementById('gantt-search-btn');
-  var pnl = document.querySelector('#topbar-mdt-year-slot .bd-colpick-panel');
+  var pnl = document.querySelector('#tlc-gantt-tools .bd-colpick-panel');
   if ((btn && btn.contains(e.target)) || (pnl && pnl.contains(e.target))) return;
   _ganttSearchOpen = false;
   renderGanttTools();
 });
 
-// ── 본문 렌더 (홈 Gantt 미니와 동일 엔진, 전체보기) ──
+// ── 본문 렌더 — Calendar 의 Gantt 탭 (#tlc-gantt) ──
 function renderGanttView() {
-  var content = document.getElementById('page-content');
+  var content = document.getElementById('tlc-gantt');
   if (!content) return;
 
   if (typeof tasks === 'undefined' || typeof getTaskProgress !== 'function') {
@@ -342,7 +329,6 @@ function renderGanttView() {
     return;
   }
 
-  var MN = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
   var year = ganttYearVal(), month = ganttMonth;
   var daysInMonth = new Date(year, month + 1, 0).getDate();
   var mS = new Date(year, month, 1);
@@ -363,21 +349,14 @@ function renderGanttView() {
   });
   // 섹션 필터 목록은 '이번 달에 있는 것' 기준으로 만든다 (필터로 가려진 것도 계속 보이게)
   _ganttMonthTasks = monthTasks;
-  renderGanttTools();
+  if (!_ganttKeepTools) renderGanttTools();
 
   var vis = monthTasks.filter(function(t) {
     return ganttTaskPassesSecFilter(t) && ganttTaskPassesSearch(t);
   });
 
-  var navHtml = '<div class="gm-nav">'
-    + '<button class="gm-arrow" onclick="ganttPrev()">‹</button>'
-    + '<span class="gm-month-label">' + MN[month] + '</span>'
-    + '<button class="gm-arrow" onclick="ganttNext()">›</button>'
-    + (todayIdx === null ? '<button class="gm-today-btn" onclick="ganttToday()">오늘</button>' : '')
-    + '</div>';
-
   if (!vis.length) {
-    content.innerHTML = '<div class="gantt-page">' + navHtml
+    content.innerHTML = '<div class="gantt-page">'
       + emptyWidget('📊', '이번 달 진행 중인 Task가 없습니다 (표시 기간 ' + appPeriodLabel() + ')') + '</div>';
     return;
   }
@@ -460,7 +439,6 @@ function renderGanttView() {
     : '';
 
   content.innerHTML = '<div class="gantt-page">'
-    + navHtml
     + '<div class="gm-wrap" style="--gm-left:' + leftW + 'px;">'
     + '<div class="gm-header"><div class="gm-left-spacer"></div>'
     + '<div class="gm-hcells">' + hdrCells + '</div></div>'

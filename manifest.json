@@ -125,20 +125,6 @@
                                         "purpose": "any"
                             }
                   ]
-          },
-          {
-                  "name": "보드 (Task · To Do)",
-                  "short_name": "보드",
-                  "description": "Task와 To Do를 표로 확인합니다",
-                  "url": "./?page=todo",
-                  "icons": [
-                            {
-                                        "src": "./shortcut-board.png",
-                                        "sizes": "192x192",
-                                        "type": "image/png",
-                                        "purpose": "any"
-                            }
-                  ]
           }
     ]
 }

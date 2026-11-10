@@ -3345,35 +3345,38 @@ var _SVG = {
   habit:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>',
 };
 
+// 2026-11-10 사용자 요청: Home · Calendar · MVV · LW · M · Web · HT 순서.
+//  Board 는 메뉴에서 뺐고(todo.js 는 다른 화면이 쓰는 공용 함수 때문에 그대로 로드한다),
+//  Gantt 는 Calendar 안의 보기 탭이 되었다(calpage.js CAL_VIEWS 'gantt').
+//  사용자가 순서를 말하지 않은 WD · WBS 는 맨 뒤에 둔다.
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
-  { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
   { id:'calendar',  icon:_SVG.calendar,  label:'Calendar',     short:'Cal'  },
-  { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
   { divider:true },
   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
   { id:'wheel',     icon:_SVG.wheel,     label:'LW',           short:'LW'   },
   { id:'mandalart', icon:_SVG.mandalart, label:'M',            short:'M'    },
+  { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
   { id:'habit',     icon:_SVG.habit,     label:'HT',           short:'HT'   },
-  { id:'todo',      icon:_SVG.todo,      label:'Board',        short:'Board'},
-  { id:'project',   icon:_SVG.project,   label:'Gantt',        short:'Gantt'},
+  { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
   { id:'wbs',       icon:_SVG.wbs,       label:'WBS',          short:'WBS'  },
 ];
 
-// 사이드바 구분선 위치 = 표시 중인 메뉴 중 몇 번째 다음에 넣을지
-// (MENUS 기본 구성의 divider 자리와 같다 — Home · Web · Calendar · WD 다음)
+// 사이드바 구분선 위치 — 구분선 위 묶음(MENUS 의 divider 앞: Home · Calendar) 중
+// 표시 중인 개수만큼 위에서 센 자리 다음에 넣는다. 폰은 Home 을 숨기므로 Calendar 다음이 된다.
 var MENU_DIVIDER_AT = MENUS.findIndex(function(m) { return m.divider; });
+var MENU_HEAD_IDS = MENUS.slice(0, MENU_DIVIDER_AT).map(function(m) { return m.id; });
 
 var MENU_TITLES = {
-  home:'Home', todo:'Board', cloud:'Web', mvv:'Mission Vision Value',
+  home:'Home', cloud:'Web', mvv:'Mission Vision Value',
   wheel:'Life Wheel', mandalart:'Mandalart', calendar:'Calendar',
-  project:'Gantt', wbs:'Work Breakdown Structure', journal:'Work Diary',
+  wbs:'Work Breakdown Structure', journal:'Work Diary',
   habit:'Habit Tracker',
 };
 
 var MENU_EMOJI = {
-  home:'🏠', todo:'📅', cloud:'☁️', mvv:'🎯', calendar:'📅',
-  wheel:'🎡', mandalart:'🔮', project:'📊',
+  home:'🏠', cloud:'☁️', mvv:'🎯', calendar:'📅',
+  wheel:'🎡', mandalart:'🔮',
   wbs:'🌳', journal:'📓', habit:'🌱',
 };
 
@@ -3387,11 +3390,11 @@ var MENU_EMOJI = {
 var MENU_VIS_KEY = { desktop: 'app-menu-visible-desktop', mobile: 'app-menu-visible-mobile' };
 
 // 기본값 — 저장된 값이 없을 때 쓰인다.
-//  · 데스크탑: Board 만 숨김
+//  · 데스크탑: 전부 표시
 //  · 모바일  : Web · Calendar · Habit Tracker · Mandalart · WBS 만 표시
 var MENU_VIS_DEFAULTS = {
-  desktop: { home:true,  cloud:true, calendar:true, journal:true,  mvv:true,  wheel:true,  mandalart:true, habit:true, todo:false, project:true,  wbs:true },
-  mobile:  { home:false, cloud:true, calendar:true, journal:false, mvv:false, wheel:false, mandalart:true, habit:true, todo:false, project:false, wbs:true },
+  desktop: { home:true,  cloud:true, calendar:true, journal:true,  mvv:true,  wheel:true,  mandalart:true, habit:true, wbs:true },
+  mobile:  { home:false, cloud:true, calendar:true, journal:false, mvv:false, wheel:false, mandalart:true, habit:true, wbs:true },
 };
 
 // mobile-ui.js 와 같은 기준(768px)을 쓴다 — 두 곳이 어긋나면 폰에서
@@ -3440,7 +3443,9 @@ function isMenuVisible(id) { return getMenuVis(appMenuProfile())[id] !== false; 
 //  선언 순서를 그대로 쓴다. 나중에 메뉴가 추가돼도(저장된 순서에 없는 id)
 //  빠지지 않도록, 저장된 순서 뒤에 기본 순서 기준으로 이어 붙인다.
 // ============================================
-var MENU_ORDER_KEY = { desktop: 'app-menu-order-desktop', mobile: 'app-menu-order-mobile' };
+// v2 (2026-11-10): 사용자가 정한 새 기본 순서를 모든 기기에 한 번 적용하려고 키를 올렸다.
+//  옛 키(app-menu-order-desktop · -mobile)는 bootApp 이 지운다.
+var MENU_ORDER_KEY = { desktop: 'app-menu-order-v2-desktop', mobile: 'app-menu-order-v2-mobile' };
 
 // MENUS 선언 순서의 id 목록 (구분선 제외)
 function defaultMenuIds() {
@@ -3528,9 +3533,10 @@ function initSidebar() {
   var prof = appMenuProfile();
   var vis = getMenuVis(prof);
   var items = orderedMenus(prof).filter(function(m) { return vis[m.id] !== false; });
-  // 구분선은 기본 구성과 같은 자리(위에서 네 번째 다음)에 둔다.
+  // 구분선은 위에서 센 자리에 둔다(MENU_HEAD_IDS 참조).
   // 순서를 바꿔도 사이드바의 덩어리 나눔이 그대로 유지된다.
-  if (items.length > MENU_DIVIDER_AT) items.splice(MENU_DIVIDER_AT, 0, { divider:true });
+  var divAt = items.filter(function(m) { return MENU_HEAD_IDS.indexOf(m.id) >= 0; }).length;
+  if (divAt > 0 && items.length > divAt) items.splice(divAt, 0, { divider:true });
 
   nav.innerHTML = settingsBtn + items.map(function(m) {
     if (m.divider) return '<div class="nav-divider"></div>';
@@ -3577,12 +3583,13 @@ function initSidebar() {
 var MENU_RENDERERS = {
   home:      'renderHomeView',
   calendar:  'renderCalendarView',
-  todo:      'renderTodoView',
   cloud:     'renderNotesView',
   mvv:       'renderMVVPage',
   wheel:     'renderLifeWheelView',
   mandalart: 'renderMdtView',
-  project:   'renderGanttView',
+  // 'project' = 예전 Gantt 메뉴. navToMenu 가 Calendar 의 Gantt 탭으로 바꿔 연다.
+  //  홈 Gantt 위젯 제목과 ?page=project 바로가기가 아직 이 id 로 온다(pwa.js 는 여기 있는지로 판단한다).
+  project:   'renderCalendarView',
   wbs:       'renderWbsView',
   journal:   'renderJournalView',
   habit:     'renderHabitView',
@@ -3606,6 +3613,11 @@ document.addEventListener('keydown', function (e) {
 // 🧭 화면 전환 엔진
 function navToMenu(id) {
   if (!id) return;
+  // 예전 Gantt 메뉴 → Calendar 의 Gantt 탭 (2026-11-10)
+  if (id === 'project') {
+    id = 'calendar';
+    if (typeof calPresetView === 'function') calPresetView('gantt');
+  }
   currentMenu = id;
 
   // 📱 모바일: 메뉴 선택 시 드로어 자동 닫기
@@ -3672,6 +3684,8 @@ function bootApp() {
   loadTasks();
   // Task 알림(alert.js)은 2026-11-10 사용자 요청으로 없앴다. 이 기기에 남은 울린 기록도 치운다.
   try { localStorage.removeItem('alert-fired'); } catch (e) {}
+  // 메뉴 순서 키를 v2 로 올렸다(2026-11-10). 옛 순서는 다시 읽지 않으므로 치운다.
+  try { localStorage.removeItem('app-menu-order-desktop'); localStorage.removeItem('app-menu-order-mobile'); } catch (e) {}
   if (typeof appBootYearSync === 'function') appBootYearSync();
   initSidebar();
   initSidebarCollapse();

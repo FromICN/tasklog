@@ -3,8 +3,9 @@
 //   · 일·주·월·목록 = FullCalendar 표준판(fullcalendar.min.js, MIT)
 //   · 연도 보기·검색 결과 = 이 파일이 직접 그린다.
 //     한 해 1000건을 칸마다 글자로 찍으면 읽을 수 없어서, 연도 보기는 양만 칠한다.
-//   · Task = Due 날짜에 한 줄 / To Do = 자기 마감일에 한 줄 / 완료는 기본 숨김
+//   · Task = Due 날짜에 한 줄 / To Do = 자기 마감일에 한 줄 / 완료도 기본으로 보인다(2026-11-10 사용자 요청, 흐리게·취소선)
 //     Task 203건이 모두 Start·Due 를 갖고 있어 막대로 그리면 달력이 덮인다.
+//   · Gantt = 보기 탭 하나(2026-11-10, 사이드바 Gantt 메뉴를 옮겨 왔다). 그리는 것은 gantt.js 다.
 //   · Google 일정 = 읽기 전용. 가져오기를 하기 전까지 보기만 한다. 가져오면 Task 로 등록한다.
 //   · TaskLog 의 '일정'(kind:'event')과 반복은 2026-11-10 에 없앴다 — 달력에 그리는 것은 Task 와 To Do 뿐이다.
 // =============================================================
@@ -15,6 +16,7 @@ var CAL_VIEWS = [
   { id: 'month', label: '월',   fc: 'dayGridMonth' },
   { id: 'year',  label: '연',   fc: null           },
   { id: 'list',  label: '목록', fc: 'listPeriod'   },
+  { id: 'gantt', label: 'Gantt', fc: null          },   // gantt.js renderGanttView 가 #tlc-gantt 에 그린다
 ];
 var CAL_DOW = ['일', '월', '화', '수', '목', '금', '토'];
 var CAL_NO_PROJECT_COLOR = 'var(--text-3)';
@@ -28,7 +30,7 @@ var CAL_RESULT_MAX = 200;
 var _cal = {
   fc: null,            // FullCalendar 인스턴스 (화면을 떠나면 다음 렌더 때 정리한다)
   ro: null,            // 본문 크기 감시 — 사이드바를 접어도 달력이 따라오게 한다
-  view: null,          // 'day' | 'week' | 'month' | 'year' | 'list'
+  view: null,          // 'day' | 'week' | 'month' | 'year' | 'list' | 'gantt'
   date: new Date(),    // 지금 보고 있는 날짜 (메뉴를 옮겨도 유지, 앱을 다시 켜면 오늘)
   query: '',
   queryTimer: null,
@@ -69,11 +71,28 @@ function _calInitialView() {
   return _calProfile() === 'mobile' ? 'list' : 'week';
 }
 
+// 다른 메뉴(홈 Gantt 위젯 제목 등)에서 Calendar 를 특정 보기로 열 때 — navToMenu 가 렌더 전에 부른다
+function calPresetView(id) {
+  if (!CAL_VIEWS.some(function (v) { return v.id === id; })) return;
+  _cal.view = id;
+  _calSave('cal-view-' + _calProfile(), id);
+}
+
 // ── 무엇을 보여 줄지 (기기별) ──
+//  완료 항목은 기본으로 보인다(2026-11-10 사용자 요청). 표시 메뉴에서 끌 수는 있다.
 function calShow() {
   var s = _calLoad('cal-show', {});
-  return { task: s.task !== false, todo: s.todo !== false, done: s.done === true, filter: calFilter() };
+  return { task: s.task !== false, todo: s.todo !== false, done: s.done !== false, filter: calFilter() };
 }
+// 예전 기본값(완료 숨김)으로 저장돼 있던 기기도 한 번은 켠다. v 가 2 면 그 뒤에 사용자가 고른 값이다.
+//  ⚠️ 폰 위젯(native-bridge.js buildCalMeta)도 calShow() 를 읽으므로 월간 위젯도 따라온다.
+(function calShowMigrate() {
+  var s = _calLoad('cal-show', {});
+  if (s.v === 2) return;
+  s.done = true;
+  s.v = 2;
+  _calSave('cal-show', s);
+})();
 function calSetShow(key, on) {
   var s = _calLoad('cal-show', {});
   s[key] = !!on;
@@ -960,11 +979,12 @@ function calToolsHtml() {
     +   '</span>'
     + '</div>'
     + '<div class="tlc-group tlc-group-side">'
+    +   '<span class="tlc-gantt-tools" id="tlc-gantt-tools" hidden></span>'   // Gantt 탭의 검색·Section 필터 (gantt.js renderGanttTools)
     +   '<label class="tlc-search">'
     +     '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
     +     '<input type="search" id="tlc-search" placeholder="검색" aria-label="일정 검색" oninput="calSearchInput(this.value)">'
     +   '</label>'
-    +   '<span class="tlc-menu-wrap">'
+    +   '<span class="tlc-menu-wrap" id="tlc-show-wrap">'
     +     '<button type="button" class="tlc-btn" id="tlc-show-btn" onclick="calToggleMenu(\'show\')">표시 ▾</button>'
     +     '<div class="tlc-menu tlc-menu-right" id="tlc-menu-show" hidden></div>'
     +   '</span>'
@@ -979,6 +999,7 @@ function calSyncTools() {
     if (_cal.query) text = '검색 결과';
     else if (_cal.view === 'year') text = calYearShown() + '년';
     else if (_cal.view === 'list') text = appPeriodLabel() + ' 목록';
+    else if (_cal.view === 'gantt') text = _cal.date.getFullYear() + '년 ' + (_cal.date.getMonth() + 1) + '월';
     else text = _cal.fc ? _cal.fc.view.title : '';
     title.textContent = text + ' ▾';
   }
@@ -986,8 +1007,14 @@ function calSyncTools() {
   var showBtn = _calEl('tlc-show-btn');
   if (showBtn) {
     var sh = calShow();
-    showBtn.classList.toggle('is-filtering', calFilterActive() || !sh.event || !sh.task || !sh.todo);
+    showBtn.classList.toggle('is-filtering', calFilterActive() || !sh.task || !sh.todo || !sh.done);
   }
+  // Gantt 탭은 자기 검색·Section 필터를 쓴다. 달력의 검색칸·표시 메뉴는 Gantt 에 걸리지 않으므로 감춘다.
+  var inGantt = _cal.view === 'gantt';
+  var gTools = _calEl('tlc-gantt-tools'), sWrap = _calEl('tlc-show-wrap'), sBox = document.querySelector('.tlc-search');
+  if (gTools) gTools.hidden = !inGantt;
+  if (sWrap) sWrap.hidden = inGantt;
+  if (sBox) sBox.hidden = inGantt;
   // 연도 보기는 표시 기간 밖으로 나가지 않는다
   var inYear = !_cal.query && _cal.view === 'year';
   var prev = _calEl('tlc-prev'), next = _calEl('tlc-next');
@@ -1008,6 +1035,12 @@ function calSetView(id) {
 function calStep(dir) {
   calCloseMenus();
   _calClearSearch();
+  if (_cal.view === 'gantt') {
+    // Gantt 는 한 달씩 본다
+    _cal.date = new Date(_cal.date.getFullYear(), _cal.date.getMonth() + dir, 1);
+    calRefresh();
+    return;
+  }
   if (_cal.view === 'year') {
     var nextYear = calYearStep(dir);
     if (nextYear === null) return;
@@ -1307,14 +1340,25 @@ function calGooglePop(ev, anchor) {
     anchor.getBoundingClientRect());
 }
 
+// ── Gantt 탭 — 보고 있는 날짜의 달을 gantt.js 로 그린다 ──
+function calRenderGantt() {
+  if (typeof renderGanttView !== 'function') return;
+  ganttYear = _cal.date.getFullYear();
+  ganttMonth = _cal.date.getMonth();
+  renderGanttView();
+}
+
 // ── 본문 전환 ──
 function calSyncBody() {
-  var fcEl = _calEl('tlc-fc'), yearEl = _calEl('tlc-year'), resEl = _calEl('tlc-results');
-  if (!fcEl || !yearEl || !resEl) return;
-  var mode = _cal.query ? 'search' : (_cal.view === 'year' ? 'year' : 'fc');
+  var fcEl = _calEl('tlc-fc'), yearEl = _calEl('tlc-year'), resEl = _calEl('tlc-results'), ganttEl = _calEl('tlc-gantt');
+  if (!fcEl || !yearEl || !resEl || !ganttEl) return;
+  var mode = _cal.query ? 'search' : (_cal.view === 'year' ? 'year' : _cal.view === 'gantt' ? 'gantt' : 'fc');
   fcEl.hidden = mode !== 'fc';
   yearEl.hidden = mode !== 'year';
   resEl.hidden = mode !== 'search';
+  ganttEl.hidden = mode !== 'gantt';
+  // Gantt 를 떠나면 열어 둔 검색·필터 창을 닫는다 (다시 오면 닫힌 채로 시작)
+  if (mode !== 'gantt' && typeof _ganttSearchOpen !== 'undefined') _ganttSearchOpen = false;
   // 표시 기간이 바뀌면 목록 범위가 달라지므로 인스턴스를 다시 만든다
   var sig = JSON.stringify(appPeriod());
   if (_cal.fc && _cal.periodSig !== sig) {
@@ -1338,6 +1382,8 @@ function calSyncBody() {
     }
   } else if (mode === 'year') {
     calRenderYear();
+  } else if (mode === 'gantt') {
+    calRenderGantt();
   } else {
     calRenderResults();
   }
@@ -1350,6 +1396,7 @@ function calRefresh() {
   if (_cal.menu === 'show') calRenderShowMenu();
 }
 // 폰: 좌우로 밀어 앞뒤 기간으로. 목록은 한 줄로 이어지므로 밀 일이 없다.
+//  Gantt 는 폰에서 날짜 칸을 가로로 스크롤하므로(mobile.css 9번) 밀기를 듣지 않는다.
 //  항목을 끌려면 길게 눌러야 하므로 빠르게 미는 것과 겹치지 않는다.
 function calWatchSwipe() {
   var body = _calEl('tlc-body');
@@ -1364,7 +1411,7 @@ function calWatchSwipe() {
     var c = e.changedTouches[0], dx = c.clientX - sx, dy = c.clientY - sy, fromEdge = sx < 24 || sx > window.innerWidth - 24, quick = Date.now() - st < 600;
     sx = null;
     if (window.innerWidth > 768 || fromEdge || !quick || Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
-    if (_cal.view === 'list' || _cal.query || _cal.menu || document.querySelector('.tlc-pop, .fc-event-dragging')) return;
+    if (_cal.view === 'list' || _cal.view === 'gantt' || _cal.query || _cal.menu || document.querySelector('.tlc-pop, .fc-event-dragging')) return;
     calStep(dx < 0 ? 1 : -1);
   }, { passive: true });
 }
@@ -1402,6 +1449,7 @@ function renderCalendarView() {
     +   '<div class="tlc-fc" id="tlc-fc"></div>'
     +   '<div class="tlc-year" id="tlc-year" hidden></div>'
     +   '<div class="tlc-results" id="tlc-results" hidden></div>'
+    +   '<div class="tlc-gantt" id="tlc-gantt" hidden></div>'
     + '</div></div>';
   var search = _calEl('tlc-search');
   if (search) search.value = _cal.query;
@@ -1449,6 +1497,8 @@ document.addEventListener('keydown', function (e) {
   if (e.code === 'Slash' || e.key === '/' || e.key === '?') {
     e.preventDefault();
     if (e.shiftKey || e.key === '?') { calKeyHelp(); return; }
+    // Gantt 탭은 달력 검색칸을 감추고 자기 검색 창을 쓴다
+    if (_cal.view === 'gantt' && typeof ganttToggleSearch === 'function') { if (!_ganttSearchOpen) ganttToggleSearch(); return; }
     var box = _calEl('tlc-search');
     if (box) box.focus();
     return;

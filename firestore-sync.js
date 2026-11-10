@@ -100,10 +100,9 @@ var FS_VIEW_DEPS = {
   wheel:     ['my-tasklog-mandalart', 'my-tasklog-lifewheel', 'my-tasklog-corevalues'],
   mandalart: ['my-tasklog-data', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
   habit:     ['my-tasklog-mandalart'],
-  todo:      ['my-tasklog-data', 'my-tasklog-mandalart', 'todoCols2', 'todoProjHidden'],
-  project:   ['my-tasklog-data', 'my-tasklog-mandalart'],
   wbs:       ['my-tasklog-data', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
-  calendar:  ['my-tasklog-data'],
+  // Section 색·필터와 Gantt 탭(2026-11-10 사이드바에서 옮겨 옴)이 만다라트를 읽는다
+  calendar:  ['my-tasklog-data', 'my-tasklog-mandalart'],
 };
 
 // localStorage 키 → 안전한 문서 ID

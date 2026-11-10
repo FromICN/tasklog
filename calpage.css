@@ -439,6 +439,22 @@
 /* 끌어서 고르는 자리 */
 .tlc-page { --fc-highlight-color: rgba(var(--accent-rgb), .22); }
 
+/* ── Gantt 탭 (2026-11-10, 사이드바 Gantt 메뉴를 옮겨 왔다) ──
+   본문은 gantt.js 의 .gantt-page 그대로다. 월 이동은 위 도구 줄이 하므로 여백만 맞춘다. */
+.tlc-tools [hidden] { display: none !important; }   /* .tlc-search 의 display:flex 가 hidden 을 이기지 않게 */
+.tlc-gantt { height: 100%; }
+.tlc-gantt .gantt-page { padding: 0; }
+.tlc-gantt-tools { display: inline-flex; }
+.tlc-gantt-tools .bd-colpick-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--tl-rule);
+  background: var(--card-solid);
+}
+.tlc-gantt-tools .bd-colpick-btn:hover { background: var(--surface-hover); }
+/* 버튼이 보기 버튼들 왼쪽에 있으므로 창은 오른쪽으로 연다 */
+.tlc-gantt-tools .bd-colpick-panel { left: 0; right: auto; min-width: 240px; }
+
 /* ── 폰 ─────────────────────────────────────── */
 @media (max-width: 768px) {
   .tlc-page { padding: 4px 0 0; gap: 8px; }
@@ -449,7 +465,7 @@
   .tlc-icon { width: 36px; }
   .tlc-title { font-size: var(--fs-md); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .tlc-group-nav .tlc-menu-wrap { min-width: 0; }
-  /* 보기 버튼은 다섯 개가 다 보여야 한다 — 줄어드는 쪽은 검색칸이다 */
+  /* 보기 버튼은 여섯 개(Gantt 포함)가 다 보여야 한다 — 줄어드는 쪽은 검색칸이다 */
   .tlc-search { flex: 1 1 0; min-width: 0; }
   .tlc-search input { width: 100%; }
   .tlc-seg { flex: 0 0 auto; }
@@ -460,6 +476,11 @@
   #tlc-menu-show { left: 0; right: 0; width: auto; max-width: none; }
   #tlc-menu-show .tlc-check { padding: 7px 2px; }
   #tlc-menu-show .tlc-f-arrow { width: 36px; height: 32px; }
+  /* Gantt 검색·필터 창도 도구 줄 전체 폭에 맞춘다 */
+  .tlc-gantt-tools .bd-colpick-btn { width: 36px; height: 36px; }
+  .tlc-gantt-tools .wbs-title-tools { position: static !important; }
+  .tlc-gantt-tools .bd-colpick-panel { left: 0; right: 0; min-width: 0; }
+  .tlc-group-side .tlc-seg { margin-left: auto; }
   /* 월·주 칸이 50px 뿐이라 원 표시가 글자 자리를 먹는다 → 얇은 색 띠로 바꾼다 */
   .tlc-fc .fc-dayGridMonth-view .tlc-ev,
   .tlc-fc .fc-timeGridWeek-view .tlc-ev { gap: 3px; padding: 0 1px; font-size: var(--fs-2xs); line-height: 16px; }

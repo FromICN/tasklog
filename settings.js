@@ -827,7 +827,7 @@ function weekColDow(colIdx) {
 }
 
 // ============================================
-//  📅 표시 기간 — Board · WBS · Web · Gantt · Calendar(목록·연도·검색)가 같은 기준을 쓴다
+//  📅 표시 기간 — WBS · Web · Calendar(목록·연도·검색·Gantt 탭)가 같은 기준을 쓴다
 //  이 기기에만 저장한다(FS_DOC_KEYS 에 넣지 말 것). PC 에서 잠깐 여러 해를 봐도 폰은 그대로다.
 //  { mode:'year' }                 올해 (기본, 해가 바뀌면 저절로 따라간다)
 //  { mode:'years', years:[2024] }  고른 연도들
@@ -835,7 +835,7 @@ function weekColDow(colIdx) {
 //  { mode:'all' }                  전체
 // ============================================
 var APP_PERIOD_KEY = 'app-display-period';
-var APP_PERIOD_MENUS = ['todo', 'wbs', 'cloud', 'project'];
+var APP_PERIOD_MENUS = ['wbs', 'cloud'];   // Board 메뉴는 없앴고 Gantt 는 Calendar 탭이 되었다(2026-11-10)
 var _appPeriodCache = null;
 
 function appPeriod() {
