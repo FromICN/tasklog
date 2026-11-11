@@ -105,6 +105,7 @@ function todoSectionEmoji(task) {
 
 function todoProjectKey(task) {
   if (task.mdtAction && task.mdtAction.text) return task.mdtAction.text;
+  if (task.mdtGoal && task.mdtGoal.text) return task.mdtGoal.text;   // Section 에만 걸린 Task
   if (task.lwSectionName) return task.lwSectionName;
   return '프로젝트 없음';
 }

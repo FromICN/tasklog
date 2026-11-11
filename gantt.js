@@ -434,8 +434,10 @@ function renderGanttView() {
     return mainRow + subRows;
   }).join('');
 
+  // 왼쪽 폭은 var(--gm-left) 로 읽는다 — 폰은 mobile.css 가 120px 로 바꾸고 날짜 칸을 가로 스크롤시키므로,
+  // 인라인 leftW 로 계산하면 오늘 선이 날짜와 어긋났다(11/10 인데 8일 자리). 폭 기준은 .gm-body (폰은 행과 같은 min-width).
   var todayLine = todayIdx !== null
-    ? '<div class="gm-today-line" style="left:calc(' + leftW + 'px + (100% - ' + leftW + 'px) * ' + (((todayIdx + 0.5) / daysInMonth).toFixed(4)) + ');"></div>'
+    ? '<div class="gm-today-line" style="left:calc(var(--gm-left) + (100% - var(--gm-left)) * ' + (((todayIdx + 0.5) / daysInMonth).toFixed(4)) + ');"></div>'
     : '';
 
   content.innerHTML = '<div class="gantt-page">'

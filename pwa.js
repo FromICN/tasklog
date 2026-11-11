@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var SW_URL  = './sw.js?v=20261110m';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
+  var SW_URL  = './sw.js?v=20261111d';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
   var isHttps = location.protocol === 'https:';
   var isLocal = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   var isNative = /^(capacitor|ionic|file):$/.test(location.protocol);
@@ -54,7 +54,8 @@
       document.head.appendChild(meta);
     }
     var light = document.body && document.body.classList.contains('light-mode');
-    meta.setAttribute('content', light ? '#EEF1F5' : '#1a1a1a');
+    // 2026-11-11 새 디자인의 화면 바탕색(theme.css 의 --main-bg)을 따른다. 6단계부터 PC 도 같은 색이다.
+    meta.setAttribute('content', light ? '#FFFFFF' : '#0E1117');
   }
   function watchTheme() {
     if (!document.body) return;

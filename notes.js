@@ -340,6 +340,7 @@ function buildTaskCard(task) {
   // Project 이모지: 연계된 상위 Section 이모지와 통일 (todo.js 공용 해석기)
   var _em = (typeof todoSectionEmoji === 'function') ? todoSectionEmoji(task) : (task.lwSectionEmoji || '');
   if (task.mdtAction && task.mdtAction.text) proj = (_em || '🔮') + ' ' + task.mdtAction.text;
+  else if (task.mdtGoal && task.mdtGoal.text) proj = (_em ? _em + ' ' : '') + task.mdtGoal.text;   // Section 에만 걸린 Task
   else if (task.lwSectionName) proj = (_em ? _em + ' ' : '') + task.lwSectionName;
   var projHtml = proj ? '<div class="nb-card-taskref">'+escNb(proj)+'</div>' : '';
   return '<div class="nb-card" draggable="true" data-kind="task" data-task-id="' + task.id + '"'

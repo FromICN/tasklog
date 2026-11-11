@@ -770,3 +770,629 @@ progress {
 /* WBS — Project 가 Task 일자(Start·Due)와 다른 연도의 만다라트에 걸려 있으면 경고.
    wbs.js wbsTaskTextHtml 이 붙인다. 완료(.done)여도 빨강이 이긴다. */
 #page-content .wbs-task-text.wbs-yr-bad { color: var(--danger); font-weight: 600; }
+
+/* ============================================================
+   폰 화면 새 디자인 — 1단계: 색·모양 토큰 (2026-11-11)
+   ------------------------------------------------------------
+   흰 바탕 · 둥근 카드 · 파랑 하나 · 글꼴 하나.
+   폰 폭(768px 이하)에만 건다 — PC 는 6단계에서 이 묶음의 @media 를
+   풀어 따라온다. 그때까지 PC 는 위쪽 제도 테마 그대로다.
+
+   · 주홍(--tl-seal)은 그대로 '지금'에만 쓴다.
+   · Section 테마 컬러는 JS 가 인라인으로 주므로 여기서 건드리지 않는다.
+   · 고정폭은 --tl-mono 를 읽는 글꼴로 돌려서 없앤다. 숫자 자릿수 정렬
+     (tabular-nums)은 쓰는 쪽 규칙에 그대로 남아 있다.
+   · 본문 투명화(#page-content)는 그대로 둔다 — 바탕이 흰색이라 카드는
+     테두리만으로 선다. 다크에서 카드를 한 단계 밝히는 일은 5단계 몫이다.
+   ============================================================ */
+@media all {   /* 2026-11-11 6단계: 폰 전용(max-width: 768px)이던 것을 PC 까지 넓혔다 */
+  :root {
+    --bg:   #0E1117;
+    --bg-1: #171B23;
+    --bg-2: rgba(255,255,255,0.05);
+    --bg-3: rgba(255,255,255,0.09);
+    --sidebar-bg: #0B0D12;
+    --sidebar-hover: rgba(255,255,255,0.06);
+    --sidebar-active: rgba(255,255,255,0.10);
+    --main-bg: #0E1117;
+    --topbar-bg: #0E1117;
+    --surface: rgba(255,255,255,0.05);
+    --surface-hover: rgba(255,255,255,0.09);
+    --border: rgba(255,255,255,0.12);
+    --text-1: #F2F4F8;
+    --text-2: #B4BAC6;
+    --text-3: #8C94A3;
+    --panel-bg: #171B23;
+    --card-bg: #171B23;
+
+    --brand-primary: #3D7DFF;
+    --accent-rgb: 61,125,255;
+
+    --success:        #4CC38A;
+    --success-bg:     rgba(76,195,138,0.14);
+    --success-border: rgba(76,195,138,0.38);
+    --info:           #8DB8FF;
+    --info-bg:        rgba(141,184,255,0.14);
+    --info-border:    rgba(141,184,255,0.38);
+    --accent-teal:    #8DB8FF;
+
+    --scroll-thumb: #2A3140;
+    --scroll-thumb-hover: #3A4354;
+
+    --tl-pine:      #8DB8FF;
+    --tl-pine-wash: rgba(61,125,255,0.18);
+    --tl-rule:      rgba(255,255,255,0.12);
+    --tl-rule-soft: rgba(255,255,255,0.06);
+    --tl-weekend:   rgba(255,255,255,0.025);
+    --tl-sheet:     #171B23;
+
+    --tl-mono: var(--tl-sans);
+
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+
+    --st-run:  #4CC38A;
+    --st-done: #8DB8FF;
+
+    --surface-solid: rgba(255,255,255,0.05);
+    --card-solid:    #171B23;
+    --panel-solid:   #171B23;
+    --bg1-solid:     #171B23;
+
+    --fw-ring: rgba(255,255,255,0.28);
+    --fw-ink:  #A9CBFF;
+    --fw-fill: #2F6BFF;
+
+    --wash: #1C2136;
+
+    /* 새 토큰 — 안내 띠 · 옅은 버튼 */
+    --tl-tint:      #1C2136;
+    --tl-soft:      #1B2A4A;
+    --tl-soft-ink:  #A9CBFF;
+  }
+
+  body.light-mode {
+    --bg:   #FFFFFF;
+    --bg-1: #F4F6FA;
+    --bg-2: rgba(17,19,24,0.04);
+    --bg-3: rgba(17,19,24,0.07);
+    --sidebar-bg: #FFFFFF;
+    --sidebar-hover: rgba(17,19,24,0.05);
+    --sidebar-active: #EEF3FF;
+    --main-bg: #FFFFFF;
+    --topbar-bg: #FFFFFF;
+    --surface: #F4F6FA;
+    --surface-hover: rgba(17,19,24,0.06);
+    --border: rgba(17,19,24,0.11);
+    --text-1: #111318;
+    --text-2: #4E5560;
+    --text-3: #868D99;
+    --panel-bg: #FFFFFF;
+    --card-bg: #FFFFFF;
+
+    --brand-primary: #0C5DED;
+    --accent-rgb: 12,93,237;
+
+    --success:        #1E7A4C;
+    --success-bg:     rgba(30,122,76,0.10);
+    --success-border: rgba(30,122,76,0.30);
+    --info:           #1755DA;
+    --info-bg:        rgba(12,93,237,0.08);
+    --info-border:    rgba(12,93,237,0.30);
+    --accent-teal:    #1755DA;
+
+    --scroll-thumb: #CDD2DA;
+    --scroll-thumb-hover: #AEB5C0;
+
+    --shadow-sm: 0 1px 2px rgba(17,19,24,0.05);
+    --shadow-md: 0 4px 16px rgba(17,19,24,0.08);
+    --shadow-lg: 0 12px 36px rgba(17,19,24,0.14);
+
+    --tl-pine:      #1755DA;
+    --tl-pine-wash: rgba(12,93,237,0.10);
+    --tl-rule:      rgba(17,19,24,0.11);
+    --tl-rule-soft: rgba(17,19,24,0.06);
+    --tl-weekend:   rgba(17,19,24,0.03);
+    --tl-sheet:     #FFFFFF;
+
+    --st-run:  #1E7A4C;
+    --st-done: #1755DA;
+
+    --surface-solid: #F4F6FA;
+    --card-solid:    #FFFFFF;
+    --panel-solid:   #FFFFFF;
+    --bg1-solid:     #F4F6FA;
+
+    --fw-ring: #AEB5C0;
+    --fw-ink:  #1755DA;
+    --fw-fill: #0C5DED;
+
+    --wash: #F2F4F8;
+
+    --tl-tint:      #ECEFFE;
+    --tl-soft:      #E3EEFF;
+    --tl-soft-ink:  #1755DA;
+  }
+
+  /* 카드 — 둥글고 옅은 테두리. 머리글 아래 선은 뺀다 */
+  .card { border-radius: var(--radius-lg); }
+  .card-header { border-bottom: 0; }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--text-1);
+  }
+
+  /* 고정폭에 맞춰 벌려 둔 자간·대문자를 읽는 글꼴에 맞게 되돌린다 */
+  .cal-dh { letter-spacing: 0; text-transform: none; }
+  .gm-hcell,
+  .cal-detail-badge,
+  .cal-detail-header,
+  .todo-table th,
+  .todo-table-priority,
+  .pwa-install-btn { letter-spacing: 0; }
+
+  /* 탑바 — 선 없이 바탕과 이어진다 */
+  .topbar { border-bottom-color: transparent; }
+
+  /* 눌러서 고르는 것은 파랑으로 */
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"],
+  progress { accent-color: var(--brand-primary); }
+
+  input:focus,
+  textarea:focus,
+  select:focus,
+  [contenteditable="true"]:focus { border-color: var(--brand-primary); }
+
+  /* 오늘 표시는 각진 도장 대신 동그라미 */
+  body .cal-cell.today .cal-num,
+  body.light-mode .cal-cell.today .cal-num,
+  body.light-mode .cal-cell.today.sun .cal-num,
+  body.light-mode .cal-cell.today.sat .cal-num { border-radius: 50%; }
+  .cal-dot { border-radius: 50%; }
+
+  /* Gantt 막대도 모서리를 살짝 굴린다 */
+  .gm-bar { border-radius: 4px; }
+  .gm-bar-fill { border-radius: 3px; }
+}
+/* ============================================================
+   폰 화면 새 디자인 — 2단계: 하단 탭 (2026-11-11)
+   ------------------------------------------------------------
+   서랍(.sidebar)은 없애지 않고 '전체' 탭이 여는 판으로 남긴다.
+   탭 내용은 script.js renderTabbar 가 채운다.
+   ============================================================ */
+.tl-tabbar { display: none; }
+
+@media (max-width: 768px) {
+  :root           { --tl-tab-h: 60px; --tl-tab-off: #8C94A3; }
+  body.light-mode { --tl-tab-off: #6B7280; }
+
+  .tl-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 900;                     /* 서랍(1000) · 상세 패널(1100) 아래 */
+    height: calc(var(--tl-tab-h) + env(safe-area-inset-bottom, 0px));
+    padding: 0 4px env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+    background: var(--main-bg);
+    border-top: 1px solid var(--tl-rule-soft);
+  }
+  .tl-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--tl-tab-off);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tl-tab.is-on { color: var(--text-1); font-weight: 700; }
+  .tl-tab-ico { display: flex; width: 24px; height: 24px; }
+  .tl-tab-ico svg { width: 24px; height: 24px; }
+  .tl-tab.is-on .tl-tab-ico svg { stroke-width: 2.3; }
+  .tl-tab-lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-tab:focus-visible { box-shadow: none; color: var(--brand-primary); }
+
+  /* 본문은 탭 높이만큼 비운다 */
+  .main-content {
+    padding-bottom: calc(var(--tl-tab-h) + env(safe-area-inset-bottom, 0px) + var(--space-2));
+  }
+  /* 글자판이 올라오면 탭을 감추고 자리를 돌려준다 (script.js watchTyping) */
+  body.tl-typing .tl-tabbar { display: none; }
+  body.tl-typing .main-content { padding-bottom: var(--space-2); }
+
+  /* 아래에 뜨는 것들은 탭 위로 */
+  .pwa-install-btn,
+  .pwa-toast { margin-bottom: var(--tl-tab-h); }
+
+  /* 햄버거는 '전체' 탭이 대신한다 */
+  .mobile-menu-btn { display: none; }
+  .topbar { padding-left: var(--space-2); }
+  .topbar-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* '전체' 판 — 오른쪽에서 나온다 */
+  .sidebar {
+    left: auto;
+    right: 0;
+    width: min(84vw, 320px);
+    padding-left: 0;
+    padding-right: env(safe-area-inset-right, 0px);
+    transform: translateX(100%);
+    border-right: 0;
+    border-left: 1px solid var(--tl-rule-soft);
+    border-radius: 20px 0 0 20px;
+    box-shadow: var(--shadow-lg);
+    background: var(--card-solid);
+  }
+  .sidebar .sidebar-top { justify-content: flex-start; padding: var(--space-4) var(--space-4) var(--space-2); }
+  .sidebar-nav { padding: var(--space-2) var(--space-3); }
+  .nav-item,
+  #settings-nav-btn { height: 52px; border-radius: var(--radius-md); color: var(--text-1); }
+  .nav-item-label { font-size: 16px; font-weight: 500; }
+  .nav-item-icon svg { width: 22px; height: 22px; }
+  .sidebar .nav-item.active {
+    box-shadow: none;
+    background: var(--tl-soft);
+    color: var(--tl-soft-ink);
+  }
+  .sidebar .nav-item.active .nav-item-label { font-weight: 700; }
+  .sidebar-bottom { padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); }
+  .sidebar-bottom .tswitch { margin: 0 !important; }
+}
+/* '전체' 판은 PC 의 접힌 레일(.collapsed, 66px 아이콘만)을 물려받는다.
+   폰에서는 이름표까지 펼쳐 보여 준다 — 탭에 없는 메뉴를 여기서 이름으로 고른다. */
+@media (max-width: 768px) {
+  .sidebar.collapsed { width: min(84vw, 320px); }
+  .sidebar.collapsed .sidebar-top {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-2);
+  }
+  .sidebar.collapsed .nav-item,
+  .sidebar.collapsed #settings-nav-btn {
+    width: 100%;
+    margin: 0 0 4px;
+    padding: 0 var(--space-3);
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: var(--space-3);
+  }
+  .sidebar.collapsed .nav-item-label {
+    display: block;
+    opacity: 1;
+    width: auto;
+    font-size: 16px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    text-transform: none;
+  }
+  .sidebar.collapsed .nav-item.active .nav-item-label { font-weight: 700; }
+  .sidebar .nav-divider { margin: var(--space-2) var(--space-3); }
+  .sidebar-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sidebar-bottom::before {
+    content: "다크 모드";
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-1);
+  }
+}
+/* ============================================================
+   폰 화면 새 디자인 — 3단계: 화면별 부품 (2026-11-11)
+   ------------------------------------------------------------
+   · 버튼은 두 가지: 진한 파랑(주 동작) · 옅은 파랑(보조 동작)
+   · 구역 이름은 카드 밖에 굵게, 카드는 흰 판 + 옅은 테두리
+   · 안내는 연보라 띠 한 줄(--tl-tint)
+   calpage.css 는 이 파일보다 뒤에 로드된다. 그래서 달력(.tlc-*) 규칙은
+   앞에 body 를 붙여 순서 대신 우선순위로 이긴다.
+   ============================================================ */
+@media all {   /* 2026-11-11 6단계: 폰 전용(max-width: 768px)이던 것을 PC 까지 넓혔다 */
+
+  /* ── 버튼 ── */
+  .btn-primary,
+  #page-content .btn-primary {
+    background: var(--brand-primary);
+    border: 0;
+    border-radius: var(--radius-md);
+    color: #fff;
+    font-weight: 700;
+  }
+  .btn-secondary,
+  #page-content .btn-secondary {
+    background: var(--tl-soft);
+    border: 0;
+    border-radius: var(--radius-md);
+    color: var(--tl-soft-ink);
+    font-weight: 700;
+  }
+  /* 패널 바닥: 보조(왼쪽) + 주 동작(오른쪽, 조금 넓게) */
+  .rp-footer { border-top: 0; gap: var(--space-2); }
+  .rp-footer .btn-primary,
+  .rp-footer .btn-secondary { min-height: 52px; font-size: 16px; }
+  .rp-footer .btn-secondary { order: -1; flex: 1 1 0; }
+  .rp-footer .btn-primary   { flex: 1.6 1 0; }
+  .rp-header { border-bottom: 0; }
+  .rp-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* ── 안내 띠 ── */
+  .app-period-note {
+    min-height: 44px;
+    padding: 0 var(--space-35);
+    border-radius: var(--radius-md);
+    background: var(--tl-tint);
+    color: var(--text-1);
+    font-size: 14px;
+  }
+  .app-period-note b { color: var(--tl-soft-ink); font-weight: 700; }
+  .app-period-note button { min-height: 44px; color: var(--text-2); font-size: 13px; text-decoration: none; }
+
+  /* ── Web ── */
+  .nb-write-panel { padding: var(--space-35) var(--space-4) var(--space-4); border-radius: var(--radius-lg); }
+  .nb-write-header { font-size: 15px; }
+  #page-content .nb-textarea {
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--surface-solid);
+    padding: var(--space-3) var(--space-35);
+    font-size: 16px;
+  }
+  #page-content .nb-add-btn {
+    min-height: 48px;
+    border-radius: var(--radius-md);
+    background: var(--brand-primary);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  /* 칼럼 전환: 붙은 칸 → 알약 */
+  .tlm-tabs {
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+  #page-content .tlm-tab,
+  #page-content .tlm-tab + .tlm-tab {
+    min-height: 42px;
+    border: 1px solid var(--tl-rule);
+    border-radius: var(--radius-full);
+    background: var(--card-solid);
+    color: var(--text-2);
+    font-size: 14px;
+    font-weight: 500;
+  }
+  #page-content .tlm-tab.tlm-active {
+    border-color: var(--text-1);
+    background: var(--text-1);
+    color: var(--main-bg);
+    font-weight: 700;
+  }
+  /* 칼럼: 테두리 상자를 걷고 이름을 카드 밖에 굵게 */
+  .nb-board.tlm-tabbed > .nb-col { border: 0; border-radius: 0; background: transparent; }
+  .nb-board.tlm-tabbed .nb-col-header { padding: var(--space-1) var(--space-1) var(--space-25); }
+  .nb-board.tlm-tabbed .nb-col-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+  .nb-board.tlm-tabbed .nb-col-count { background: var(--surface-solid); font-size: 12px; }
+  .nb-board.tlm-tabbed .nb-col-cards { padding: 0 0 var(--space-3); gap: var(--space-25); }
+  .nb-board.tlm-tabbed .nb-card {
+    border: 1px solid var(--tl-rule);
+    border-radius: var(--radius-lg);
+    background: var(--card-solid);
+    overflow: hidden;
+  }
+  .nb-board.tlm-tabbed .nb-card-text { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  /* Project 없는 카드의 띠는 초록(--success) 대신 조용한 회색 */
+  .nb-card-strip[style*="var(--success)"] { background: var(--scroll-thumb) !important; }
+
+  /* ── Calendar 도구 줄 ── */
+  body .tlc-btn,
+  body .tlc-search { height: 40px; min-height: 40px; border-radius: var(--radius-md); }
+  body .tlc-icon { width: 40px; }
+  body .tlc-create {
+    width: 40px;
+    border-color: var(--brand-primary);
+    background: var(--brand-primary);
+    color: #fff;
+  }
+  body .tlc-title { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+  body .tlc-seg {
+    padding: 3px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: var(--surface-solid);
+  }
+  body .tlc-seg-btn {
+    height: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13px;
+  }
+  body .tlc-seg-btn.is-on {
+    background: var(--text-1);
+    color: var(--main-bg);
+    font-weight: 700;
+  }
+  body .tlc-menu { border-radius: var(--radius-lg); padding: var(--space-35); }
+  body .tlc-menu-h { font-size: 12px; font-weight: 700; color: var(--text-2); }
+
+  /* 달력 판: 바깥 테두리를 둥글게, 목록의 날짜 줄은 구역 이름처럼 */
+  body .tlc-fc .fc-scrollgrid { border-radius: var(--radius-md); overflow: hidden; }
+  body .tlc-fc .fc-list { border: 0; }
+  body .tlc-fc .fc-list-day-cushion {
+    padding: var(--space-3) var(--space-1) var(--space-15);
+    background: var(--main-bg);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-1);
+  }
+  body .tlc-fc .fc-list-day > * { border: 0; }
+  body .tlc-fc .fc-list-event td { padding-top: 11px; padding-bottom: 11px; border-color: var(--tl-rule-soft); font-size: 15px; }
+  body .tlc-fc .fc-list-event .fc-list-event-time { color: var(--text-3); font-size: 13px; }
+  body .tlc-res-day { font-size: 15px; font-weight: 700; color: var(--text-1); border-bottom: 0; padding-top: var(--space-3); }
+
+  /* 요약창 · 빠른 입력: 둥근 판 + 두 가지 버튼 */
+  body .tlc-pop { padding: var(--space-4); border: 0; border-radius: var(--radius-xl); }
+  body .tlc-pop-title { font-size: 17px; font-weight: 700; }
+  body .tlc-pop-actions { gap: var(--space-2); margin-top: var(--space-4); }
+  body .tlc-pop-actions .tlc-btn,
+  body .tlc-q-foot .tlc-btn {
+    height: 44px;
+    border: 0;
+    background: var(--tl-soft);
+    color: var(--tl-soft-ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  body .tlc-pop-actions .tlc-btn.tlc-create,
+  body .tlc-q-foot .tlc-btn.tlc-create { width: auto; background: var(--brand-primary); color: #fff; }
+  body .tlc-pop-actions .tlc-pop-del { background: var(--danger-bg); color: var(--danger); }
+
+  /* ── Habit Tracker ── */
+  .ht-list-head {
+    border-bottom: 0;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-transform: none;
+    color: var(--text-1);
+  }
+  .ht-list-count { font-size: 13px; font-weight: 600; color: var(--text-3); letter-spacing: 0; }
+
+  /* ── 설정 · 그 밖의 뜨는 판 ── */
+  .settings-modal { border-radius: var(--radius-xl); }
+}
+/* ============================================================
+   폰 화면 새 디자인 — 5단계: 다크 모드 (2026-11-11)
+   ------------------------------------------------------------
+   라이트는 바탕도 카드도 흰색이라 테두리만으로 카드가 선다.
+   다크는 그렇게 하면 화면이 한 장의 검은 판이 되므로, 본문 투명화를
+   판(--tl-sheet · --card-bg · --panel-bg)에 한해 풀어서 카드를 바탕보다
+   한 단계 밝게 올린다. --surface · --bg-1 은 그대로 비워 둔다 — 카드 안의
+   작은 상자까지 칠하면 회색이 두 겹으로 얹힌다.
+   ============================================================ */
+@media all {   /* 2026-11-11 6단계: 폰 전용(max-width: 768px)이던 것을 PC 까지 넓혔다 */
+  body:not(.light-mode) #page-content {
+    --tl-sheet: var(--card-solid);
+    --card-bg:  var(--card-solid);
+    --panel-bg: var(--panel-solid);
+  }
+  /* 카드 안에서 스크롤에 고정되는 머리글은 카드와 같은 색이어야 한다 */
+  body:not(.light-mode) #page-content .jnlw-head,
+  body:not(.light-mode) #page-content .jnlw-allday,
+  body:not(.light-mode) #page-content .gm-header,
+  body:not(.light-mode) #page-content .mdt-grid-table thead th,
+  body:not(.light-mode) #page-content .wbs-header-row,
+  body:not(.light-mode) #page-content .wbs-header-row:hover,
+  body:not(.light-mode) #page-content .todo-table thead th {
+    background: var(--card-solid);
+  }
+  /* 홈 위젯 카드는 원래 규칙이 비워 두므로 다크에서만 다시 칠한다 */
+  body:not(.light-mode) #page-content .home-page .card { background: var(--card-solid); }
+  /* 어두운 바탕에서는 테두리보다 밝기 차이가 카드를 세운다 — 선은 더 옅게 */
+  body:not(.light-mode) .nb-board.tlm-tabbed .nb-card,
+  body:not(.light-mode) .card { border-color: var(--tl-rule-soft); }
+  /* 달력 판도 한 장의 카드로 */
+  body:not(.light-mode) .tlc-page { --fc-page-bg-color: var(--card-solid); }
+  body:not(.light-mode) .tlc-fc .fc-scrollgrid { background: var(--card-solid); }
+  body:not(.light-mode) .tlc-fc .fc-list-day-cushion { background: var(--main-bg); }
+}
+
+@media (max-width: 768px) {
+  body .tlc-seg-btn { padding: 0 8px; }
+}
+@media (max-width: 768px) {
+  /* 긴 화면 이름(Work Breakdown Structure)은 말줄임 — 오른쪽 도구를 밀어내지 않게 */
+  .topbar-left { flex: 1 1 auto; min-width: 0; }
+  .topbar-left .topbar-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-right { flex: 0 0 auto; }
+}
+
+/* ============================================================
+   새 디자인 — 6단계: 웹(PC)까지 (2026-11-11)
+   ------------------------------------------------------------
+   위 1·3·5단계 묶음의 @media 를 all 로 넓혀서 색·모서리·글꼴·버튼·
+   다크 카드가 PC 에도 그대로 걸린다. 2단계(하단 탭 · '전체' 판)는
+   폰 전용으로 남는다 — PC 는 왼쪽 레일을 그대로 쓴다.
+   여기에는 PC 폭에서만 손볼 것을 둔다.
+   ============================================================ */
+@media (min-width: 769px) {
+  /* 왼쪽 레일 — 흰 판 위의 아이콘. 켜진 메뉴는 옅은 파랑 칸 */
+  .sidebar { border-right-color: var(--tl-rule-soft); }
+  .nav-item { border-radius: var(--radius-md); }
+  .sidebar .nav-item.active {
+    box-shadow: none;
+    background: var(--tl-soft);
+    color: var(--tl-soft-ink);
+  }
+  .avatar-circle { border-radius: var(--radius-md); font-weight: 700; }
+
+  /* 탑바 */
+  .topbar-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .topbar-date { font-size: 13px; letter-spacing: 0; }
+
+  /* 패널 바닥 버튼은 PC 에서 폰만큼 클 필요가 없다 */
+  .rp-footer .btn-primary,
+  .rp-footer .btn-secondary { min-height: 44px; font-size: 14px; }
+
+  /* 달력 도구 줄 — 한 줄에 다 들어가므로 조금 낮게 */
+  body .tlc-btn,
+  body .tlc-search { height: 36px; min-height: 36px; }
+  body .tlc-icon,
+  body .tlc-create { width: auto; }
+  body .tlc-icon { width: 36px; }
+  body .tlc-create { padding: 0 14px; }
+  body .tlc-seg-btn { height: 30px; min-height: 30px; padding: 0 14px; }
+
+  /* Web — 세 칼럼. 칼럼 상자는 걷고 이름을 굵게, 카드는 흰 판 */
+  #page-content .nb-board > .nb-col { border: 0; border-radius: 0; background: transparent; }
+  #page-content .nb-board .nb-col-header { padding: var(--space-1) var(--space-1) var(--space-25); }
+  #page-content .nb-board .nb-col-title { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
+  #page-content .nb-board .nb-col-cards { padding-left: 0; padding-right: 0; }
+  #page-content .nb-board .nb-card {
+    border: 1px solid var(--tl-rule);
+    border-radius: var(--radius-md);
+    background: var(--card-solid);
+    overflow: hidden;
+  }
+  #page-content .nb-add-btn { min-height: 0; font-size: 13px; }
+  #page-content .nb-textarea { font-size: 13px; }
+}
+
+/* 표 머리글 — 고정폭 10px 로 좁혀 두었던 것을 읽는 글꼴에 맞춰 키운다 (모든 폭) */
+.todo-table th { font-size: 12px; letter-spacing: 0; color: var(--text-2); }
+.todo-table td { font-size: 13px; }
+.todo-table-start, .todo-table-due { font-size: 12.5px; }
+
+/* 홈 위젯의 작은 숫자들 — 자간만 되돌린다. 크기는 위젯이 칸에 맞춰 정한다 */
+.mda-cnt, .mda-pct, .done-date, .nav-item-label { letter-spacing: 0; }
+
+/* 로그인 화면 — 같은 바탕 · 같은 파랑 */
+body #login-gate { background: #F0F3F8; }
+body #login-gate .login-card { border-color: #E6E8EC; box-shadow: 0 12px 36px rgba(17,19,24,0.08); }
+body #login-gate .login-title { color: #111318; }
+body #login-gate .login-keep input[type="checkbox"]:checked { background-color: #0C5DED; border-color: #0C5DED; }

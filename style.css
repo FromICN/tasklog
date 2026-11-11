@@ -9253,6 +9253,32 @@ body.light-mode .profile-dropdown {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Section 줄 (누르면 Project 없이 Section 에만 건다) · 그 아래 Project 는 들여 쓴다 (2026-11-10) */
+.proj-dd-panel { max-height: min(360px, 60vh); }
+.proj-dd-group {
+  padding: var(--space-2) var(--space-2) var(--space-05);
+  font-size: var(--fs-2xs);
+  color: var(--text-3);
+}
+.proj-dd-sec {
+  justify-content: space-between;
+  padding: 7px var(--space-2);
+  margin-top: var(--space-05);
+  border-top: 1px solid var(--border);
+}
+.proj-dd-sec-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 좁으면 안내 글자가 먼저 줄어든다 — Section 이름이 지워지면 안 된다 */
+.proj-dd-sec-hint { flex: 0 20 auto; min-width: 0; overflow: hidden; white-space: nowrap; font-size: var(--fs-2xs); color: var(--text-3); }
+.proj-dd-sub { padding-left: var(--space-3); }
 
 /* =============================================
    📋 Task 상세 패널 — 여백 50% 축소 + 박스 통일

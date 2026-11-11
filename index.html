@@ -7,11 +7,11 @@
   <meta name="description" content="Task · WBS · 간트 · 만다라트 · 업무일지를 한 곳에서 관리하는 개인 업무 기록 앱">
 
   <!-- ===== 📱 PWA ===== -->
-  <link rel="manifest" href="manifest.json?v=20261110k">
+  <link rel="manifest" href="manifest.json?v=20261111d">
   <!-- 최초 페인트용 theme-color (OS 다크/라이트 기준).
        앱 자체 테마 토글이 동작하기 시작하면 pwa.js가 이 두 개를 제거하고 직접 관리한다. -->
-  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#1a1a1a">
-  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF1F5">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)"  content="#0E1117">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FFFFFF">
   <meta name="color-scheme" content="dark light">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="TaskLog">
@@ -53,14 +53,14 @@
   <link rel="preconnect" href="https://accounts.google.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
-  <link rel="stylesheet" href="style.css?v=20261110i">
+  <link rel="stylesheet" href="style.css?v=20261110p">
   <link rel="stylesheet" href="profile-modal.css?v=20260722">
   <link rel="stylesheet" href="login.css?v=20260720b">
-  <link rel="stylesheet" href="mobile.css?v=20260829c">
+  <link rel="stylesheet" href="mobile.css?v=20261110n">
   <!-- 🎨 제도(製圖) 테마 — 토큰·타이포·컴포넌트 스킨. 반드시 마지막에 로드할 것.
        글꼴은 자체 호스팅이라 CDN을 타지 않는다(오프라인·APK에서도 그대로 나온다). -->
   <link rel="stylesheet" href="fonts/pretendard.css?v=20260809a">
-  <link rel="stylesheet" href="theme.css?v=20261102b">
+  <link rel="stylesheet" href="theme.css?v=20261111d">
   <link rel="stylesheet" href="calpage.css?v=20261110k">
   <script>
     // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
@@ -125,6 +125,9 @@
 
   <!-- ===== 모바일 드로어용 스크림 (사이드바 뒤 어둡게) ===== -->
   <div class="sidebar-scrim" id="sidebar-scrim" onclick="closeSidebar()"></div>
+
+  <!-- ===== 폰 하단 탭 (script.js renderTabbar 가 채운다. PC 에서는 theme.css 가 감춘다) ===== -->
+  <nav class="tl-tabbar" id="tl-tabbar" aria-label="주 메뉴"></nav>
 
   <!-- ===== 중앙 + 오른쪽 패널 래퍼 ===== -->
   <div class="content-wrapper">
@@ -209,9 +212,9 @@
 <script src="habit.js?v=20260824a"></script>
 <!-- 📅 FullCalendar 표준판 v6.1.22 (MIT) — 라이선스: fullcalendar.LICENSE.txt -->
 <script src="fullcalendar.min.js?v=6.1.22"></script>
-<script src="calpage.js?v=20261110k"></script>
-<script src="gantt.js?v=20261110l"></script>
-<script src="notes.js?v=20261110b"></script>
+<script src="calpage.js?v=20261110o"></script>
+<script src="gantt.js?v=20261110n"></script>
+<script src="notes.js?v=20261110o"></script>
 <script src="journal.js?v=20261110e"></script>
 <script src="wbs.js?v=20261110b"></script>
 <script src="mvv.js?v=20261104a"></script>
@@ -221,12 +224,12 @@
      재정의해 drive.js의 자동 백업을 대체한다 — 반드시 drive.js보다 뒤에 로드할 것.
      (파일로 복원 등 drive.js의 나머지 기능은 그대로 유지) -->
 <script src="firestore-sync.js?v=20261110k"></script>
-<script src="todo.js?v=20261110b"></script>
+<script src="todo.js?v=20261110o"></script>
 <script src="yearsync.js?v=20260722"></script>
-<script src="script.js?v=20261110m"></script>
+<script src="script.js?v=20261111b"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20261110m"></script>
+<script src="pwa.js?v=20261111d"></script>
 
 <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
 <script src="mobile-ui.js?v=20260807c"></script>

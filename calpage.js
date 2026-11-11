@@ -836,7 +836,9 @@ function calQuickSave() {
     startHasTime: !!(r.sd && r.st),
     dueDateTime: r.dd ? (r.dd + 'T' + (r.dt || '09:00') + ':00') : null,
     hasTime: !!(r.dd && r.dt),
-    mdtAction: _cal.qProject,
+    // _cal.qProject = 드롭다운의 link (Section 만, 또는 Section + Project)
+    mdtAction: mdtLinkParts(_cal.qProject).mdtAction,
+    mdtGoal: mdtLinkParts(_cal.qProject).mdtGoal,
   });
   tasks.push(doc);
   saveTasks();
@@ -848,7 +850,7 @@ function calQuickMore() {
   var nameEl = _calEl('tlc-q-name');
   var val = function (id) { return ((_calEl(id) || {}).value || '').trim(); };
   var opts = {
-    allDay: _cal.qAllDay, name: nameEl ? nameEl.value.trim() : '', mdtAction: _cal.qProject,
+    allDay: _cal.qAllDay, name: nameEl ? nameEl.value.trim() : '', mdtLink: _cal.qProject,
     values: { sd: val('tlc-q-sd'), st: rpTmParse(val('tlc-q-st')) || '', dd: val('tlc-q-dd'), dt: rpTmParse(val('tlc-q-dt')) || '' },
   };
   calQuickClose(true);

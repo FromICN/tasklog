@@ -1350,12 +1350,97 @@ function taskDateYears(startVal, dueVal) {
   });
   return out.sort();
 }
-// Project 가 Task 의 연도(Start·Due 중 하나)와 다른 연도의 만다라트에 걸려 있으면 true
+// Project(또는 Section) 가 Task 의 연도(Start·Due 중 하나)와 다른 연도의 만다라트에 걸려 있으면 true
 function taskProjYearMismatch(task) {
-  if (!task || !task.mdtAction || task.mdtAction.year == null) return false;
+  var a = task && (task.mdtAction || task.mdtGoal);
+  if (!a || a.year == null) return false;
   var ys = taskDateYears(task.startDate, task.dueDateTime);
   if (!ys.length) return false;
-  return ys.indexOf(parseInt(task.mdtAction.year, 10)) === -1;
+  return ys.indexOf(parseInt(a.year, 10)) === -1;
+}
+
+// ── Task ↔ 만다라트 연결 (2026-11-10) ──
+// Task 는 Section 에만 걸 수도 있고(Project 없이), Section + Project 에 걸 수도 있다.
+//  link = { year, sgId, sgText, sgEmoji, actionId, text } — actionId 가 null 이면 Section 에만 걸린 것
+//  저장 모양은 예전 그대로: task.mdtGoal (Section) · task.mdtAction (Project)
+function mdtSgOf(year, sgId) {
+  var m = (typeof getMdt === 'function') ? getMdt(parseInt(year, 10)) : null;
+  if (!m || !m.subGoals) return null;
+  return m.subGoals.find(function(s){ return s.id === parseInt(sgId, 10); }) || null;
+}
+function mdtLinkOf(task) {
+  if (!task) return null;
+  var a = task.mdtAction, g = task.mdtGoal, sg;
+  if (a && (a.sgId != null || a.text)) {
+    sg = (a.sgId != null) ? mdtSgOf(a.year, a.sgId) : null;
+    return { year: a.year, sgId: a.sgId != null ? a.sgId : null, sgText: sg ? sg.text : ((g && g.text) || ''),
+             sgEmoji: sg ? (sg.emoji || '') : '', actionId: a.actionId != null ? a.actionId : null, text: a.text || '' };
+  }
+  if (g && g.sgId != null) {
+    sg = mdtSgOf(g.year, g.sgId);
+    return { year: g.year, sgId: g.sgId, sgText: sg ? sg.text : (g.text || ''), sgEmoji: sg ? (sg.emoji || '') : '', actionId: null, text: '' };
+  }
+  return null;
+}
+// 링크 → 저장할 두 칸. Project 를 고르면 Section 칸도 같은 Section 으로 맞춘다.
+function mdtLinkParts(link) {
+  if (!link || link.sgId == null && link.actionId == null) return { mdtGoal: null, mdtAction: null };
+  var goal = (link.sgId != null) ? { year: link.year, sgId: link.sgId, text: link.sgText || '' } : null;
+  var act  = (link.actionId != null) ? { year: link.year, sgId: link.sgId, actionId: link.actionId, text: link.text || '' } : null;
+  return { mdtGoal: goal, mdtAction: act };
+}
+// 드롭다운에서 고른 연결을 Task 에 쓴다.
+//  예전 라이프휠 칸(lwSection*)은 지운다 — Gantt·WBS 가 그 칸을 먼저 읽어서, 남아 있으면 화면마다 다른 Section 이 보인다.
+function mdtLinkApply(task, link) {
+  var p = mdtLinkParts(link);
+  if (p.mdtGoal) task.mdtGoal = p.mdtGoal; else delete task.mdtGoal;
+  if (p.mdtAction) task.mdtAction = p.mdtAction; else delete task.mdtAction;
+  delete task.lwSection; delete task.lwSectionName; delete task.lwSectionEmoji;
+}
+function mdtLinkLabel(link) {
+  if (!link) return '없음';
+  if (link.actionId != null) return link.text || '(이름 없는 Project)';
+  return (link.sgEmoji ? link.sgEmoji + ' ' : '') + (link.sgText || ('Section ' + link.sgId)) + ' · Section 전체';
+}
+// 드롭다운에 보일 Section 묶음 — Project 가 없는 Section 도 고를 수 있게 모두 싣는다
+function getMdtSectionGroups(years) {
+  if (typeof loadMandalarts === 'function') loadMandalarts();
+  var mdts = [];
+  if (years && years.length) {
+    years.forEach(function(y){ var m = (typeof getMdt === 'function') ? getMdt(y) : null; if (m) mdts.push(m); });
+  } else if (typeof mandalarts !== 'undefined' && mandalarts.length) {
+    var yr = (typeof currentMdtYear !== 'undefined' && currentMdtYear) ? currentMdtYear
+           : (typeof lwCurrentYear !== 'undefined' && lwCurrentYear) ? lwCurrentYear : null;
+    var m0 = (yr && typeof getMdt === 'function') ? getMdt(yr) : null;
+    mdts.push(m0 || mandalarts.slice().sort(function(a, b){ return b.year - a.year; })[0]);
+  }
+  var out = [];
+  mdts.forEach(function(m) {
+    (m.subGoals || []).forEach(function(sg) {
+      if (!sg.text || !String(sg.text).trim()) return;
+      var key = m.year + ':' + sg.id;
+      out.push({ year: m.year, sgId: sg.id, sgText: sg.text, sgEmoji: sg.emoji || '', key: key,
+                 projects: (sg.actions || []).filter(function(a){ return a.text; }).map(function(a) {
+                   var k = key + ':' + a.id;
+                   return { year: m.year, sgId: sg.id, sgText: sg.text, sgEmoji: sg.emoji || '', actionId: a.id, text: a.text, key: k, fav: isMdtFav(k) };
+                 }) });
+    });
+  });
+  return out;
+}
+function mdtLinkFromKey(key) {
+  if (!key) return null;
+  var parts = String(key).split(':');
+  var year = parseInt(parts[0], 10), sgId = parseInt(parts[1], 10);
+  var sg = mdtSgOf(year, sgId);
+  if (!sg) return null;
+  var link = { year: year, sgId: sgId, sgText: sg.text, sgEmoji: sg.emoji || '', actionId: null, text: '' };
+  if (parts.length > 2) {
+    var act = (sg.actions || []).find(function(a){ return a.id === parseInt(parts[2], 10); });
+    if (!act) return null;
+    link.actionId = act.id; link.text = act.text;
+  }
+  return link;
 }
 
 // 만다라트의 비어있지 않은 실행과제 목록 — 즐겨찾기 우선 정렬
@@ -1406,10 +1491,11 @@ function mdtSortFavs(list) {
   return list;
 }
 
+// selected = link (mdtLinkOf) — Section 에만 걸린 것도 이름표에 보인다
 function buildProjectDropdown(domId, selected) {
-  var label = (selected && selected.text) ? escapeHtml(selected.text) : '프로젝트 없음';
+  var label = escapeHtml(mdtLinkLabel(selected));
   return '<div class="proj-dd" id="' + domId + '">'
-    + '<button type="button" class="proj-dd-trigger' + (selected && selected.text ? ' is-set' : '') + '" onclick="toggleProjDD(\'' + domId + '\')">'
+    + '<button type="button" class="proj-dd-trigger' + (selected ? ' is-set' : '') + '" onclick="toggleProjDD(\'' + domId + '\')">'
     + '<span class="proj-dd-cur">' + label + '</span><span class="proj-dd-arrow">▾</span></button>'
     + '<div class="proj-dd-panel" style="display:none;"></div>'
     + '</div>';
@@ -1438,23 +1524,39 @@ function projDDYears(domId) {
   return [];
 }
 
+// 목록: 즐겨찾기 Project → Section 마다 [Section 줄 + 그 아래 Project]
+//  Section 줄을 누르면 Project 없이 Section 에만 건다 (옛 연도처럼 Project 를 세우지 않은 해에 쓴다)
+function _projDDProjHtml(domId, p, showSg, multi) {
+  return '<div class="proj-dd-opt' + (showSg ? '' : ' proj-dd-sub') + '">'
+    + '<button type="button" class="proj-dd-star' + (p.fav ? ' on' : '') + '" onclick="event.stopPropagation();projDDToggleFav(\'' + domId + '\',\'' + p.key + '\')">' + (p.fav ? '★' : '☆') + '</button>'
+    + '<span class="proj-dd-opt-label" onclick="projDDSelect(\'' + domId + '\',\'' + p.key + '\')">'
+    + (showSg ? '<span class="proj-dd-opt-sg">' + escapeHtml((multi ? p.year + ' · ' : '') + (p.sgEmoji || '') + ' ' + p.sgText) + '</span>' : '')
+    + '<span class="proj-dd-opt-txt">' + escapeHtml(p.text) + '</span>'
+    + '</span></div>';
+}
 function buildProjDDList(domId) {
   var years = projDDYears(domId);
-  var list = getMdtProjects(years);
-  var html = '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 프로젝트 없음 —</div>';
-  if (!list.length) {
+  var groups = getMdtSectionGroups(years);
+  var html = '<div class="proj-dd-opt proj-dd-none" onclick="projDDSelect(\'' + domId + '\',\'\')">— 없음 —</div>';
+  if (!groups.length) {
     return html + '<div class="proj-dd-empty">'
-      + (years.length ? years.join('·') + '년 만다라트에 등록된 Project 가 없어요' : '만다라트에 등록된 실행과제가 없어요')
+      + (years.length ? years.join('·') + '년 만다라트가 없어요' : '만다라트가 없어요')
       + '</div>';
   }
   var multi = years.length > 1;
-  list.forEach(function(p) {
-    html += '<div class="proj-dd-opt">'
-      + '<button type="button" class="proj-dd-star' + (p.fav ? ' on' : '') + '" onclick="event.stopPropagation();projDDToggleFav(\'' + domId + '\',\'' + p.key + '\')">' + (p.fav ? '★' : '☆') + '</button>'
-      + '<span class="proj-dd-opt-label" onclick="projDDSelect(\'' + domId + '\',\'' + p.key + '\')">'
-      + '<span class="proj-dd-opt-sg">' + escapeHtml((multi ? p.year + ' · ' : '') + (p.sgEmoji || '') + ' ' + p.sgText) + '</span>'
-      + '<span class="proj-dd-opt-txt">' + escapeHtml(p.text) + '</span>'
-      + '</span></div>';
+  var favs = [];
+  groups.forEach(function(g){ g.projects.forEach(function(p){ if (p.fav) favs.push(p); }); });
+  if (favs.length) {
+    html += '<div class="proj-dd-group">★ 즐겨찾기</div>';
+    mdtSortFavs(favs).forEach(function(p){ html += _projDDProjHtml(domId, p, true, multi); });
+  }
+  var lastYear = null;
+  groups.forEach(function(g) {
+    if (multi && g.year !== lastYear) { html += '<div class="proj-dd-group">' + g.year + '년</div>'; lastYear = g.year; }
+    html += '<div class="proj-dd-opt proj-dd-sec" onclick="projDDSelect(\'' + domId + '\',\'' + g.key + '\')">'
+      + '<span class="proj-dd-sec-name">' + escapeHtml((g.sgEmoji ? g.sgEmoji + ' ' : '') + g.sgText) + '</span>'
+      + '<span class="proj-dd-sec-hint">Section 전체</span></div>';
+    g.projects.forEach(function(p){ html += _projDDProjHtml(domId, p, false, multi); });
   });
   return html;
 }
@@ -1466,16 +1568,13 @@ function projDDToggleFav(domId, key) {
   if (panel) panel.innerHTML = buildProjDDList(domId);
 }
 
+// key = 'year:sgId' (Section 에만) | 'year:sgId:actionId' (Project) | '' (없음). 콜백에는 link 를 넘긴다.
 function projDDSelect(domId, key) {
-  var sel = null;
-  if (key) {
-    var p = getMdtProjects(projDDYears(domId)).find(function(x){ return x.key === key; });
-    if (p) sel = { year: p.year, sgId: p.sgId, actionId: p.actionId, text: p.text };
-  }
+  var sel = mdtLinkFromKey(key);
   var dd = document.getElementById(domId);
   if (dd) {
     var cur = dd.querySelector('.proj-dd-cur');
-    if (cur) cur.textContent = (sel ? sel.text : '프로젝트 없음');
+    if (cur) cur.textContent = mdtLinkLabel(sel);
     var trig = dd.querySelector('.proj-dd-trigger');
     if (trig) trig.classList.toggle('is-set', !!sel);
     var panel = dd.querySelector('.proj-dd-panel'); if (panel) panel.style.display = 'none';
@@ -1495,7 +1594,7 @@ document.addEventListener('click', function(e) {
 function buildTaskCatHTML(task) {
   return '<div class="field-group">'
     + '<label class="field-label">🔮 프로젝트</label>'
-    + buildProjectDropdown('dp-proj', task.mdtAction || null)
+    + buildProjectDropdown('dp-proj', mdtLinkOf(task))
     + '</div>';
 }
 
@@ -1503,7 +1602,7 @@ function dpProjectSelect(sel) {
   if (!detailTaskId) return;
   var task = tasks.find(function(t){ return t.id === detailTaskId; });
   if (!task) return;
-  if (sel) task.mdtAction = sel; else delete task.mdtAction;
+  mdtLinkApply(task, sel);
   saveTasks(); renderTasks();
 }
 
@@ -2200,7 +2299,9 @@ var rpState = {
   steps: [],
   assignees: [],
   upstreamDepts: [],
-  mdtAction: null,
+  mdtAction: null,     // 지금 고른 Project (연계 Task 목록을 거르는 데 쓴다)
+  mdtLink: null,       // 지금 고른 연결 — Section 만 또는 Section + Project (mdtLinkOf 모양)
+  linkTouched: false,  // 드롭다운을 건드렸을 때만 저장한다 (안 건드린 Task 는 예전 칸 그대로)
   reminder: null,
   repeat: null,
   prevTaskIds: [],
@@ -2219,7 +2320,7 @@ var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '�
 // 새로 만들 때만 쓰는 opts:
 //  date  'YYYY-MM-DD' — Start 기본값 (없으면 오늘)
 //  due   'YYYY-MM-DD' — Due 기본값. 달력에서 만들 때 준다 (달력은 Task 를 Due 에 놓으므로 없으면 안 보인다)
-//  values · allDay · name · mdtAction — 달력 빠른 입력의 '옵션 더보기'
+//  values · allDay · name · mdtLink — 달력 빠른 입력의 '옵션 더보기' (mdtLink = Section/Project 연결)
 function openNewTaskPanel(taskId, opts) {
   rpState.taskId = taskId || null;
   rpState.dirty  = false;
@@ -2236,7 +2337,10 @@ function openNewTaskPanel(taskId, opts) {
   _rpTimeOpen         = null;
   rpState.assignees   = task ? (task.assignees || []).slice() : [];
   rpState.upstreamDepts = task ? (Array.isArray(task.upstreamDepts) ? task.upstreamDepts.slice() : (task.upstreamDept ? [task.upstreamDept] : [])) : [];
-  rpState.mdtAction   = task ? (task.mdtAction || null) : ((opts && opts.mdtAction) || null);
+  // 새로 만들 때 opts.mdtLink(달력 빠른 입력) 를 잇는다. 그 경우 저장할 값이므로 '건드림'으로 둔다.
+  rpState.mdtLink     = task ? mdtLinkOf(task) : ((opts && opts.mdtLink) || null);
+  rpState.linkTouched = !task && !!rpState.mdtLink;
+  rpState.mdtAction   = mdtLinkParts(rpState.mdtLink).mdtAction;
   rpState.reminder    = task ? (task.reminder || null) : null;
   rpState.repeat     = task ? (task.repeat || null) : null;
   rpState.prevTaskIds = task ? (Array.isArray(task.prevTaskIds) ? task.prevTaskIds.slice() : []) : [];
@@ -2263,7 +2367,8 @@ function openNewTaskPanel(taskId, opts) {
     rpSyncForm();
   }
   _projDDCallbacks['rp-proj'] = function(sel){
-    rpState.mdtAction = sel; rpState.dirty = true;
+    rpState.mdtLink = sel; rpState.linkTouched = true;
+    rpState.mdtAction = mdtLinkParts(sel).mdtAction; rpState.dirty = true;
     // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
     var pv = document.getElementById('rp-prev-sel');
     var nx = document.getElementById('rp-next-sel');
@@ -2562,8 +2667,8 @@ function buildRpForm(task) {
     + upstreamHtml
     + depHtml
     + '</div></div>'
-    + '<div class="field-group"><label class="field-label">Project</label>'
-    + buildProjectDropdown('rp-proj', rpState.mdtAction || null) + '</div>'
+    + '<div class="field-group"><label class="field-label">Section · Project</label>'
+    + buildProjectDropdown('rp-proj', rpState.mdtLink || null) + '</div>'
     + '<div class="field-group"><label class="field-label">Location</label>'
     + '<input class="field-input" id="rp-location" placeholder="장소" value="'+rpEsc(task ? (task.location || '') : '')+'" oninput="rpState.dirty=true"></div>'
     + '<div class="field-group"><label class="field-label">Memo</label>'
@@ -3186,6 +3291,7 @@ function newTaskDoc(o) {
     mdtAction: o.mdtAction || null,
     prevTaskIds: o.prevTaskIds || [], nextTaskIds: o.nextTaskIds || [],
   };
+  if (o.mdtGoal) doc.mdtGoal = o.mdtGoal;   // Section (Project 를 골랐으면 그 Project 의 Section)
   if (o.location) doc.location = o.location;
   if (o.calBar) doc.calBar = true;
   return doc;
@@ -3266,7 +3372,8 @@ function saveRightPanel() {
       task.repeat      = rpState.repeat || null;
       task.prevTaskIds = rpState.prevTaskIds.slice();
       task.nextTaskIds = rpState.nextTaskIds.slice();
-      if (rpState.mdtAction) task.mdtAction = rpState.mdtAction; else delete task.mdtAction;
+      // 드롭다운을 건드렸을 때만 연결을 쓴다 — Project 를 고르면 Section 칸도 같이 맞춘다
+      if (rpState.linkTouched) mdtLinkApply(task, rpState.mdtLink);
       if (locationVal) task.location = locationVal; else delete task.location;
       if (rpState.calBar) task.calBar = true; else delete task.calBar;
       // 폼 전체를 그대로 쓰면 패널을 연 사이 다른 기기가 고친 칸이 되돌아간다 — 내가 손댄 칸만 반영한다
@@ -3289,7 +3396,8 @@ function saveRightPanel() {
       repeat: rpState.repeat || null,
       upstreamDepts: upstreamDepts,
       upstreamDept: upstreamDeptVal,
-      mdtAction: rpState.mdtAction || null,
+      mdtAction: mdtLinkParts(rpState.mdtLink).mdtAction,
+      mdtGoal: mdtLinkParts(rpState.mdtLink).mdtGoal,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
       location: locationVal, calBar: rpState.calBar,
     });
@@ -3548,7 +3656,65 @@ function initSidebar() {
   }).join('');
   var act = document.getElementById('nav-'+currentMenu);
   if (act) act.classList.add('active');
+  renderTabbar();
 }
+
+// ============================================
+//  📱 하단 탭 (폰 전용, 2026-11-11)
+//  --------------------------------------------
+//  표시 중인 메뉴의 앞 네 개 + '전체'. 순서·표시 여부는 설정 > 메뉴(모바일)를 그대로 따른다.
+//  '전체'는 예전 서랍(.sidebar)을 연다 — 나머지 메뉴 · Setting · 테마 전환이 거기 있다.
+//  PC 에서는 CSS 가 감춘다(theme.css). 지금 메뉴가 탭에 없으면 '전체'가 켜진다.
+// ============================================
+var TABBAR_MAX = 4;
+var TABBAR_LABEL = {
+  home:'Home', calendar:'Calendar', mvv:'MVV', wheel:'Life Wheel',
+  mandalart:'Mandalart', cloud:'Web', habit:'Habit', journal:'Diary', wbs:'WBS',
+};
+var TABBAR_ALL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+
+function renderTabbar() {
+  var bar = document.getElementById('tl-tabbar');
+  if (!bar) return;
+  var tabs = visibleMenuIds().slice(0, TABBAR_MAX);
+  var inTabs = tabs.indexOf(currentMenu) >= 0;
+  bar.innerHTML = tabs.map(function(id) {
+    var m = MENUS.find(function(x) { return x.id === id; });
+    if (!m) return '';
+    var on = id === currentMenu;
+    return '<button type="button" class="tl-tab' + (on ? ' is-on' : '') + '"' + (on ? ' aria-current="page"' : '')
+      + ' onclick="navToMenu(\'' + id + '\')">'
+      + '<span class="tl-tab-ico">' + m.icon + '</span>'
+      + '<span class="tl-tab-lbl">' + (TABBAR_LABEL[id] || m.label) + '</span></button>';
+  }).join('')
+    + '<button type="button" class="tl-tab' + (inTabs ? '' : ' is-on') + '" id="tl-tab-all" onclick="toggleSidebar()">'
+    + '<span class="tl-tab-ico">' + TABBAR_ALL_ICON + '</span><span class="tl-tab-lbl">전체</span></button>';
+}
+
+// 글자판이 올라와 있는 동안에는 하단 탭을 감춘다(body.tl-typing).
+//  포커스만으로 판단하지 않는다 — 화면이 입력칸에 포커스를 미리 줘 두는 곳이 있어서,
+//  글자판이 실제로 화면을 줄였을 때만 감춘다.
+(function watchTyping() {
+  var maxH = 0;
+  function typingEl(el) {
+    if (!el || !el.tagName) return false;
+    if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+    if (el.tagName !== 'INPUT') return false;
+    return ['checkbox','radio','button','range','submit','file','color'].indexOf((el.type || '').toLowerCase()) < 0;
+  }
+  function sync() {
+    var vv = window.visualViewport;
+    var h = vv ? vv.height : window.innerHeight;
+    if (h > maxH) maxH = h;
+    var on = typingEl(document.activeElement) && h < maxH - 140;
+    if (document.body) document.body.classList.toggle('tl-typing', on);
+  }
+  document.addEventListener('focusin', sync);
+  document.addEventListener('focusout', function() { setTimeout(sync, 80); });
+  window.addEventListener('resize', sync);
+  window.addEventListener('orientationchange', function() { maxH = 0; setTimeout(sync, 300); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', sync);
+})();
 
 // 화면 폭이 데스크탑 ↔ 모바일 경계를 넘으면 쓰는 프로파일이 바뀐다.
 // 사이드바를 다시 그리고, 보고 있던 메뉴가 숨겨졌으면 갈 수 있는 곳으로 옮긴다.
@@ -3628,6 +3794,7 @@ function navToMenu(id) {
   for (var i = 0; i < navButtons.length; i++) navButtons[i].classList.remove('active');
   var activeBtn = document.getElementById('nav-' + id);
   if (activeBtn) activeBtn.classList.add('active');
+  renderTabbar();
 
   // 2) 탑바 제목 / 날짜
   var titleEl = document.getElementById('topbar-title');

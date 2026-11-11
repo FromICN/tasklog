@@ -10,8 +10,8 @@
     "display": "standalone",
     "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
     "orientation": "any",
-    "background_color": "#1a1a1a",
-    "theme_color": "#1a1a1a",
+    "background_color": "#0E1117",
+    "theme_color": "#0E1117",
     "categories": ["productivity", "business", "utilities"],
     "prefer_related_applications": false,
     "launch_handler": {

@@ -550,6 +550,8 @@ html.pwa-standalone body {
   .gm-hcells, .gm-grid { min-width: 480px; }
   /* 헤더·행 모두 같은 총 폭을 갖게 해 스크롤 중에도 어긋나지 않도록 */
   .gm-header, .gm-row { min-width: calc(var(--gm-left) + 480px); }
+  /* 오늘 선(.gm-today-line, absolute)의 100% 가 행 폭과 같아야 날짜와 맞는다 (2026-11-10) */
+  .gm-body { min-width: calc(var(--gm-left) + 480px); }
 
   .gm-left, .gm-left-spacer {
     position: sticky;
