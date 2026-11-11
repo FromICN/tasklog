@@ -1694,6 +1694,7 @@ function buildHomeLayout() {
 function renderHomeView() {
   var content = document.getElementById('page-content');
   if (!content) return;
+  renderHomeEditBtn();
   content.innerHTML = buildHomeLayout();
   hwVisibleWidgets().forEach(function (w) {
     var fn = window[w.render];
@@ -1730,8 +1731,61 @@ function hwInitLayout() {
   });
   hwAddGridDrop(grid);
   hwAddTrackHandles(grid);
+  hwApplyEditMode();
   hwSyncResponsive();
 }
+
+// ── 배치 편집 모드 (2026-11-11, 사용자 요청) ──────────────────
+//  평소에는 손잡이·경계선·안내선이 없다. 홈 머리글의 '위젯 배치' 버튼으로 켜면
+//  그때만 끌어 옮기기 · 크기 손잡이 · 경계선 조정 · 6×5 안내선이 나온다.
+//  예전에는 늘 켜져 있어서 홈 위에서 마우스를 움직이기만 해도 격자가 떴다.
+//  다른 메뉴로 가면 navToMenu 가 끈다. 폰은 격자를 한 줄로 접으므로 버튼을 감춘다(theme.css).
+var _hwEditOn = false;
+
+function renderHomeEditBtn() {
+  var slot = document.getElementById('topbar-home-slot');
+  if (!slot) return;
+  slot.innerHTML = _hwEditOn
+    ? '<button type="button" class="btn-primary hw-edit-btn is-on" onclick="hwSetEditMode(false)" aria-pressed="true">완료</button>'
+    : '<button type="button" class="btn-secondary hw-edit-btn" onclick="hwSetEditMode(true)" aria-pressed="false"'
+      + ' title="위젯을 옮기고 크기를 바꿉니다">'
+      + '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+      + '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/>'
+      + '<rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M17 14v6M14 17h6"/></svg>'
+      + '<span>위젯 배치</span></button>';
+}
+
+function hwSetEditMode(on) {
+  _hwEditOn = !!on;
+  renderHomeEditBtn();
+  // 경계선 손잡이는 px 로 놓여 있다. 부팅 직후(사이드바가 접히는 중)나 창 크기가 바뀐 뒤에 재 둔 값이면
+  // 엉뚱한 자리에 선이 그어지므로, 켤 때 지금 격자로 다시 잰다.
+  var grid = document.getElementById('home-grid');
+  if (grid && _hwEditOn) hwAddTrackHandles(grid);
+  hwApplyEditMode();
+}
+
+// 지금 상태를 화면에 맞춘다 — 격자를 다시 그린 뒤에도 불린다(hwInitLayout)
+function hwApplyEditMode() {
+  var grid = document.getElementById('home-grid');
+  if (!grid) return;
+  grid.classList.toggle('is-edit', _hwEditOn);
+  Array.prototype.forEach.call(grid.querySelectorAll('.hw-drag-head'), function (h) {
+    h.setAttribute('draggable', _hwEditOn ? 'true' : 'false');
+  });
+  hwGuideRest();
+}
+
+// 끌기가 끝나거나 손잡이에서 손을 떼면 돌아갈 상태 — 편집 중이면 옅은 안내선, 아니면 없음
+function hwGuideRest() {
+  if (_hwEditOn) hwGuideShow(null, true);
+  else hwGuideHide();
+}
+
+// Esc 로 편집을 마친다 (끄는 중이 아닐 때만)
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && _hwEditOn && !_hwEditing && document.getElementById('home-grid')) hwSetEditMode(false);
+});
 
 // ── 칸 경계선 끌어 열 너비 · 행 높이 조정 ──────────────────
 //  경계마다 얇은 손잡이를 얹는다. 격자 위에 절대 위치로 올리므로
@@ -1765,7 +1819,7 @@ function hwMakeTrackHandle(kind, idx, offset) {
   h.addEventListener('mousedown', function (e) { hwTrackDrag(e, kind, idx, h, offset); });
   // 경계선에 올리기만 해도 칸 구역을 보여 준다 — 끌기 전에 어디가 몇 번째 칸인지 알 수 있게
   h.addEventListener('mouseenter', function () { if (!_hwEditing) hwGuideShow(null, true); });
-  h.addEventListener('mouseleave', function () { if (!_hwEditing) hwGuideHide(); });
+  h.addEventListener('mouseleave', function () { if (!_hwEditing) hwGuideRest(); });
   return h;
 }
 
@@ -1805,11 +1859,11 @@ function hwTrackDrag(e, kind, idx, handle, offset) {
     document.removeEventListener('mouseup', mu);
     document.body.classList.remove('hw-resizing');
     _hwEditing = false;
-    hwGuideHide();
     // px → fr 로 되돌려 저장한다. 창 크기가 달라져도 비율이 유지된다.
     hwSetTrackFr(isCol ? 'cols' : 'rows', moved.map(function (v) { return v / totalPx * totalFr; }));
     hwApplyTracks(grid);
     hwAddTrackHandles(grid);
+    hwGuideRest();
     hwSyncResponsive();
   }
   document.body.classList.add('hw-resizing');
@@ -1873,9 +1927,10 @@ var _hwDrag = null;
 function hwAddMoveHandle(card, id) {
   var head = card.querySelector('.card-header');
   if (!head) return;
-  head.setAttribute('draggable', 'true');
+  head.setAttribute('draggable', _hwEditOn ? 'true' : 'false');
   head.classList.add('hw-drag-head');
   head.addEventListener('dragstart', function (e) {
+    if (!_hwEditOn) { e.preventDefault(); return; }   // 배치 편집을 켰을 때만 옮긴다
     _hwDrag = { id: id };
     if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', id); } catch (_) {} }
     // 끌기가 시작된 뒤에 그린다 — dragstart 안에서 DOM 을 바꾸면 크롬이 끌기를 취소할 수 있다
@@ -1886,7 +1941,7 @@ function hwAddMoveHandle(card, id) {
     _hwDrag = null;
     _hwEditing = false;
     hwClearGhost();
-    hwGuideHide();
+    hwGuideRest();
   });
 }
 
@@ -1979,7 +2034,7 @@ function hwAddGridDrop(grid) {
     var id = _hwDrag.id; _hwDrag = null;
     _hwEditing = false;
     hwClearGhost();
-    hwGuideHide();
+    hwGuideRest();
     var p = hwTargetPlace(grid, id, e.clientX, e.clientY);
     hwMoveTo(id, p);
   });
@@ -2016,10 +2071,11 @@ function hwAddResizeGrip(card, id) {
   card.appendChild(grip);
   // 손잡이에 올리기만 해도 칸 구역을 보여 준다
   grip.addEventListener('mouseenter', function () { if (!_hwEditing) hwGuideShow(id, true); });
-  grip.addEventListener('mouseleave', function () { if (!_hwEditing) hwGuideHide(); });
+  grip.addEventListener('mouseleave', function () { if (!_hwEditing) hwGuideRest(); });
 
   grip.addEventListener('mousedown', function (e) {
     e.preventDefault(); e.stopPropagation();
+    if (!_hwEditOn) return;
     var grid = document.getElementById('home-grid');
     if (!grid) return;
     var start = hwPlace(id);
@@ -2053,7 +2109,7 @@ function hwAddResizeGrip(card, id) {
       document.body.classList.remove('hw-resizing');
       _hwEditing = false;
       hwClearGhost();
-      hwGuideHide();
+      hwGuideRest();
       if (last.w !== start.w || last.h !== start.h) {
         hwSetPlace(id, last);
         hwRerender(id);       // 안쪽 내용(달력 눈금 등)을 새 크기에 맞춘다
@@ -2082,6 +2138,11 @@ function hwSyncResponsive() {
   window.addEventListener('resize', function () {
     if (!document.getElementById('home-grid')) return;
     if (t) clearTimeout(t);
-    t = setTimeout(hwSyncResponsive, 100);
+    t = setTimeout(function () {
+      hwSyncResponsive();
+      // 경계선 손잡이(px 자리)도 새 크기로 다시 놓는다 — 편집 중에는 선이 보이므로 어긋나면 바로 티가 난다
+      var grid = document.getElementById('home-grid');
+      if (grid && !_hwEditing) { hwAddTrackHandles(grid); if (_hwEditOn) hwGuideRest(); }
+    }, 100);
   });
 })();

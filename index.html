@@ -60,7 +60,7 @@
   <!-- 🎨 제도(製圖) 테마 — 토큰·타이포·컴포넌트 스킨. 반드시 마지막에 로드할 것.
        글꼴은 자체 호스팅이라 CDN을 타지 않는다(오프라인·APK에서도 그대로 나온다). -->
   <link rel="stylesheet" href="fonts/pretendard.css?v=20260809a">
-  <link rel="stylesheet" href="theme.css?v=20261111e">
+  <link rel="stylesheet" href="theme.css?v=20261111g">
   <link rel="stylesheet" href="calpage.css?v=20261110k">
   <script>
     // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
@@ -117,8 +117,9 @@
       <!-- JS로 채워짐 -->
     </nav>
 
-    <!-- 하단: 테마 전환 (설정은 상단 HOME 위로 이동) -->
+    <!-- 하단: 설정 + 테마 전환 (2026-11-11 설정을 최상단에서 이리로 옮겼다. script.js initSidebar 가 채운다) -->
     <div class="sidebar-bottom">
+      <div class="sidebar-settings-slot" id="sidebar-settings-slot"></div>
       <button class="tswitch" id="theme-switch" title="테마 변경" onclick="if(typeof toggleDarkMode==='function')toggleDarkMode()" style="display:block;margin:0 auto 10px;"><span></span></button>
     </div>
   </aside>
@@ -149,6 +150,8 @@
         </div>
         <div class="topbar-right" id="topbar-right">
           <div class="topbar-date" id="topbar-date"></div>
+          <!-- Home 위젯 배치 편집 버튼 슬롯 (home.js renderHomeEditBtn) -->
+          <div class="topbar-home-slot" id="topbar-home-slot"></div>
           <!-- 만다라트 연도 선택 슬롯 -->
           <div class="topbar-mdt-year-slot" id="topbar-mdt-year-slot"></div>
           <!-- Habit Tracker 연도 선택 슬롯 -->
@@ -207,12 +210,12 @@
 <script src="calendar.js?v=20260731a"></script>
 <script src="mandalart.js?v=20261103a"></script>
 <script src="lifewheel.js?v=20260816e"></script>
-<script src="home.js?v=20261111e"></script>
+<script src="home.js?v=20261111h"></script>
 <!-- 🌱 Habit Tracker 페이지 — 만다라트의 습관형 실행항목을 연 단위로 관리 -->
 <script src="habit.js?v=20260824a"></script>
 <!-- 📅 FullCalendar 표준판 v6.1.22 (MIT) — 라이선스: fullcalendar.LICENSE.txt -->
 <script src="fullcalendar.min.js?v=6.1.22"></script>
-<script src="calpage.js?v=20261110o"></script>
+<script src="calpage.js?v=20261111g"></script>
 <script src="gantt.js?v=20261110n"></script>
 <script src="notes.js?v=20261110o"></script>
 <script src="journal.js?v=20261110e"></script>
@@ -226,10 +229,10 @@
 <script src="firestore-sync.js?v=20261110k"></script>
 <script src="todo.js?v=20261110o"></script>
 <script src="yearsync.js?v=20260722"></script>
-<script src="script.js?v=20261111b"></script>
+<script src="script.js?v=20261111g"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20261111e"></script>
+<script src="pwa.js?v=20261111h"></script>
 
 <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
 <script src="mobile-ui.js?v=20260807c"></script>

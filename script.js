@@ -3457,10 +3457,12 @@ var _SVG = {
 //  Board 는 메뉴에서 뺐고(todo.js 는 다른 화면이 쓰는 공용 함수 때문에 그대로 로드한다),
 //  Gantt 는 Calendar 안의 보기 탭이 되었다(calpage.js CAL_VIEWS 'gantt').
 //  사용자가 순서를 말하지 않은 WD · WBS 는 맨 뒤에 둔다.
+// 2026-11-11 사용자 요청: Calendar 를 구분선 바로 밑으로 — 구분선이 Home 과 Calendar 사이로 왔다.
+//  순서 자체(Home · Calendar · MVV …)는 그대로라 저장된 순서와 폰 하단 탭은 바뀌지 않는다.
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
-  { id:'calendar',  icon:_SVG.calendar,  label:'Calendar',     short:'Cal'  },
   { divider:true },
+  { id:'calendar',  icon:_SVG.calendar,  label:'Calendar',     short:'Cal'  },
   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
   { id:'wheel',     icon:_SVG.wheel,     label:'LW',           short:'LW'   },
   { id:'mandalart', icon:_SVG.mandalart, label:'M',            short:'M'    },
@@ -3631,12 +3633,13 @@ function initSidebarCollapse() {
 function initSidebar() {
   var nav = document.getElementById('sidebar-nav');
   if (!nav) return;
-  // 설정 아이콘을 HOME 위(사이드바 최상단)에 배치
+  // 설정 아이콘은 사이드바 맨 아래, 테마 스위치 위에 둔다 (2026-11-11 사용자 요청 — 예전엔 HOME 위 최상단)
   var settingsBtn = '<button class="nav-item" id="settings-nav-btn" title="Setting" onclick="openSettings()">'
     + '<span class="nav-item-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>'
     + '<span class="nav-item-label">Setting</span>'
-    + '</button>'
-    + '<div class="nav-divider"></div>';
+    + '</button>';
+  var settingsSlot = document.getElementById('sidebar-settings-slot');
+  if (settingsSlot) settingsSlot.innerHTML = settingsBtn;
   // 순서(설정 > 메뉴에서 드래그로 변경) → 표시 여부 순으로 걸러 목록을 만든다
   var prof = appMenuProfile();
   var vis = getMenuVis(prof);
@@ -3646,7 +3649,7 @@ function initSidebar() {
   var divAt = items.filter(function(m) { return MENU_HEAD_IDS.indexOf(m.id) >= 0; }).length;
   if (divAt > 0 && items.length > divAt) items.splice(divAt, 0, { divider:true });
 
-  nav.innerHTML = settingsBtn + items.map(function(m) {
+  nav.innerHTML = (settingsSlot ? '' : settingsBtn + '<div class="nav-divider"></div>') + items.map(function(m) {
     if (m.divider) return '<div class="nav-divider"></div>';
     var full = MENU_TITLES[m.id] || m.label;
     return '<button class="nav-item" id="nav-'+m.id+'" title="'+full+'" onclick="navToMenu(\''+m.id+'\')">'
@@ -3831,6 +3834,10 @@ function navToMenu(id) {
   if (boardSlot0) boardSlot0.innerHTML = '';
   var jnlSlot0 = document.getElementById('topbar-journal-slot');
   if (jnlSlot0) jnlSlot0.innerHTML = '';
+  // Home 위젯 배치 편집 — 다른 메뉴로 가면 끈다 (돌아오면 보기 모드로 시작)
+  var homeSlot0 = document.getElementById('topbar-home-slot');
+  if (homeSlot0) homeSlot0.innerHTML = '';
+  if (typeof _hwEditOn !== 'undefined') _hwEditOn = false;
 
   // 5) 본문 렌더
   var fnName = MENU_RENDERERS[id];

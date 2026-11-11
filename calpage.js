@@ -1202,9 +1202,54 @@ function calRenderYear() {
       + '</section>';
   }
   el.innerHTML = '<div class="tlc-year-grid">' + html + '</div>';
+  calYearFit();
   calGLoadYear(y);
 }
 function calYearPick(key) { calGoDate(key, 'day'); }
+
+// ── 연도 보기를 화면에 맞춘다 (2026-11-11, 사용자 요청: 아래 여백이 너무 많다) ──
+//  예전에는 달 하나를 190px 이상 폭으로 늘어놓고 날짜 칸을 정사각형으로 두어서,
+//  넓고 낮은 화면이면 아래가 텅 비고, 좁고 높은 화면이면 스크롤이 생겼다.
+//  지금은 12달을 몇 열로 놓을지 1~6열을 모두 재 보고, 날짜 칸이 가장 커지는 배치를 고른 뒤
+//  그 배치로 높이까지 꽉 채운다(칸은 정사각형이 아니어도 된다).
+//  칸이 CAL_YEAR_MIN 보다 작아질 만큼 화면이 낮으면 예전처럼 스크롤로 둔다.
+var CAL_YEAR_MIN = 15;
+function calYearFit() {
+  var el = _calEl('tlc-year');
+  if (!el || el.hidden) return;
+  var grid = el.querySelector('.tlc-year-grid');
+  if (!grid) return;
+  if (_calYearRO) _calYearRO.observe(el);   // 같은 칸을 여러 번 걸어도 한 번으로 친다
+  grid.classList.remove('is-fit');
+  grid.style.gridTemplateColumns = grid.style.gridTemplateRows = '';
+  var W = el.clientWidth, H = el.clientHeight;
+  if (W < 120 || H < 120) return;
+  var title = grid.querySelector('.tlc-ymonth-t'), dow = grid.querySelector('.tlc-mg-dow');
+  var titleH = title ? title.offsetHeight + (parseFloat(getComputedStyle(title).marginBottom) || 0) : 26;
+  var dowH = dow ? dow.offsetHeight : 14;
+  var GX = 22, GY = 16, CG = 2;           // 달 사이 · 날짜 칸 사이 간격 (theme.css 의 is-fit 값과 같다)
+  var best = null;
+  for (var cols = 1; cols <= 6; cols++) {
+    var rows = Math.ceil(12 / cols);
+    var mw = (W - GX * (cols - 1)) / cols, mh = (H - GY * (rows - 1)) / rows;
+    var cw = (mw - CG * 6) / 7, ch = (mh - titleH - dowH - CG * 6) / 6;
+    var s = Math.min(cw, ch);
+    // 같은 크기면 마지막 줄이 꽉 차는 배치(12 의 약수)를 고른다
+    var score = s + (12 % cols === 0 ? 0.5 : 0);
+    if (!best || score > best.score) best = { cols: cols, rows: rows, s: s, score: score };
+  }
+  if (!best || best.s < CAL_YEAR_MIN) return;   // 너무 낮다 — 스크롤로 둔다
+  grid.classList.add('is-fit');
+  grid.style.gridTemplateColumns = 'repeat(' + best.cols + ', minmax(0, 1fr))';
+  grid.style.gridTemplateRows = 'repeat(' + best.rows + ', minmax(0, 1fr))';
+  // 날짜 글자는 칸 크기를 따라간다 (10 ~ 15px)
+  grid.style.setProperty('--tlc-yfs', Math.max(10, Math.min(15, best.s * 0.42)).toFixed(1) + 'px');
+}
+// 창·본문 크기가 바뀌면 다시 맞춘다 (ResizeObserver 만 믿지 않고 window resize 도 듣는다)
+var _calYearFitT = null;
+function _calYearFitLater() { if (_calYearFitT) clearTimeout(_calYearFitT); _calYearFitT = setTimeout(calYearFit, 80); }
+var _calYearRO = (typeof ResizeObserver === 'function') ? new ResizeObserver(_calYearFitLater) : null;
+window.addEventListener('resize', _calYearFitLater);
 
 // ── 검색 ──
 function calSearchInput(v) {
