@@ -1606,19 +1606,23 @@ function hwVisible(id) {
 }
 function hwVisibleWidgets() { return HOME_WIDGETS.filter(function (w) { return hwVisible(w.id); }); }
 
+// 켜면 true. 격자에 빈 칸이 하나도 없으면 켜지 않고 false 를 돌려준다 (2026-11-11) —
+//  예전에는 기본 자리에 그대로 앉아 남의 위젯과 겹쳤다.
 function hwSetVisible(id, on) {
   var L = hwLoadLayout();
   if (!L.visible) L.visible = {};
-  L.visible[id] = !!on;
   if (on) {
     // 새로 켠 위젯이 남의 자리에 겹치지 않도록, 빈 곳을 찾아 앉힌다
     if (!L.place) L.place = {};
     var d = hwDef(id);
     var spot = hwFindFreeSpot(L, id, d ? d.def.w : 1, d ? d.def.h : 1);
-    if (spot) L.place[id] = spot;
+    if (!spot) return false;
+    L.place[id] = spot;
   }
+  L.visible[id] = !!on;
   hwSaveLayout(L);
   if (typeof currentMenu !== 'undefined' && currentMenu === 'home') renderHomeView();
+  return true;
 }
 
 // ── 배치 ──
@@ -1713,6 +1717,7 @@ function hwApplyPlace(el, p) {
 }
 
 function hwInitLayout() {
+  hwGuideHide();   // 다시 그리면 안내선 칸도 같이 지워진다 — 표시 상태를 맞춰 둔다
   var grid = document.getElementById('home-grid');
   if (!grid) return;
   hwApplyTracks(grid);
@@ -1757,14 +1762,20 @@ function hwMakeTrackHandle(kind, idx, offset) {
   h.className = 'hw-track hw-track-' + kind;
   h.title = (kind === 'col') ? '드래그해 열 너비 조정' : '드래그해 행 높이 조정';
   h.style[kind === 'col' ? 'left' : 'top'] = offset + 'px';
-  h.addEventListener('mousedown', function (e) { hwTrackDrag(e, kind, idx); });
+  h.addEventListener('mousedown', function (e) { hwTrackDrag(e, kind, idx, h, offset); });
+  // 경계선에 올리기만 해도 칸 구역을 보여 준다 — 끌기 전에 어디가 몇 번째 칸인지 알 수 있게
+  h.addEventListener('mouseenter', function () { if (!_hwEditing) hwGuideShow(null, true); });
+  h.addEventListener('mouseleave', function () { if (!_hwEditing) hwGuideHide(); });
   return h;
 }
 
-function hwTrackDrag(e, kind, idx) {
+function hwTrackDrag(e, kind, idx, handle, offset) {
   e.preventDefault(); e.stopPropagation();
   var grid = document.getElementById('home-grid');
   if (!grid) return;
+  _hwEditing = true;
+  hwGuideShow(null);
+  if (handle) handle.classList.add('is-active');
   var isCol = (kind === 'col');
   var t = hwTracks(grid);
   var sizes = (isCol ? t.cols : t.rows).slice();
@@ -1784,12 +1795,17 @@ function hwTrackDrag(e, kind, idx) {
     // 끄는 동안은 px 로 바로 반영 (fr 로 환산하면 반올림이 눈에 띈다)
     grid.style[isCol ? 'gridTemplateColumns' : 'gridTemplateRows'] =
       moved.map(function (v) { return v + 'px'; }).join(' ');
+    // 잡은 경계선이 손을 따라오게 (예전엔 놓을 때까지 제자리에 있어서 지금 경계가 어디인지 안 보였다)
+    if (handle) handle.style[isCol ? 'left' : 'top'] = (offset + moved[idx] - a0) + 'px';
+    hwTrackBadge(grid, isCol, idx, moved);
     hwSyncResponsive();
   }
   function mu() {
     document.removeEventListener('mousemove', mm);
     document.removeEventListener('mouseup', mu);
     document.body.classList.remove('hw-resizing');
+    _hwEditing = false;
+    hwGuideHide();
     // px → fr 로 되돌려 저장한다. 창 크기가 달라져도 비율이 유지된다.
     hwSetTrackFr(isCol ? 'cols' : 'rows', moved.map(function (v) { return v / totalPx * totalFr; }));
     hwApplyTracks(grid);
@@ -1862,12 +1878,15 @@ function hwAddMoveHandle(card, id) {
   head.addEventListener('dragstart', function (e) {
     _hwDrag = { id: id };
     if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', id); } catch (_) {} }
-    setTimeout(function () { card.classList.add('hw-dragging'); }, 0);
+    // 끌기가 시작된 뒤에 그린다 — dragstart 안에서 DOM 을 바꾸면 크롬이 끌기를 취소할 수 있다
+    setTimeout(function () { card.classList.add('hw-dragging'); _hwEditing = true; hwGuideShow(id); }, 0);
   });
   head.addEventListener('dragend', function () {
     card.classList.remove('hw-dragging');
     _hwDrag = null;
+    _hwEditing = false;
     hwClearGhost();
+    hwGuideHide();
   });
 }
 
@@ -1879,6 +1898,56 @@ function hwGhost(grid) {
 function hwClearGhost() {
   var g = document.querySelector('.hw-ghost');
   if (g) g.remove();
+}
+// 자리 미리보기에 크기를 적는다 — '2 × 3 칸'
+function hwGhostLabel(g, p, ok) {
+  g.textContent = ok ? (p.w + ' × ' + p.h + ' 칸') : '겹쳐서 놓을 수 없음';
+}
+
+// ── 편집 안내선 (2026-11-11) ──────────────────
+//  옮기기 · 크기 조정 · 경계선 조정 중에 6×5 칸 전체를 점선으로 그린다.
+//  카드가 칸을 덮고 있어서 예전에는 세로 경계가 어디인지 보이지 않았다.
+//  칸은 격자의 자식으로 같은 자리에 놓으므로(display:contents 묶음),
+//  경계선을 끄는 동안 트랙 크기가 바뀌면 안내선도 저절로 따라간다.
+//  비어 있는 칸은 옅게 칠해 '여기는 남는 자리'임을 보여 준다.
+var _hwEditing = false;
+function hwGuideShow(activeId, peek) {
+  var grid = document.getElementById('home-grid');
+  if (!grid) return;
+  hwGuideHide();
+  var occ = hwOccupancy(activeId);
+  var box = document.createElement('div');
+  box.className = 'hw-guide';
+  var html = '';
+  for (var r = 1; r <= HW_ROWS; r++) {
+    for (var c = 1; c <= HW_COLS; c++) {
+      var free = !occ[r][c];
+      // 맨 윗줄에는 열 번호, 맨 왼쪽 줄에는 행 번호를 적는다
+      var lbl = (r === 1 ? '<span class="hw-gnum hw-gnum-c">' + c + '열</span>' : '')
+              + (c === 1 ? '<span class="hw-gnum hw-gnum-r">' + r + '행</span>' : '');
+      html += '<div class="hw-gcell' + (free ? ' is-free' : '') + '" style="grid-column:' + c + ';grid-row:' + r + '">' + lbl + '</div>';
+    }
+  }
+  box.innerHTML = html;
+  grid.appendChild(box);
+  document.body.classList.add(peek ? 'hw-peek' : 'hw-editing');
+  if (activeId) {
+    var card = document.getElementById(activeId);
+    if (card) card.classList.add('hw-active');
+  }
+}
+function hwGuideHide() {
+  Array.prototype.forEach.call(document.querySelectorAll('.hw-guide, .hw-track-badge'), function (el) { el.remove(); });
+  Array.prototype.forEach.call(document.querySelectorAll('.home-grid > .card.hw-active'), function (el) { el.classList.remove('hw-active'); });
+  document.body.classList.remove('hw-editing');
+  document.body.classList.remove('hw-peek');
+}
+// 경계선을 끄는 동안 양쪽 칸의 폭(높이)을 적는다
+function hwTrackBadge(grid, isCol, idx, sizes) {
+  var b = grid.querySelector('.hw-track-badge');
+  if (!b) { b = document.createElement('div'); b.className = 'hw-track-badge'; grid.appendChild(b); }
+  var name = isCol ? '열' : '행';
+  b.textContent = (idx + 1) + name + ' ' + Math.round(sizes[idx]) + 'px  |  ' + (idx + 2) + name + ' ' + Math.round(sizes[idx + 1]) + 'px';
 }
 
 // 옮길 목적지 계산: 커서가 가리키는 칸을 새 왼쪽·위 모서리로 삼되,
@@ -1902,12 +1971,15 @@ function hwAddGridDrop(grid) {
     var g = hwGhost(grid);
     hwApplyPlace(g, p);
     g.classList.toggle('is-bad', !ok);
+    hwGhostLabel(g, p, ok);
   });
   grid.addEventListener('drop', function (e) {
     if (!_hwDrag) return;
     e.preventDefault();
     var id = _hwDrag.id; _hwDrag = null;
+    _hwEditing = false;
     hwClearGhost();
+    hwGuideHide();
     var p = hwTargetPlace(grid, id, e.clientX, e.clientY);
     hwMoveTo(id, p);
   });
@@ -1942,6 +2014,9 @@ function hwAddResizeGrip(card, id) {
   grip.className = 'hw-grip';
   grip.title = '드래그해 칸 단위로 크기 조정';
   card.appendChild(grip);
+  // 손잡이에 올리기만 해도 칸 구역을 보여 준다
+  grip.addEventListener('mouseenter', function () { if (!_hwEditing) hwGuideShow(id, true); });
+  grip.addEventListener('mouseleave', function () { if (!_hwEditing) hwGuideHide(); });
 
   grip.addEventListener('mousedown', function (e) {
     e.preventDefault(); e.stopPropagation();
@@ -1949,14 +2024,26 @@ function hwAddResizeGrip(card, id) {
     if (!grid) return;
     var start = hwPlace(id);
     var last = { c:start.c, r:start.r, w:start.w, h:start.h };
+    _hwEditing = true;
+    hwGuideShow(id);
+    // 지금 크기를 미리보기 상자로 먼저 보여 준다
+    var g0 = hwGhost(grid);
+    hwApplyPlace(g0, start);
+    hwGhostLabel(g0, start, true);
 
     function mm(ev) {
       var cell = hwCellAt(grid, ev.clientX, ev.clientY);
       var p = { c:start.c, r:start.r, w: cell.c - start.c + 1, h: cell.r - start.r + 1 };
       p.w = Math.max(1, Math.min(HW_COLS - start.c + 1, p.w));
       p.h = Math.max(1, Math.min(HW_ROWS - start.r + 1, p.h));
+      // 미리보기 상자는 손이 가리키는 크기를 그대로 보여 준다 — 남과 겹치면 빨갛게
+      var ok = hwAreaFree(p, id);
+      var g = hwGhost(grid);
+      hwApplyPlace(g, p);
+      g.classList.toggle('is-bad', !ok);
+      hwGhostLabel(g, p, ok);
       if (p.w === last.w && p.h === last.h) return;
-      if (!hwAreaFree(p, id)) return;      // 남의 자리를 먹지 않는다
+      if (!ok) return;      // 남의 자리를 먹지 않는다
       last = p;
       hwApplyPlace(card, p);
     }
@@ -1964,6 +2051,9 @@ function hwAddResizeGrip(card, id) {
       document.removeEventListener('mousemove', mm);
       document.removeEventListener('mouseup', mu);
       document.body.classList.remove('hw-resizing');
+      _hwEditing = false;
+      hwClearGhost();
+      hwGuideHide();
       if (last.w !== start.w || last.h !== start.h) {
         hwSetPlace(id, last);
         hwRerender(id);       // 안쪽 내용(달력 눈금 등)을 새 크기에 맞춘다

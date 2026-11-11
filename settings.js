@@ -142,6 +142,7 @@ function buildSettingsModal() {
     + buildSettingsTabBtn('general',  '일반')
     + buildSettingsTabBtn('display',  '화면')
     + buildSettingsTabBtn('menus',    '메뉴')
+    + buildSettingsTabBtn('home',     'Home')
     + buildSettingsTabBtn('backup',   '백업 & 복원')
     + '</div>'
     + '<div class="settings-content" id="settings-content"></div>'
@@ -159,7 +160,7 @@ function buildSettingsTabBtn(id, label) {
 
 function setSettingsTab(tabId) {
   settingsState.tab = tabId;
-  ['general','display','menus','backup'].forEach(function(t) {
+  ['general','display','menus','home','backup'].forEach(function(t) {
     var el = document.getElementById('stab-' + t);
     if (el) el.classList.toggle('active', t === tabId);
   });
@@ -168,6 +169,7 @@ function setSettingsTab(tabId) {
   if (tabId === 'general')  content.innerHTML = buildTabGeneral() + buildCalendarLinkGeneral();
   if (tabId === 'display')  content.innerHTML = buildTabDisplay();
   if (tabId === 'menus')    content.innerHTML = buildTabMenus();
+  if (tabId === 'home')     content.innerHTML = buildTabHome();
   if (tabId === 'backup')   content.innerHTML = buildTabBackup();
   content.scrollTop = 0;   // 탭 이동 시 상단 고정
   if (tabId === 'general' && settingsState.calSync && typeof isSignedIn === 'function' && isSignedIn()) setTimeout(settingsLoadCalendarList, 0);
@@ -350,28 +352,75 @@ function buildTabMenus() {
     + '<button class="btn-secondary" style="width:100%;height:36px;"'
     + ' onclick="settingsResetMenus()">' + (prof === 'mobile' ? '모바일' : '데스크탑') + ' 기본값으로 되돌리기</button>'
     + '</div>'
-    + buildHomeWidgetSection();
+    + '<div class="settings-row-desc" style="margin-top:18px;">'
+    + 'Home 화면에 올릴 위젯은 <a href="#" onclick="setSettingsTab(\'home\');return false;">Home 탭</a>에서 고릅니다.</div>';
 }
 
-// ── Home 위젯 표시 여부 ─────────────────────
-//  홈은 6×5 격자다. 여기서 켠 위젯만 격자에 올라가고,
-//  자리와 크기는 홈 화면에서 직접 끌어 정한다.
-function buildHomeWidgetSection() {
-  if (typeof HOME_WIDGETS === 'undefined' || typeof hwVisible !== 'function') return '';
-  var rows = HOME_WIDGETS.map(function(w) {
-    return '<div class="settings-row">'
-      + '<div><div class="settings-row-label">' + sEsc(w.title) + '</div></div>'
-      + buildToggle('hwvis-' + w.id, hwVisible(w.id), "settingsToggleHomeWidget('" + w.id + "')")
+// ── Home 탭: 위젯 표시 · 배치 미리보기 (2026-11-11) ─────────────
+//  예전에는 '메뉴' 탭 맨 아래에 있어서 찾기 어려웠다. 탭을 따로 두고,
+//  위젯이 지금 격자의 어디를 차지하는지 작은 지도로 함께 보여 준다.
+//  자리와 크기는 여전히 Home 화면에서 끌어 정한다(여기서는 켜고 끄기만).
+//  배치는 이 기기에만 저장된다(home-layout-v9 는 동기화 대상이 아니다).
+var HW_MAP_COLORS = ['#0C5DED', '#E8590C', '#2B8A3E', '#7048E8', '#C2255C', '#0B7285', '#5C940D', '#862E9C'];
+
+function buildTabHome() {
+  if (typeof HOME_WIDGETS === 'undefined' || typeof hwVisible !== 'function') {
+    return '<div class="settings-row-desc" style="padding:12px 0;">Home 위젯 정보를 불러오지 못했습니다.</div>';
+  }
+  var colorOf = {};
+  HOME_WIDGETS.forEach(function(w, i) { colorOf[w.id] = HW_MAP_COLORS[i % HW_MAP_COLORS.length]; });
+
+  // 격자 지도 — 홈과 같은 열 너비·행 높이 비율(fr)로 그린다
+  var cols = (typeof hwTrackFr === 'function') ? hwTrackFr('cols') : new Array(HW_COLS).fill(1);
+  var rows = (typeof hwTrackFr === 'function') ? hwTrackFr('rows') : new Array(HW_ROWS).fill(1);
+  var cells = '';
+  for (var r = 1; r <= HW_ROWS; r++)
+    for (var c = 1; c <= HW_COLS; c++)
+      cells += '<div class="hwmap-cell" style="grid-column:' + c + ';grid-row:' + r + '"></div>';
+  var blocks = hwVisibleWidgets().map(function(w) {
+    var p = hwPlace(w.id);
+    return '<div class="hwmap-w" style="grid-column:' + p.c + ' / span ' + p.w + ';grid-row:' + p.r + ' / span ' + p.h
+      + ';--hwmap-c:' + colorOf[w.id] + '" title="' + sEsc(w.title) + '">'
+      + '<span>' + sEsc(w.title) + '</span><em>' + p.w + '×' + p.h + '</em></div>';
+  }).join('');
+  var free = 0;
+  var occ = hwOccupancy(null);
+  for (var rr = 1; rr <= HW_ROWS; rr++) for (var cc = 1; cc <= HW_COLS; cc++) if (!occ[rr][cc]) free++;
+
+  var map = '<div class="hwmap" style="grid-template-columns:' + cols.map(function(f){return f+'fr';}).join(' ')
+    + ';grid-template-rows:' + rows.map(function(f){return f+'fr';}).join(' ') + '">' + cells + blocks + '</div>'
+    + '<div class="settings-row-desc" style="margin-top:6px;">빈 칸 ' + free + ' / ' + (HW_COLS * HW_ROWS) + '</div>';
+
+  var list = HOME_WIDGETS.map(function(w) {
+    var on = hwVisible(w.id);
+    var p = hwPlace(w.id);
+    var where = on ? (p.c + '열 ' + p.r + '행 · ' + p.w + '×' + p.h + ' 칸') : '꺼짐';
+    return '<div class="settings-row hwset-row">'
+      + '<span class="hwset-dot" style="background:' + (on ? colorOf[w.id] : 'transparent') + ';border-color:' + colorOf[w.id] + '"></span>'
+      + '<div class="hwset-name"><div class="settings-row-label">' + sEsc(w.title) + '</div>'
+      + '<div class="settings-row-desc">' + where + '</div></div>'
+      + buildToggle('hwvis-' + w.id, on, "settingsToggleHomeWidget('" + w.id + "')")
       + '</div>';
   }).join('');
-  return '<div class="settings-section-head" style="margin-top:22px;">Home 위젯</div>'
+
+  var mobileNote = (typeof isMenuVisible === 'function' && typeof appMenuProfile === 'function'
+                    && appMenuProfile() === 'mobile' && !isMenuVisible('home'))
+    ? '<div class="settings-row-desc hwset-note">이 기기(모바일)에서는 Home 메뉴가 꺼져 있습니다. '
+      + '<a href="#" onclick="setSettingsTab(\'menus\');return false;">메뉴 탭</a>에서 켜면 위젯이 한 줄에 하나씩 쌓여 보입니다.</div>'
+    : '';
+
+  return '<div class="settings-section-head" style="margin-top:8px;">Home 위젯</div>'
     + '<div class="settings-row-desc" style="margin-bottom:10px;">'
-    + '홈 화면(6×5 격자)에 올릴 위젯을 고릅니다. 자리와 크기는 홈에서'
-    + ' 머리글을 끌어 옮기고, 오른쪽 아래 모서리를 끌어 조정합니다.</div>'
-    + rows
+    + 'Home 화면(' + HW_COLS + '×' + HW_ROWS + ' 격자)에 올릴 위젯을 고릅니다. 켜면 빈 칸을 찾아 앉습니다.'
+    + ' 자리와 크기는 Home 에서 머리글을 끌어 옮기고, 오른쪽 아래 모서리를 끌어 조정합니다.'
+    + ' 이 기기에만 저장됩니다.</div>'
+    + mobileNote
+    + map
+    + '<div class="settings-section-head" style="margin-top:16px;">위젯 목록</div>'
+    + list
     + '<div style="margin-top:14px;">'
     + '<button class="btn-secondary" style="width:100%;height:36px;"'
-    + ' onclick="settingsResetHomeWidgets()">홈 배치 기본값으로 되돌리기</button>'
+    + ' onclick="settingsResetHomeWidgets()">Home 배치 기본값으로 되돌리기</button>'
     + '</div>';
 }
 
@@ -381,17 +430,21 @@ function settingsToggleHomeWidget(id) {
   // 전부 끄면 홈이 텅 빈다 — 마지막 하나는 남긴다
   if (on && typeof hwVisibleWidgets === 'function' && hwVisibleWidgets().length <= 1) {
     alert('위젯을 모두 끌 수는 없습니다.');
+    setSettingsTab('home');
     return;
   }
-  hwSetVisible(id, !on);
-  setSettingsTab('menus');
+  if (hwSetVisible(id, !on) === false) {
+    alert('Home 격자에 빈 칸이 없습니다. 다른 위젯을 끄거나 Home 에서 크기를 줄인 뒤 켜 주세요.');
+  }
+  setSettingsTab('home');
 }
 
 function settingsResetHomeWidgets() {
+  if (!confirm('Home 위젯의 표시 · 자리 · 칸 크기를 기본값으로 되돌릴까요?')) return;
   // 지우지 않고 빈 배치로 덮는다 — 키가 없으면 hwLoadLayout 이 옛 v8 배치를 다시 옮겨 온다
   try { if (typeof HW_LKEY !== 'undefined') localStorage.setItem(HW_LKEY, '{}'); } catch (e) {}
   if (typeof currentMenu !== 'undefined' && currentMenu === 'home' && typeof renderHomeView === 'function') renderHomeView();
-  setSettingsTab('menus');
+  setSettingsTab('home');
 }
 
 function settingsSetMenuProfile(p) {
