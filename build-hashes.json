@@ -11,7 +11,7 @@
   "firebase-init.js": "230b871dea67",
   "colresize.js": "5b4907a5ad5b",
   "backup-core.js": "6b37de481580",
-  "backup-xlsx.js": "12c91b645e8b",
+  "backup-xlsx.js": "818f213599dc",
   "auth.js": "690c814c0e2d",
   "mandalart.js": "f56c5f353a7d",
   "lifewheel.js": "9400f0b5e144",
@@ -24,12 +24,12 @@
   "journal.js": "a0978394bff8",
   "wbs.js": "e01cbb9ca9c3",
   "mvv.js": "d21b5ecb299a",
-  "settings.js": "a72407c03c13",
+  "settings.js": "4ac39cb2fb57",
   "drive.js": "3d1a9d575670",
   "firestore-sync.js": "09f3c9789ca3",
   "todo.js": "2994d9df1f4b",
   "yearsync.js": "20e085b8cc42",
   "script.js": "ab1a58d29b51",
-  "pwa.js": "73ab97b560a6",
+  "pwa.js": "474a4724465f",
   "mobile-ui.js": "ff2c7494ef27"
 }

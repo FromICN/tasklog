@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261111l'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261112e'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -34,7 +34,7 @@ const PRECACHE_URLS = [
   './firebase-init.js?v=20260808a',
   './colresize.js?v=20260722',
   './backup-core.js?v=20260722',
-  './backup-xlsx.js?v=20260722',
+  './backup-xlsx.js?v=20261112c',
   './auth.js?v=20261111i',
   './mandalart.js?v=20261103a',
   './lifewheel.js?v=20260816e',
@@ -47,13 +47,13 @@ const PRECACHE_URLS = [
   './journal.js?v=20261110e',
   './wbs.js?v=20261110b',
   './mvv.js?v=20261104a',
-  './settings.js?v=20261111i',
+  './settings.js?v=20261112e',
   './drive.js?v=20260722',
   './firestore-sync.js?v=20261111i',
   './todo.js?v=20261110o',
   './yearsync.js?v=20260722',
   './script.js?v=20261111i',
-  './pwa.js?v=20261111l',
+  './pwa.js?v=20261112e',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',
