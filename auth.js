@@ -47,6 +47,27 @@ function _syncFirebaseAuth(accessToken) {
   });
 }
 
+// 로그인 상태인지 확인하는 도우미 함수 (2026-11-11 calendar.js 에서 옮겨 왔다 — 그 파일은 구글 캘린더 연동과 함께 없앴다)
+//  - gapi에 토큰이 설정돼 있으면 로그인 상태.
+//  - 아직 설정 전이어도(새로고침/재방문 직후) 저장된 유효 토큰이 있으면 복원 후 로그인으로 인정.
+function isSignedIn() {
+  try {
+    if (window.gapi && gapi.client) {
+      var token = gapi.client.getToken();
+      if (token && token.access_token) return true;
+    }
+    var raw = localStorage.getItem('tasklog-token');
+    if (raw) {
+      var t = JSON.parse(raw);
+      if (t && t.access_token && Date.now() < t.expires_at) {
+        try { if (window.gapi && gapi.client) gapi.client.setToken({ access_token: t.access_token }); } catch (e) {}
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
 // ============================================
 //  🚀 라이브러리 초기화
 // ============================================
@@ -191,7 +212,7 @@ async function _enterWithFirebaseSessionOrGate() {
   }
   updateAuthUI();
   _hideLoginGate();
-  console.log('🔓 구글 토큰 만료 — Firebase 세션으로 계속 사용합니다 (드라이브·캘린더는 재연결 필요)');
+  console.log('🔓 구글 토큰 만료 — Firebase 세션으로 계속 사용합니다 (드라이브는 재연결 필요)');
 }
 
 // ============================================
@@ -220,7 +241,6 @@ function maybeAutoSignIn() {
     updateAuthUI();
     _hideLoginGate();
     console.log('🎟️ 세션 토큰 재사용 → 자동 로그인 (팝업 없음)');
-    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
     if (typeof onSignInSync === 'function') onSignInSync();
     return;
   }
@@ -264,8 +284,6 @@ function _silentSignIn() {
     updateAuthUI();
     _hideLoginGate();              // 로그인 확인됨 → 앱으로 진입
     console.log('✅ 자동 로그인 성공!');
-    // 로그인 직후 구글 캘린더 자동 동기화 (1회)
-    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
     // 로그인 직후 드라이브에서 먼저 불러오기 → 그 다음 자동 백업 ON
     if (typeof onSignInSync === 'function') onSignInSync();
   };
@@ -313,8 +331,6 @@ function handleSignIn() {
     updateAuthUI();
     _applyKeepLoginPref();         // '로그인 상태 유지' 설정 반영
     _hideLoginGate();              // 로그인 완료 → 앱(home)으로 진입
-    // 로그인 직후 구글 캘린더 자동 동기화 (1회)
-    if (typeof autoSyncCalendar === 'function') autoSyncCalendar();
     // 로그인 직후 드라이브에서 먼저 불러오기 → 그 다음 자동 백업 ON
     if (typeof onSignInSync === 'function') onSignInSync();
   };
@@ -487,7 +503,7 @@ function openProfilePanel() {
           : '<button class="pm-badge-connected" style="background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning-border);cursor:pointer;font-family:inherit;" onclick="handleSignIn();closeProfilePanel()">재연결</button>')
       + '</div>'
       + (_getValidSessionToken() ? ''
-          : '<div class="pm-input-hint" style="margin-top:6px;">데이터 동기화는 정상입니다. 드라이브 백업·캘린더 불러오기만 재연결이 필요해요.</div>')
+          : '<div class="pm-input-hint" style="margin-top:6px;">데이터 동기화는 정상입니다. 드라이브 백업만 재연결이 필요해요.</div>')
       + '</div>'
 
       // 로그아웃 버튼
@@ -503,7 +519,7 @@ function openProfilePanel() {
       + '</div>'
       + '<div class="pm-guest-section">'
       + '<div class="pm-guest-icon">👤</div>'
-      + '<div class="pm-guest-msg">로그인하면 Google 캘린더와<br>Drive를 연동할 수 있어요.</div>'
+      + '<div class="pm-guest-msg">로그인하면 기기 간 동기화와<br>Drive 백업을 쓸 수 있어요.</div>'
       + '<button class="pm-btn-signin" onclick="handleSignIn();closeProfilePanel()">'
       + GOOGLE_BTN_INNER
       + '</button>'

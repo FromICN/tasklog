@@ -1619,3 +1619,35 @@ body.hw-peek .home-grid.is-edit > .card:not(.hw-active) { opacity: 0.85; }
   .sidebar-settings-slot { order: -1; flex: 0 0 100%; margin-bottom: 0; }
   .sidebar-settings-slot #settings-nav-btn { width: 100%; margin: 0; }
 }
+/* ============================================================
+   Home 달력 위젯 — TaskLog 월 달력 + 고른 날의 세부 내역 (2026-11-11)
+   구글 캘린더 연동을 없애면서 점·목록이 Task · To Do 를 보여 준다(home.js renderCalDetail).
+   ============================================================ */
+.hcal-open {
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hcal-open:hover { background: var(--surface-hover); }
+#page-content .hcal-open { background: transparent; }
+.cal-dot.is-done { opacity: 0.35; }
+.hcal-item { gap: 8px; cursor: pointer; }
+.hcal-item .tlc-mark { margin-left: 2px; }
+.hcal-item .cal-detail-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+.hcal-item .cal-detail-text,
+.hcal-parent { white-space: nowrap; text-overflow: ellipsis; }
+.hcal-parent { overflow: hidden; font-size: 11px; color: var(--text-3); }
+.hcal-item.is-done .cal-detail-text { color: var(--text-3); text-decoration: line-through; }
+.hcal-item.is-done .hcal-parent { text-decoration: none; }
+.hcal-item:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 1px; }

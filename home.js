@@ -18,9 +18,6 @@ var HOME_SEC_COLORS = ['#22C08B','#4F6EF7','#F5A623','#E05C7A','#A78BFA','#34D39
 // 아이젠하워 색상 (SCHEDULE=그린 계열, SOMEDAY(DROP)=기존 SCHEDULE 컬러)
 var EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--success)', DELEGATE:'var(--warning)', DROP:'var(--brand-primary)' };
 
-// 구글 캘린더 일정 표시 색상
-var GCAL_COLOR = '#1A73E8';
-
 // 캘린더 위젯에서 현재 선택된 날짜 (기본: 오늘)
 var homeCalSelectedKey = fmtKey(new Date());
 
@@ -109,8 +106,11 @@ function renderHomeNotif() {
 }
 
 // ── 2. 캘린더 위젯 ────────────────────────
-//  달력 아래에 있던 '그 날의 일정 목록'은 날짜에 커서를 올리면 뜨는
-//  작은 말풍선으로 옮겼다. 그 자리는 아래 Focus On 카드가 이어받는다.
+//  2026-11-11 사용자 요청: 구글 캘린더 연동을 없애고, TaskLog 의 월 달력 + 고른 날의 세부 내역으로 바꿨다.
+//  · 점 = Calendar 의 월 탭과 같은 항목(Task · To Do) — calpage.js 의 calCollectItems · calItemVisible 을 그대로 쓴다.
+//    그래서 Calendar 표시 메뉴의 Task · To Do · 완료 · Section 필터가 여기에도 똑같이 걸린다.
+//  · 날짜를 누르면 아래에 그 날의 Task · To Do 가 나오고, 누르면 Task 수정 창이 열린다.
+//  · 달 이름을 누르면 Calendar 월 탭으로 간다.
 function renderHomeCalendar() {
   var el = document.getElementById('cal-body');
   if (!el) return;
@@ -120,9 +120,7 @@ function renderHomeCalendar() {
   calAttachAutoScale();
 }
 
-// 달력 아래 목록 — 고른 날짜의 구글 캘린더 일정.
-//  점만으로는 '무슨 약속인지'를 알 수 없어서, 날짜를 누르면 여기에 펼친다.
-//  Task·To Do 는 Web 위젯이 맡으므로 여기에 섞지 않는다.
+// 달력 아래 목록 — 고른 날짜의 Task · To Do (끝낸 것은 아래로, 흐리게)
 function renderCalDetail() {
   var el = document.getElementById('cal-detail');
   if (!el) return;
@@ -131,23 +129,47 @@ function renderCalDetail() {
   var dayStr = (dt.getMonth() + 1) + '월 ' + dt.getDate() + '일 ('
     + ['일','월','화','수','목','금','토'][dt.getDay()] + ')';
 
-  var items = calGcalDayItems(homeCalSelectedKey);
+  var items = collectDayItems(homeCalSelectedKey);
   var html = '<div class="cal-detail-header">' + dayStr
     + '<span class="cal-detail-count">' + items.length + '</span></div>';
   if (!items.length) {
-    html += '<div class="cal-detail-empty">구글 캘린더 일정이 없습니다</div>';
+    html += '<div class="cal-detail-empty">이 날 Task · To Do 가 없습니다</div>';
   } else {
-    html += '<div class="cal-detail-list">' + items.map(function (item) {
-      var timeStr = item.time
-        ? '<span class="cal-detail-time">' + String(item.time.getHours()).padStart(2, '0')
-          + ':' + String(item.time.getMinutes()).padStart(2, '0') + '</span>'
-        : '<span class="cal-detail-time">종일</span>';
-      return '<div class="cal-detail-item is-cal" style="border-left-color:' + (item.color || GCAL_COLOR) + ';">'
-        + googleLogoSvg() + timeStr
-        + '<span class="cal-detail-text">' + hwEsc(item.text) + '</span></div>';
+    html += '<div class="cal-detail-list">' + items.map(function (it) {
+      var time = it.anchor === 'bar' ? '기간'
+        : it.hasTime ? String(it.date.getHours()).padStart(2, '0') + ':' + String(it.date.getMinutes()).padStart(2, '0')
+        : '종일';
+      var mark = (typeof _calMarkHtml === 'function')
+        ? _calMarkHtml(it.kind, it.color, it.done)
+        : '<i class="tlc-mark' + (it.kind === 'step' ? ' tlc-mark-step' : '') + '"></i>';
+      return '<div class="cal-detail-item hcal-item' + (it.done ? ' is-done' : '') + '" style="border-left-color:' + hwEsc(it.color) + ';"'
+        + ' role="button" tabindex="0" onclick="openDetailPanel(' + it.taskId + ')"'
+        + ' onkeydown="if(event.key===\'Enter\')openDetailPanel(' + it.taskId + ')">'
+        + mark + '<span class="cal-detail-time">' + time + '</span>'
+        + '<span class="cal-detail-text">' + hwEsc(it.title)
+        + (it.parent ? '<span class="hcal-parent">' + hwEsc(it.parent) + '</span>' : '')
+        + '</span></div>';
     }).join('') + '</div>';
   }
   el.innerHTML = html;
+}
+
+// Calendar 페이지와 같은 항목·같은 표시 규칙 (calpage.js 는 home.js 뒤에 로드되지만 부를 때는 이미 있다)
+function homeCalItems() {
+  if (typeof calCollectItems !== 'function') return [];
+  var show = (typeof calShow === 'function') ? calShow() : null;
+  return calCollectItems().filter(function (it) {
+    return !show || typeof calItemVisible !== 'function' || calItemVisible(it, show);
+  });
+}
+function _homeCalEnd(it) { return it.end || new Date(it.date.getTime() + 1); }
+
+// 달 이름 · 위젯 제목 → Calendar 월 탭 (보던 달로)
+function homeCalOpen() {
+  var key = homeCalYear + '-' + String(homeCalMonth + 1).padStart(2, '0') + '-01';
+  if (homeCalSelectedKey.slice(0, 7) === key.slice(0, 7)) key = homeCalSelectedKey;
+  navToMenu('calendar');
+  if (typeof calGoDate === 'function') calGoDate(key, 'month');
 }
 
 // ── 위젯 크기에 맞춰 달력이 늘고 준다 ──────────────────
@@ -196,12 +218,15 @@ function calSyncScale() {
   var roomH = calInnerH(body) - headH;            // 격자 + 목록이 나눠 쓸 높이
   if (availW <= 0 || roomH <= 0) return;
 
-  var base = calBaseGridH(body, headH);
-  var availH = base ? Math.min(base, roomH) : roomH;
+  // 폰은 격자를 한 줄로 접어 카드가 내용만큼 늘어난다 — 행 높이가 없으므로 달력은 폭에 맞춘
+  //  높이로 두고, 그 아래에 고른 날의 내역을 늘 보여 준다 (2026-11-11 사용자 요청).
+  var stacked = window.innerWidth <= 768;
+  var base = stacked ? null : calBaseGridH(body, headH);
+  var availH = stacked ? Math.round(availW / 7 * 5.2) : (base ? Math.min(base, roomH) : roomH);
   // 1칸 높이면 달력이 다 쓰고 남는 게 없다 → 목록은 아예 접는다.
   // (억지로 끼워 넣으면 날짜 한 줄이 카드 밖으로 밀려난다)
   var CAL_DETAIL_MIN = 44;
-  var showDetail = (roomH - availH) >= CAL_DETAIL_MIN;
+  var showDetail = stacked || (roomH - availH) >= CAL_DETAIL_MIN;
   if (detail) detail.style.display = showDetail ? '' : 'none';
   if (!showDetail) availH = roomH;
   if (availH <= 0) return;
@@ -273,26 +298,23 @@ function calAttachAutoScale() {
   });
 })();
 
-// 마감일 dot 맵 (task 본체 + 하위 steps 공용 헬퍼)
-// 달력 점 = 구글 캘린더에서 불러온 일정만.
-//  Task·To Do 마감은 Web 위젯과 알림이 이미 보여 준다. 여기에까지 찍으면
-//  '앱 밖에 잡혀 있는 약속'이 무엇인지 한눈에 안 들어온다.
+// 날짜별 점 — Task · To Do (Calendar 월 탭과 같은 항목). 막대 Task 는 걸친 날마다 찍는다.
+//  끝낸 것은 흐린 점으로, 안 끝낸 것을 앞에 둔다.
 function collectDueDotsMap(rangeStart, rangeEnd) {
   var dotMap = {};
-  if (typeof calendarEvents === 'undefined') return dotMap;
-
-  // Task 가 직접 등록한 일정은 결국 그 Task 라서 뺀다(중복 점 방지)
-  var taskEventIds = {};
-  if (typeof tasks !== 'undefined') {
-    tasks.forEach(function(task) { if (task.calendarEventId) taskEventIds[task.calendarEventId] = true; });
-  }
-  calendarEvents.forEach(function(ev) {
-    if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
-    if (!ev.dueDateTime) return;
-    var ed = new Date(ev.dueDateTime);
-    if (ed >= rangeStart && ed <= rangeEnd) {
-      var ek = fmtKey(ed); if (!dotMap[ek]) dotMap[ek] = []; dotMap[ek].push(ev.calColor || GCAL_COLOR);
+  homeCalItems().forEach(function (it) {
+    var end = _homeCalEnd(it);
+    if (it.date > rangeEnd || end <= rangeStart) return;
+    var d = new Date(Math.max(it.date.getTime(), rangeStart.getTime()));
+    d.setHours(0, 0, 0, 0);
+    for (var n = 0; d < end && d <= rangeEnd && n < 62; n++) {
+      var k = fmtKey(d);
+      (dotMap[k] = dotMap[k] || []).push({ c: it.color, done: it.done });
+      d.setDate(d.getDate() + 1);
     }
+  });
+  Object.keys(dotMap).forEach(function (k) {
+    dotMap[k].sort(function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0); });
   });
   return dotMap;
 }
@@ -300,9 +322,9 @@ function collectDueDotsMap(rangeStart, rangeEnd) {
 function buildCalHeader(label) {
   return '<div class="cal-header">'
     + '<div style="display:flex;align-items:center;gap:6px;">'
-    + '<button class="cal-arrow" onclick="homeCalPrev()">‹</button>'
-    + '<span class="cal-month-label">' + label + '</span>'
-    + '<button class="cal-arrow" onclick="homeCalNext()">›</button>'
+    + '<button class="cal-arrow" onclick="homeCalPrev()" aria-label="이전">‹</button>'
+    + '<button type="button" class="cal-month-label hcal-open" onclick="homeCalOpen()" title="Calendar 월 탭에서 보기">' + label + '</button>'
+    + '<button class="cal-arrow" onclick="homeCalNext()" aria-label="다음">›</button>'
     + '</div>'
     + '</div>';
 }
@@ -317,12 +339,13 @@ function buildCalDayCell(dt, todayStr, dotMap, year, month, day) {
   var dotsHtml = '';
   if (dots.length > 0) {
     dotsHtml = '<div class="cal-dots">';
-    dots.slice(0,3).forEach(function(c){ dotsHtml += '<div class="cal-dot" style="background:'+c+';"></div>'; });
+    dots.slice(0,3).forEach(function(d){
+      dotsHtml += '<div class="cal-dot' + (d.done ? ' is-done' : '') + '" style="background:' + d.c + ';"></div>';
+    });
     if (dots.length>3) dotsHtml += '<span style="font-size:8px;color:var(--text-3);line-height:5px;">+'+(dots.length-3)+'</span>';
     dotsHtml += '</div>';
   }
-  return '<div class="' + cls + '" onclick="selectCalDate(' + year + ',' + month + ',' + day + ')"'
-    + ' onmouseenter="calHoverShow(event,\'' + key + '\')" onmouseleave="calHoverHide()">'
+  return '<div class="' + cls + '" onclick="selectCalDate(' + year + ',' + month + ',' + day + ')">'
     + '<span class="cal-num">' + day + '</span>' + dotsHtml + '</div>';
 }
 
@@ -412,81 +435,18 @@ function selectCalDate(year, month, day) {
   renderHomeCalendar();
 }
 
-// 특정 날짜(key)에 해당하는 항목 모으기 (Task + 단계 + 구글 캘린더 일정)
-// 표시 순서: ① 구글에서 불러오기만 하는 일정(상단) → ② tasklog 일정(하단)
-//   - tasklog 일정 = 앱 Task/단계 + 'TaskLog' 캘린더(양방향 대상)에서 온 일정
+// 그 날에 걸치는 Task · To Do — 안 끝낸 것 먼저, 그 안에서는 기간(막대) · 종일 · 시각 순
 function collectDayItems(key) {
-  var googleItems = [];   // 구글에서 불러오기만 하는 일정 (상단)
-  var taskLogItems = [];  // tasklog 일정 (하단)
-  var taskEventIds = {};
-  if (typeof tasks !== 'undefined') {
-    tasks.forEach(function(t) {
-      if (t.calendarEventId) taskEventIds[t.calendarEventId] = true;
-      var color = EI_COLORS[t.eisenhower] || 'var(--text-2)';
-      if (t.dueDateTime && fmtKey(new Date(t.dueDateTime))===key) {
-        taskLogItems.push({ text: t.text, color: color, id: t.id, isCal: false, kind: 'task', time: t.hasTime ? new Date(t.dueDateTime) : null });
-      }
-      if (Array.isArray(t.steps)) {
-        t.steps.forEach(function(step) {
-          if (step.dueDateTime && fmtKey(new Date(step.dueDateTime))===key) {
-            taskLogItems.push({ text: step.text, color: color, id: t.id, isCal: false, kind: 'todo', time: step.hasTime ? new Date(step.dueDateTime) : null });
-          }
-        });
-      }
-    });
-  }
-  // 구글 캘린더 일정 (Task가 직접 등록한 것은 중복이므로 제외)
-  if (typeof calendarEvents !== 'undefined') {
-    calendarEvents.forEach(function(ev) {
-      if (ev.calendarEventId && taskEventIds[ev.calendarEventId]) return;
-      if (ev.dueDateTime && fmtKey(new Date(ev.dueDateTime))===key) {
-        var item = { text: ev.text, color: ev.calColor || GCAL_COLOR, id: null, isCal: true, time: ev.hasTime ? new Date(ev.dueDateTime) : null };
-        // 'TaskLog' 캘린더에서 온 일정은 tasklog 일정(하단)으로, 그 외는 구글 일정(상단)으로
-        if (ev.fromTaskCal) taskLogItems.push(item); else googleItems.push(item);
-      }
-    });
-  }
-  return googleItems.concat(taskLogItems);
-}
-
-// ── 날짜 hover 말풍선: 구글 캘린더에서 불러온 일정만 ──
-//  Task/To Do 는 달력 아래 점과 다른 위젯이 이미 보여 준다.
-//  여기서 알고 싶은 건 '앱 밖에 잡혀 있는 약속'뿐이라 그것만 띄운다.
-var _calHoverEl = null;
-
-function calGcalDayItems(key) {
-  return collectDayItems(key).filter(function(it){ return it.isCal; });
-}
-
-function calHoverShow(ev, key) {
-  var items = calGcalDayItems(key);
-  calHoverHide();
-  if (!items.length) return;
-
-  var tip = document.createElement('div');
-  tip.className = 'cal-hovertip';
-  tip.innerHTML = items.slice(0, 6).map(function(it) {
-    var t = it.time
-      ? '<span class="cal-hovertip-time">' + String(it.time.getHours()).padStart(2,'0') + ':' + String(it.time.getMinutes()).padStart(2,'0') + '</span>'
-      : '';
-    return '<div class="cal-hovertip-row">' + t
-      + '<span class="cal-hovertip-txt">' + hwEsc(it.text) + '</span></div>';
-  }).join('')
-  + (items.length > 6 ? '<div class="cal-hovertip-more">+' + (items.length - 6) + '개 더</div>' : '');
-  document.body.appendChild(tip);
-  _calHoverEl = tip;
-
-  // 셀 아래에 붙이되, 화면 밖으로 나가면 위/안쪽으로 되돌린다
-  var r = ev.currentTarget.getBoundingClientRect();
-  var tr = tip.getBoundingClientRect();
-  var left = Math.min(r.left, window.innerWidth - tr.width - 8);
-  var top = (r.bottom + tr.height + 8 > window.innerHeight) ? (r.top - tr.height - 4) : (r.bottom + 4);
-  tip.style.left = Math.max(8, left) + 'px';
-  tip.style.top = Math.max(8, top) + 'px';
-}
-
-function calHoverHide() {
-  if (_calHoverEl) { _calHoverEl.remove(); _calHoverEl = null; }
+  var p = key.split('-');
+  var day = new Date(+p[0], +p[1] - 1, +p[2]);
+  var next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+  var items = homeCalItems().filter(function (it) { return it.date < next && _homeCalEnd(it) > day; });
+  function rank(it) { return it.anchor === 'bar' ? -2 : it.hasTime ? it.date.getHours() * 60 + it.date.getMinutes() : -1; }
+  items.sort(function (a, b) {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return rank(a) - rank(b);
+  });
+  return items;
 }
 
 // ── 3. 만다라트 SECTION별 달성 현황 ──────────
@@ -1485,17 +1445,6 @@ function saveQuickMemo() {
   if (typeof renderHomeNotesWidget === 'function') renderHomeNotesWidget();
 }
 
-// 구글 로고 SVG (캘린더 상세에서 구글 일정 표시용)
-function googleLogoSvg() {
-  return '<span class="cal-detail-glogo" aria-hidden="true">'
-    + '<svg width="12" height="12" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">'
-    + '<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>'
-    + '<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>'
-    + '<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>'
-    + '<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>'
-    + '</svg></span>';
-}
-
 // HTML 이스케이프 (홈/위젯 공용 헬퍼)
 function hwEsc(text) {
   var d = document.createElement('div');
@@ -1549,7 +1498,7 @@ var HW_LKEY_V8 = 'home-layout-v8';
 
 // 홈에 놓을 수 있는 위젯 목록 (기본 배치 · 기본 표시 여부 포함)
 var HOME_WIDGETS = [
-  { id:'cal-widget',       title:'Calendar',      nav:null,        body:'cal-body',        render:'renderHomeCalendar',        def:{c:1,r:1,w:2,h:2}, on:true  },
+  { id:'cal-widget',       title:'Calendar',      nav:'calendar',        body:'cal-body',        render:'renderHomeCalendar',        def:{c:1,r:1,w:2,h:2}, on:true  },
   { id:'web-widget',       title:'Web',           nav:'cloud',     body:'web-body',        render:'renderHomeWebWidget',       def:{c:3,r:1,w:2,h:2}, on:true  },
   { id:'focus-widget',     title:'Focus On',      nav:null,        body:'focus-body',      render:'renderFocusWidget',         def:{c:5,r:1,w:2,h:2}, on:true  },
   { id:'habit-widget',     title:'Habit Tracker', nav:'habit',     body:'habit-body',      render:'renderHomeHabitWidget',     def:{c:1,r:3,w:3,h:3}, on:true  },

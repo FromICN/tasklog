@@ -6,7 +6,7 @@
 //   · Task = Due 날짜에 한 줄 / To Do = 자기 마감일에 한 줄 / 완료도 기본으로 보인다(2026-11-10 사용자 요청, 흐리게·취소선)
 //     Task 203건이 모두 Start·Due 를 갖고 있어 막대로 그리면 달력이 덮인다.
 //   · Gantt = 보기 탭 하나(2026-11-10, 사이드바 Gantt 메뉴를 옮겨 왔다). 그리는 것은 gantt.js 다.
-//   · Google 일정 = 읽기 전용. 가져오기를 하기 전까지 보기만 한다. 가져오면 Task 로 등록한다.
+//   · Google 캘린더 연동은 2026-11-11 사용자 결정으로 없앴다 — 구글 일정은 Task 로 옮겨 TaskLog 안에서만 쓴다.
 //   · TaskLog 의 '일정'(kind:'event')과 반복은 2026-11-10 에 없앴다 — 달력에 그리는 것은 Task 와 To Do 뿐이다.
 // =============================================================
 
@@ -287,190 +287,13 @@ function _calItemToFc(it) {
   };
 }
 
-// ── Google 일정 (읽기 전용) ─────────────────────────────────
-//  · 공공의 자아와 기본 캘린더만 기본으로 켠다. 나머지는 표시 메뉴에서 켤 수 있다.
-//  · 받은 값은 이 기기 localStorage 에만 둔다(동기화·백업 대상이 아니다). 폰은 Google 토큰이
-//    금방 끊기므로, 끊긴 동안에도 마지막으로 받은 일정을 보여 주기 위해서다.
-var CAL_GCAL_CACHE_KEY = 'cal-gcal-cache-v1';
-var CAL_GCAL_TTL = 10 * 60 * 1000;
-var CAL_GCAL_RETRY = 60 * 1000;
-var CAL_GCAL_DEFAULT_NAMES = ['공공의 자아'];
-var CAL_GCAL_KEEP_YEARS = 6;
-var _calG = { store: null, listed: false, palette: null, busy: {}, failedAt: {} };
 
-// 한 해에 약 56KB 다. 저장소가 차면 동기화까지 막히므로 저장할 때는 최근에 받은 해만 담는다.
-// ⚠️ 메모리에서는 지우지 않는다. 표시 기간이 6년을 넘을 때 지운 해를 다시 받고 또 지우기를 반복하게 된다.
-function calGCacheForSave() {
-  var store = calGStore(), ev = store.ev, latest = {}, out = {};
-  Object.keys(ev).forEach(function (k) {
-    var y = k.split('|').pop();
-    latest[y] = Math.max(latest[y] || 0, ev[k].at || 0);
-  });
-  var keep = Object.keys(latest).sort(function (a, b) { return latest[b] - latest[a]; }).slice(0, CAL_GCAL_KEEP_YEARS);
-  Object.keys(ev).forEach(function (k) {
-    if (keep.indexOf(k.split('|').pop()) >= 0) out[k] = ev[k];
-  });
-  return { cals: store.cals, ev: out };
-}
-
-function calGStore() {
-  if (!_calG.store) {
-    var s = _calLoad(CAL_GCAL_CACHE_KEY, {});
-    _calG.store = { cals: Array.isArray(s.cals) ? s.cals : [], ev: (s.ev && typeof s.ev === 'object') ? s.ev : {} };
-  }
-  return _calG.store;
-}
-function calGEnabled(cal) {
-  var on = _calLoad('cal-google-on', {});
-  if (on[cal.id] === true || on[cal.id] === false) return on[cal.id];
-  return !!cal.primary || CAL_GCAL_DEFAULT_NAMES.indexOf(cal.name) >= 0;
-}
-function calGSetEnabled(calId, on) {
-  var s = _calLoad('cal-google-on', {});
-  s[calId] = !!on;
-  _calSave('cal-google-on', s);
-  calRefresh();
-}
-function calGReady() {
-  try {
-    return typeof isSignedIn === 'function' && isSignedIn()
-      && !!(window.gapi && gapi.client && gapi.client.calendar);
-  } catch (e) { return false; }
-}
-function _calGIsFresh(cal, year) {
-  var c = calGStore().ev[cal.id + '|' + year];
-  return !!(c && Date.now() - c.at < CAL_GCAL_TTL);
-}
-async function calGLoadCals() {
-  if (_calG.listed) return;
-  var resp = await gapi.client.calendar.calendarList.list({ maxResults: 250 });
-  var items = (resp.result && resp.result.items) || [];
-  calGStore().cals = items.map(function (c) {
-    return {
-      id: c.id,
-      name: c.summaryOverride || c.summary || c.id,
-      color: (typeof gcalModernColor === 'function' ? gcalModernColor(c.backgroundColor) : c.backgroundColor) || '#4285f4',
-      primary: !!c.primary,
-    };
-  });
-  try {
-    var colors = await gapi.client.calendar.colors.get();
-    _calG.palette = (colors.result && colors.result.event) || {};
-  } catch (e) { _calG.palette = {}; }
-  _calG.listed = true;
-}
-async function calGFetchYear(cal, year) {
-  var out = [], token = null, pages = 0;
-  do {
-    var params = {
-      calendarId: cal.id,
-      timeMin: new Date(year, 0, 1).toISOString(),
-      timeMax: new Date(year + 1, 0, 1).toISOString(),
-      singleEvents: true, showDeleted: false, orderBy: 'startTime', maxResults: 2500,
-    };
-    if (token) params.pageToken = token;
-    var resp = await gapi.client.calendar.events.list(params);
-    ((resp.result && resp.result.items) || []).forEach(function (ev) {
-      if (!ev.start || ev.status === 'cancelled') return;
-      var pal = ev.colorId && _calG.palette ? _calG.palette[ev.colorId] : null;
-      var color = pal && pal.background ? (typeof gcalModernColor === 'function' ? gcalModernColor(pal.background) : pal.background) : cal.color;
-      out.push({
-        id: ev.id, cal: cal.id,
-        title: ev.summary || '(제목 없음)',
-        start: ev.start.dateTime || ev.start.date,
-        end: (ev.end && (ev.end.dateTime || ev.end.date)) || null,
-        allDay: !ev.start.dateTime,
-        color: color,
-        link: ev.htmlLink || '',
-        loc: ev.location || '',
-        desc: String(ev.description || '').slice(0, 500),
-      });
-    });
-    token = resp.result && resp.result.nextPageToken;
-  } while (token && ++pages < 10);
-  return out;
-}
-async function calGLoadYear(year) {
-  var key = 'y' + year;
-  if (_calG.busy[key] || !calGReady()) return;
-  if (_calG.failedAt[key] && Date.now() - _calG.failedAt[key] < CAL_GCAL_RETRY) return;
-  _calG.busy[key] = true;
-  var changed = false;
-  try {
-    var hadList = _calG.listed;
-    await calGLoadCals();
-    if (!hadList) changed = true;
-    var store = calGStore();
-    var targets = store.cals.filter(function (c) { return calGEnabled(c) && !_calGIsFresh(c, year); });
-    for (var i = 0; i < targets.length; i++) {
-      store.ev[targets[i].id + '|' + year] = { at: Date.now(), items: await calGFetchYear(targets[i], year) };
-      changed = true;
-    }
-    delete _calG.failedAt[key];
-  } catch (e) {
-    _calG.failedAt[key] = Date.now();
-    console.warn('Google 일정을 불러오지 못했습니다(마지막으로 받은 값을 보여 줍니다).', e);
-  } finally {
-    _calG.busy[key] = false;
-  }
-  if (changed) {
-    _calSave(CAL_GCAL_CACHE_KEY, calGCacheForSave());
-    if (typeof currentMenu !== 'undefined' && currentMenu === 'calendar') calRefresh();
-  }
-}
-function calGNeed(start, end) {
-  var y1 = new Date(end.getTime() - 1).getFullYear();
-  for (var y = start.getFullYear(); y <= y1; y++) calGLoadYear(y);
-}
-// 켜 둔 캘린더의 일정을 겹치지 않게 모은다. Task 가 직접 등록한 일정은 결국 그 Task 라서 뺀다.
-function calGItems() {
-  var store = calGStore(), on = {}, seen = {}, out = [];
-  store.cals.forEach(function (c) { if (calGEnabled(c)) on[c.id] = c; });
-  var linked = {};
-  mdtAllTasks().forEach(function (t) {
-    if (t.calendarEventId) linked[t.calendarEventId] = true;
-    (t.steps || []).forEach(function (s) { if (s.calendarEventId) linked[s.calendarEventId] = true; });
-  });
-  Object.keys(store.ev).forEach(function (k) {
-    (store.ev[k].items || []).forEach(function (ev) {
-      if (!on[ev.cal] || linked[ev.id]) return;
-      var uid = ev.cal + '|' + ev.id;
-      if (seen[uid]) return;
-      seen[uid] = true;
-      out.push(ev);
-    });
-  });
-  return out;
-}
-// 'YYYY-MM-DD' 를 그대로 new Date 하면 UTC 자정이 된다 → 현지 날짜로 읽는다
-function _calParseG(s) {
-  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
-  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(s);
-}
-function _calGSpan(ev) {
-  var s = _calParseG(ev.start);
-  var e = ev.end ? _calParseG(ev.end) : new Date(s.getTime() + 1);
-  return [s, e > s ? e : new Date(s.getTime() + 1)];
-}
 function _calInk(hex) {
   var m = /^#([0-9a-f]{6})$/i.exec(hex || '');
   if (!m) return '#fff';
   var n = parseInt(m[1], 16);
   var lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
   return lum > 0.68 ? '#1b1f1c' : '#fff';
-}
-function _calGToFc(ev) {
-  return {
-    id: 'g' + ev.cal + '|' + ev.id,
-    title: ev.title,
-    start: ev.allDay ? ev.start : _calParseG(ev.start),
-    end: ev.end ? (ev.allDay ? ev.end : _calParseG(ev.end)) : undefined,
-    allDay: !!ev.allDay,
-    backgroundColor: ev.color, borderColor: ev.color, textColor: _calInk(ev.color),
-    editable: false,
-    classNames: ['tlc-google'],
-    extendedProps: { kind: 'google', g: ev, color: ev.color },
-  };
 }
 
 // ── 표시 기간 (설정 > 화면) ──
@@ -490,11 +313,6 @@ function calPeriodBounds() {
     calCollectItems().forEach(function (it) {
       minY = Math.min(minY, it.date.getFullYear());
       maxY = Math.max(maxY, _calItemEnd(it).getFullYear());
-    });
-    calGItems().forEach(function (ev) {
-      var span = _calGSpan(ev);
-      minY = Math.min(minY, span[0].getFullYear());
-      maxY = Math.max(maxY, span[1].getFullYear());
     });
     if (from === '0000-01-01') from = minY + '-01-01';
     if (to === '9999-12-31') to = maxY + '-12-31';
@@ -535,12 +353,6 @@ function calFcEvents(start, end) {
     if (it.date >= end || itEnd <= start) return;
     if (listing && !_calInPeriod(it.date, itEnd)) return;
     out.push(_calItemToFc(it));
-  });
-  calGItems().forEach(function (ev) {
-    var span = _calGSpan(ev);
-    if (span[0] >= end || span[1] <= start) return;
-    if (listing && !_calInPeriod(span[0], span[1])) return;
-    out.push(_calGToFc(ev));
   });
   return out;
 }
@@ -619,11 +431,10 @@ function calEnsureFc() {
     },
     events: function (info, ok) {
       ok(calFcEvents(info.start, info.end));
-      calGNeed(info.start, info.end);
     },
     eventContent: function (arg) {
       var p = arg.event.extendedProps, isList = arg.view.type.indexOf('list') === 0;
-      if ((p.kind === 'google' || p.anchor === 'bar') && !isList) return true;   // 구글 일정 · Task 막대는 기본 막대 그대로
+      if (p.anchor === 'bar' && !isList) return true;   // Task 막대는 기본 막대 그대로
       var time = (!isList && arg.timeText) ? '<span class="tlc-time">' + _calEsc(arg.timeText) + '</span>' : '';   // 목록은 시간 칸이 따로 있다
       return { html: '<span class="tlc-ev">' + _calMarkHtml(p.kind, p.color, p.done) + time + '<span class="tlc-tt">' + _calEsc(arg.event.title) + '</span></span>' };
     },
@@ -634,9 +445,7 @@ function calEnsureFc() {
     },
     eventClick: function (info) {
       info.jsEvent.preventDefault();
-      var p = info.event.extendedProps;
-      if (p.kind === 'google') calGooglePop(p.g, info.el);
-      else calItemPop(p, info.el);
+      calItemPop(info.event.extendedProps, info.el);
     },
     eventDrop: function (info) { calDropItem(info); },
     datesSet: function () {
@@ -1144,12 +953,6 @@ function calRenderShowMenu() {
   function row(checked, onchange, mark, label) {
     return '<label class="tlc-check"><input type="checkbox"' + (checked ? ' checked' : '') + ' onchange="' + onchange + '">' + mark + '<span>' + label + '</span></label>';
   }
-  var cals = calGStore().cals;
-  var google = cals.length
-    ? cals.map(function (c) {
-        return row(calGEnabled(c), 'calGSetEnabled(\'' + _calEsc(c.id) + '\',this.checked)', _calMarkHtml('google', c.color, true), _calEsc(c.name));
-      }).join('')
-    : '<div class="tlc-menu-note">Google 로그인 후 표시됩니다</div>';
   var keepScroll = el.scrollTop;   // 체크할 때마다 다시 그리므로 보던 자리를 지킨다
   el.innerHTML = '<div class="tlc-menu-h">TaskLog</div>'
     + row(show.task, 'calSetShow(\'task\',this.checked)', _calMarkHtml('task', 'var(--text-2)', false), 'Task')
@@ -1157,8 +960,7 @@ function calRenderShowMenu() {
     + row(show.done, 'calSetShow(\'done\',this.checked)', _calMarkHtml('task', 'var(--text-2)', true), '완료 항목')
     + '<div class="tlc-menu-h tlc-f-head"><span>Section · Project</span>'
     +   (calFilterActive() ? '<button type="button" class="tlc-f-reset" onclick="calFilterReset()">전체 보기</button>' : '')
-    + '</div>' + calFilterHtml()
-    + '<div class="tlc-menu-h">Google 캘린더 (읽기 전용)</div>' + google;
+    + '</div>' + calFilterHtml();
   el.querySelectorAll('input[data-mixed]').forEach(function (i) { i.indeterminate = true; });
   el.scrollTop = keepScroll;
 }
@@ -1180,14 +982,6 @@ function calYearCounts(year) {
       day.setDate(day.getDate() + 1);
     }
   });
-  calGItems().forEach(function (ev) {
-    var span = _calGSpan(ev), d = new Date(span[0]);
-    d.setHours(0, 0, 0, 0);
-    for (var i = 0; d < span[1] && i < 92; i++) {
-      if (d.getFullYear() === year) add(d);
-      d.setDate(d.getDate() + 1);
-    }
-  });
   return counts;
 }
 function calRenderYear() {
@@ -1203,7 +997,6 @@ function calRenderYear() {
   }
   el.innerHTML = '<div class="tlc-year-grid">' + html + '</div>';
   calYearFit();
-  calGLoadYear(y);
 }
 function calYearPick(key) { calGoDate(key, 'day'); }
 
@@ -1277,12 +1070,6 @@ function calRenderResults() {
   var q = _cal.query.toLowerCase();
   // 검색은 숨겨 둔 완료 항목까지 찾는다 — '그거 언제 했더라' 를 찾으려고 쓰는 것이다
   var rows = calCollectItems().filter(function (it) { return it.title.toLowerCase().indexOf(q) >= 0; });
-  calGItems().forEach(function (ev) {
-    if (ev.title.toLowerCase().indexOf(q) >= 0) {
-      var span = _calGSpan(ev);
-      rows.push({ kind: 'google', g: ev, title: ev.title, date: span[0], end: span[1], hasTime: !ev.allDay, done: false, color: ev.color });
-    }
-  });
   // 표시 기간 안만 보여 주고, 밖에 더 있으면 그 수를 알려 넓힐 수 있게 한다
   var inside = rows.filter(function (r) { return _calInPeriod(r.date, _calItemEnd(r)); });
   var outside = rows.length - inside.length;
@@ -1329,8 +1116,7 @@ function calRenderResults() {
 function calResultClick(i, btn) {
   var r = _cal.results[i];
   if (!r) return;
-  if (r.kind === 'google') calGooglePop(r.g, btn);
-  else calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color }, btn);
+  calItemPop({ kind: r.kind, taskId: r.taskId, stepId: r.stepId, color: r.color }, btn);
 }
 
 // ── 떠 있는 창 (요약 · 빠른 입력) ──
@@ -1362,29 +1148,6 @@ function _calPopShow(html, rect, cls) {
   el.style.left = x + 'px';
   el.style.top = y + 'px';
   return el;
-}
-
-// ── 구글 일정 요약 (읽기 전용) ──
-function calGooglePop(ev, anchor) {
-  var span = _calGSpan(ev), s = span[0], e = span[1];
-  function day(d) { return d.getFullYear() + '년 ' + (d.getMonth() + 1) + '월 ' + d.getDate() + '일 (' + CAL_DOW[d.getDay()] + ')'; }
-  function hm(d) { return _calPad(d.getHours()) + ':' + _calPad(d.getMinutes()); }
-  var when;
-  if (ev.allDay) {
-    var last = new Date(e.getTime() - 86400000);
-    when = (!ev.end || last <= s) ? day(s) : (day(s) + ' – ' + day(last));
-  } else {
-    when = day(s) + ' ' + hm(s) + (ev.end ? (' – ' + (_calKey(s) === _calKey(e) ? '' : day(e) + ' ') + hm(e)) : '');
-  }
-  var cal = calGStore().cals.find(function (c) { return c.id === ev.cal; });
-  var link = /^https:\/\//.test(ev.link || '') ? ev.link : '';
-  _calPopShow('<div class="tlc-pop-title">' + _calMarkHtml('google', ev.color, true) + '<span>' + _calEsc(ev.title) + '</span></div>'
-    + '<div class="tlc-pop-row">' + _calEsc(when) + '</div>'
-    + (cal ? '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(cal.name) + ' · 읽기 전용</div>' : '')
-    + (ev.loc ? '<div class="tlc-pop-row">' + _calEsc(ev.loc) + '</div>' : '')
-    + (ev.desc ? '<div class="tlc-pop-row tlc-pop-desc">' + _calEsc(ev.desc) + '</div>' : '')
-    + (link ? '<a class="tlc-pop-link" href="' + _calEsc(link) + '" target="_blank" rel="noopener">Google 캘린더에서 열기</a>' : ''),
-    anchor.getBoundingClientRect());
 }
 
 // ── Gantt 탭 — 보고 있는 날짜의 달을 gantt.js 로 그린다 ──

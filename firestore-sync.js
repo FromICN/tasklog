@@ -72,7 +72,8 @@ var FS_DOC_KEYS = [
   'my-tasklog-nickname',
   'app-theme', 'app-lang', 'app-week-start', 'app-font-size',
   'app-notif-deadline', 'app-notif-journal',
-  'app-cal-sync', 'app-cal-provider', 'app-cal-direction', 'app-cal-items',
+  // 'app-cal-sync' · 'app-cal-provider' · 'app-cal-direction' · 'app-cal-items' 는
+  //  2026-11-11 구글 캘린더 연동을 없애면서 뺐다. 서버에 남은 옛 문서는 읽지 않는다.
 ];
 
 // 원격 변경을 반영한 뒤 다시 돌려야 하는 각 모듈의 적재 함수.

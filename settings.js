@@ -11,11 +11,6 @@ var settingsState = {
   notifDeadlineDays: 3,
   notifJournal: true,
   fontSize: 'medium',
-  calSync: false,
-  calProvider: 'google',
-  calDirection: 'one',
-  calItems: 'deadline',
-  syncStatus: null,
   menuProfile: null,   // '메뉴' 탭에서 편집 중인 프로파일 (null = 현재 기기)
 };
 
@@ -33,20 +28,12 @@ function initSettings() {
   var notifDD   = localStorage.getItem('app-notif-deadline-days');
   var notifJ    = localStorage.getItem('app-notif-journal');
   var fontSize  = localStorage.getItem('app-font-size');
-  var calSync   = localStorage.getItem('app-cal-sync');
-  var calProv   = localStorage.getItem('app-cal-provider');
-  var calDir    = localStorage.getItem('app-cal-direction');
-  var calItems  = localStorage.getItem('app-cal-items');
   if (lang)      settingsState.lang      = lang;
   if (weekStart) settingsState.weekStart = weekStart;
   if (notifD  !== null) settingsState.notifDeadline = notifD  !== '0';
   if (notifDD !== null) { var _dd = parseInt(notifDD,10); settingsState.notifDeadlineDays = (_dd===1||_dd===2||_dd===3)?_dd:3; }
   if (notifJ  !== null) settingsState.notifJournal  = notifJ  !== '0';
   if (fontSize) { settingsState.fontSize = fontSize; applyFontSize(fontSize); }
-  if (calSync !== null) settingsState.calSync = (calSync === '1');
-  if (calProv) settingsState.calProvider = calProv;
-  if (calDir)   settingsState.calDirection = calDir;
-  if (calItems) settingsState.calItems = calItems;
 }
 
 // 스타일시트 안의 px 글자 크기 원본을 한 번만 캐시해 둠 (배율 계산 기준)
@@ -166,38 +153,12 @@ function setSettingsTab(tabId) {
   });
   var content = document.getElementById('settings-content');
   if (!content) return;
-  if (tabId === 'general')  content.innerHTML = buildTabGeneral() + buildCalendarLinkGeneral();
+  if (tabId === 'general')  content.innerHTML = buildTabGeneral();
   if (tabId === 'display')  content.innerHTML = buildTabDisplay();
   if (tabId === 'menus')    content.innerHTML = buildTabMenus();
   if (tabId === 'home')     content.innerHTML = buildTabHome();
   if (tabId === 'backup')   content.innerHTML = buildTabBackup();
   content.scrollTop = 0;   // 탭 이동 시 상단 고정
-  if (tabId === 'general' && settingsState.calSync && typeof isSignedIn === 'function' && isSignedIn()) setTimeout(settingsLoadCalendarList, 0);
-}
-
-// 일반 탭에 들어가는 '캘린더 연동 (불러오기 전용)' 섹션
-function buildCalendarLinkGeneral() {
-  var calSync = settingsState.calSync;
-  var signedIn = typeof isSignedIn === 'function' && isSignedIn();
-  var syncBtnText = settingsState.syncStatus === 'syncing' ? '불러오는 중...'
-    : settingsState.syncStatus === 'done' ? '불러오기 완료' : '지금 불러오기';
-  var subHtml = !calSync ? '' :
-    '<div class="settings-section-head">구글 캘린더 목록 (불러올 캘린더 선택)</div>'
-    + '<div id="settings-cal-list">'
-    + (signedIn
-        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오는 중...</div>'
-        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">Google 로그인 후 캘린더 목록을 확인할 수 있습니다.</div>')
-    + '</div>';
-  return '<div class="settings-section-head" style="margin-top:14px;">캘린더 연동 (불러오기)</div>'
-    + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">구글 캘린더 불러오기</div><div class="settings-row-desc">구글 캘린더 일정을 TaskLog로 가져옵니다 (쓰기 없음)</div></div>'
-    + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
-    + '</div>'
-    + subHtml
-    + '<div style="margin-top:14px;">'
-    + '<button onclick="settingsDoSync()" ' + (calSync ? '' : 'disabled') + ' style="width:100%;height:40px;border-radius:8px;border:none;cursor:' + (calSync ? 'pointer' : 'not-allowed') + ';background:' + (calSync ? 'var(--brand-primary)' : 'var(--border)') + ';color:' + (calSync ? '#fff' : 'var(--text-3)') + ';font-size:13px;font-weight:700;font-family:inherit;">'
-    + syncBtnText + '</button>'
-    + '</div>';
 }
 
 // ── General tab ───────────────────────────
@@ -221,7 +182,7 @@ function buildTabGeneral() {
       + '<input class="settings-input" id="settings-username" value="Mia">'
       + '</div>'
       + '<div class="settings-row" style="border-bottom:none;">'
-      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">Drive 백업, 캘린더 동기화에 필요합니다</div></div>'
+      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">Drive 백업에 필요합니다</div></div>'
       + '<button class="signin-btn" id="settings-signin-btn" style="width:auto;padding:7px 14px;" onclick="if(typeof handleSignIn===\'function\')handleSignIn()"><span class="g-icon">G</span> 로그인</button>'
       + '</div>';
 
@@ -501,132 +462,11 @@ function settingsMenuDrop(ev, row) {
   setSettingsTab('menus');
 }
 
-// ── Calendar tab ──────────────────────────
-function buildTabCalendar() {
-  var calSync = settingsState.calSync;
-  var signedIn = typeof isSignedIn === 'function' && isSignedIn();
-  var syncBtnText = settingsState.syncStatus === 'syncing' ? '⏳ 동기화 중...'
-    : settingsState.syncStatus === 'done' ? '✓ 동기화 완료' : '🔄 지금 동기화';
-
-  var allItems = settingsState.calItems === 'all';
-
-  var subHtml = !calSync ? '' :
-    '<div class="settings-row">'
-    + '<div><div class="settings-row-label">동기화 항목</div><div class="settings-row-desc">캘린더에 표시할 항목</div></div>'
-    + '<select class="settings-select" onchange="settingsSetCalItems(this.value)">'
-    + '<option value="deadline"' + (allItems ? '' : ' selected') + '>Task 마감일만</option>'
-    + '<option value="all"' + (allItems ? ' selected' : '') + '>Task + To-Do 전체</option>'
-    + '</select>'
-    + '</div>'
-    // 사용자 계정의 구글 캘린더 목록 + 캘린더별 동기화 방향
-    + '<div class="settings-section-head">구글 캘린더 목록 · 캘린더별 동기화 방향</div>'
-    + '<div id="settings-cal-list">'
-    + (signedIn
-        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오는 중...</div>'
-        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">⚠️ Google 로그인 후 캘린더 목록을 확인할 수 있습니다.</div>')
-    + '</div>'
-    // Task / To Do 연동 캘린더 지정
-    + '<div class="settings-section-head">Task · To Do 연동 캘린더</div>'
-    + '<div id="settings-cal-target">'
-    + (signedIn
-        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오는 중...</div>'
-        : '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">⚠️ Google 로그인 후 설정할 수 있습니다.</div>')
-    + '</div>';
-
-  // 목록 비동기 로드
-  if (calSync && signedIn) setTimeout(settingsLoadCalendarList, 0);
-
-  return '<div class="settings-row" style="margin-top:8px;">'
-    + '<div><div class="settings-row-label">캘린더 동기화 사용</div><div class="settings-row-desc">TaskLog 일정을 구글 캘린더와 동기화합니다</div></div>'
-    + buildToggle('settings-calsync', calSync, 'settingsToggleCalSync()')
-    + '</div>'
-    + subHtml
-    + '<div style="margin-top:20px;">'
-    + '<button onclick="settingsDoSync()" ' + (calSync ? '' : 'disabled') + ' style="width:100%;height:40px;border-radius:8px;border:none;cursor:' + (calSync ? 'pointer' : 'not-allowed') + ';background:' + (calSync ? 'var(--brand-primary)' : 'var(--border)') + ';color:' + (calSync ? '#fff' : 'var(--text-3)') + ';font-size:13px;font-weight:700;font-family:inherit;">'
-    + syncBtnText + '</button>'
-    + (!calSync ? '<div style="font-size:11px;color:var(--text-3);text-align:center;margin-top:8px;">동기화를 사용하려면 위 토글을 켜주세요</div>' : '')
-    + '</div>';
-}
-
-// 사용자 계정의 구글 캘린더 목록 비동기 로드 → 목록/연동 대상 UI 렌더
-var _settingsCalCache = null;
-
-function settingsLoadCalendarList() {
-  if (typeof listUserCalendars !== 'function') return;
-  listUserCalendars().then(function(cals) {
-    _settingsCalCache = cals;
-    settingsRenderCalList(cals);
-    settingsRenderCalTargets(cals);
-  });
-}
-
-function settingsRenderCalList(cals) {
-  var box = document.getElementById('settings-cal-list');
-  if (!box) return;
-  if (!cals || !cals.length) {
-    box.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오지 못했습니다.</div>';
-    return;
-  }
-  var dirFor = (typeof calDirFor === 'function') ? calDirFor : function(){ return 'pull'; };
-  box.innerHTML = cals.map(function(c) {
-    var dir = dirFor(c.id);
-    var idEnc = encodeURIComponent(c.id);
-    return '<div class="settings-row settings-cal-row">'
-      + '<div style="display:flex;align-items:center;gap:8px;min-width:0;">'
-      + '<span class="settings-cal-dot" style="background:' + (c.color || 'var(--text-3)') + ';"></span>'
-      + '<span class="settings-cal-name">' + sEsc(c.name) + (c.primary ? ' <span style="font-size:10px;color:var(--text-3);">(기본)</span>' : '') + '</span>'
-      + '</div>'
-      + '<select class="settings-select" data-calid="' + idEnc + '" onchange="settingsSetPerCalDir(decodeURIComponent(this.dataset.calid), this.value)">'
-      + '<option value="off"'  + (dir === 'off'  ? ' selected' : '') + '>동기화 안 함</option>'
-      + '<option value="pull"' + (dir === 'pull' ? ' selected' : '') + '>가져오기 (구글 → TaskLog)</option>'
-      + '</select>'
-      + '</div>';
-  }).join('');
-}
-
-function settingsRenderCalTargets(cals) {
-  var box = document.getElementById('settings-cal-target');
-  if (!box) return;
-  if (!cals || !cals.length) {
-    box.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0;">캘린더 목록을 불러오지 못했습니다.</div>';
-    return;
-  }
-  var getT = (typeof getCalTarget === 'function') ? getCalTarget : function(){ return ''; };
-  function targetRow(kind, label, desc) {
-    var cur = getT(kind);
-    var opts = '<option value=""' + (cur ? '' : ' selected') + '>기본 (TaskLog 캘린더)</option>'
-      + cals.map(function(c) {
-          return '<option value="' + encodeURIComponent(c.id) + '"' + (cur === c.id ? ' selected' : '') + '>' + sEsc(c.name) + '</option>';
-        }).join('');
-    return '<div class="settings-row">'
-      + '<div><div class="settings-row-label">' + label + '</div><div class="settings-row-desc">' + desc + '</div></div>'
-      + '<select class="settings-select" onchange="settingsSetCalTargetSel(\'' + kind + '\', this.value)">' + opts + '</select>'
-      + '</div>';
-  }
-  box.innerHTML = targetRow('task', 'Task 연동 캘린더', 'TaskLog의 Task를 등록할 캘린더')
-    + targetRow('todo', 'To Do 연동 캘린더', 'TaskLog의 To Do를 등록할 캘린더');
-}
-
-function settingsSetPerCalDir(calId, dir) {
-  if (typeof setCalDirection === 'function') setCalDirection(calId, dir);
-}
-
 function settingsSetNotifDays(v) {
   var n = parseInt(v, 10); if (!(n === 1 || n === 2 || n === 3)) n = 3;
   settingsState.notifDeadlineDays = n;
   localStorage.setItem('app-notif-deadline-days', String(n));
   if (typeof renderHomeNotif === 'function' && document.getElementById('notif-body')) renderHomeNotif();
-}
-
-function settingsSetCalTargetSel(kind, encVal) {
-  if (typeof setCalTarget === 'function') setCalTarget(kind, encVal ? decodeURIComponent(encVal) : '');
-}
-
-function buildCalProvider(id, icon, label, selected) {
-  return '<div class="cal-provider-card' + (selected === id ? ' selected' : '') + '" onclick="settingsSetCalProvider(\'' + id + '\')">'
-    + '<div class="cal-provider-icon">' + icon + '</div>'
-    + '<div class="cal-provider-label">' + label + '</div>'
-    + '</div>';
 }
 
 // ── Backup tab ────────────────────────────
@@ -722,33 +562,6 @@ function settingsSetWeekStart(v) {
   localStorage.setItem('app-week-start', settingsState.weekStart);
   // 보이는 캘린더에 즉시 반영
   if (typeof navToMenu === 'function' && typeof currentMenu !== 'undefined') navToMenu(currentMenu);
-}
-function settingsToggleCalSync() {
-  settingsState.calSync = !settingsState.calSync;
-  localStorage.setItem('app-cal-sync', settingsState.calSync ? '1' : '0');
-  setSettingsTab('general');
-}
-function settingsSetCalProvider(id) {
-  settingsState.calProvider = id;
-  localStorage.setItem('app-cal-provider', id);
-  setSettingsTab('calendar');
-}
-function settingsSetCalDirection(val) {
-  settingsState.calDirection = (val === 'two') ? 'two' : 'one';
-  localStorage.setItem('app-cal-direction', settingsState.calDirection);
-  setSettingsTab('calendar');
-}
-function settingsSetCalItems(val) {
-  settingsState.calItems = (val === 'all') ? 'all' : 'deadline';
-  localStorage.setItem('app-cal-items', settingsState.calItems);
-  setSettingsTab('calendar');
-}
-function settingsDoSync() {
-  if (!settingsState.calSync) return;
-  if (typeof fetchCalendarEvents === 'function') fetchCalendarEvents();
-  settingsState.syncStatus = 'syncing';
-  setSettingsTab('general');
-  setTimeout(function() { settingsState.syncStatus = 'done'; setSettingsTab('general'); }, 2000);
 }
 function settingsToggleAutoBackup() {
   if (!(typeof isSignedIn === 'function' && isSignedIn())) {

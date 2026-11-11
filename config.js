@@ -20,12 +20,11 @@ const GOOGLE_CONFIG = {
   //     아래 값은 Firebase 웹 앱 구성(FIREBASE_CONFIG.apiKey)과 같은 웹 키다.
   API_KEY: 'AIzaSyCsel2skjTQN7A8e2Z3FfUduSCITKEc1ss',
   
-  // 권한 (캘린더 + 드라이브)
- SCOPES: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file profile email', 
+  // 권한 (드라이브 백업만) — 캘린더 권한은 2026-11-11 구글 캘린더 연동을 없애면서 뺐다
+  SCOPES: 'https://www.googleapis.com/auth/drive.file profile email',
 
- // API 위치 (캘린더 + 드라이브)
+  // API 위치 (드라이브)
   DISCOVERY_DOCS: [
-    'https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest',
     'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'
   ]
 };

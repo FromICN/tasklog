@@ -282,23 +282,13 @@ function getFilteredTasks() {
     });
   }
   if (currentCategory === 'planned') {
-    return [...tasks.filter(t => t.dueDateTime), ...calendarEvents]
+    return tasks.filter(t => t.dueDateTime)
       .sort((a,b) => new Date(a.dueDateTime) - new Date(b.dueDateTime));
   }
   return tasks;
 }
 
 function renderTaskItem(task) {
-  if (task.isFromCalendar) {
-    const ds = getDueStatus(task.dueDateTime);
-    const db = task.dueDateTime
-      ? '<span class="due-badge '+ds+'">📅 '+formatDueDate(task.dueDateTime, task.hasTime)+'</span>' : '';
-    return '<div class="task-item is-calendar">'
-      + '<span class="cal-dot">📆</span>'
-      + '<div class="task-body"><span class="task-title">'+escapeHtml(task.text)+'</span>'
-      + '<div class="task-meta">'+db+'<span class="due-badge cal-origin">구글 캘린더</span></div></div></div>';
-  }
-
   const ds = getDueStatus(task.dueDateTime);
   let badges = '';
   if (task.dueDateTime) badges += '<span class="due-badge '+ds+'">📅 '+formatDueDate(task.dueDateTime, false)+'</span>';
@@ -3860,6 +3850,12 @@ function bootApp() {
   try { localStorage.removeItem('alert-fired'); } catch (e) {}
   // 메뉴 순서 키를 v2 로 올렸다(2026-11-10). 옛 순서는 다시 읽지 않으므로 치운다.
   try { localStorage.removeItem('app-menu-order-desktop'); localStorage.removeItem('app-menu-order-mobile'); } catch (e) {}
+  // 구글 캘린더 연동은 2026-11-11 사용자 결정으로 없앴다. 이 기기에 남은 캐시·설정을 치운다
+  //  (구글 일정 캐시는 한 해에 약 56KB 라 저장소를 많이 먹었다).
+  try {
+    ['cal-gcal-cache-v1', 'cal-google-on', 'app-cal-sync', 'app-cal-provider', 'app-cal-direction', 'app-cal-items',
+     'app-cal-per-direction', 'app-cal-task-target', 'app-cal-todo-target'].forEach(function (k) { localStorage.removeItem(k); });
+  } catch (e) {}
   if (typeof appBootYearSync === 'function') appBootYearSync();
   initSidebar();
   initSidebarCollapse();
