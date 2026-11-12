@@ -32,6 +32,7 @@ function createNote(text, dueDate, dueTime) {
 }
 
 function deleteNote(id) {
+  if (memoIsEditing(id)) _memoEdit = null;
   notesData = notesData.filter(function(n){ return String(n.id) !== String(id); });
   saveNotes();
   renderNoteBoard();
@@ -249,7 +250,7 @@ function renderNotesView() {
     '<div class="nb-layout">'
     + '<div class="nb-write-panel">'
     + '<div class="nb-write-header">+ Memo</div>'
-    + '<textarea class="nb-textarea" id="nb-input" placeholder="메모를 입력하세요..." onkeydown="nbInputKeyDown(event)"></textarea>'
+    + '<textarea class="nb-textarea" id="nb-input" placeholder="' + (tlTouchKeyboard() ? '메모를 입력하세요...' : '메모를 입력하세요 · Enter 추가 · Shift+Enter 줄바꿈') + '" onkeydown="nbInputKeyDown(event)"></textarea>'
     + '<button class="nb-add-btn" onclick="nbAddNote()">+ Archiving</button>'
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
@@ -288,6 +289,7 @@ function renderNoteBoard() {
       && (notesMatchesSearch(e.step.text) || notesMatchesSearch(e.task.text));
   });
   _nbFillColumn('step', actSteps.length, actSteps.map(function(e){ return buildStepCard(e.task, e.step); }).join(''));
+  memoEditMount();
 }
 
 function _nbFillColumn(type, count, html) {
@@ -315,15 +317,21 @@ function buildMemoCard(note) {
   }
   var dueHtml = dueStr ? '<span class="nb-card-due">📅 ' + dueStr + '</span>' : '';
   var timeStr = note.createdAt ? new Date(note.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-  return '<div class="nb-card" draggable="true" data-kind="memo" data-note-id="' + note.id + '"'
+  // 고치는 중인 카드는 끌 수 없다 — 끌기가 살아 있으면 편집창 안에서 글자를 고를 수 없다
+  var editing = memoIsEditing(note.id);
+  return '<div class="nb-card nb-card-memo' + (editing ? ' is-editing' : '') + '" draggable="' + (editing ? 'false' : 'true') + '" data-kind="memo" data-note-id="' + note.id + '"'
+    + (editing ? '' : ' onclick="memoEditOpen(this.dataset.noteId, event)" title="누르면 고칠 수 있어요"')
     + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:#555;"></div>'
     + '<div class="nb-card-body">'
-    + '<div class="nb-card-text">'+escNb(note.text)+'</div>'
+    + (editing ? memoEditorHtml() : '<div class="nb-card-text">'+escNb(note.text)+'</div>')
     + dueHtml
     + '<div class="nb-card-footer">'
     + '<span class="nb-card-time">'+timeStr+'</span>'
-    + '<button class="nb-card-del" onclick="event.stopPropagation();deleteNote(this.closest(\'.nb-card\').dataset.noteId)">✕</button>'
+    + '<span class="nb-card-acts">'
+    + (editing ? '' : '<button class="nb-card-edit" title="고치기" onclick="memoEditOpen(this.closest(\'.nb-card\').dataset.noteId, event)">✎</button>')
+    + '<button class="nb-card-del" title="지우기" onclick="event.stopPropagation();deleteNote(this.closest(\'.nb-card\').dataset.noteId)">✕</button>'
+    + '</span>'
     + '</div>'
     + '</div>'
     + '</div>';
@@ -380,6 +388,137 @@ function escNb(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 
+// ============================================
+//  ✎ 메모 고치기 (2026-11-12, 사용자 요청)
+//  Web 페이지 Archiving 카드와 Home Web 위젯의 메모를 누르면 그 자리에서 고친다.
+//  · 고치는 메모와 적던 글은 _memoEdit 에 둔다. 동기화로 화면이 다시 그려져도
+//    렌더러(buildMemoCard · renderHomeWebWidget)가 편집창을 다시 그리고 memoEditMount 가 커서를 되살린다.
+//  · PC: Enter 저장 · Shift+Enter 줄바꿈 · Esc 취소 · 바깥을 누르면 저장
+//  · 터치 화면(폰): 글자판의 Enter 는 줄바꿈이다(Shift 가 없다). 저장 버튼으로 저장한다.
+//  · 글을 다 지우고 저장하면 저장하지 않는다 — 지우기는 ✕ 로 한다.
+// ============================================
+var _memoEdit = null;          // { id, text, s, e } — s·e 는 커서 자리
+var _memoEditDownIn = false;   // 누르기가 편집창 안에서 시작됐나 (글자를 끌어 고르다 밖에서 놓아도 닫지 않게)
+
+// Enter 로 '보내기'를 할지 (메모 추가 칸 · 메모 편집창 공용)
+//  한글 조합 중의 Enter(isComposing · 229)는 글자 확정이라 보내지 않는다 — 보내면 마지막 글자가 칸에 남는다.
+function tlEnterSubmits(e) {
+  if (!e || e.key !== 'Enter' || e.shiftKey) return false;
+  if (e.isComposing || e.keyCode === 229) return false;
+  if (tlTouchKeyboard()) return false;
+  return true;
+}
+// 글자판에 Shift 가 없는 기기(폰·태블릿)인가 — 미디어 쿼리(pointer: coarse)로 보지 않는다.
+//  터치 화면 노트북도 coarse 로 나올 수 있어서, 그러면 PC 에서 Enter 저장이 안 된다(미리보기 창이 실제로 그랬다).
+function tlTouchKeyboard() {
+  try { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || ''); }
+  catch (e) { return false; }
+}
+// 글 높이만큼 칸을 늘린다 (max px 까지, 넘치면 칸 안에서 스크롤)
+function tlAutosize(ta, max) {
+  if (!ta) return;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight + 2, max || 240) + 'px';
+}
+
+function memoIsEditing(id) { return !!(_memoEdit && String(_memoEdit.id) === String(id)); }
+function memoEscText(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function memoEditorHtml() {
+  var st = _memoEdit || { text: '' };
+  var hint = tlTouchKeyboard() ? '' : 'Enter 저장 · Shift+Enter 줄바꿈 · Esc 취소';
+  return '<div class="memo-edit" onclick="event.stopPropagation()">'
+    + '<textarea class="memo-edit-ta" id="memo-edit-ta" rows="2" aria-label="메모 고치기"' + (hint ? ' title="' + hint + '"' : '')
+    + ' oninput="memoEditInput(this)" onkeydown="memoEditKey(event)" onkeyup="memoEditCaret(this)" onmouseup="memoEditCaret(this)">'
+    + memoEscText(st.text) + '</textarea>'
+    + '<div class="memo-edit-bar">'
+    + '<span class="memo-edit-hint">' + hint + '</span>'
+    + '<button type="button" class="memo-edit-btn" onclick="memoEditCancel()">취소</button>'
+    + '<button type="button" class="memo-edit-btn is-primary" onclick="memoEditSave()">저장</button>'
+    + '</div></div>';
+}
+
+function memoEditOpen(id, ev) {
+  if (ev) ev.stopPropagation();
+  // 글자를 끌어 고른 뒤 손을 뗀 것이면 열지 않는다 (복사하려던 것)
+  try { var sel = window.getSelection(); if (sel && !sel.isCollapsed && String(sel).trim()) return; } catch (e) {}
+  if (memoIsEditing(id)) return;
+  if (_memoEdit) memoEditSave(true);          // 다른 메모를 고치던 중이면 그것부터 저장
+  loadNotes();
+  var n = notesData.find(function(x){ return String(x.id) === String(id); });
+  if (!n) return;
+  _memoEdit = { id: n.id, text: n.text || '', s: null, e: null, fresh: true };
+  memoEditRerender();
+}
+function memoEditInput(ta) {
+  if (!_memoEdit) return;
+  _memoEdit.text = ta.value;
+  memoEditCaret(ta);
+  tlAutosize(ta, 240);
+}
+function memoEditCaret(ta) {
+  if (!_memoEdit || !ta) return;
+  _memoEdit.s = ta.selectionStart; _memoEdit.e = ta.selectionEnd;
+}
+function memoEditKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); memoEditCancel(); return; }
+  if (tlEnterSubmits(e)) { e.preventDefault(); memoEditSave(); }
+}
+function memoEditCancel() {
+  _memoEdit = null;
+  memoEditRerender();
+}
+// quiet = 다른 메모를 열면서 저장 (그 렌더는 부르는 쪽이 한다)
+function memoEditSave(quiet) {
+  var st = _memoEdit;
+  if (!st) return;
+  _memoEdit = null;
+  var ta = document.getElementById('memo-edit-ta');
+  var text = String(ta ? ta.value : st.text).trim();
+  if (!text) {
+    showNbToast('빈 메모는 저장하지 않았어요 — 지우려면 ✕');
+  } else {
+    loadNotes();                                   // 다른 기기에서 온 값 위에 고친다
+    var n = notesData.find(function(x){ return String(x.id) === String(st.id); });
+    if (n && n.text !== text) { n.text = text; saveNotes(); }
+  }
+  if (!quiet) memoEditRerender();
+}
+// 편집창이 있는 화면만 다시 그린다 (Web 페이지 보드 · Home Web 위젯)
+function memoEditRerender() {
+  if (document.getElementById('nb-board')) renderNoteBoard();
+  if (document.getElementById('web-body') && typeof renderHomeWebWidget === 'function') renderHomeWebWidget();
+}
+// 렌더러가 편집창을 그린 뒤 부른다 — 높이 · 포커스 · 커서 자리를 되살린다
+function memoEditMount() {
+  if (!_memoEdit) return;
+  var ta = document.getElementById('memo-edit-ta');
+  if (!ta) return;
+  tlAutosize(ta, 240);
+  if (document.activeElement === ta) return;
+  try { ta.focus({ preventScroll: true }); } catch (e) { ta.focus(); }
+  var len = ta.value.length;
+  var s = (_memoEdit.s != null) ? Math.min(_memoEdit.s, len) : len;
+  var en = (_memoEdit.e != null) ? Math.min(_memoEdit.e, len) : s;
+  try { ta.setSelectionRange(s, en); } catch (e) {}
+  if (_memoEdit.fresh) {
+    _memoEdit.fresh = false;
+    var box = ta.closest('.memo-edit');
+    if (box && box.scrollIntoView) { try { box.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
+  }
+}
+// 바깥을 누르면 저장한다. 고치는 카드(.is-editing) 안을 누른 것은 바깥이 아니다.
+document.addEventListener('pointerdown', function(e) {
+  _memoEditDownIn = !!(_memoEdit && e.target && e.target.closest && e.target.closest('.is-editing'));
+}, true);
+document.addEventListener('click', function(e) {
+  if (!_memoEdit) return;
+  if (_memoEditDownIn) { _memoEditDownIn = false; return; }
+  if (e.target && e.target.closest && e.target.closest('.is-editing')) return;
+  if (!document.getElementById('memo-edit-ta')) { _memoEdit = null; return; }   // 편집창이 화면에 없다 (다른 메뉴로 갔다)
+  memoEditSave();
+}, true);
+
 // ── 메모 추가 ──────────────────────────────
 function nbAddNote() {
   var ta = document.getElementById('nb-input');
@@ -391,8 +530,10 @@ function nbAddNote() {
   renderNoteBoard();
 }
 
+//  Enter 추가 · Shift+Enter 줄바꿈 — Home +Memo 칸·메모 고치기와 같다 (2026-11-12 사용자 요청.
+//  예전엔 반대로 Enter 줄바꿈 · Shift+Enter 추가였다). 폰·태블릿은 Enter 가 줄바꿈이고 버튼으로 추가한다.
 function nbInputKeyDown(e) {
-  if (e.key === 'Enter' && e.shiftKey) { e.preventDefault(); nbAddNote(); }
+  if (tlEnterSubmits(e)) { e.preventDefault(); nbAddNote(); }
 }
 
 // ============================================

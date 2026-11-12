@@ -493,7 +493,8 @@ function jnlwBlockHTML(it, totalH) {
   var sid = (it.stepId == null) ? 'null' : it.stepId;
   var slid = (it.slotId == null) ? 'null' : it.slotId;
   var range = jnlwFmtLin(it.startLin) + '~' + jnlwFmtLin(it.endLin % 1440);
-  var tip = (parent ? parent + ' › ' : '') + safe + ' · ' + range + (it.slotId == null ? ' (완료 시각)' : '');
+  var tip = (parent ? parent + ' › ' : '') + safe + ' · ' + range + (it.slotId == null ? ' (완료 시각)' : '')
+    + '&#10;끌면 이동 · Ctrl 을 누른 채 끌면 복사';
   return '<div class="jnlw-ev' + (it.slotId == null ? ' jnlw-ev-done' : '') + '" data-task="' + it.taskId + '" data-step="' + sid + '" data-slot="' + slid + '"'
     + ' style="top:' + topPx.toFixed(1) + 'px;height:' + hPx.toFixed(1) + 'px;left:calc(' + left + '% + 1px);width:calc(' + w + '% - 3px);'
     + 'border-left:3px solid ' + it.color + ';"'
@@ -649,7 +650,8 @@ function jnlwPreview(hit, p) {
     g.style.width = rect.width + 'px';
     g.style.top = (rect.top + startLin / 1440 * rect.height) + 'px';
     g.style.height = Math.max((endLin - startLin) / 1440 * rect.height, 18) + 'px';
-    g.innerHTML = '<span class="jnlw-ghost-t">' + jnlwFmtLin(startLin) + '</span> ' + safe;
+    g.innerHTML = (p.copy ? '<span class="jnlw-ghost-copy">+ 복사</span> ' : '')
+      + '<span class="jnlw-ghost-t">' + jnlwFmtLin(startLin) + '</span> ' + safe;
   } else {
     var cell = document.querySelector('#jnl-week-grid-host .jnlw-allday-cell[data-day="' + hit.day + '"]');
     if (!cell) { if (g.parentNode) g.parentNode.removeChild(g); return; }
@@ -664,14 +666,19 @@ function jnlwPreview(hit, p) {
 //  수행 시간 블록이면 그 줄을 고치고, 완료 시각 블록(수행 시간 없음)이면 그 자리로 새 줄을 만든다.
 //  그리드의 하루는 07:00 에 시작하므로 07:00 전 시각은 다음 날이다.
 //  완료일([YYMMDD])·completedAt 은 건드리지 않는다 — 완료는 Task 수정에서 한다.
-function jnlwApply(p, day, startLin, durMin) {
-  var obj = p.obj;
+// 그리드 자리(요일 칸 · 선형 분 · 길이) → 실제 시작·끝 시각
+function jnlwDates(day, startLin, durMin) {
   var r = getWeekRange(_journalWeek);
   var a = new Date(r.start); a.setHours(0, 0, 0, 0); a.setDate(a.getDate() + day);
   var c = jnlwLinToClock(startLin);
   a.setHours(c.h, c.m, 0, 0);
   if (c.h < JNLW_WIN_START) a.setDate(a.getDate() + 1);
   var b = new Date(a.getTime() + Math.max(JNLW_MIN_DUR, durMin || 60) * 60000);
+  return { a: a, b: b };
+}
+function jnlwApply(p, day, startLin, durMin) {
+  var obj = p.obj;
+  var ab = jnlwDates(day, startLin, durMin), a = ab.a, b = ab.b;
   var sl = (p.slotId != null) ? stepSlots(obj).find(function (x) { return x.id === p.slotId; }) : null;
   if (sl) {
     sl.start = slotLocal(a); sl.end = slotLocal(b);
@@ -682,6 +689,42 @@ function jnlwApply(p, day, startLin, durMin) {
   }
   if (typeof saveTasks === 'function') saveTasks();
   jnlRefreshWeekGrid();
+}
+
+// Ctrl(맥은 ⌘)을 누른 채 놓으면 복사한다 (2026-11-12 사용자 요청).
+//  원래 블록은 그대로 두고, 놓은 자리에 같은 To Do 의 수행 시간 한 줄을 더한다.
+//  ⚠️ 완료 시각 블록(수행 시간 없음)은 수행 시간이 하나라도 생기면 더 그리지 않는다.
+//     그래서 원래 자리도 수행 시간 한 줄로 남긴다 — 안 그러면 복사가 이동처럼 보인다.
+//     종일 칩은 시각이 없어 그 자리를 남길 수 없다(복사해도 칩은 사라진다).
+function jnlwCopy(p, day, startLin, durMin) {
+  var obj = p.obj;
+  if (!Array.isArray(obj.slots)) obj.slots = [];
+  var id0 = newSlotId();
+  if (p.slotId == null && !p.srcAllday) {
+    var span = jnlwBlockSpan(obj, null);
+    var col = p.el ? p.el.closest('.jnlw-daycol') : null;
+    if (span && col) {
+      var src = jnlwDates(parseInt(col.getAttribute('data-day'), 10), span.startLin, span.durMin);
+      obj.slots.push({ id: id0, start: slotLocal(src.a), end: slotLocal(src.b) });
+    }
+  }
+  var ab = jnlwDates(day, startLin, durMin);
+  obj.slots.push({ id: id0 + 1, start: slotLocal(ab.a), end: slotLocal(ab.b) });
+  if (p.slotId == null) { delete obj.wdTimed; delete obj.wdLogAt; delete obj.wdDurMin; }
+  if (typeof saveTasks === 'function') saveTasks();
+  jnlRefreshWeekGrid();
+}
+function jnlwIsCopy(e) { return !!(e && (e.ctrlKey || e.metaKey)); }
+// 끄는 중에 Ctrl 을 누르거나 떼면 바로 바꿔 보여 준다 (마우스를 안 움직여도)
+function jnlwSetCopy(p, on) {
+  p.copy = !!on;
+  if (p.el) p.el.classList.toggle('jnlw-dragging', p.moved && !p.copy);   // 복사면 원래 블록은 제자리에 그대로 보인다
+  document.body.classList.toggle('jnlw-copying', p.moved && p.copy);
+  if (p.moved && p.lastHit) jnlwPreview(p.lastHit, p);
+}
+function jnlwKey(e) {
+  if (!_jnlwPtr || _jnlwPtr.mode !== 'move') return;
+  if (e.key === 'Control' || e.key === 'Meta') jnlwSetCopy(_jnlwPtr, jnlwIsCopy(e));
 }
 
 // 블록의 지금 시작(선형 분)·길이 — 수행 시간이면 그 줄에서, 아니면 완료 시각 배치에서
@@ -711,11 +754,13 @@ function jnlwEvDown(e, taskId, stepId, srcAllday, slotId) {
   }
   _jnlwPtr = { mode: 'move', taskId: taskId, stepId: (stepId === 'null') ? null : stepId, slotId: slotId, obj: obj, el: el,
     x0: e.clientX, y0: e.clientY, moved: false, srcAllday: srcAllday,
-    durMin: span ? span.durMin : 60, grabLin: grabLin,
+    durMin: span ? span.durMin : 60, grabLin: grabLin, copy: jnlwIsCopy(e), lastHit: null,
     color: (el && el.style && el.style.borderLeftColor) || 'var(--brand-primary)' };
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
   document.addEventListener('pointermove', jnlwPtrMove);
   document.addEventListener('pointerup', jnlwPtrUp);
+  document.addEventListener('keydown', jnlwKey);
+  document.addEventListener('keyup', jnlwKey);
   e.preventDefault();
 }
 
@@ -745,7 +790,7 @@ function jnlwPtrMove(e) {
   var p = _jnlwPtr;
   if (p.mode === 'move') {
     if (!p.moved && (Math.abs(e.clientX - p.x0) > 4 || Math.abs(e.clientY - p.y0) > 4)) {
-      p.moved = true; if (p.el) p.el.classList.add('jnlw-dragging');
+      p.moved = true;
     }
     if (!p.moved) return;
     document.querySelectorAll('.jnlw-drop-hl').forEach(function (n) { n.classList.remove('jnlw-drop-hl'); });
@@ -756,7 +801,8 @@ function jnlwPtrMove(e) {
         : document.querySelector('#jnl-week-grid-host .jnlw-daycol[data-day="' + hit.day + '"]');
       if (sel) sel.classList.add('jnlw-drop-hl');
     }
-    jnlwPreview(hit, p);          // 이동 후 위치 미리보기(투명도 80%)
+    p.lastHit = hit;
+    jnlwSetCopy(p, jnlwIsCopy(e));   // 원래 블록 흐리게(이동) / 그대로(복사) + 미리보기
   } else if (p.mode === 'resize') {
     var totalH = 24 * JNLW_ROW_H;
     var lin = jnlwLinAt(p.col.getBoundingClientRect(), e.clientY);
@@ -779,6 +825,9 @@ function jnlwPtrMove(e) {
 function jnlwPtrUp(e) {
   document.removeEventListener('pointermove', jnlwPtrMove);
   document.removeEventListener('pointerup', jnlwPtrUp);
+  document.removeEventListener('keydown', jnlwKey);
+  document.removeEventListener('keyup', jnlwKey);
+  document.body.classList.remove('jnlw-copying');
   var p = _jnlwPtr; _jnlwPtr = null;
   document.querySelectorAll('.jnlw-drop-hl').forEach(function (n) { n.classList.remove('jnlw-drop-hl'); });
   jnlwTip(false);            // 시간 툴팁 제거
@@ -791,7 +840,8 @@ function jnlwPtrUp(e) {
     // 수행 시간은 시각이 있어야 한다 — 종일 칸에 놓으면 제자리로 돌린다
     if (!hit || hit.kind === 'allday') { jnlRefreshWeekGrid(); return; }
     var startLin = jnlwSnap(hit.lin - (p.srcAllday ? 0 : p.grabLin), 0, 1440 - JNLW_SNAP);
-    jnlwApply(p, hit.day, startLin, p.durMin);
+    if (jnlwIsCopy(e)) jnlwCopy(p, hit.day, startLin, p.durMin);
+    else jnlwApply(p, hit.day, startLin, p.durMin);
   } else if (p.mode === 'resize') {
     var start = (p.newStart != null) ? p.newStart : p.startLin;
     var end = (p.newEnd != null) ? p.newEnd : p.endLin;

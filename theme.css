@@ -1651,3 +1651,75 @@ body.hw-peek .home-grid.is-edit > .card:not(.hw-active) { opacity: 0.85; }
 .hcal-item.is-done .cal-detail-text { color: var(--text-3); text-decoration: line-through; }
 .hcal-item.is-done .hcal-parent { text-decoration: none; }
 .hcal-item:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+
+/* ============================================================
+   메모 고치기 · Home Web 위젯 To Do 의 상위 Task · Work Diary 복사 (2026-11-12)
+   notes.js memoEditorHtml · home.js renderHomeWebWidget · journal.js jnlwCopy
+   ============================================================ */
+/* ── 메모 편집창 (Web 페이지 Archiving 카드 · Home Web 위젯 공용) ── */
+.memo-edit { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.memo-edit-ta {
+  width: 100%;
+  min-height: 52px;
+  box-sizing: border-box;
+  resize: none;
+  padding: 6px 8px;
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-md);
+  background: var(--card-solid, var(--surface));
+  color: var(--text-1);
+  font: inherit;
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  outline: none;
+}
+.hwb-item .memo-edit-ta { font-size: 12px; }
+.memo-edit-bar { display: flex; align-items: center; gap: 6px; }
+.memo-edit-hint { flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.memo-edit-btn,
+#page-content .memo-edit-btn {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--tl-soft);
+  color: var(--tl-soft-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.memo-edit-btn.is-primary,
+#page-content .memo-edit-btn.is-primary { background: var(--brand-primary); color: #fff; }
+.nb-card.is-editing { cursor: default; transform: none; box-shadow: none; }
+.nb-card.is-editing:hover { transform: none; box-shadow: none; }
+.nb-card-memo:not(.is-editing) { cursor: pointer; }
+.nb-card-acts { display: inline-flex; align-items: center; gap: 2px; }
+.nb-card-edit,
+#page-content .nb-card-edit {
+  background: none; border: none; color: var(--text-3);
+  font-size: var(--fs-xs); cursor: pointer; padding: 1px var(--space-1); border-radius: var(--radius-xs);
+}
+.nb-card-edit:hover,
+#page-content .nb-card-edit:hover { color: var(--brand-primary); background: var(--tl-soft); }
+.hwb-item.is-editing { cursor: default; align-items: stretch; }
+.hwb-item.is-editing:hover { background: none; }
+/* Home 위젯 칸은 좁다(기본 배치에서 100px 안팎) — 안내 글은 칸의 title 로 돌리고 버튼은 줄을 넘긴다 */
+.hwb-item .memo-edit-hint { display: none; }
+.hwb-item .memo-edit-bar { flex-wrap: wrap; gap: 4px; }
+.hwb-item .memo-edit-btn,
+#page-content .hwb-item .memo-edit-btn { flex: 1 1 auto; padding: 3px 6px; }
+
+/* ── Home Web 위젯 +Memo 칸: 여러 줄 (Shift+Enter) ── */
+.hwb-write { align-items: flex-start; }
+.hwb-write-inp { resize: none; line-height: 1.4; min-height: 28px; max-height: 120px; overflow-y: auto; display: block; }
+.hwb-write-btn { align-self: flex-start; height: 28px; }
+
+/* ── Home Web 위젯 To Do: 아래 줄에 상위 Task ── */
+.hwb-stack { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.hwb-stack .hwb-text { flex: none; }
+.hwb-parent { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Work Diary: Ctrl 을 누른 채 끌면 복사 ── */
+body.jnlw-copying, body.jnlw-copying * { cursor: copy !important; }
+.jnlw-ghost-copy { color: var(--brand-primary); font-weight: 800; }

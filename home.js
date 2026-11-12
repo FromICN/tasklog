@@ -821,8 +821,15 @@ function renderHomeWebWidget() {
   // Archiving 은 메모 전문을 그대로 보여 준다.
   //  Task/To Do 와 달리 '무슨 내용인지'가 곧 그 항목이라, 한 줄로 자르면 쓸모가 없다.
   //  hwEsc 는 줄바꿈을 그대로 두므로 CSS 의 pre-wrap 이 살려 준다.
+  //  메모를 누르면 그 자리에서 고친다(2026-11-12, notes.js memoEditOpen). Web 페이지는 위젯 제목으로 간다.
   var memoHtml = memos.map(function(n) {
-    return '<div class="hwb-item hwb-item-memo" onclick="navToMenu(\'cloud\')" title="Web 페이지 열기">'
+    if (typeof memoIsEditing === 'function' && memoIsEditing(n.id)) {
+      return '<div class="hwb-item hwb-item-memo is-editing">'
+        + '<span class="hwb-strip" style="background:var(--text-3);"></span>'
+        + memoEditorHtml()
+        + '</div>';
+    }
+    return '<div class="hwb-item hwb-item-memo" onclick="memoEditOpen(\'' + n.id + '\', event)" title="누르면 고칠 수 있어요">'
       + '<span class="hwb-strip" style="background:var(--text-3);"></span>'
       + '<span class="hwb-text hwb-text-full">' + hwEsc(n.text) + '</span>'
       + '</div>';
@@ -836,18 +843,30 @@ function renderHomeWebWidget() {
       + '</div>';
   }).join('');
 
+  // To Do 아래에 상위 Task 이름을 한 줄 더 적는다 (2026-11-12 사용자 요청 — Web 페이지 카드의 '↳ Task' 와 같다)
   var stepHtml = actSteps.map(function(e) {
-    return '<div class="hwb-item" onclick="openDetailPanel(' + e.task.id + ')" title="상위 Task 상세 보기">'
+    var parent = cleanName(e.task.text);
+    return '<div class="hwb-item hwb-item-step" onclick="openDetailPanel(' + e.task.id + ')" title="상위 Task 상세 보기">'
       + '<span class="hwb-strip" style="background:var(--info);"></span>'
-      + '<span class="hwb-text">' + hwEsc(cleanName(e.step.text)) + '</span>'
+      + '<span class="hwb-stack">'
+      +   '<span class="hwb-text">' + hwEsc(cleanName(e.step.text)) + '</span>'
+      +   (parent ? '<span class="hwb-parent">↳ ' + hwEsc(parent) + '</span>' : '')
+      + '</span>'
       + dueBadge(e.step.dueDateTime || e.task.dueDateTime)
       + '</div>';
   }).join('');
 
-  // 위쪽 +Memo — Web 페이지까지 가지 않고 여기서 바로 Archiving 에 넣는다
+  // 위쪽 +Memo — Web 페이지까지 가지 않고 여기서 바로 Archiving 에 넣는다.
+  //  Enter 저장 · Shift+Enter 줄바꿈 (2026-11-12 사용자 요청 — 그래서 input 이 아니라 textarea 다)
+  //  다시 그려도 적던 글과 커서를 잃지 않게 옮겨 담는다 (동기화 · Focus On 이 이 위젯을 다시 그린다)
+  var prevInp = document.getElementById('hwb-memo-inp');
+  var draft = prevInp ? prevInp.value : '';
+  var hadFocus = !!(prevInp && document.activeElement === prevInp);
+  var caret = hadFocus ? [prevInp.selectionStart, prevInp.selectionEnd] : null;
   var writeHtml = '<div class="hwb-write">'
-    + '<input type="text" class="hwb-write-inp" id="hwb-memo-inp" placeholder="메모를 입력하세요..."'
-    + ' autocomplete="off" onkeydown="if(event.key===\'Enter\'){hwbAddMemo();}">'
+    + '<textarea class="hwb-write-inp" id="hwb-memo-inp" rows="1" placeholder="메모 입력 · Shift+Enter 줄바꿈"'
+    + ' autocomplete="off" oninput="tlAutosize(this, 120)"'
+    + ' onkeydown="if(tlEnterSubmits(event)){event.preventDefault();hwbAddMemo();}"></textarea>'
     + '<button class="hwb-write-btn" onclick="hwbAddMemo()">+ Memo</button>'
     + '</div>';
 
@@ -857,7 +876,14 @@ function renderHomeWebWidget() {
     + col('Task', actTasks.length, taskHtml, '미완료 Task가 없어요')
     + col('To Do', actSteps.length, stepHtml, '미완료 To Do가 없어요')
     + '</div>';
+  var inp = document.getElementById('hwb-memo-inp');
+  if (inp && draft) { inp.value = draft; tlAutosize(inp, 120); }
+  if (inp && hadFocus) {
+    inp.focus();
+    try { inp.setSelectionRange(caret[0], caret[1]); } catch (e) {}
+  }
   webSyncBoard();
+  if (typeof memoEditMount === 'function') memoEditMount();
 }
 
 // 칸이 좁으면 세 칼럼을 나란히 둘 수 없다 — 한 줄에 하나씩 세로로 쌓는다.
@@ -876,6 +902,7 @@ function hwbAddMemo() {
   if (typeof loadNotes === 'function') loadNotes();     // 기존 메모 덮어쓰기 방지
   if (typeof createNote === 'function') createNote(inp.value.trim());
   inp.value = '';
+  inp.style.height = '';
   renderHomeWebWidget();
   // 방금 넣은 메모가 보이도록 입력칸에 다시 포커스
   var again = document.getElementById('hwb-memo-inp');
@@ -1026,6 +1053,7 @@ function focusEnd() {
 
   var task = (typeof tasks !== 'undefined') ? tasks.find(function(t){ return t.id === s.taskId; }) : null;
   var step = task && task.steps ? task.steps.find(function(x){ return String(x.id) === String(s.stepId); }) : null;
+  var madeMin = 0, madeN = 0;
   if (step && typeof slotLocal === 'function') {
     if (!Array.isArray(step.slots)) step.slots = [];
     s.segments.forEach(function(seg, i) {
@@ -1034,6 +1062,7 @@ function focusEnd() {
       a.setSeconds(0, 0); b.setSeconds(0, 0);
       if (b - a < 60000) b = new Date(a.getTime() + 60000);
       step.slots.push({ id: newSlotId() + i, start: slotLocal(a), end: slotLocal(b), fs: nowIso });
+      madeN++; madeMin += Math.round((b - a) / 60000);
     });
     if (!step.slots.length) delete step.slots;
     // 버튼 기록은 예전처럼 To Do 에 붙여 둔다 — 아래 목록과 지우기가 이걸 본다 (fs 로 수행 시간과 이어진다)
@@ -1045,6 +1074,15 @@ function focusEnd() {
   // 같은 To Do 를 이어서 잴 수 있게 골라 둔 채로 비운다 (끝내지 않았으므로 목록에 그대로 있다)
   focusSave(step ? { taskId: s.taskId, stepId: s.stepId, text: step.text, taskText: s.taskText, running: false, segments: [], log: [] } : null);
   focusRefreshSiblings();
+  // Work Diary 에 무엇이 남았는지 알려 준다 (2026-11-12) — 1분이 안 된 세션은 블록이 안 생겨서 고장처럼 보였다
+  if (typeof showNbToast === 'function') {
+    if (!step) showNbToast('To Do 를 찾지 못해 Work Diary 에 남기지 못했어요');
+    else if (madeN) {
+      var hh = Math.floor(madeMin / 60), mm = madeMin % 60;
+      showNbToast('Work Diary 에 ' + (hh ? hh + '시간' + (mm ? ' ' : '') : '') + (mm || !hh ? mm + '분' : '') + ' 기록했어요' + (madeN > 1 ? ' (' + madeN + '칸)' : ''));
+    }
+    else if (sec > 0) showNbToast('1분이 안 돼 Work Diary 에는 남기지 않았어요');
+  }
 }
 
 // 오늘 끝낸 세션 모으기 — To Do 에 붙여 둔 focusSessions 에서 읽는다
