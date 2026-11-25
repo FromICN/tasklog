@@ -526,7 +526,8 @@ function buildTabBackup() {
     + '<div class="backup-dropzone" onclick="document.getElementById(\'restore-file-input\').click()">'
     + '<div style="font-size:28px;margin-bottom:8px;">📂</div>'
     + '<div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px;">백업/엑셀 파일 업로드</div>'
-    + '<div style="font-size:11px;color:var(--text-3);">클릭하거나 파일을 드래그해 주세요 (.json 백업 · Task 엑셀 · 만다라트 엑셀)</div>'
+    + '<div style="font-size:11px;color:var(--text-3);">클릭하거나 파일을 드래그해 주세요 (.json 백업 · Task 엑셀 · 만다라트 엑셀 · 일정 가져오기 엑셀)</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:4px;">일정 가져오기 엑셀은 지금 Task 를 그대로 두고 더하기만 합니다</div>'
     + '<input type="file" id="restore-file-input" accept=".json,.xlsx" style="display:none;" onchange="handleRestoreFile(this)">'
     + '</div>'
     + '<div class="backup-warn">⚠️ 복원 시 현재 데이터가 덧어씨워집니다. 복원 전 반드시 백업을 먼저 진행하세요.</div>';

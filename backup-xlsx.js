@@ -250,9 +250,11 @@ function handleRestoreXlsx(file, input) {
       var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       // 만다라트 양식이면 그쪽으로 (Task 목록을 건드리지 않는다)
       if (mdtXlsxFindSheet(wb)) { handleRestoreMandalartWb(wb); if (input) input.value = ''; return; }
+      // 일정 가져오기 양식이면 Task 를 더하기만 한다 (목록을 바꾸지 않는다)
+      if (gcalXlsxFindSheet(wb)) { handleImportEventsWb(wb); if (input) input.value = ''; return; }
       // Task 양식도 아니면 멈춘다 — 다른 엑셀을 올려 Task 목록 전체가 엉뚱한 내용으로 바뀌지 않게
       if (!wb.SheetNames.some(function (n) { return n.indexOf('할일') >= 0 || n.toLowerCase().indexOf('task') >= 0; })) {
-        throw new Error('TaskLog 엑셀 양식이 아닙니다. [설정 > 백업 & 복원]에서 받은 Task 또는 만다라트 엑셀을 올려 주세요.');
+        throw new Error('TaskLog 엑셀 양식이 아닙니다. [설정 > 백업 & 복원]에서 받은 Task 또는 만다라트 엑셀, 또는 일정 가져오기 엑셀을 올려 주세요.');
       }
       var taskArr = workbookToTaskArray(wb);
       if (!taskArr.length) throw new Error('가져올 할 일이 없습니다. [할 일] 열을 채웠는지 확인하세요.');
@@ -684,5 +686,245 @@ function handleRestoreMandalartWb(wb) {
     localStorage.setItem('my-tasklog-mandalart', JSON.stringify(res.arr));
   }
   alert('만다라트 올리기 완료! (' + st.years.length + '개 연도) 페이지를 새로고침합니다. ✅');
+  location.reload();
+}
+
+
+// ============================================
+//  📅 일정 가져오기 엑셀 — 구글 캘린더 일정을 Task · To Do 로 '더한다' (2026-11-25)
+// --------------------------------------------
+//  ▸ 시트 '일정 가져오기' : 한 줄 = 일정 하나. '처리' 칸이 새 Task / 새 To Do / 건너뜀.
+//  ▸ Task 엑셀과 달리 지금 Task 목록을 바꾸지 않는다 — 새 Task 는 더하고, 새 To Do 는 '연결 Task ID' 의
+//    Task 끝에 붙인다. 이미 있는 Task 의 다른 칸은 건드리지 않는다.
+//  ▸ 시간: 시작·종료 시간이 있으면 Start·Due 시간으로(startHasTime·hasTime). 비우면 종일.
+//    To Do 는 시작·종료 시간이 둘 다 있으면 수행 시간(slots) 한 줄도 만든다.
+//  ▸ 줄마다 '구글 일정 ID' 를 gcalId 로 남긴다. 같은 파일을 두 번 올려도 이미 들어간 줄은 건너뛴다.
+//  ▸ ⚠️ 시트 이름에 '할일'·'task'·'만다라트' 를 넣지 말 것 — handleRestoreXlsx 가 시트 이름으로 양식을 가른다.
+//    그래서 이 기능이 없는 옛 앱은 이 파일을 'TaskLog 양식이 아님'으로 거절한다(Task 목록 전체가 바뀌지 않는다).
+// ============================================
+var GCAL_XLSX_SHEET = '일정 가져오기';
+
+function gcalXlsxFindSheet(wb) {
+  for (var i = 0; i < wb.SheetNames.length; i++) {
+    if (wb.SheetNames[i].replace(/\s/g, '').indexOf('일정가져오기') >= 0) return wb.SheetNames[i];
+  }
+  return null;
+}
+function gcalPad2(n) { return (n < 10 ? '0' : '') + n; }
+// 날짜 칸 → 'YYYY-MM-DD' ('' = 비었음, null = 못 읽음). 엑셀이 날짜로 바꿔 둔 칸(일련번호)도 읽는다.
+function gcalXlsxDate(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (v instanceof Date) return v.getFullYear() + '-' + gcalPad2(v.getMonth() + 1) + '-' + gcalPad2(v.getDate());
+  if (typeof v === 'number') {
+    var p = XLSX.SSF.parse_date_code(v);
+    return p ? p.y + '-' + gcalPad2(p.m) + '-' + gcalPad2(p.d) : null;
+  }
+  var s = String(v).trim();
+  if (!s) return '';
+  var m = s.match(/^(\d{4})\s*[-./년]\s*(\d{1,2})\s*[-./월]\s*(\d{1,2})/);
+  if (!m) return null;
+  var y = +m[1], mo = +m[2], d = +m[3];
+  var t = new Date(y, mo - 1, d);
+  if (t.getFullYear() !== y || t.getMonth() !== mo - 1 || t.getDate() !== d) return null;
+  return y + '-' + gcalPad2(mo) + '-' + gcalPad2(d);
+}
+// 시간 칸 → 'HH:MM' ('' = 비었음, null = 못 읽음). '오후 2:30' · '2:30 PM' · 엑셀 시간값도 읽는다.
+function gcalXlsxTime(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (v instanceof Date) return gcalPad2(v.getHours()) + ':' + gcalPad2(v.getMinutes());
+  if (typeof v === 'number') {
+    var mins = Math.round((v - Math.floor(v)) * 1440);
+    if (mins >= 1440) mins = 1439;
+    return gcalPad2(Math.floor(mins / 60)) + ':' + gcalPad2(mins % 60);
+  }
+  var s = String(v).trim();
+  if (!s) return '';
+  var m = s.match(/(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  var h = +m[1], mi = +m[2];
+  var pm = /오후|pm/i.test(s), am = /오전|am/i.test(s);
+  if (pm && h < 12) h += 12;
+  if (am && h === 12) h = 0;
+  if (h > 23 || mi > 59) return null;
+  return gcalPad2(h) + ':' + gcalPad2(mi);
+}
+// 완료 · 막대 칸 — xlsxTruthy 와 달리 'X' 는 '아니오'로 읽는다
+function gcalXlsxYes(v) {
+  if (v === true) return true;
+  var s = String(v == null ? '' : v).trim().toLowerCase();
+  return s === 'o' || s === '○' || s === '◯' || s === '완료' || s === 'y' || s === 'yes' || s === '예'
+      || s === '1' || s === 'true' || s === '✓' || s === '✔' || s === 'v';
+}
+function gcalXlsxAction(v) {
+  var k = String(v == null ? '' : v).replace(/\s/g, '').toLowerCase();
+  if (!k) return '';
+  if (k.indexOf('todo') >= 0) return 'todo';
+  if (k.indexOf('task') >= 0) return 'task';
+  if (k === '건너뜀' || k === '건너뛰기' || k === 'x' || k === 'skip' || k === '제외') return 'skip';
+  return null;
+}
+// 'S7 🌈 Fixing' · '🌈 Fixing' · 'Fixing' 모두 같은 Section 으로 본다
+function gcalNormName(s) { return String(s == null ? '' : s).replace(/[\s ]+/g, ' ').trim().toLowerCase(); }
+function gcalSecKey(s) { return gcalNormName(s).replace(/^s\d\s+/, '').replace(/^[^0-9a-z가-힣]+/, '').trim(); }
+function gcalDonePrefix(ymd) { return '[' + ymd.slice(2, 4) + ymd.slice(5, 7) + ymd.slice(8, 10) + '] '; }
+// 'YYYY-MM-DD' + 'HH:MM' (이 기기 시간대) → ISO
+function gcalLocalIso(ymd, hm) {
+  var p = ymd.split('-'), q = (hm || '00:00').split(':');
+  return new Date(+p[0], +p[1] - 1, +p[2], +q[0], +q[1], 0, 0).toISOString();
+}
+
+// 엑셀 → 할 일 목록 (검사만 하고 아직 쓰지 않는다)
+function workbookToEventPlan(wb, curTasks) {
+  var rows = XLSX.utils.sheet_to_json(wb.Sheets[gcalXlsxFindSheet(wb)], { header: 1, raw: true, defval: '' });
+  var h = mdtXlsxHeaderMap(rows, ['처리', '제목', '시작일']);
+  if (!h) throw new Error("'일정 가져오기' 시트에서 머리글(처리 · 제목 · 시작일)을 찾지 못했습니다");
+  var col = h.col;
+  function cell(row, key) { var i = col[key]; return i === undefined ? '' : row[i]; }
+  function text(row, key) { var v = cell(row, key); return v == null ? '' : String(v).trim(); }
+
+  var mdts = {};
+  readMandalartArray().forEach(function (m) { if (m && m.year) mdts[m.year] = m; });
+  var byId = {}, seen = {};
+  (curTasks || []).forEach(function (t) {
+    if (!t) return;
+    byId[String(t.id)] = t;
+    if (t.gcalId) seen[t.gcalId] = 1;
+    (t.steps || []).forEach(function (s) { if (s && s.gcalId) seen[s.gcalId] = 1; });
+  });
+
+  var plan = { tasks: [], todos: [], skip: 0, already: 0, errs: [] }, fileIds = {};
+  for (var r = h.row + 1; r < rows.length; r++) {
+    var row = rows[r] || [];
+    var title = text(row, '제목');
+    var actRaw = text(row, '처리');
+    if (!title && !actRaw) continue;
+    var tag = (text(row, '번호') || (r + 1)) + '번 줄';
+    var act = gcalXlsxAction(actRaw);
+    if (act === null || act === '') { plan.errs.push(tag + ": '처리' 는 새 Task · 새 To Do · 건너뜀 중 하나여야 합니다"); continue; }
+    if (act === 'skip') { plan.skip++; continue; }
+    if (!title) { plan.errs.push(tag + ': 제목이 비었습니다'); continue; }
+    var gid = text(row, '구글일정ID');
+    if (gid && seen[gid]) { plan.already++; continue; }
+    if (gid && fileIds[gid]) { plan.errs.push(tag + ': 구글 일정 ID 가 ' + fileIds[gid] + ' 과 같습니다'); continue; }
+    if (gid) fileIds[gid] = tag;
+
+    var sd = gcalXlsxDate(cell(row, '시작일')), ed = gcalXlsxDate(cell(row, '종료일'));
+    var st = gcalXlsxTime(cell(row, '시작시간')), et = gcalXlsxTime(cell(row, '종료시간'));
+    if (!sd) { plan.errs.push(tag + ': 시작일을 읽지 못했습니다 (예: 2026-04-13)'); continue; }
+    if (ed === null) { plan.errs.push(tag + ': 종료일을 읽지 못했습니다'); continue; }
+    if (st === null || et === null) { plan.errs.push(tag + ': 시간을 읽지 못했습니다 (예: 14:00)'); continue; }
+    if (!ed) ed = sd;
+    if ((ed + 'T' + (et || '99:99')) < (sd + 'T' + (st || '00:00')) || ed < sd) { plan.errs.push(tag + ': 종료가 시작보다 이릅니다'); continue; }
+    var done = gcalXlsxYes(cell(row, '완료'));
+    var dd = gcalXlsxDate(cell(row, '완료일'));
+    if (dd === null) { plan.errs.push(tag + ': 완료일을 읽지 못했습니다'); continue; }
+    if (done && !dd) dd = ed;
+    var it = { tag: tag, title: title, sd: sd, st: st, ed: ed, et: et, done: done, dd: dd, gid: gid,
+               location: text(row, '장소'), memo: text(row, '메모'), bar: gcalXlsxYes(cell(row, '막대')) };
+
+    if (act === 'todo') {
+      var pid = text(row, '연결TaskID').replace(/\.0+$/, '');
+      var parent = pid ? byId[pid] : null;
+      if (!parent) { plan.errs.push(tag + ": '연결 Task ID' 의 Task 를 찾지 못했습니다" + (pid ? ' (' + pid + ')' : ' (비었음)')); continue; }
+      it.parent = parent;
+      plan.todos.push(it);
+      continue;
+    }
+    // 새 Task — Section · Project (그 해 만다라트에서 이름으로 찾는다)
+    var secName = text(row, 'Section'), projName = text(row, 'Project');
+    if (secName) {
+      var year = +sd.slice(0, 4), m = mdts[year];
+      var sg = m && (m.subGoals || []).find(function (s) { return s.text && gcalSecKey(s.text) === gcalSecKey(secName); });
+      if (!sg) { plan.errs.push(tag + ': ' + year + '년 만다라트에 Section \'' + secName + '\' 이 없습니다'); continue; }
+      it.goal = { year: year, sgId: sg.id, text: sg.text };
+      if (projName) {
+        var a = (sg.actions || []).find(function (x) { return x.text && gcalNormName(x.text) === gcalNormName(projName); });
+        if (!a) { plan.errs.push(tag + ": Section '" + sg.text + "' 에 Project '" + projName + "' 이 없습니다"); continue; }
+        it.action = { year: year, sgId: sg.id, actionId: a.id, text: a.text };
+      }
+    } else if (projName) { plan.errs.push(tag + ': Project 만 있고 Section 이 비었습니다'); continue; }
+    plan.tasks.push(it);
+  }
+  return plan;
+}
+
+// 할 일 목록 → Task 배열에 더한다 (arr 를 고친다)
+function gcalXlsxApply(plan, arr) {
+  var used = {}, next = Date.now();
+  arr.forEach(function (t) { used[t.id] = 1; (t.steps || []).forEach(function (s) { used[s.id] = 1; }); });
+  function newId() { while (used[next]) next++; used[next] = 1; return next++; }
+  var nowIso = new Date().toISOString();
+
+  plan.tasks.forEach(function (it) {
+    var o = {
+      text: (it.done && !/^\[\d{6}\]/.test(it.title) ? gcalDonePrefix(it.dd) : '') + it.title,
+      completed: it.done, starred: false,
+      startDate: it.sd + 'T' + (it.st || '09:00') + ':00', startHasTime: !!it.st,
+      dueDateTime: it.ed + 'T' + (it.et || '09:00') + ':00', hasTime: !!it.et,
+      status: it.done ? '완료' : '대기', notes: it.memo, steps: [],
+      mdtGoal: it.goal || null, mdtAction: it.action || null,
+      location: it.location, calBar: it.bar
+    };
+    var doc = (typeof newTaskDoc === 'function') ? newTaskDoc(o) : Object.assign({
+      createdAt: nowIso, reminder: null, assignee: '', assignees: [], repeat: null, eisenhower: null,
+      upstreamDepts: [], upstreamDept: '', prevTaskIds: [], nextTaskIds: []
+    }, o);
+    if (!doc.mdtGoal) delete doc.mdtGoal;
+    if (!doc.location) delete doc.location;
+    if (!doc.calBar) delete doc.calBar;
+    doc.id = newId();
+    if (it.done && it.et) doc.completedAt = gcalLocalIso(it.ed, it.et);
+    if (it.gid) doc.gcalId = it.gid;
+    arr.push(doc);
+  });
+
+  plan.todos.forEach(function (it) {
+    var p = arr.find(function (t) { return t.id === it.parent.id; });
+    if (!p) return;
+    if (!Array.isArray(p.steps)) p.steps = [];
+    var sameDay = it.sd === it.ed;
+    var s = {
+      id: newId(),
+      text: (it.done && !/^\[\d{6}\]/.test(it.title) ? gcalDonePrefix(it.dd) : '') + it.title,
+      completed: it.done,
+      dueDateTime: it.ed + 'T' + ((sameDay && it.st) || '09:00') + ':00', hasTime: !!(sameDay && it.st)
+    };
+    if (it.st && it.et) s.slots = [{ id: newId(), start: it.sd + 'T' + it.st + ':00', end: it.ed + 'T' + it.et + ':00' }];
+    if (it.done && it.et) s.completedAt = gcalLocalIso(it.ed, it.et);
+    if (it.gid) s.gcalId = it.gid;
+    p.steps.push(s);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  일정 가져오기 엑셀 → 확인 → 저장 (handleRestoreXlsx 에서 부른다)
+// ─────────────────────────────────────────────
+function handleImportEventsWb(wb) {
+  // 앱이 들고 있는 Task 를 저장소의 최신 값으로 맞춘 뒤 그 위에 더한다
+  var mem = (typeof tasks !== 'undefined' && Array.isArray(tasks) && typeof saveTasks === 'function');
+  if (mem && typeof loadTasks === 'function') loadTasks();
+  var arr = mem ? tasks : readTaskArray();
+  var plan = workbookToEventPlan(wb, arr);
+  if (plan.errs.length) {
+    throw new Error('일정 가져오기 엑셀을 고쳐 주세요.\n' + plan.errs.slice(0, 12).join('\n')
+      + (plan.errs.length > 12 ? '\n… 외 ' + (plan.errs.length - 12) + '건' : ''));
+  }
+  if (!plan.tasks.length && !plan.todos.length) {
+    alert('더할 줄이 없습니다.' + (plan.already ? ' (이미 가져온 줄 ' + plan.already + '개)' : '') + (plan.skip ? ' (건너뜀 ' + plan.skip + '줄)' : ''));
+    return;
+  }
+  var doneN = plan.tasks.filter(function (x) { return x.done; }).length;
+  var parents = {};
+  plan.todos.forEach(function (x) { parents[x.parent.id] = 1; });
+  var msg = '일정 가져오기 엑셀로 Task 를 더합니다.\n'
+    + '· 새 Task ' + plan.tasks.length + '개 (완료 ' + doneN + ' · 미완료 ' + (plan.tasks.length - doneN) + ')\n'
+    + (plan.todos.length ? '· 새 To Do ' + plan.todos.length + '개 → 있던 Task ' + Object.keys(parents).length + '개에 붙임\n' : '')
+    + (plan.skip ? '· 건너뜀 ' + plan.skip + '줄\n' : '')
+    + (plan.already ? '· 이미 가져온 줄 ' + plan.already + '개는 다시 넣지 않음\n' : '')
+    + '\n지금 있는 Task 는 지우거나 바꾸지 않습니다(To Do 를 붙이는 Task 만 To Do 가 늘어납니다). 계속할까요?';
+  if (!confirm(msg)) return;
+  gcalXlsxApply(plan, arr);
+  if (mem) saveTasks(); else localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(arr));
+  alert('일정 가져오기 완료! (새 Task ' + plan.tasks.length + '개 · 새 To Do ' + plan.todos.length + '개) 페이지를 새로고침합니다. ✅');
   location.reload();
 }
