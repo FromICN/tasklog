@@ -11,7 +11,7 @@
   "firebase-init.js": "230b871dea67",
   "colresize.js": "5b4907a5ad5b",
   "backup-core.js": "ff83e942bbda",
-  "backup-xlsx.js": "c08515144ea1",
+  "backup-xlsx.js": "aa54e624b1be",
   "auth.js": "690c814c0e2d",
   "mandalart.js": "aaec27f0ba92",
   "lifewheel.js": "9400f0b5e144",
@@ -30,6 +30,6 @@
   "todo.js": "2994d9df1f4b",
   "yearsync.js": "20e085b8cc42",
   "script.js": "ab1a58d29b51",
-  "pwa.js": "78352e86b2d0",
+  "pwa.js": "a678db11374c",
   "mobile-ui.js": "ff2c7494ef27"
 }

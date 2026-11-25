@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261125d'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261125e'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -34,7 +34,7 @@ const PRECACHE_URLS = [
   './firebase-init.js?v=20260808a',
   './colresize.js?v=20260722',
   './backup-core.js?v=20261125d',
-  './backup-xlsx.js?v=20261125d',
+  './backup-xlsx.js?v=20261125e',
   './auth.js?v=20261111i',
   './mandalart.js?v=20261125a',
   './lifewheel.js?v=20260816e',
@@ -53,7 +53,7 @@ const PRECACHE_URLS = [
   './todo.js?v=20261110o',
   './yearsync.js?v=20260722',
   './script.js?v=20261111i',
-  './pwa.js?v=20261125d',
+  './pwa.js?v=20261125e',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',

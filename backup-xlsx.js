@@ -211,7 +211,8 @@ function buildTaskWorkbook(tasksArr) {
     ['장소 · 메모', '그대로.'],
     ['Coworker · UpStream', '여러 명은 쉼표로.'],
     ['선행 · 후행 Task ID', 'Task ID 를 쉼표로.'],
-    ['만든 시각 · 구글 일정 ID', '참고용. 고쳐도 반영되지 않습니다.'],
+    ['만든 시각', '참고용. 고쳐도 반영되지 않습니다.'],
+    ['구글 일정 ID', '구글 캘린더에서 가져온 항목의 번호. 일정 가져오기 엑셀을 다시 올릴 때 겹치지 않게 막습니다.'],
     ['보존 데이터', '고치지 마세요. 엑셀에 칸이 없는 값(알림·Work Diary 위치 등)을 담아, 손실 없이 되살리는 데 씁니다.'],
     [''],
     ['[To Do] 칸'],
@@ -294,11 +295,12 @@ function txParseSlots(text, oldSlots, newId) {
   return out;
 }
 // 완료 묶음 (완료 · 이름 · 완료 시각) — Task · To Do 공통. 앱의 toggleComplete / toggleStep 과 같은 규칙.
-function txApplyDone(o, c, ch, errs, tag) {
+function txApplyDone(o, c, ch, errs, tag, isNew) {
   if (ch['완료']) {
     var done = c['완료'] === 'Y';
     if (done && !o.completed) {
-      if (!o.completedAt) o.completedAt = new Date().toISOString();
+      // 새 줄에 완료 시각을 일부러 비워 두면(종일 일정 등) 지금 시각을 찍지 않는다 — Work Diary 에 엉뚱한 시각으로 놓인다
+      if (!o.completedAt && !(isNew && c['완료 시각'] === '')) o.completedAt = new Date().toISOString();
       if (!/^\[\d{6}\]/.test(o.text || '')) o.text = txDonePrefix(o.completedAt) + (o.text || '');
       delete o.wdTimed; delete o.wdLogAt;
     } else if (!done && o.completed) {
@@ -371,17 +373,20 @@ function workbookToTaskPlan(wb, cur) {
       if (!t.createdAt) t.createdAt = new Date().toISOString();
     }
     var refCells = txTaskCells(ref, mdts);
+    var curCells = base ? txTaskCells(base, mdts) : null;          // 지금 앱 값 — 이미 같으면 할 일이 없다(같은 파일 두 번 올리기)
     var c = {}, ch = {}, any = false;
     TX_TASK_HEADERS.forEach(function (h) {
-      if (h === 'ID' || h === '만든 시각' || h === '구글 일정 ID' || h === '보존 데이터') return;
+      if (h === 'ID' || h === '만든 시각' || h === '보존 데이터') return;
       var raw = cellOf(rowT, hT.col, h);
       if (raw === undefined) return;                               // 그 칸이 없는 파일 — 건드리지 않는다
       var v = txNorm(h, raw), rv = txNorm(h, refCells[h]);
       c[h] = v; c[h + 'raw'] = raw;
+      if (curCells && v === txNorm(h, curCells[h])) return;
       if (isNew ? (v !== '' && v !== rv) || (v === null) : v !== rv) { ch[h] = true; any = true; }
     });
     if (ch['할 일']) { ch['_text'] = true; c['_text'] = String(textRaw); }
-    txApplyDone(t, c, ch, errs, tag);
+    txApplyDone(t, c, ch, errs, tag, isNew);
+    if (ch['구글 일정 ID']) { if (String(c['구글 일정 ID']).trim()) t.gcalId = String(c['구글 일정 ID']).trim(); else delete t.gcalId; }
     if (ch['중요(별표)']) t.starred = c['중요(별표)'] === 'Y';
     if (ch['상태']) t.status = c['상태'] || '대기';
     if (ch['우선순위']) t.eisenhower = c['우선순위'] || null;
@@ -449,17 +454,21 @@ function workbookToTaskPlan(wb, cur) {
       var sNew = !sBase && !sSnap;
       var sRef = sSnap || sBase || {};
       var s = sNew ? { id: 0, text: '', completed: false, dueDateTime: null, hasTime: false } : JSON.parse(JSON.stringify(sBase || sSnap));
-      if (sNew) s.id = newId();
+      // 새 To Do 에 긴 번호를 미리 적어 두었으면 그 번호를 쓴다 — 같은 파일을 다시 올려도 겹치지 않는다
+      if (sNew) { s.id = (sid && !used[txIdVal(sid)] && !/^\d{1,9}$/.test(sid)) ? txIdVal(sid) : newId(); used[s.id] = 1; }
       var rc = txStepCells(t, sRef), sc = {}, sch = {}, sAny = false;
-      ['To Do', '완료', '완료 시각', '마감일', '마감 시간', '수행 시간'].forEach(function (h) {
+      var sCurObj = sid ? (baseSteps[sid] || null) : null, scur = sCurObj ? txStepCells(t, sCurObj) : null;
+      ['To Do', '완료', '완료 시각', '마감일', '마감 시간', '수행 시간', '구글 일정 ID'].forEach(function (h) {
         var raw = cellOf(row, hS.col, h);
         if (raw === undefined) return;
         var v = txNorm(h, raw), rv = txNorm(h, rc[h]);
         sc[h] = v; sc[h + 'raw'] = raw;
+        if (scur && v === txNorm(h, scur[h])) return;
         if (sNew ? (v !== '' && v !== rv) || v === null : v !== rv) { sch[h] = true; sAny = true; }
       });
       if (sch['To Do']) { sch['_text'] = true; sc['_text'] = String(sText); }
-      txApplyDone(s, sc, sch, errs, stag);
+      txApplyDone(s, sc, sch, errs, stag, sNew);
+      if (sch['구글 일정 ID']) { if (String(sc['구글 일정 ID']).trim()) s.gcalId = String(sc['구글 일정 ID']).trim(); else delete s.gcalId; }
       if (sch['마감일'] || sch['마감 시간']) {
         var d = sc['마감일'], tm = sc['마감 시간'];
         if (d === null || tm === null) errs.push(stag + ': 마감일·시간을 읽지 못했습니다');
