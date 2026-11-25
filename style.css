@@ -11906,11 +11906,14 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
 }
 .mdt-perf-datero.is-open { color: var(--text-3); font-style: italic; }
 
-/* 연동 줄의 내용 — Task 고르는 칸.
-   ⚠️ option·optgroup 에는 색을 칠하지 않는다 (펼친 목록이 흰 판으로 바뀐다). */
-.mdt-perf-tasksel {
+/* 연동 줄의 내용 — 누르면 그 줄 아래에 Task · To Do 검색 창이 열리는 칸 (2026-11-25, 예전엔 select) */
+.mdt-perf-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-15);
   width: 100%;
   min-width: 0;
+  min-height: 28px;
   box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -11918,14 +11921,129 @@ body.hw-resizing .hw-track { background: rgba(var(--accent-rgb), 0.30); }
   color: var(--text-1);
   font-family: inherit;
   font-size: var(--fs-sm);
-  padding: 3px var(--space-1);
+  text-align: left;
+  padding: 3px var(--space-15);
+  cursor: pointer;
+}
+.mdt-perf-pick:hover,
+.mdt-perf-pick.is-open { border-color: var(--brand-primary); }
+.mdt-pk-ph { min-width: 0; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mdt-pk-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.mdt-pk-title,
+.mdt-pk-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdt-pk-sub { font-size: var(--fs-2xs); color: var(--text-3); }
+/* Task = 동그라미 · To Do = 네모 (Calendar 와 같은 표시) */
+.mdt-pk-ico { flex: none; width: 9px; height: 9px; box-sizing: border-box; border: 1.5px solid var(--brand-primary); }
+.mdt-pk-ico.task { border-radius: 50%; }
+.mdt-pk-ico.step { border-radius: 2px; }
+
+/* 연동한 Task · To Do 가 지워진 줄 */
+.mdt-perf-tr.is-gone .mdt-perf-datero,
+.mdt-perf-tr.is-gone .mdt-perf-pick { color: var(--text-3); }
+
+/* ── 검색 창 — 연동 줄 바로 아래에 끼운다 ── */
+.mdt-pk-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-15);
+  padding: var(--space-2) var(--space-25) var(--space-25);
+  background: rgba(127,127,127,0.07);
+  border-top: 1px solid var(--border);
+}
+.mdt-pk-panel + .mdt-perf-tr { border-top: 1px solid var(--border); }
+.mdt-pk-bar { display: flex; align-items: center; gap: var(--space-15); }
+.mdt-pk-q {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--brand-primary);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  padding: 5px var(--space-2);
   outline: none;
 }
-.mdt-perf-tasksel:focus { border-color: var(--brand-primary); }
-
-/* 연동한 Task 가 지워진 줄 */
-.mdt-perf-tr.is-gone .mdt-perf-datero,
-.mdt-perf-tr.is-gone .mdt-perf-tasksel { color: var(--text-3); }
+.mdt-pk-kinds { display: flex; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-full); }
+.mdt-pk-kinds button {
+  background: none;
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--text-3);
+  font-family: inherit;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  padding: 3px var(--space-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mdt-pk-kinds button.on { background: var(--brand-primary); color: #fff; }
+.mdt-pk-close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.mdt-pk-close:hover { background: var(--sidebar-hover); color: var(--text-1); }
+.mdt-perf-allchk.mdt-pk-all { justify-content: flex-start; margin-bottom: 0; }
+.mdt-pk-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.mdt-pk-grp { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.04em; padding: 6px var(--space-25) 3px; }
+.mdt-pk-grp:not(:first-child) { border-top: 1px solid var(--border); margin-top: 2px; }
+.mdt-pk-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  padding: 6px var(--space-25);
+  cursor: pointer;
+}
+.mdt-pk-item:hover,
+.mdt-pk-item.is-hi { background: color-mix(in srgb, var(--brand-primary) 10%, transparent); }
+.mdt-pk-item.is-cur { box-shadow: inset 3px 0 0 var(--brand-primary); }
+.mdt-pk-item.is-used { opacity: 0.45; cursor: default; }
+.mdt-pk-item.is-used:hover { background: none; }
+.mdt-pk-date { flex: none; font-size: var(--fs-2xs); color: var(--text-3); font-variant-numeric: tabular-nums; }
+/* 걸린 글자는 본문 색 — 흐린 '↳ 상위 Task' 줄에서도 다크에서 읽혀야 한다 */
+.mdt-pk-item mark { background: color-mix(in srgb, #FFC300 45%, transparent); color: var(--text-1); border-radius: 2px; }
+.mdt-pk-empty,
+.mdt-pk-more { font-size: var(--fs-xs); color: var(--text-3); text-align: center; padding: var(--space-25); }
+.mdt-pk-outside {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px dashed var(--border);
+  color: var(--brand-primary);
+  font-family: inherit;
+  font-size: var(--fs-xs);
+  text-align: center;
+  padding: var(--space-2) var(--space-25);
+  cursor: pointer;
+}
+.mdt-pk-outside:hover { background: color-mix(in srgb, var(--brand-primary) 8%, transparent); }
 
 /* 표 위 '연결되지 않은 Task도 표시' 체크 */
 .mdt-perf-allchk {

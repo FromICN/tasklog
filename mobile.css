@@ -785,3 +785,13 @@ html.pwa-standalone body {
   /* 목표 줄에 칸이 다섯이라 좁은 화면에서는 두 줄로 접힌다 */
   .mdt-perf-goalrow { row-gap: var(--space-15); }
 }
+
+/* 실적 입력의 Task · To Do 검색 창 — 좁은 화면: 검색칸이 한 줄을 다 쓰고 종류 버튼은 아래 줄 */
+@media (max-width: 768px) {
+  .mdt-pk-panel { padding: var(--space-2) var(--space-15) var(--space-2); }
+  .mdt-pk-bar { flex-wrap: wrap; row-gap: var(--space-15); }
+  .mdt-pk-q { flex: 1 1 100%; font-size: 16px; }   /* 16px 밑이면 iOS 가 화면을 확대한다 */
+  .mdt-pk-close { margin-left: auto; }
+  .mdt-pk-list { max-height: 50vh; }
+  .mdt-pk-item { padding: 8px var(--space-2); }
+}

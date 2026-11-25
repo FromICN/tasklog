@@ -518,19 +518,25 @@ function mdtHabitYearWeeks(a, year) {
 
 
 // ============================================================
-//  🔗 실적 기록 ↔ Task 연동
+//  🔗 실적 기록 ↔ Task · To Do 연동
 //  ------------------------------------------------------------
-//  기록 한 줄은 둘 중 하나다.
-//   · 직접 입력 (기본)      : 일자·내용을 손으로 적는다
-//   · Task 연동 src:'task'  : taskId 만 두고, 일자·내용은 볼 때마다 Task 에서
-//                             읽는다 (살아있는 참조 — Task 를 고치면 실적도 바뀐다)
+//  기록 한 줄은 셋 중 하나다.
+//   · 직접 입력 (기본)       : 일자·내용을 손으로 적는다
+//   · Task 연동  src:'task'  : taskId 만 두고, 일자·내용은 볼 때마다 Task 에서
+//                              읽는다 (살아있는 참조 — Task 를 고치면 실적도 바뀐다)
+//   · To Do 연동 src:'step'  : taskId(부모 Task) + stepId. 일자·내용은 그 To Do 에서
+//                              (2026-11-25). To Do 도 완료하면 [YYMMDD] · completedAt
+//                              을 쓰므로 완료일은 Task 와 같은 규칙(mdtTaskDate)으로 읽는다.
 //
-//  ⚠️ 연동 줄의 일자는 Task 의 '완료일'이다.
-//     아직 안 끝난 Task 는 일자가 없고, 그래서 누적 실적으로도 세지 않는다.
+//  ⚠️ 연동 줄의 일자는 Task·To Do 의 '완료일'이다.
+//     아직 안 끝난 것은 일자가 없고, 그래서 누적 실적으로도 세지 않는다.
 //     끝내는 순간 저절로 1건이 된다 — 이게 연동을 쓰는 이유다.
+//  ⚠️ 이 규칙을 바꾸면 폰 위젯의 MandalartPerf.java (entryDate · linkedTasks) 도 고칠 것.
 //  ⚠️ `tasks` 는 script.js 의 let 이라 TDZ 에서 typeof 도 던진다. try 로 감싼다.
 // ============================================================
 function mdtEntryIsTask(e) { return !!(e && e.src === 'task'); }
+function mdtEntryIsStep(e) { return !!(e && e.src === 'step'); }
+function mdtEntryIsLinked(e) { return mdtEntryIsTask(e) || mdtEntryIsStep(e); }
 
 function mdtAllTasks() {
   var list;
@@ -572,13 +578,29 @@ function mdtTaskDate(t) {
 // 제목 앞에 붙는 [YYMMDD] 머리표는 떼고 보여 준다
 function mdtTaskText(t) { return t ? String(t.text || '').replace(/^\[\d{6}\] /, '') : ''; }
 
-// 기록 한 줄의 '보이는 값'. 연동 줄이면 Task 에서 읽고,
-// Task 가 지워졌으면 연동할 때 떠 둔 사본을 그대로 보여 준다.
+function mdtFindStep(t, id) {
+  if (!t || !Array.isArray(t.steps) || id === null || id === undefined) return null;
+  for (var i = 0; i < t.steps.length; i++) if (t.steps[i] && t.steps[i].id === id) return t.steps[i];
+  return null;
+}
+
+// 기록 한 줄의 '보이는 값'. 연동 줄이면 Task·To Do 에서 읽고,
+// 지워졌으면 연동할 때 떠 둔 사본을 그대로 보여 준다.
+//  kind = 'task' | 'step' (연동 줄) · step 이면 task 는 그 부모 Task
 function mdtEntryView(e) {
-  var v = { date: (e && e.date) || '', text: (e && e.text) || '', linked: false, missing: false, task: null };
-  if (!mdtEntryIsTask(e)) return v;
+  var v = { date: (e && e.date) || '', text: (e && e.text) || '', linked: false, missing: false, task: null, step: null, kind: null };
+  if (!mdtEntryIsLinked(e)) return v;
   v.linked = true;
+  v.kind = e.src;
   var t = mdtFindTask(e.taskId);
+  if (mdtEntryIsStep(e)) {
+    var s = mdtFindStep(t, e.stepId);
+    if (!s) { v.missing = (e.stepId !== null && e.stepId !== undefined); return v; }
+    v.task = t; v.step = s;
+    v.date = s.completed ? mdtTaskDate(s) : '';   // 완료를 취소하면 실적에서도 빠진다
+    v.text = mdtTaskText(s);
+    return v;
+  }
   if (!t) { v.missing = (e.taskId !== null && e.taskId !== undefined); return v; }
   v.task = t;
   v.date = mdtTaskDone(t) ? mdtTaskDate(t) : '';   // 완료를 취소하면 실적에서도 빠진다
@@ -1422,7 +1444,9 @@ var _mdtPerfModalCtx = null;
 
 function mdtClosePerfModal() {
   var el = document.getElementById('mdt-perf-modal-overlay'); if (el) el.remove();
-  _mdtTaskPickAll = false;   // 'Task 전체 보기'는 창을 닫으면 원래대로
+  if (_mdtPick) mdtPickDropEmpty();   // ✎ 를 눌러 막 연 빈 연동 줄은 남기지 않는다
+  _mdtPick = null;
+  _mdtTaskPickAll = false;   // '전체 보기'는 창을 닫으면 원래대로
   // 그리드가 열려 있으면 달성현황 갱신
   if (_mdtPerfModalCtx && document.querySelector('.mdt-grid-table')) {
     openSgDetail(_mdtPerfModalCtx.year, _mdtPerfModalCtx.sgId);
@@ -1489,16 +1513,15 @@ function mdtBuildResultModalBody(m, sg, a) {
   // 표: 기존 기록(일자 오름차순) + 항상 빈 행 1개(입력 시 자동 추가)
   //  ⚠️ 화면만 정렬한다 — 넘기는 idx 는 resultEntries 의 원래 자리다.
   //     '#'은 보이는 순서(no)로 매긴다. 둘을 섞으면 엉뚱한 줄이 지워진다.
+  //  검색 창(_mdtPick)이 열린 줄이면 그 줄 바로 아래에 창을 끼운다.
+  if (_mdtPick && _mdtPick.idx >= a.resultEntries.length) _mdtPick = null;
   var rows = '';
   mdtSortedEntries(a).forEach(function(r, i) {
     rows += mdtResultRowHtml(yr, sgId, a, r.idx, i + 1, r.e, false, isGoal);
+    if (_mdtPick && _mdtPick.idx === r.idx) rows += mdtPickPanelHtml();
   });
   rows += mdtResultRowHtml(yr, sgId, a, a.resultEntries.length, 0, null, true, isGoal);   // 새 입력용 빈 행
-  var pickRow = '<label class="mdt-perf-allchk" title="이 Project 에 연결되지 않은 완료 Task 까지 고를 수 있게 한다">'
-    + '<input type="checkbox"' + (_mdtTaskPickAll ? ' checked' : '') + ' onchange="mdtToggleTaskPickAll(this.checked)">'
-    + '연결되지 않은 완료 Task도 목록에 표시</label>';
-  var table = pickRow
-    + '<div class="mdt-perf-tbl' + (isGoal ? ' has-goal' : '') + '">'
+  var table = '<div class="mdt-perf-tbl' + (isGoal ? ' has-goal' : '') + '">'
     + '<div class="mdt-perf-tbl-hd"><span class="c-idx">#</span><span class="c-src">연동</span>'
     +   '<span class="c-date">일자</span><span class="c-text">내용</span>'
     +   (isGoal ? '<span class="c-val">값</span><span class="c-ok">판정</span>' : '') + '<span class="c-del"></span></div>'
@@ -1508,92 +1531,308 @@ function mdtBuildResultModalBody(m, sg, a) {
     +   (isGoal
         ? '※ 값이 <b>' + mdtNumTrim(a.annualTarget) + escMdt(a.annualUnit ? ' ' + a.annualUnit : '') + ' ' + mdtCompareLabel(a) + '</b>인 기록이 1건이라도 있으면 달성입니다. 진행률(%)은 목표에 가장 근접한 값으로 표시됩니다.<br>'
         : '※ 일자를 입력하면 자동으로 실적 1건으로 집계됩니다.<br>')
-    +   '※ 연동 칸의 <b>✎</b> 를 누르면 <b>🔗</b> 로 바뀌어 Task 를 고를 수 있습니다. 목록에는 <b>완료된 Task</b> 만 나오며, 연동한 줄은 그 Task 의 <b>완료일·제목</b>을 그대로 따라갑니다.'
+    +   '※ 연동 칸의 <b>✎</b> 를 누르면 <b>🔗</b> 로 바뀌고 검색 창이 열립니다. <b>완료된 Task · To Do</b> 를 제목 · 상위 Task · 날짜로 찾아 고르면, 그 줄은 고른 항목의 <b>완료일·제목</b>을 그대로 따라갑니다.'
     + '</div>';
   return mdtPerfModalHead(m, sg, a) + head + table;
 }
 
-// ── Task 고르기 ──────────────────────────────────────────
-//  기본은 이 Project(mdtAction)에 연결된 Task 만 보여 준다.
-//  체크를 켜면 나머지도 고를 수 있다(모달을 닫으면 초기화된다).
+// ── Task · To Do 고르기 (검색 창) ─────────────────────────────
+//  연동 줄의 내용 칸을 누르면 그 줄 바로 아래에 검색 창이 열린다 (2026-11-25).
+//  · 목록에는 '완료된' Task · To Do 만 올린다 — 실적은 끝낸 일을 세는 것이다.
+//  · 기본은 이 Project(mdtAction)에 연결된 Task 와 그 Task 의 To Do 만.
+//    체크를 켜면 나머지 완료 항목도 나온다(모달을 닫으면 초기화된다).
+//    체크가 꺼져 있어도 검색어가 바깥 항목과 맞으면 '모두 보기' 를 알려 준다.
+//  · 검색은 제목 · (To Do 면) 상위 Task 제목 · 완료일(YYYY-MM-DD)을 본다.
+//    띄어 쓴 낱말은 모두 들어 있어야 맞는다.
+//  · 같은 Project 의 다른 줄에 이미 걸린 항목은 고를 수 없다(한 일을 두 번 세지 않게).
+//  ⚠️ 검색어를 칠 때는 목록(#mdt-pick-list)만 다시 그린다. 모달 전체를 다시 그리면
+//     글자마다 입력칸이 새로 만들어져 커서와 한글 조합이 끊긴다.
 var _mdtTaskPickAll = false;
-function mdtToggleTaskPickAll(on) {
-  _mdtTaskPickAll = !!on;
-  if (_mdtPerfModalCtx) mdtRenderPerfModalBody(_mdtPerfModalCtx.year, _mdtPerfModalCtx.sgId, _mdtPerfModalCtx.actId);
+var _mdtPick = null;   // { idx, q, kind:'all'|'task'|'step', hi, list, revert } — 열린 검색 창
+var MDT_PICK_LIMIT = 80;   // 한 번에 그리는 최대 줄 수 (넘으면 검색어로 좁히라고 알린다)
+
+function mdtPickCtxAction() {
+  var c = _mdtPerfModalCtx;
+  return c ? mdtFindAction(c.year, c.sgId, c.actId) : null;
 }
-// 목록에는 '완료된' Task 만 올린다 — 실적은 끝낸 일을 세는 것이다.
-//  이 Project 것이 먼저, 그 안에서 완료일 오름차순.
-//  이미 걸어 둔 Task 는 완료가 풀렸더라도 목록에 남긴다(그래야 무엇이
-//  걸려 있는지 보이고, 실수로 다른 Task 로 바뀌지 않는다).
-function mdtPickableTasks(year, sgId, actId, curId) {
+function mdtPickRerender() {
+  var c = _mdtPerfModalCtx;
+  if (c) mdtRenderPerfModalBody(c.year, c.sgId, c.actId);
+}
+
+// 고를 수 있는 항목 전부 — { kind, t, s, mine, date, year, text, parent, key }
+function mdtPickItems(year, sgId, actId) {
   function mine(t) {
     return !!(t.mdtAction && t.mdtAction.year === year
       && t.mdtAction.sgId === sgId && t.mdtAction.actionId === actId);
   }
-  return mdtAllTasks()
-    .filter(function(t){
-      if (t.id === curId) return true;
-      return mdtTaskDone(t) && (_mdtTaskPickAll || mine(t));
-    })
-    .sort(function(p, q) {
-      var pm = mine(p) ? 0 : 1, qm = mine(q) ? 0 : 1;
-      if (pm !== qm) return pm - qm;
-      var pd = mdtTaskDate(p), qd = mdtTaskDate(q);
-      if (!pd && !qd) return 0;
-      if (!pd) return 1;
-      if (!qd) return -1;
-      return pd < qd ? -1 : (pd > qd ? 1 : 0);
+  var out = [];
+  mdtAllTasks().forEach(function(t) {
+    if (!t) return;
+    var tm = mine(t), tText = mdtTaskText(t);
+    if (mdtTaskDone(t)) {
+      var d = mdtTaskDate(t);
+      out.push({ kind: 'task', t: t, s: null, mine: tm, date: d, year: d.slice(0, 4), text: tText, parent: '', key: 'task:' + t.id });
+    }
+    (Array.isArray(t.steps) ? t.steps : []).forEach(function(s) {
+      if (!s || !s.completed) return;
+      var sd = mdtTaskDate(s);
+      out.push({ kind: 'step', t: t, s: s, mine: tm, date: sd, year: sd.slice(0, 4), text: mdtTaskText(s), parent: tText, key: 'step:' + t.id + ':' + s.id });
     });
-}
-function mdtTaskOptionsHtml(yr, sgId, actId, e) {
-  var cur = (e && e.taskId !== null && e.taskId !== undefined) ? e.taskId : null;
-  var opts = '<option value=""' + (cur === null ? ' selected' : '') + '>Task 선택…</option>';
-  var found = false;
-  mdtPickableTasks(yr, sgId, actId, cur).forEach(function(t) {
-    var sel = (t.id === cur); if (sel) found = true;
-    var d = mdtTaskDate(t);
-    opts += '<option value="' + t.id + '"' + (sel ? ' selected' : '') + '>'
-      + escMdt(mdtTaskText(t).substring(0, 40))
-      + (d ? ' · ' + d : (mdtTaskDone(t) ? ' · 일자 없음' : ' · 완료 취소됨')) + '</option>';
   });
-  // 지워진 Task — 골라 둔 것이 목록에 없으면 흔적을 남겨 둔다
-  if (cur !== null && !found) {
-    opts += '<option value="' + cur + '" selected>삭제된 Task'
-      + (e && e.text ? ' · ' + escMdt(String(e.text).substring(0, 30)) : '') + '</option>';
-  }
-  return opts;
+  return out;
+}
+function mdtEntryKey(e) {
+  if (mdtEntryIsStep(e) && e.stepId !== null && e.stepId !== undefined) return 'step:' + e.taskId + ':' + e.stepId;
+  if (mdtEntryIsTask(e) && e.taskId !== null && e.taskId !== undefined) return 'task:' + e.taskId;
+  return '';
+}
+function mdtPickTerms(q) {
+  return String(q || '').toLowerCase().split(/\s+/).filter(Boolean);
+}
+function mdtPickHit(it, terms) {
+  if (!terms.length) return true;
+  var hay = (it.text + '\n' + it.parent + '\n' + it.date).toLowerCase();
+  for (var i = 0; i < terms.length; i++) if (hay.indexOf(terms[i]) < 0) return false;
+  return true;
+}
+// 검색어가 걸린 글자에 <mark> — 겹치는 구간은 합친다
+function mdtPickMark(text, terms) {
+  var s = String(text || ''), low = s.toLowerCase(), marks = [];
+  terms.forEach(function(w) {
+    var from = 0, i;
+    while (w && (i = low.indexOf(w, from)) >= 0) { marks.push([i, i + w.length]); from = i + w.length; }
+  });
+  if (!marks.length) return escMdt(s);
+  marks.sort(function(p, q) { return p[0] - q[0]; });
+  var out = '', pos = 0;
+  marks.forEach(function(m) {
+    if (m[1] <= pos) return;
+    var st = Math.max(m[0], pos);
+    out += escMdt(s.slice(pos, st)) + '<mark>' + escMdt(s.slice(st, m[1])) + '</mark>';
+    pos = m[1];
+  });
+  return out + escMdt(s.slice(pos));
 }
 
-// 구분 토글 — 직접 입력 ↔ Task 연동
+// 열린 검색 창 (모달 본문을 그릴 때 그 줄 아래에 끼운다)
+function mdtPickPanelHtml() {
+  var p = _mdtPick; if (!p) return '';
+  var kinds = [['all', '전체'], ['task', 'Task'], ['step', 'To Do']];
+  var kb = kinds.map(function(k) {
+    return '<button type="button" data-kind="' + k[0] + '" class="' + (p.kind === k[0] ? 'on' : '') + '"'
+      + ' onclick="mdtPickKind(\'' + k[0] + '\')">' + k[1] + '</button>';
+  }).join('');
+  return '<div class="mdt-pk-panel" onkeydown="mdtPickKey(event)">'
+    + '<div class="mdt-pk-bar">'
+    +   '<input type="search" id="mdt-pick-q" class="mdt-pk-q" autocomplete="off" spellcheck="false"'
+    +     ' placeholder="🔍 제목 · 상위 Task · 날짜로 검색" value="' + escMdt(p.q) + '"'
+    +     ' oninput="mdtPickInput(this.value)">'
+    +   '<div class="mdt-pk-kinds" id="mdt-pick-kinds">' + kb + '</div>'
+    +   '<button type="button" class="mdt-pk-close" title="닫기 (Esc)" onclick="mdtPickClose()">✕</button>'
+    + '</div>'
+    + '<label class="mdt-perf-allchk mdt-pk-all" title="이 Project 에 연결되지 않은 완료 Task · To Do 까지 고를 수 있게 한다">'
+    +   '<input type="checkbox" id="mdt-pick-all"' + (_mdtTaskPickAll ? ' checked' : '') + ' onchange="mdtToggleTaskPickAll(this.checked)">'
+    +   '연결되지 않은 완료 항목도 표시</label>'
+    + '<div class="mdt-pk-list" id="mdt-pick-list">' + mdtPickListHtml() + '</div>'
+    + '</div>';
+}
+
+// 목록 — 묶음은 [이 Project] → [Mandalart 연도] → [다른 해], 묶음 안은 최근 완료가 위.
+function mdtPickListHtml() {
+  var p = _mdtPick, c = _mdtPerfModalCtx, a = mdtPickCtxAction();
+  if (!p || !c || !a) return '';
+  var terms = mdtPickTerms(p.q);
+  var used = {}, curKey = '';
+  (a.resultEntries || []).forEach(function(e, i) {
+    var k = mdtEntryKey(e); if (!k) return;
+    if (i === p.idx) curKey = k; else used[k] = true;
+  });
+  var all = mdtPickItems(c.year, c.sgId, c.actId).filter(function(it) {
+    return (p.kind === 'all' || it.kind === p.kind) && mdtPickHit(it, terms);
+  });
+  var inScope = all.filter(function(it) { return _mdtTaskPickAll || it.mine; });
+  var outside = all.length - inScope.length;
+  var yr = String(c.year);
+  function grp(it) { return it.mine ? 0 : (it.year === yr ? 1 : 2); }
+  inScope.sort(function(x, y) {
+    var gx = grp(x), gy = grp(y);
+    if (gx !== gy) return gx - gy;
+    if (x.date !== y.date) return !x.date ? 1 : (!y.date ? -1 : (x.date < y.date ? 1 : -1));
+    return 0;
+  });
+  var shown = inScope.slice(0, MDT_PICK_LIMIT);
+  p.list = shown;
+  if (p.hi >= shown.length) p.hi = Math.max(0, shown.length - 1);
+  while (p.hi < shown.length && used[shown[p.hi].key]) p.hi++;   // 고를 수 없는 줄은 건너뛴다
+
+  var names = ['이 Project', yr + '년', '다른 해'];
+  var html = '', last = -1;
+  shown.forEach(function(it, i) {
+    var g = grp(it);
+    if (g !== last) { html += '<div class="mdt-pk-grp">' + names[g] + '</div>'; last = g; }
+    var isUsed = !!used[it.key], isCur = (it.key === curKey);
+    var sub = [];
+    if (it.kind === 'step') sub.push('↳ ' + mdtPickMark(it.parent, terms));
+    if (!it.mine && it.t.mdtAction && it.t.mdtAction.text) sub.push(escMdt(it.t.mdtAction.text));
+    html += '<button type="button" class="mdt-pk-item' + (i === p.hi ? ' is-hi' : '') + (isCur ? ' is-cur' : '') + (isUsed ? ' is-used' : '') + '"'
+      + ' data-i="' + i + '"' + (isUsed ? ' disabled title="이 Project 의 다른 줄에 이미 연동했습니다"' : '')
+      + ' onmousedown="event.preventDefault()" onclick="mdtPickChoose(' + i + ')">'
+      + '<span class="mdt-pk-ico ' + it.kind + '" title="' + (it.kind === 'step' ? 'To Do' : 'Task') + '"></span>'
+      + '<span class="mdt-pk-main"><span class="mdt-pk-title">' + mdtPickMark(it.text, terms) + '</span>'
+      +   (sub.length ? '<span class="mdt-pk-sub">' + sub.join(' · ') + '</span>' : '') + '</span>'
+      + '<span class="mdt-pk-date">' + (isUsed ? '연동됨' : (isCur ? '✓ ' : '') + (it.date ? mdtPickMark(it.date, terms) : '일자 없음')) + '</span>'
+      + '</button>';
+  });
+  if (inScope.length > shown.length) {
+    html += '<div class="mdt-pk-more">' + (inScope.length - shown.length) + '건 더 있습니다 — 검색어로 좁혀 주세요</div>';
+  }
+  if (!shown.length) {
+    html += '<div class="mdt-pk-empty">' + (terms.length
+      ? '\'' + escMdt(p.q) + '\' 와 맞는 완료 항목이 없습니다'
+      : (_mdtTaskPickAll ? '완료된 Task · To Do 가 없습니다' : '이 Project 에 연결된 완료 Task · To Do 가 없습니다')) + '</div>';
+  }
+  if (outside > 0) {
+    html += '<button type="button" class="mdt-pk-outside" onmousedown="event.preventDefault()" onclick="mdtToggleTaskPickAll(true)">'
+      + '다른 Project · 연결 안 된 완료 항목에서 <b>' + outside + '건</b> 더 — 모두 보기</button>';
+  }
+  return html;
+}
+
+function mdtPickRefreshList() {
+  var el = document.getElementById('mdt-pick-list'); if (!el) return;
+  el.innerHTML = mdtPickListHtml();
+  var hi = el.querySelector('.mdt-pk-item.is-hi');
+  if (hi && hi.scrollIntoView) hi.scrollIntoView({ block: 'nearest' });
+}
+function mdtPickFocus() {
+  // 창이 모달 아래쪽에 열리면 목록이 화면 밖이다 — 창 전체가 보이게 모달 본문을 민다
+  var panel = document.querySelector('#mdt-perf-modal-body .mdt-pk-panel');
+  if (panel && panel.scrollIntoView) panel.scrollIntoView({ block: 'nearest' });
+  // 폰·태블릿은 글자판이 목록을 덮으므로 저절로 띄우지 않는다
+  if (typeof tlTouchKeyboard === 'function' && tlTouchKeyboard()) return;
+  var q = document.getElementById('mdt-pick-q');
+  if (q) { q.focus(); var n = q.value.length; try { q.setSelectionRange(n, n); } catch (err) {} }
+}
+
+function mdtPickOpen(idx, revert) {
+  _mdtPick = { idx: idx, q: '', kind: 'all', hi: 0, list: [], revert: !!revert };
+  mdtPickRerender();
+  mdtPickFocus();
+}
+// 내용 칸을 누르면 열고, 열려 있으면 닫는다
+function mdtPickToggle(idx) {
+  if (_mdtPick && _mdtPick.idx === idx) { mdtPickClose(); return; }
+  if (_mdtPick) mdtPickDropEmpty();
+  mdtPickOpen(idx, false);
+}
+// 아무것도 고르지 않고 닫을 때 — ✎ 를 눌러 막 연 줄이면 원래대로 돌린다.
+//  직접 입력하던 줄은 직접 입력으로, '+' 빈 줄에서 연 것이면 그 줄을 지운다.
+function mdtPickDropEmpty() {
+  var p = _mdtPick, a = mdtPickCtxAction();
+  if (!p || !p.revert || !a || !Array.isArray(a.resultEntries)) return false;
+  var e = a.resultEntries[p.idx];
+  if (!e || !mdtEntryIsLinked(e) || mdtEntryKey(e)) return false;   // 그새 무언가 골랐다
+  delete e.src; delete e.taskId; delete e.stepId;
+  var keep = (e.date && String(e.date).trim()) || (e.text && String(e.text).trim()) || (+e.value || 0) !== 0;
+  if (!keep) a.resultEntries.splice(p.idx, 1);
+  saveMandalarts();
+  return true;
+}
+function mdtPickClose() {
+  mdtPickDropEmpty();
+  _mdtPick = null;
+  mdtPickRerender();
+}
+function mdtPickInput(v) {
+  if (!_mdtPick) return;
+  _mdtPick.q = v; _mdtPick.hi = 0;
+  mdtPickRefreshList();
+}
+function mdtPickKind(k) {
+  if (!_mdtPick) return;
+  _mdtPick.kind = k; _mdtPick.hi = 0;
+  var box = document.getElementById('mdt-pick-kinds');
+  if (box) Array.prototype.forEach.call(box.querySelectorAll('button'), function(b) {
+    b.classList.toggle('on', b.getAttribute('data-kind') === k);
+  });
+  mdtPickRefreshList();
+}
+function mdtToggleTaskPickAll(on) {
+  _mdtTaskPickAll = !!on;
+  var cb = document.getElementById('mdt-pick-all'); if (cb) cb.checked = _mdtTaskPickAll;
+  if (_mdtPick) { _mdtPick.hi = 0; mdtPickRefreshList(); }
+}
+// ↑↓ 로 옮기고 Enter 로 고른다. Esc 는 창만 닫는다(모달은 그대로).
+function mdtPickKey(ev) {
+  var p = _mdtPick; if (!p) return;
+  if (ev.isComposing || ev.keyCode === 229) return;   // 한글 조합 중
+  var list = p.list || [];
+  function step(dir) {
+    var i = p.hi;
+    for (var n = 0; n < list.length; n++) {
+      i = (i + dir + list.length) % list.length;
+      var b = document.querySelector('#mdt-pick-list .mdt-pk-item[data-i="' + i + '"]');
+      if (b && !b.disabled) { p.hi = i; break; }
+    }
+  }
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    if (list.length) { step(ev.key === 'ArrowDown' ? 1 : -1); mdtPickRefreshList(); }
+  } else if (ev.key === 'Enter') {
+    ev.preventDefault();
+    if (list[p.hi]) mdtPickChoose(p.hi);
+  } else if (ev.key === 'Escape') {
+    ev.preventDefault(); ev.stopPropagation();
+    mdtPickClose();
+  }
+}
+function mdtPickChoose(i) {
+  var p = _mdtPick, c = _mdtPerfModalCtx;
+  if (!p || !c || !p.list || !p.list[i]) return;
+  var btn = document.querySelector('#mdt-pick-list .mdt-pk-item[data-i="' + i + '"]');
+  if (btn && btn.disabled) return;
+  mdtSetRowLink(c.year, c.sgId, c.actId, p.idx, p.list[i]);
+}
+
+// 구분 토글 — 직접 입력 ↔ 연동
 //  연동을 풀 때는 그때 보이던 일자·내용을 직접 입력 칸에 남긴다(다시 치게 하지 않는다).
+//  연동으로 바꾸면 곧바로 검색 창을 연다.
 function mdtToggleRowSrc(year, sgId, actId, idx) {
   var a = mdtFindAction(year, sgId, actId); if (!a) return;
   if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
-  if (idx >= a.resultEntries.length) a.resultEntries.push({ date: '', text: '', value: 0 });
+  if (_mdtPick && _mdtPick.idx !== idx) { mdtPickDropEmpty(); _mdtPick = null; }
+  if (idx >= a.resultEntries.length) { idx = a.resultEntries.length; a.resultEntries.push({ date: '', text: '', value: 0 }); }
   var e = a.resultEntries[idx];
-  if (mdtEntryIsTask(e)) {
+  if (mdtEntryIsLinked(e)) {
     var v = mdtEntryView(e);
     e.date = v.date; e.text = v.text;
-    delete e.src; delete e.taskId;
+    delete e.src; delete e.taskId; delete e.stepId;
+    if (_mdtPick && _mdtPick.idx === idx) _mdtPick = null;
+    saveMandalarts();
+    mdtRenderPerfModalBody(year, sgId, actId);
   } else {
     e.src = 'task';
     if (e.taskId === undefined) e.taskId = null;
+    saveMandalarts();
+    mdtPickOpen(idx, true);
   }
-  saveMandalarts();
-  mdtRenderPerfModalBody(year, sgId, actId);
 }
 
-// 연동할 Task 고르기.
-//  일자·내용 사본도 같이 떠 둔다 — Task 가 지워져도 무엇이었는지는 남아야 한다.
-function mdtSetRowTask(year, sgId, actId, idx, val) {
-  var a = mdtFindAction(year, sgId, actId); if (!a) return;
+// 연동할 Task · To Do 고르기.
+//  일자·내용 사본도 같이 떠 둔다 — 지워져도 무엇이었는지는 남아야 하고,
+//  To Do 연동을 모르는 옛 앱(APK)도 이 사본을 직접 입력처럼 읽어 같은 건수를 센다.
+function mdtSetRowLink(year, sgId, actId, idx, it) {
+  var a = mdtFindAction(year, sgId, actId); if (!a || !it) return;
   if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
-  if (idx >= a.resultEntries.length) a.resultEntries.push({ date: '', text: '', value: 0, src: 'task' });
+  if (idx >= a.resultEntries.length) { idx = a.resultEntries.length; a.resultEntries.push({ date: '', text: '', value: 0 }); }
   var e = a.resultEntries[idx];
-  e.src = 'task';
-  e.taskId = val ? parseInt(val, 10) : null;
-  var t = mdtFindTask(e.taskId);
-  if (t) { e.date = mdtTaskDate(t); e.text = mdtTaskText(t); }
+  e.src = it.kind;
+  e.taskId = it.t.id;
+  if (it.kind === 'step') e.stepId = it.s.id; else delete e.stepId;
+  e.date = it.date;
+  e.text = it.text;
+  _mdtPick = null;
   saveMandalarts();
   mdtRenderPerfModalBody(year, sgId, actId);
 }
@@ -1606,17 +1845,31 @@ function mdtResultRowHtml(yr, sgId, a, idx, no, e, isNew, isGoal) {
   var value = e ? e.value : '';
   var has = (value !== '' && value !== null && value !== undefined);
   var meets = isGoal && has && mdtValueMeets(a, value);
-  // 구분 — ✎ 직접 입력 / 🔗 Task 연동
+  // 구분 — ✎ 직접 입력 / 🔗 Task · To Do 연동
   var srcBtn = '<button type="button" class="c-src mdt-perf-src' + (v.linked ? ' on' : '') + '"'
-    + ' title="' + (v.linked ? 'Task 연동 중 — 눌러 직접 입력으로' : '직접 입력 — 눌러 Task 연동으로') + '"'
+    + ' title="' + (v.linked ? 'Task · To Do 연동 중 — 눌러 직접 입력으로' : '직접 입력 — 눌러 Task · To Do 연동으로') + '"'
     + ' onclick="mdtToggleRowSrc(' + arg + ')">' + (v.linked ? '🔗' : '✎') + '</button>';
   var dateCell, textCell;
   if (v.linked) {
-    // 연동 줄: 일자는 Task 완료일이라 손대지 못한다. 내용 자리는 Task 고르는 칸.
+    // 연동 줄: 일자는 완료일이라 손대지 못한다. 내용 자리는 누르면 검색 창이 열리는 칸.
+    var picked = !!mdtEntryKey(e);
+    var open = !!(_mdtPick && _mdtPick.idx === idx);
     dateCell = '<span class="c-date mdt-perf-datero' + (v.date ? '' : ' is-open') + '">'
-      + (v.date ? escMdt(v.date) : (v.missing ? '—' : '미완료')) + '</span>';
-    textCell = '<select class="c-text mdt-perf-tasksel" onchange="mdtSetRowTask(' + arg + ',this.value)">'
-      + mdtTaskOptionsHtml(yr, sgId, a.id, e) + '</select>';
+      + (v.date ? escMdt(v.date) : (v.missing ? '—' : (picked ? '미완료' : ''))) + '</span>';
+    var inner;
+    if (!picked) {
+      inner = '<span class="mdt-pk-ph">🔍 Task · To Do 검색…</span>';
+    } else if (v.missing) {
+      inner = '<span class="mdt-pk-ico ' + v.kind + '"></span><span class="mdt-pk-main"><span class="mdt-pk-title">'
+        + '삭제된 ' + (v.kind === 'step' ? 'To Do' : 'Task') + (v.text ? ' · ' + escMdt(v.text) : '') + '</span></span>';
+    } else {
+      inner = '<span class="mdt-pk-ico ' + v.kind + '" title="' + (v.kind === 'step' ? 'To Do' : 'Task') + '"></span>'
+        + '<span class="mdt-pk-main"><span class="mdt-pk-title">' + escMdt(v.text) + '</span>'
+        + (v.kind === 'step' && v.task ? '<span class="mdt-pk-sub">↳ ' + escMdt(mdtTaskText(v.task)) + '</span>' : '')
+        + '</span>';
+    }
+    textCell = '<button type="button" class="c-text mdt-perf-pick' + (open ? ' is-open' : '') + '"'
+      + ' title="눌러 Task · To Do 검색" onclick="mdtPickToggle(' + idx + ')">' + inner + '</button>';
   } else {
     // 일자는 마스크를 씌운 글자 칸이다 — 아래 mdtDateMask 주석 참조
     dateCell = '<input type="text" inputmode="numeric" maxlength="10" class="c-date mdt-perf-date" value="' + escMdt(v.date) + '"'
@@ -1677,10 +1930,12 @@ function mdtResultRowChange(year, sgId, actId, idx, field, value) {
   if (idx >= a.resultEntries.length) a.resultEntries.push({ date: '', text: '', value: 0 });  // 빈 행 → 실제 행
   a.resultEntries[idx][field] = (field === 'value') ? (+value || 0) : value;
   // 일자·내용·값이 모두 비면 그 행 제거(빈 행 정리)
+  var before = a.resultEntries.length;
   a.resultEntries = a.resultEntries.filter(function(e){
-    if (mdtEntryIsTask(e)) return true;   // 연동 줄은 일자·내용이 비어 있는 게 정상이다
+    if (mdtEntryIsLinked(e)) return true;   // 연동 줄은 일자·내용이 비어 있는 게 정상이다
     return (e.date && e.date.trim()) || (e.text && e.text.trim()) || (+e.value || 0) !== 0;
   });
+  if (a.resultEntries.length !== before) _mdtPick = null;   // 줄 자리가 밀리면 검색 창이 엉뚱한 줄을 가리킨다
   saveMandalarts();
   mdtRenderPerfModalBody(year, sgId, actId);
 }
@@ -1691,6 +1946,7 @@ function mdtDelResultRow(year, sgId, actId, idx) {
   var a = sg.actions.find(function(x){ return x.id === actId; }); if (!a) return;
   if (!Array.isArray(a.resultEntries)) return;
   a.resultEntries.splice(idx, 1);
+  _mdtPick = null;   // 줄 자리가 밀린다
   saveMandalarts();
   mdtRenderPerfModalBody(year, sgId, actId);
 }

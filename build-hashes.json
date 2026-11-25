@@ -1,9 +1,9 @@
 {
   "manifest.json": "7090b2d1a19b",
-  "style.css": "785a7839b74c",
+  "style.css": "85268cfbcbec",
   "profile-modal.css": "6199d432a913",
   "login.css": "e4d2a0107b36",
-  "mobile.css": "d71e94d009e0",
+  "mobile.css": "89c592da95f8",
   "fonts/pretendard.css": "c0e7f4fe547d",
   "theme.css": "f4b7242a5f91",
   "calpage.css": "b0952aa3e31c",
@@ -13,7 +13,7 @@
   "backup-core.js": "6b37de481580",
   "backup-xlsx.js": "818f213599dc",
   "auth.js": "690c814c0e2d",
-  "mandalart.js": "f56c5f353a7d",
+  "mandalart.js": "aaec27f0ba92",
   "lifewheel.js": "9400f0b5e144",
   "home.js": "0cf0b50e7e3e",
   "habit.js": "863576396495",
@@ -30,6 +30,6 @@
   "todo.js": "2994d9df1f4b",
   "yearsync.js": "20e085b8cc42",
   "script.js": "ab1a58d29b51",
-  "pwa.js": "5266c87455e1",
+  "pwa.js": "100c70224438",
   "mobile-ui.js": "ff2c7494ef27"
 }

@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261112f'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261125a'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -23,10 +23,10 @@ const PRECACHE_URLS = [
   './index.html',
   './manifest.json',
   './manifest.json?v=20261111d',
-  './style.css?v=20261110p',
+  './style.css?v=20261125a',
   './profile-modal.css?v=20260722',
   './login.css?v=20260720b',
-  './mobile.css?v=20261110n',
+  './mobile.css?v=20261125a',
   './fonts/pretendard.css?v=20260809a',
   './theme.css?v=20261112f',
   './calpage.css?v=20261110k',
@@ -36,7 +36,7 @@ const PRECACHE_URLS = [
   './backup-core.js?v=20260722',
   './backup-xlsx.js?v=20261112c',
   './auth.js?v=20261111i',
-  './mandalart.js?v=20261103a',
+  './mandalart.js?v=20261125a',
   './lifewheel.js?v=20260816e',
   './home.js?v=20261112f',
   './habit.js?v=20260824a',
@@ -53,7 +53,7 @@ const PRECACHE_URLS = [
   './todo.js?v=20261110o',
   './yearsync.js?v=20260722',
   './script.js?v=20261111i',
-  './pwa.js?v=20261112f',
+  './pwa.js?v=20261125a',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',
