@@ -502,7 +502,7 @@ function buildTabBackup() {
     + '<button class="btn-secondary" style="font-size:12px;white-space:nowrap;flex-shrink:0;" onclick="exportJSON()">⬇ 내보내기</button>'
     + '</div>'
     + '<div class="settings-row">'
-    + '<div><div class="settings-row-label">엑셀 양식 다운로드 (Task)</div><div class="settings-row-desc">현재 할 일을 엑셀(.xlsx) 표로 받아 편집 후 그대로 복원 가능</div></div>'
+    + '<div><div class="settings-row-label">엑셀 양식 다운로드 (Task)</div><div class="settings-row-desc">Task · To Do 를 엑셀(.xlsx)로 받아 고친 칸만 [파일로 복원]으로 반영 (받은 그대로 올리면 바뀌는 것 없음)</div></div>'
     + '<button class="btn-secondary" style="font-size:12px;white-space:nowrap;flex-shrink:0;" onclick="downloadTaskExcel()">⬇ 엑셀</button>'
     + '</div>'
     + '<div class="settings-row">'
@@ -527,7 +527,7 @@ function buildTabBackup() {
     + '<div style="font-size:28px;margin-bottom:8px;">📂</div>'
     + '<div style="font-size:13px;font-weight:600;color:var(--text-1);margin-bottom:4px;">백업/엑셀 파일 업로드</div>'
     + '<div style="font-size:11px;color:var(--text-3);">클릭하거나 파일을 드래그해 주세요 (.json 백업 · Task 엑셀 · 만다라트 엑셀 · 일정 가져오기 엑셀)</div>'
-    + '<div style="font-size:11px;color:var(--text-3);margin-top:4px;">일정 가져오기 엑셀은 지금 Task 를 그대로 두고 더하기만 합니다</div>'
+    + '<div style="font-size:11px;color:var(--text-3);margin-top:4px;">일정 가져오기 엑셀은 지우는 것 없이 Task·To Do 를 더하고, 있던 항목에는 시간·장소·메모만 채웁니다</div>'
     + '<input type="file" id="restore-file-input" accept=".json,.xlsx" style="display:none;" onchange="handleRestoreFile(this)">'
     + '</div>'
     + '<div class="backup-warn">⚠️ 복원 시 현재 데이터가 덧어씨워집니다. 복원 전 반드시 백업을 먼저 진행하세요.</div>';

@@ -23,6 +23,14 @@ const BACKUP_REGISTRY = [
   { key: 'todoProjHidden',        label: 'Board 숨김 프로젝트',  type: 'json'   },
   { key: 'mdtFavActions',         label: '만다라트 즐겨찾기',    type: 'json'   },
   { key: 'my-tasklog-nickname',   label: '닉네임',               type: 'string' },
+  // ── 사용자가 직접 정한 순서·표시 (2026-11-25 추가 — 예전엔 백업에서 빠져 있었다) ──
+  { key: 'nbMemoOrder',               label: 'Web 메모 순서',      type: 'json'   },
+  { key: 'nbTaskOrder',               label: 'Web Task 순서',      type: 'json'   },
+  { key: 'nbStepOrder',               label: 'Web To Do 순서',     type: 'json'   },
+  { key: 'app-menu-visible-desktop',  label: '메뉴 표시 (PC)',     type: 'json'   },
+  { key: 'app-menu-visible-mobile',   label: '메뉴 표시 (폰)',     type: 'json'   },
+  { key: 'app-menu-order-v2-desktop', label: '메뉴 순서 (PC)',     type: 'json'   },
+  { key: 'app-menu-order-v2-mobile',  label: '메뉴 순서 (폰)',     type: 'json'   },
   // ── 환경설정(사용자 선택값) ─────────────
   { key: 'app-theme',             label: '테마',                 type: 'string' },
   { key: 'app-lang',              label: '언어',                 type: 'string' },
@@ -30,6 +38,9 @@ const BACKUP_REGISTRY = [
   { key: 'app-font-size',         label: '글자 크기',            type: 'string' },
   { key: 'app-notif-deadline',    label: '마감 알림',            type: 'string' },
   { key: 'app-notif-journal',     label: '저널 알림',            type: 'string' },
+  { key: 'app-notif-deadline-days', label: '마감 알림 며칠 전',  type: 'string' },
+  // ⚠️ 이 기기에서만 쓰는 값은 일부러 넣지 않는다 — 다른 기기의 백업으로 복원할 때 이 기기 화면이 바뀌면 안 된다:
+  //  home-layout-v9(Home 배치) · app-display-period(표시 기간) · cal-*(달력 보기·표시·필터) · 칸 너비·순서 · 자동 백업 켜기
 ];
 
 const BACKUP_FORMAT  = 'tasklog-backup';
