@@ -2649,8 +2649,7 @@ function buildRpForm(task) {
     + '</div></div>'
     + '<div class="field-group"><label class="field-label">Section · Project</label>'
     + buildProjectDropdown('rp-proj', rpState.mdtLink || null) + '</div>'
-    + '<div class="field-group"><label class="field-label">Location</label>'
-    + '<input class="field-input" id="rp-location" placeholder="장소" value="'+rpEsc(task ? (task.location || '') : '')+'" oninput="rpState.dirty=true"></div>'
+    // Location 칸은 2026-11-26 사용자 요청으로 뺐다. 저장된 task.location 은 지우지 않는다(읽는 곳이 없을 뿐).
     + '<div class="field-group"><label class="field-label">Memo</label>'
     + '<textarea class="field-textarea" id="rp-notes" placeholder="\uba54\ubaa8\ub97c \uc785\ub825\ud558\uc138\uc694" rows="3" oninput="rpState.dirty=true">'+rpEsc(notesVal)+'</textarea></div>'
     + editFooter
@@ -2689,17 +2688,14 @@ function rpBuildStepsHtml() {
       + '</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
-      + '<button class="step-cal-btn step-time-btn'+(stepSlotMin(s)?' has-date':'')+(_rpTimeOpen===s.id?' is-open':'')+'" onclick="event.stopPropagation();rpToggleStepTimeForm('+s.id+')" title="수행 시간">'
-      + rpStepTimeLabel(s)
-      + '</button>'
-      + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
-      + (hasDate ? '📅 '+formatDueDate(s.dueDateTime, false) : '📅')
+      // 수행 시간(⏱)은 2026-11-26 사용자 요청으로 To Do 창에서만 넣고 고친다 — 이 줄에서는 뺐다
+      + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정 (시간 · 종일은 To Do 창에서)">'
+      + (hasDate ? '📅 '+formatDueDate(s.dueDateTime, !!s.hasTime) : '📅')
       + '</button>'
       + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button>'
       // To Do 창 열기 (2026-11-26 3분할 — layout.js tdOpen). 지금 열려 있는 To Do 는 칠해 둔다
       + '<button class="step-open' + ((typeof _td !== 'undefined' && _td && _td.stepId === s.id) ? ' is-on' : '') + '" onclick="event.stopPropagation();if(typeof tdOpen===\'function\')tdOpen(' + s.id + ')" title="To Do 창 열기" aria-label="To Do 창 열기">›</button></div>'
-      + dateForm
-      + rpStepTimeFormHtml(s);
+      + dateForm;
   }).join('');
 }
 
@@ -2944,7 +2940,9 @@ function rpSaveStepFromPicker(id) {
   var s = rpState.steps.find(function(x){ return x.id === stepId; });
   if (!s) return;
   var pv = getPickerValue(id);
-  if (pv.dateStr) { s.dueDateTime = pv.dateStr + 'T09:00:00'; s.hasTime = false; }  // 시간 없음(날짜만)
+  // 날짜만 바꾼다. 마감 시간이 있으면 그 시간은 지킨다(시간 · 종일은 To Do 창에서 정한다, 2026-11-26)
+  var keepTm = (s.hasTime && s.dueDateTime) ? String(s.dueDateTime).slice(11, 16) : null;
+  if (pv.dateStr) { s.dueDateTime = pv.dateStr + 'T' + (keepTm || '09:00') + ':00'; s.hasTime = !!keepTm; }
   else { s.dueDateTime = null; s.hasTime = false; }
   rpState.dirty = true;
   // 날짜를 고르면 드롭다운을 닫고 목록을 갱신(버튼 라벨 반영)
@@ -3324,7 +3322,6 @@ function saveRightPanel() {
   var notesVal  = (document.getElementById('rp-notes')      || {}).value  || '';
   var dueTime   = _allDay ? null : _dueDt.timeStr;
   var startTime = _allDay ? null : _startDt.timeStr;
-  var locationVal = ((document.getElementById('rp-location') || {}).value || '').trim();
   var upstreamDepts = rpState.upstreamDepts.slice();
   var upstreamDeptVal = upstreamDepts.join(', ');
 
@@ -3373,7 +3370,7 @@ function saveRightPanel() {
       task.nextTaskIds = rpState.nextTaskIds.slice();
       // 드롭다운을 건드렸을 때만 연결을 쓴다 — Project 를 고르면 Section 칸도 같이 맞춘다
       if (rpState.linkTouched) mdtLinkApply(task, rpState.mdtLink);
-      if (locationVal) task.location = locationVal; else delete task.location;
+      // 장소 칸이 없어졌으므로 task.location 은 건드리지 않는다 (지우면 예전 값이 말없이 사라진다)
       if (rpState.calBar) task.calBar = true; else delete task.calBar;
       // 폼 전체를 그대로 쓰면 패널을 연 사이 다른 기기가 고친 칸이 되돌아간다 — 내가 손댄 칸만 반영한다
       if (rpState.orig && typeof fsMerge3 === 'function') {
@@ -3398,7 +3395,7 @@ function saveRightPanel() {
       mdtAction: mdtLinkParts(rpState.mdtLink).mdtAction,
       mdtGoal: mdtLinkParts(rpState.mdtLink).mdtGoal,
       prevTaskIds: rpState.prevTaskIds.slice(), nextTaskIds: rpState.nextTaskIds.slice(),
-      location: locationVal, calBar: rpState.calBar,
+      calBar: rpState.calBar,
     });
     tasks.push(newTask);
     savedTask = newTask;
@@ -3723,6 +3720,7 @@ function initSidebar() {
   var act = document.getElementById('nav-'+currentMenu);
   if (act) act.classList.add('active');
   renderTabbar();
+  if (typeof tlTabsRender === 'function') tlTabsRender();   // 숨긴 메뉴의 탭을 뺀다
 }
 
 // ============================================
@@ -3851,6 +3849,9 @@ function navToMenu(id) {
     if (typeof calPresetView === 'function') calPresetView('gantt');
   }
   currentMenu = id;
+
+  // PC 위쪽 막대의 열린 메뉴 탭 (layout.js, 2026-11-26)
+  if (typeof tlTabsOnNav === 'function') tlTabsOnNav(id);
 
   // 📱 모바일: 메뉴 선택 시 드로어 자동 닫기
   closeSidebar();

@@ -66,8 +66,10 @@ function tdPaintRows() {
 
 function tdOpen(stepId) {
   if (!tlPanelOpen('right-panel')) return;
-  if (!(rpState.steps || []).some(function (s) { return s.id === stepId; })) return;
-  _td = { stepId: stepId };
+  var st0 = (rpState.steps || []).find(function (s) { return s.id === stepId; });
+  if (!st0) return;
+  // 마감 '종일' 여부 — 시간이 적혀 있으면 시간, 아니면 종일로 연다 (2026-11-26)
+  _td = { stepId: stepId, allDay: !(st0.dueDateTime && st0.hasTime) };
   var pane = document.getElementById('todo-pane');
   if (!pane) return;
   tdRender();
@@ -126,6 +128,8 @@ function tdRender() {
   var taskName = ((document.getElementById('rp-task-name') || {}).value || '').trim() || '(이름 없는 Task)';
   var dueD = s.dueDateTime ? toDateInputVal(s.dueDateTime) : '';
   var dueT = (s.dueDateTime && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '';
+  if (s.dueDateTime && s.hasTime) _td.allDay = false;   // 다른 곳(Task 창 등)에서 시간이 생겼으면 따라간다
+  var allDay = !!_td.allDay;
   var slots = stepSlots(s).slice().sort(function (x, y) { return String(x.start).localeCompare(String(y.start)); });
   var min = stepSlotMin(s);
   var doneAt = done ? (doneFullTip(s) || '') : '';
@@ -149,12 +153,18 @@ function tdRender() {
     +   (done ? '<div class="td-hint">완료 ' + tlEsc(doneAt) + ' · 이름 앞 [YYMMDD] 를 고치면 완료일이 바뀝니다</div>' : '')
     + '</div>'
     + '<div class="field-group">'
-    +   '<label class="field-label" for="td-due-d">마감일</label>'
-    +   '<div class="rp-dt-pair">'
+    +   '<div class="td-due-head"><label class="field-label" for="td-due-d">마감일</label>'
+    +     '<div class="td-seg" role="group" aria-label="마감 시간 또는 종일">'
+    +       '<button type="button" class="td-seg-btn' + (allDay ? '' : ' is-on') + '" aria-pressed="' + !allDay + '" onclick="tdSetAllDay(false)">시간</button>'
+    +       '<button type="button" class="td-seg-btn' + (allDay ? ' is-on' : '') + '" aria-pressed="' + allDay + '" onclick="tdSetAllDay(true)">종일</button>'
+    +     '</div>'
+    +   '</div>'
+    +   '<div class="rp-dt-pair' + (allDay ? ' td-allday' : '') + '">'
     +     '<input type="text" class="field-input rp-dtinput" id="td-due-d" inputmode="numeric" placeholder="YYYY-MM-DD" value="' + dueD + '"'
     +       ' oninput="rpDtInput(this)" onchange="tdSaveDue()" onfocus="try{this.select()}catch(e){}">'
-    +     '<input type="text" class="field-input rp-dtinput rp-tminput" id="td-due-t" inputmode="numeric" placeholder="시간" aria-label="마감 시간 (비우면 날짜만)" value="' + dueT + '"'
-    +       ' oninput="rpTmMask(this);rpState.dirty=true" onblur="rpTmBlur(this)" onchange="tdSaveDue()" onfocus="try{this.select()}catch(e){}">'
+    +     (allDay ? ''
+          : '<input type="text" class="field-input rp-dtinput rp-tminput" id="td-due-t" inputmode="numeric" placeholder="시간" aria-label="마감 시간" value="' + dueT + '"'
+          + ' oninput="rpTmMask(this);rpState.dirty=true" onblur="rpTmBlur(this)" onchange="tdSaveDue()" onfocus="try{this.select()}catch(e){}">')
     +   '</div>'
     + '</div>'
     + '<div class="field-group">'
@@ -210,12 +220,14 @@ function tdSaveName(el) {
   finally { _tdQuiet = false; }
 }
 
+// 마감: 종일이면 날짜만, 시간이면 날짜 + 시간 (시간 칸을 비우면 09:00 으로 둔다 — '시간' 을 고른 것이므로)
 function tdSaveDue() {
   var s = tdStep();
   if (!s) return;
   var dEl = document.getElementById('td-due-d'), tEl = document.getElementById('td-due-t');
   var dv = (dEl && dEl.value || '').trim();
-  var tv = tEl ? rpTmParse(tEl.value) : null;
+  var timed = !_td.allDay;
+  var tv = (timed && tEl) ? (rpTmParse(tEl.value) || '09:00') : null;
   if (!dv) {
     s.dueDateTime = null; s.hasTime = false;
   } else {
@@ -224,10 +236,26 @@ function tdSaveDue() {
     if (!ok) return;
     s.dueDateTime = dv + 'T' + (tv || '09:00') + ':00';
     s.hasTime = !!tv;
+    if (tEl && tv && !tEl.value) tEl.value = tv;
   }
   rpState.dirty = true;
   _tdQuiet = true;
   try { if (typeof rpRefreshSteps === 'function') rpRefreshSteps(); } finally { _tdQuiet = false; }
+}
+// 시간 ↔ 종일. 날짜가 있으면 바로 적용한다(시간으로 바꾸면 09:00 부터).
+function tdSetAllDay(on) {
+  var s = tdStep();
+  if (!s || !!_td.allDay === !!on) return;
+  _td.allDay = !!on;
+  if (s.dueDateTime) {
+    var day = String(s.dueDateTime).slice(0, 10);
+    var tm = on ? '09:00' : ((s.hasTime && String(s.dueDateTime).slice(11, 16)) || '09:00');
+    s.dueDateTime = day + 'T' + tm + ':00';
+    s.hasTime = !on;
+  }
+  rpState.dirty = true;
+  rpRefreshSteps();   // 이 창도 다시 그린다 — 시간 칸이 생기거나 사라진다
+  if (!on) setTimeout(function () { var t = document.getElementById('td-due-t'); if (t) { t.focus(); try { t.select(); } catch (e) {} } }, 30);
 }
 
 // 새 줄: 오늘, 지금을 30분 단위로 내린 시각부터 1시간 (Task 창 rpSlotAdd 와 같다)
@@ -297,7 +325,7 @@ document.addEventListener('input', function (e) {
 // ============================================================
 //  🔍 전체 검색 (위쪽 막대)
 //  Task · To Do · 메모를 찾는다. 띄어 쓴 낱말은 모두 들어 있어야 맞다.
-//  Task 는 제목 · 메모 · 장소, To Do 는 제목 · 상위 Task 제목, 메모는 글.
+//  Task 는 제목 · 메모, To Do 는 제목 · 상위 Task 제목, 메모는 글.
 //  누르면 Task → Task 창, To Do → Task 창 + To Do 창, 메모 → Web 에서 그 메모를 고치는 칸.
 // ============================================================
 var TLS_MAX = 8;   // 묶음마다 보여 줄 줄 수
@@ -346,7 +374,7 @@ function tlsCollect(q) {
   if (!words.length) return res;
   tlTasks().forEach(function (t) {
     var title = tlCleanTitle(t.text);
-    if (tlsHit(words, title + '\n' + (t.notes || '') + '\n' + (t.location || ''))) {
+    if (tlsHit(words, title + '\n' + (t.notes || ''))) {
       res.task.push({ kind: 'task', id: t.id, title: title, sub: tlsProj(t), done: !!t.completed,
         when: t.dueDateTime || t.startDate || t.createdAt || '' });
     }
@@ -497,18 +525,89 @@ document.addEventListener('keydown', function (e) {
   if (mine) { e.stopPropagation(); tdClose(); }
 }, true);
 
-// 위쪽 막대 로그인 정보 — auth.js updateAuthUI 가 부른다
+// 레일 위 로그인 정보의 이름 — auth.js updateAuthUI · _syncAvatarInitial 이 부른다.
+//  아바타(#sidebar-avatar) 자체는 auth.js 가 칠한다(사진은 칸에 꽉 맞춘 100% — 예전 막대 아바타는
+//  사진 크기를 정하지 않아 96px 사진이 34px 칸에서 잘려 확대된 것처럼 보였다).
 function tlPaintAppbarAccount(user, displayName) {
-  var av = document.getElementById('appbar-avatar');
-  var nm = document.getElementById('appbar-name');
-  var btn = document.getElementById('tl-account');
-  if (av) {
-    if (user && user.picture) {
-      av.innerHTML = '<img src="' + tlEsc(user.picture) + '" alt="" referrerpolicy="no-referrer">';
-    } else {
-      av.textContent = user ? String(displayName || '?').charAt(0).toUpperCase() : '?';
-    }
+  var nm = document.getElementById('rail-name');
+  if (!nm) return;
+  nm.textContent = user ? (displayName || '') : '로그인';
+  nm.title = user ? ((displayName || '') + (user.email ? ' · ' + user.email : '')) : '로그인';
+}
+
+// 처음 그릴 때도 한 번 — 로그인 전이면 '로그인', 로그인 정보는 auth.js 가 오는 대로 다시 칠한다
+document.addEventListener('DOMContentLoaded', function () {
+  try { tlPaintAppbarAccount(typeof currentUser !== 'undefined' ? currentUser : null, typeof getDisplayName === 'function' ? getDisplayName() : ''); } catch (e) {}
+});
+
+// ============================================================
+//  🗂 열린 메뉴 탭 (2026-11-26, 사용자 요청 — 화면 제목 대신)
+//  메뉴를 열 때마다 위쪽 막대에 탭이 하나씩 생기고, 누르면 그 메뉴로 간다. ✕ · 가운데 클릭으로 닫는다.
+//  지금 메뉴의 탭을 닫으면 오른쪽(없으면 왼쪽) 탭으로 간다. 탭이 하나뿐이면 닫지 않는다.
+//  목록은 이 기기에만 둔다(app-open-tabs — 동기화 · 백업 대상 아님). 숨긴 메뉴는 탭에서도 빠진다.
+//  탭을 옮겨도 화면은 예전처럼 새로 그린다(메뉴를 누른 것과 같다).
+// ============================================================
+var TL_TABS_KEY = 'app-open-tabs';
+var _tlTabs = null;
+function tlTabsLoad() {
+  if (_tlTabs) return _tlTabs;
+  _tlTabs = [];
+  try { var v = JSON.parse(localStorage.getItem(TL_TABS_KEY) || '[]'); if (Array.isArray(v)) _tlTabs = v; } catch (e) {}
+  return _tlTabs;
+}
+function tlTabsSave() { try { localStorage.setItem(TL_TABS_KEY, JSON.stringify(_tlTabs || [])); } catch (e) {} }
+function tlTabValid(id) {
+  if (typeof MENUS === 'undefined' || !MENUS.some(function (m) { return m.id === id; })) return false;
+  return typeof isMenuVisible !== 'function' || isMenuVisible(id);
+}
+// navToMenu 가 부른다
+function tlTabsOnNav(id) {
+  var t = tlTabsLoad();
+  if (tlTabValid(id) && t.indexOf(id) < 0) { t.push(id); tlTabsSave(); }
+  tlTabsRender();
+}
+function tlTabClose(id, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  var t = tlTabsLoad();
+  var shown = t.filter(tlTabValid);
+  var i = shown.indexOf(id);
+  if (i < 0 || shown.length <= 1) return;
+  t.splice(t.indexOf(id), 1);
+  shown.splice(i, 1);
+  tlTabsSave();
+  if (typeof currentMenu !== 'undefined' && currentMenu === id) {
+    navToMenu(shown[Math.min(i, shown.length - 1)]);
+  } else {
+    tlTabsRender();
   }
-  if (nm) nm.textContent = user ? (displayName || '') : '로그인';
-  if (btn) btn.title = user ? ((displayName || '') + (user.email ? ' · ' + user.email : '')) : '로그인';
+}
+function tlTabsRender() {
+  var bar = document.getElementById('tl-tabs');
+  if (!bar) return;
+  var t = tlTabsLoad();
+  // 숨긴 메뉴 · 없어진 메뉴는 뺀다. 폰 폭에서는 메뉴 구성이 달라(Home 등이 꺼져 있다) 저장된 목록은 건드리지 않는다
+  //  — 창을 잠깐 좁혔다고 PC 탭이 사라지면 안 된다. 폰에는 탭 막대가 보이지 않는다.
+  var keep = t.filter(tlTabValid);
+  var desk = (typeof appMenuProfile !== 'function') || appMenuProfile() === 'desktop';
+  if (keep.length !== t.length && desk) { _tlTabs = keep; tlTabsSave(); }
+  t = keep;
+  var cur = (typeof currentMenu !== 'undefined') ? currentMenu : '';
+  var solo = t.length <= 1;
+  bar.innerHTML = t.map(function (id) {
+    var m = MENUS.find(function (x) { return x.id === id; });
+    var label = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[id]) || (m && m.label) || id;
+    var on = id === cur;
+    return '<div class="tl-tab' + (on ? ' is-on' : '') + '" role="presentation"'
+      + ' onauxclick="if(event.button===1)tlTabClose(\'' + id + '\',event)">'
+      + '<button type="button" class="tl-tab-main" role="tab" aria-selected="' + on + '"'
+      +   (on ? ' aria-current="page"' : '') + ' onclick="navToMenu(\'' + id + '\')">'
+      +   '<span class="tl-tab-ico" aria-hidden="true">' + (m ? m.icon : '') + '</span>'
+      +   '<span class="tl-tab-lbl">' + tlEsc(label) + '</span>'
+      + '</button>'
+      + (solo ? '' : '<button type="button" class="tl-tab-x" aria-label="' + tlEsc(label) + ' 탭 닫기" title="닫기"'
+          + ' onclick="tlTabClose(\'' + id + '\',event)">✕</button>')
+      + '</div>';
+  }).join('');
+  var act = bar.querySelector('.tl-tab.is-on');
+  if (act && act.scrollIntoView) try { act.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
 }

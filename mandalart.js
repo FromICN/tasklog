@@ -1631,11 +1631,66 @@ function mdtPickPanelHtml() {
     +   '<div class="mdt-pk-kinds" id="mdt-pick-kinds">' + kb + '</div>'
     +   '<button type="button" class="mdt-pk-close" title="닫기 (Esc)" onclick="mdtPickClose()">✕</button>'
     + '</div>'
-    + '<label class="mdt-perf-allchk mdt-pk-all" title="이 Project 에 연결되지 않은 완료 Task · To Do 까지 고를 수 있게 한다">'
-    +   '<input type="checkbox" id="mdt-pick-all"' + (_mdtTaskPickAll ? ' checked' : '') + ' onchange="mdtToggleTaskPickAll(this.checked)">'
-    +   '연결되지 않은 완료 항목도 표시</label>'
+    + '<div class="mdt-pk-opts">'
+    +   '<label class="mdt-perf-allchk mdt-pk-all" title="이 Project 에 연결되지 않은 완료 Task · To Do 까지 고를 수 있게 한다">'
+    +     '<input type="checkbox" id="mdt-pick-all"' + (_mdtTaskPickAll ? ' checked' : '') + ' onchange="mdtToggleTaskPickAll(this.checked)">'
+    +     '연결되지 않은 완료 항목도 표시</label>'
+    +   '<button type="button" class="mdt-pk-selall" onmousedown="event.preventDefault()" onclick="mdtPickSelAll()" title="목록에 보이는 항목을 모두 고른다">보이는 항목 모두 선택</button>'
+    + '</div>'
     + '<div class="mdt-pk-list" id="mdt-pick-list">' + mdtPickListHtml() + '</div>'
+    + '<div class="mdt-pk-foot" id="mdt-pick-foot">' + mdtPickFootHtml() + '</div>'
     + '</div>';
+}
+
+// ── 여러 개 골라 한꺼번에 추가 (2026-11-26, 사용자 요청) ──
+//  줄 왼쪽 네모를 눌러 고른다. 하나라도 골랐으면 줄을 눌러도 고르기/풀기다(바로 들어가지 않는다).
+//  아무것도 고르지 않았을 때 줄을 누르거나 Enter 는 예전처럼 그 하나를 바로 연동한다.
+//  고른 것은 검색어 · 거르기를 바꿔도 남는다. '추가' 를 누르면 첫 항목은 이 줄에, 나머지는 새 줄로 붙는다.
+function mdtPickSelCount() { return _mdtPick && _mdtPick.sel ? Object.keys(_mdtPick.sel).length : 0; }
+function mdtPickFootHtml() {
+  var n = mdtPickSelCount();
+  if (!n) return '<span class="mdt-pk-foot-hint">네모를 눌러 여러 개 고른 뒤 한꺼번에 추가할 수 있습니다</span>';
+  return '<span class="mdt-pk-foot-n"><b>' + n + '</b>건 선택</span>'
+    + '<button type="button" class="mdt-pk-foot-clear" onmousedown="event.preventDefault()" onclick="mdtPickSelClear()">선택 해제</button>'
+    + '<button type="button" class="mdt-pk-foot-add" onmousedown="event.preventDefault()" onclick="mdtPickAddSel()">' + n + '건 추가</button>';
+}
+function mdtPickRefreshFoot() {
+  var el = document.getElementById('mdt-pick-foot');
+  if (el) el.innerHTML = mdtPickFootHtml();
+}
+function mdtPickToggleSel(i) {
+  var p = _mdtPick;
+  if (!p || !p.list || !p.list[i]) return;
+  var btn = document.querySelector('#mdt-pick-list .mdt-pk-item[data-i="' + i + '"]');
+  if (btn && btn.disabled) return;
+  var it = p.list[i];
+  if (!p.sel) p.sel = {};
+  if (p.sel[it.key]) delete p.sel[it.key]; else p.sel[it.key] = it;
+  p.hi = i;
+  mdtPickRefreshList();
+}
+function mdtPickSelAll() {
+  var p = _mdtPick;
+  if (!p || !p.list) return;
+  if (!p.sel) p.sel = {};
+  p.list.forEach(function(it, i) {
+    var b = document.querySelector('#mdt-pick-list .mdt-pk-item[data-i="' + i + '"]');
+    if (b && !b.disabled) p.sel[it.key] = it;
+  });
+  mdtPickRefreshList();
+}
+function mdtPickSelClear() {
+  if (!_mdtPick) return;
+  _mdtPick.sel = {};
+  mdtPickRefreshList();
+}
+function mdtPickAddSel() {
+  var p = _mdtPick, c = _mdtPerfModalCtx;
+  if (!p || !c || !mdtPickSelCount()) return;
+  // 고른 순서가 아니라 날짜 순으로 넣는다 — 표도 날짜 순으로 보인다
+  var items = Object.keys(p.sel).map(function(k) { return p.sel[k]; })
+    .sort(function(x, y) { return String(x.date || '').localeCompare(String(y.date || '')); });
+  mdtSetRowsLink(c.year, c.sgId, c.actId, p.idx, items);
 }
 
 // 목록 — 묶음은 [이 Project] → [Mandalart 연도] → [다른 해], 묶음 안은 최근 완료가 위.
@@ -1672,12 +1727,15 @@ function mdtPickListHtml() {
     var g = grp(it);
     if (g !== last) { html += '<div class="mdt-pk-grp">' + names[g] + '</div>'; last = g; }
     var isUsed = !!used[it.key], isCur = (it.key === curKey);
+    var isSel = !!(p.sel && p.sel[it.key]);
     var sub = [];
     if (it.kind === 'step') sub.push('↳ ' + mdtPickMark(it.parent, terms));
     if (!it.mine && it.t.mdtAction && it.t.mdtAction.text) sub.push(escMdt(it.t.mdtAction.text));
-    html += '<button type="button" class="mdt-pk-item' + (i === p.hi ? ' is-hi' : '') + (isCur ? ' is-cur' : '') + (isUsed ? ' is-used' : '') + '"'
+    html += '<button type="button" class="mdt-pk-item' + (i === p.hi ? ' is-hi' : '') + (isCur ? ' is-cur' : '') + (isUsed ? ' is-used' : '') + (isSel ? ' is-sel' : '') + '"'
       + ' data-i="' + i + '"' + (isUsed ? ' disabled title="이 Project 의 다른 줄에 이미 연동했습니다"' : '')
+      + ' role="option" aria-selected="' + isSel + '"'
       + ' onmousedown="event.preventDefault()" onclick="mdtPickChoose(' + i + ')">'
+      + '<span class="mdt-pk-box" aria-hidden="true" onclick="event.stopPropagation();mdtPickToggleSel(' + i + ')">' + (isSel ? '✓' : '') + '</span>'
       + '<span class="mdt-pk-ico ' + it.kind + '" title="' + (it.kind === 'step' ? 'To Do' : 'Task') + '"></span>'
       + '<span class="mdt-pk-main"><span class="mdt-pk-title">' + mdtPickMark(it.text, terms) + '</span>'
       +   (sub.length ? '<span class="mdt-pk-sub">' + sub.join(' · ') + '</span>' : '') + '</span>'
@@ -1704,6 +1762,7 @@ function mdtPickRefreshList() {
   el.innerHTML = mdtPickListHtml();
   var hi = el.querySelector('.mdt-pk-item.is-hi');
   if (hi && hi.scrollIntoView) hi.scrollIntoView({ block: 'nearest' });
+  mdtPickRefreshFoot();
 }
 function mdtPickFocus() {
   // 창이 모달 아래쪽에 열리면 목록이 화면 밖이다 — 창 전체가 보이게 모달 본문을 민다
@@ -1716,7 +1775,7 @@ function mdtPickFocus() {
 }
 
 function mdtPickOpen(idx, revert) {
-  _mdtPick = { idx: idx, q: '', kind: 'all', hi: 0, list: [], revert: !!revert };
+  _mdtPick = { idx: idx, q: '', kind: 'all', hi: 0, list: [], revert: !!revert, sel: {} };
   mdtPickRerender();
   mdtPickFocus();
 }
@@ -1781,7 +1840,12 @@ function mdtPickKey(ev) {
     if (list.length) { step(ev.key === 'ArrowDown' ? 1 : -1); mdtPickRefreshList(); }
   } else if (ev.key === 'Enter') {
     ev.preventDefault();
-    if (list[p.hi]) mdtPickChoose(p.hi);
+    // 골라 둔 것이 있으면 한꺼번에 추가, 없으면 예전처럼 밝힌 줄 하나를 바로 연동
+    if (mdtPickSelCount()) mdtPickAddSel();
+    else if (list[p.hi]) mdtPickChoose(p.hi);
+  } else if (ev.key === ' ' && ev.target && ev.target.id !== 'mdt-pick-q') {
+    ev.preventDefault();
+    mdtPickToggleSel(p.hi);
   } else if (ev.key === 'Escape') {
     ev.preventDefault(); ev.stopPropagation();
     mdtPickClose();
@@ -1792,6 +1856,8 @@ function mdtPickChoose(i) {
   if (!p || !c || !p.list || !p.list[i]) return;
   var btn = document.querySelector('#mdt-pick-list .mdt-pk-item[data-i="' + i + '"]');
   if (btn && btn.disabled) return;
+  // 하나라도 골라 두었으면 줄을 눌러도 고르기/풀기 — 실수로 그 하나만 들어가 고른 것이 사라지지 않게
+  if (mdtPickSelCount()) { mdtPickToggleSel(i); return; }
   mdtSetRowLink(c.year, c.sgId, c.actId, p.idx, p.list[i]);
 }
 
@@ -1832,6 +1898,38 @@ function mdtSetRowLink(year, sgId, actId, idx, it) {
   if (it.kind === 'step') e.stepId = it.s.id; else delete e.stepId;
   e.date = it.date;
   e.text = it.text;
+  _mdtPick = null;
+  saveMandalarts();
+  mdtRenderPerfModalBody(year, sgId, actId);
+}
+// 여러 개를 한꺼번에 — 첫 항목은 검색 창을 연 그 줄에, 나머지는 새 줄로 붙인다.
+//  이미 다른 줄에 걸린 항목은 건너뛴다(목록에서 막혀 있지만 그사이 바뀌었을 수 있다).
+function mdtSetRowsLink(year, sgId, actId, idx, items) {
+  var a = mdtFindAction(year, sgId, actId); if (!a || !items || !items.length) return;
+  if (!Array.isArray(a.resultEntries)) a.resultEntries = [];
+  var used = {};
+  a.resultEntries.forEach(function(e, i) { var k = mdtEntryKey(e); if (k && i !== idx) used[k] = true; });
+  function fill(e, it) {
+    e.src = it.kind;
+    e.taskId = it.t.id;
+    if (it.kind === 'step') e.stepId = it.s.id; else delete e.stepId;
+    e.date = it.date;
+    e.text = it.text;
+  }
+  var first = true;
+  items.forEach(function(it) {
+    if (!it || used[it.key]) return;
+    used[it.key] = true;
+    if (first) {
+      first = false;
+      if (idx >= a.resultEntries.length) { idx = a.resultEntries.length; a.resultEntries.push({ date: '', text: '', value: 0 }); }
+      fill(a.resultEntries[idx], it);
+    } else {
+      var e = { date: '', text: '', value: 0 };
+      fill(e, it);
+      a.resultEntries.push(e);
+    }
+  });
   _mdtPick = null;
   saveMandalarts();
   mdtRenderPerfModalBody(year, sgId, actId);

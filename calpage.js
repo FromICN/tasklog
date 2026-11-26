@@ -199,6 +199,101 @@ function calFilterHtml() {
   return html;
 }
 
+// ── 표시할 Section 고르기 — 도구 줄의 'Section ▾' (2026-11-26, 사용자 요청) ──
+//  이름이 같은 Section 은 해가 달라도 한 줄이다(2011–2024 는 HEALTH · PEOPLE … 로 통일되어 있다).
+//  끄면 그 이름을 가진 모든 해의 Section 을 숨긴다. 저장은 위 필터(cal-filter 의 s 키 = '연도:번호') 그대로라
+//  표시 메뉴의 연도별 목록과 폰 월간 위젯(widget.calmeta)도 같은 값을 따른다.
+//  ⚠️ 나중에 새로 만든 해의 같은 이름 Section 은 저절로 숨지 않는다 — 다시 한 번 끄면 된다.
+function _calSecNorm(s) { return String(s || '').replace(/^S\d+\s*[.·:-]?\s*/i, '').trim().toLowerCase(); }
+function _calAllMdts() { try { return Array.isArray(mandalarts) ? mandalarts : []; } catch (e) { return []; } }
+// 이름 → 그 이름을 가진 모든 해의 '연도:번호' 키
+function _calSecKeys(name) {
+  var out = [];
+  _calAllMdts().forEach(function (m) {
+    (m.subGoals || []).forEach(function (sg) {
+      if (sg.text && _calSecNorm(sg.text) === name) out.push(m.year + ':' + sg.id);
+    });
+  });
+  return out;
+}
+// 목록: 지금 보는 범위의 해에 있는 Section 이름들. 최근 해의 이름 · 색 · 순서를 쓴다.
+function calSecList() {
+  var years = calFilterYears(), seen = {}, out = [];
+  years.forEach(function (y) {   // calFilterYears 는 최근 해부터 준다
+    (getMdt(y).subGoals || []).forEach(function (sg) {
+      var n = _calSecNorm(sg.text);
+      if (!n || seen[n]) return;
+      seen[n] = true;
+      out.push({ name: n, label: String(sg.text).trim(), color: getSectionThemeColor(sg.id - 1, y) });
+    });
+  });
+  return out;
+}
+// 'on' 다 보임 · 'off' 다 숨김 · 'mixed' 일부(어느 해만 숨겼거나 Project 를 숨김)
+function calSecState(name, f) {
+  var keys = _calSecKeys(name), hid = 0, part = false;
+  keys.forEach(function (k) {
+    if (f.s[k]) hid++;
+    else if (Object.keys(f.p).some(function (p) { return p.indexOf(k + ':') === 0; })) part = true;
+  });
+  if (keys.length && hid === keys.length) return 'off';
+  return (hid || part) ? 'mixed' : 'on';
+}
+function calSecToggle(name, on) {
+  var f = calFilter();
+  _calSecKeys(name).forEach(function (k) {
+    if (on) {
+      delete f.s[k];
+      Object.keys(f.p).forEach(function (p) { if (p.indexOf(k + ':') === 0) delete f.p[p]; });
+    } else {
+      f.s[k] = true;
+    }
+  });
+  _calFilterSave(f);
+  calRenderSecMenu();
+}
+// 이 Section 만 보기 — 다른 이름의 Section(모든 해)과 'Project 없음' 을 숨긴다
+function calSecOnly(name) {
+  var f = { s: {}, p: {}, none: true };
+  _calAllMdts().forEach(function (m) {
+    (m.subGoals || []).forEach(function (sg) {
+      if (_calSecNorm(sg.text) !== name) f.s[m.year + ':' + sg.id] = true;
+    });
+  });
+  _calFilterSave(f);
+  calRenderSecMenu();
+}
+function calSecShowAll() {
+  calFilterReset();
+  calRenderSecMenu();
+}
+function calRenderSecMenu() {
+  var el = _calEl('tlc-menu-sect');
+  if (!el || el.hidden && _cal.menu !== 'sect') return;
+  var f = calFilter(), list = calSecList();
+  var keep = el.scrollTop;
+  var html = '<div class="tlc-menu-h tlc-f-head"><span>표시할 Section</span>'
+    + (calFilterActive() ? '<button type="button" class="tlc-f-reset" onclick="calSecShowAll()">전체 보기</button>' : '')
+    + '</div>';
+  if (!list.length) html += '<div class="tlc-menu-note">이 기간의 만다라트가 없습니다</div>';
+  list.forEach(function (s) {
+    var st = calSecState(s.name, f);
+    var arg = _calEsc(JSON.stringify(s.name)).replace(/"/g, '&quot;');
+    html += '<div class="tlc-sec-row">'
+      + '<label class="tlc-check"><input type="checkbox"' + (st !== 'off' ? ' checked' : '') + (st === 'mixed' ? ' data-mixed="1"' : '')
+      +   ' onchange="calSecToggle(' + arg + ',this.checked)">'
+      +   _calMarkHtml('section', s.color, true) + '<span class="tlc-f-name">' + _calEsc(s.label) + '</span></label>'
+      + '<button type="button" class="tlc-sec-only" onclick="calSecOnly(' + arg + ')" title="이 Section 만 보기">만 보기</button>'
+      + '</div>';
+  });
+  html += '<label class="tlc-check"><input type="checkbox"' + (f.none ? '' : ' checked') + ' onchange="calFilterNone(this.checked);calRenderSecMenu()">'
+    + _calMarkHtml('section', CAL_NO_PROJECT_COLOR, true) + '<span class="tlc-f-name">Project 없음</span></label>'
+    + '<div class="tlc-menu-note">이름이 같은 Section 은 모든 해에서 함께 켜고 끕니다. Project 별로 고르려면 \'표시\' 메뉴를 쓰세요.</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('input[data-mixed]').forEach(function (i) { i.indeterminate = true; });
+  el.scrollTop = keep;
+}
+
 // ── Task·To Do → 달력 항목 ──
 //  색 = 그 Task 가 걸린 Mandalart Section 의 색. Project 가 없으면 회색.
 function calTaskColor(t) {
@@ -718,7 +813,6 @@ function calItemPop(p, anchor) {
   var proj = _calProjectLine(t);
   if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
   if (isStep) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(_calCleanTitle(t.text)) + '</div>';
-  if (!isStep && t.location) rows += '<div class="tlc-pop-row">' + _calEsc(t.location) + '</div>';
   if (!isStep && t.notes) rows += '<div class="tlc-pop-row tlc-pop-desc">' + _calEsc(String(t.notes).slice(0, 500)) + '</div>';
   if (!isStep && (o.steps || []).length) {
     var finished = o.steps.filter(function (s) { return s.completed; }).length;
@@ -797,6 +891,10 @@ function calToolsHtml() {
     +     '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>'
     +     '<input type="search" id="tlc-search" placeholder="검색" aria-label="일정 검색" oninput="calSearchInput(this.value)">'
     +   '</label>'
+    +   '<span class="tlc-menu-wrap" id="tlc-sect-wrap">'
+    +     '<button type="button" class="tlc-btn" id="tlc-sect-btn" onclick="calToggleMenu(\'sect\')">Section ▾</button>'
+    +     '<div class="tlc-menu tlc-menu-right" id="tlc-menu-sect" hidden></div>'
+    +   '</span>'
     +   '<span class="tlc-menu-wrap" id="tlc-show-wrap">'
     +     '<button type="button" class="tlc-btn" id="tlc-show-btn" onclick="calToggleMenu(\'show\')">표시 ▾</button>'
     +     '<div class="tlc-menu tlc-menu-right" id="tlc-menu-show" hidden></div>'
@@ -822,11 +920,22 @@ function calSyncTools() {
     var sh = calShow();
     showBtn.classList.toggle('is-filtering', calFilterActive() || !sh.task || !sh.todo || !sh.done);
   }
+  var secBtn = _calEl('tlc-sect-btn');
+  if (secBtn) {
+    var f0 = calFilter(), hidN = Object.keys(f0.s).length;
+    secBtn.classList.toggle('is-filtering', calFilterActive());
+    // 숨긴 것이 있으면 보이는 개수를 적는다 — 'Section 3/8'
+    var lst = calFilterActive() ? calSecList() : [];
+    var onN = lst.filter(function (s) { return calSecState(s.name, f0) !== 'off'; }).length;
+    secBtn.textContent = (lst.length && hidN ? 'Section ' + onN + '/' + lst.length : 'Section') + ' ▾';
+  }
   // Gantt 탭은 자기 검색·Section 필터를 쓴다. 달력의 검색칸·표시 메뉴는 Gantt 에 걸리지 않으므로 감춘다.
   var inGantt = _cal.view === 'gantt';
   var gTools = _calEl('tlc-gantt-tools'), sWrap = _calEl('tlc-show-wrap'), sBox = document.querySelector('.tlc-search');
+  var secWrap = _calEl('tlc-sect-wrap');
   if (gTools) gTools.hidden = !inGantt;
   if (sWrap) sWrap.hidden = inGantt;
+  if (secWrap) secWrap.hidden = inGantt;
   if (sBox) sBox.hidden = inGantt;
   // 연도 보기는 표시 기간 밖으로 나가지 않는다
   var inYear = !_cal.query && _cal.view === 'year';
@@ -920,17 +1029,18 @@ function calMonthGridHtml(y, m, opts) {
 // ── 상단 메뉴: 미니 달력 / 표시 ──
 function calCloseMenus() {
   _cal.menu = null;
-  ['mini', 'show'].forEach(function (k) { var el = _calEl('tlc-menu-' + k); if (el) el.hidden = true; });
+  ['mini', 'show', 'sect'].forEach(function (k) { var el = _calEl('tlc-menu-' + k); if (el) el.hidden = true; });
 }
 function calToggleMenu(name) {
   var was = _cal.menu;
   calCloseMenus();
   if (was === name) return;
   _cal.menu = name;
-  if (name === 'mini') { _cal.miniY = _cal.date.getFullYear(); _cal.miniM = _cal.date.getMonth(); calRenderMini(); }
-  else calRenderShowMenu();
   var el = _calEl('tlc-menu-' + name);
   if (el) el.hidden = false;
+  if (name === 'mini') { _cal.miniY = _cal.date.getFullYear(); _cal.miniM = _cal.date.getMonth(); calRenderMini(); }
+  else if (name === 'sect') calRenderSecMenu();
+  else calRenderShowMenu();
 }
 function calRenderMini() {
   var el = _calEl('tlc-menu-mini');

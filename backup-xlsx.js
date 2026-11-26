@@ -58,9 +58,10 @@ var TX_SHEET_TASK = '할일(Task)';
 var TX_SHEET_TODO = 'To Do';
 // '우선순위' 칸은 2026-11-26 Priority 를 없애면서 뺐다. 그 칸이 있는 예전 파일을 올려도 그 칸은 읽지 않는다
 //  (아래 읽기가 이 목록만 돈다). 값은 '보존 데이터' 에 그대로 실려 다닌다.
+// '장소' 칸도 2026-11-26 Task 의 장소를 없애면서 같은 방식으로 뺐다.
 var TX_TASK_HEADERS = ['ID', '할 일', '완료', '완료 시각', '중요(별표)', '상태',
   '시작일', '시작 시간', '마감일', '마감 시간', '막대', '만다라트 연도', 'Section', 'Project',
-  '장소', '메모', 'Coworker', 'UpStream', '선행 Task ID', '후행 Task ID', '만든 시각', '구글 일정 ID', '보존 데이터'];
+  '메모', 'Coworker', 'UpStream', '선행 Task ID', '후행 Task ID', '만든 시각', '구글 일정 ID', '보존 데이터'];
 var TX_TODO_HEADERS = ['Task ID', 'Task', 'To Do ID', 'To Do', '완료', '완료 시각', '마감일', '마감 시간',
   '수행 시간', '구글 일정 ID', '보존 데이터'];
 var TX_KEEP_MAX = 32000;   // 엑셀 한 칸 한도(32,767자) 안쪽
@@ -137,7 +138,6 @@ function txTaskCells(t, mdts) {
     '마감 시간': (t.hasTime && dd.length >= 16) ? dd.slice(11, 16) : '',
     '막대': t.calBar ? 'O' : '',
     '만다라트 연도': L.yr, 'Section': L.sec, 'Project': L.proj,
-    '장소': t.location || '',
     '메모': t.notes || '',
     'Coworker': (Array.isArray(t.assignees) ? t.assignees : []).join(', '),
     'UpStream': (Array.isArray(t.upstreamDepts) ? t.upstreamDepts : []).join(', '),
@@ -209,7 +209,7 @@ function buildTaskWorkbook(tasksArr) {
     ['상태', '대기 · 진행 · 중단 · 완료 · 취소.'],
     ['시작일·시간 / 마감일·시간', 'YYYY-MM-DD / HH:MM. 시간을 비우면 종일.'],
     ['만다라트 연도 · Section · Project', '그 해 만다라트의 이름 그대로. Project 를 비우면 Section 에만, 셋 다 비우면 연결 없음.'],
-    ['장소 · 메모', '그대로.'],
+    ['메모', '그대로.'],
     ['Coworker · UpStream', '여러 명은 쉼표로.'],
     ['선행 · 후행 Task ID', 'Task ID 를 쉼표로.'],
     ['만든 시각', '참고용. 고쳐도 반영되지 않습니다.'],
@@ -392,7 +392,6 @@ function workbookToTaskPlan(wb, cur) {
     if (ch['중요(별표)']) t.starred = c['중요(별표)'] === 'Y';
     if (ch['상태']) t.status = c['상태'] || '대기';
     if (ch['막대']) { if (c['막대'] === 'Y') t.calBar = true; else delete t.calBar; }
-    if (ch['장소']) { if (c['장소'].trim()) t.location = c['장소']; else delete t.location; }
     if (ch['메모']) t.notes = c['메모'];
     if (ch['Coworker']) t.assignees = txList(c['Coworker']);
     if (ch['UpStream']) { t.upstreamDepts = txList(c['UpStream']); t.upstreamDept = t.upstreamDepts.join(', '); }
@@ -1084,7 +1083,7 @@ function handleRestoreMandalartWb(wb) {
 //    · '연결 To Do ID' 가 있으면 그 To Do 에: 같은 날 시간 일정이면 수행 시간 한 줄, 마감일이 일정 날과 같으면 마감 시각도.
 //    · 없으면 그 Task 에: Start·Due 날짜가 일정과 같으면 Start·Due 시간(여러 날이면 막대),
 //      다르면(기간이 긴 Task) 그 일정을 To Do 로 하나 더한다.
-//    · 장소는 Task 에 장소가 없을 때만, 메모는 Task 메모에 아직 없는 글이면 뒤에 붙인다.
+//    · 메모는 Task 메모에 아직 없는 글이면 뒤에 붙인다. (장소는 2026-11-26 부터 넣지 않는다 — Task 의 장소를 없앴다)
 //  ▸ 시간: 시작·종료 시간이 있으면 Start·Due 시간으로(startHasTime·hasTime). 비우면 종일.
 //    To Do 는 같은 날 시작·종료 시간이 둘 다 있으면 수행 시간(slots) 한 줄도 만든다(여러 날짜 일정은 만들지 않는다).
 //  ▸ 줄마다 '구글 일정 ID' 를 gcalId(두 번째부터는 gcalIds)로 남긴다. 같은 파일을 두 번 올려도 이미 들어간 줄은 건너뛴다.
@@ -1269,7 +1268,7 @@ function gcalXlsxApply(plan, arr) {
       dueDateTime: it.ed + 'T' + (it.et || '09:00') + ':00', hasTime: !!it.et,
       status: it.done ? '완료' : '대기', notes: it.memo, steps: [],
       mdtGoal: it.goal || null, mdtAction: it.action || null,
-      location: it.location, calBar: it.bar
+      calBar: it.bar   // '장소' 칸은 2026-11-26 Task 의 장소를 없애면서 읽기만 하고 쓰지 않는다
     };
     var doc = (typeof newTaskDoc === 'function') ? newTaskDoc(o) : Object.assign({
       createdAt: nowIso, reminder: null, assignee: '', assignees: [], repeat: null,
@@ -1339,7 +1338,6 @@ function gcalXlsxApply(plan, arr) {
     } else {
       addStep(t, it);     // 기간이 긴 Task — 그 안의 일정 날을 To Do 로
     }
-    if (it.location && !t.location) t.location = it.location;
     if (it.memo && String(t.notes || '').indexOf(it.memo) < 0) t.notes = t.notes ? t.notes + '\n' + it.memo : it.memo;
   });
 }
@@ -1373,7 +1371,7 @@ function handleImportEventsWb(wb) {
         + '    To Do 시간 ' + fm.step + ' · Task 시간 ' + fm.taskTime + ' · 기간이 긴 Task 에 일정 날 To Do 추가 ' + fm.taskTodo + '\n' : '')
     + (plan.skip ? '· 건너뜀 ' + plan.skip + '줄\n' : '')
     + (plan.already ? '· 이미 가져온 줄 ' + plan.already + '개는 다시 넣지 않음\n' : '')
-    + '\n지우는 것은 없습니다. 있던 Task 는 제목·완료·다른 To Do 를 그대로 두고 시간·장소·메모와 To Do 만 늘어납니다. 계속할까요?';
+    + '\n지우는 것은 없습니다. 있던 Task 는 제목·완료·다른 To Do 를 그대로 두고 시간·메모와 To Do 만 늘어납니다. 계속할까요?';
   if (!confirm(msg)) return;
   gcalXlsxApply(plan, arr);
   if (mem) saveTasks(); else localStorage.setItem(TASK_STORAGE_KEY, JSON.stringify(arr));
