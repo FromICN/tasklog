@@ -3659,7 +3659,8 @@ function initSidebarCollapse() {
   if (typeof updateDarkModeBtn === 'function') updateDarkModeBtn(); // 테마 스위치 초기 동기화
 }
 
-// PC 레일에 쓰는 짧은 이름 (사용자가 적은 이름 그대로). 전체 이름은 aria-label 로 남긴다.
+// PC 위쪽 메뉴에 쓰는 짧은 이름 (사용자가 적은 이름 그대로). 전체 이름은 title 로 남긴다.
+//  (2026-11-27 왼쪽 레일을 없애고 메뉴를 위쪽 막대로 옮겼다 — layout.js tlMenuRender. 아래 레일 그리기는 숨은 사이드바용으로 남아 있다)
 var RAIL_LABEL = {
   home:'Home', mvv:'MVV', wheel:'Life Wheel', mandalart:'Mandalart', habit:'Habit Tracker',
   calendar:'Calendar', cloud:'Web', journal:'Work Diary', wbs:'WBS',
@@ -3720,7 +3721,7 @@ function initSidebar() {
   var act = document.getElementById('nav-'+currentMenu);
   if (act) act.classList.add('active');
   renderTabbar();
-  if (typeof tlTabsRender === 'function') tlTabsRender();   // 숨긴 메뉴의 탭을 뺀다
+  if (typeof tlMenuRender === 'function') tlMenuRender();   // PC 위쪽 메뉴 (같은 순서 · 표시)
 }
 
 // ============================================
@@ -3850,8 +3851,8 @@ function navToMenu(id) {
   }
   currentMenu = id;
 
-  // PC 위쪽 막대의 열린 메뉴 탭 (layout.js, 2026-11-26)
-  if (typeof tlTabsOnNav === 'function') tlTabsOnNav(id);
+  // PC 위쪽 메뉴의 켜진 칸 (layout.js, 2026-11-27 — 예전 열린 메뉴 탭 자리)
+  if (typeof tlMenuOnNav === 'function') tlMenuOnNav(id);
 
   // 📱 모바일: 메뉴 선택 시 드로어 자동 닫기
   closeSidebar();
@@ -3926,6 +3927,8 @@ function bootApp() {
   try { localStorage.removeItem('app-menu-order-desktop'); localStorage.removeItem('app-menu-order-mobile'); } catch (e) {}
   // PC 메뉴 순서 키를 v3 로 올렸다(2026-11-26, Life Log · Task Log 묶음). 옛 PC 순서는 치운다.
   try { localStorage.removeItem('app-menu-order-v2-desktop'); } catch (e) {}
+  // PC 위쪽 막대의 열린 메뉴 탭은 2026-11-27 사용자 요청으로 없앴다(메뉴가 그 자리로 왔다). 남은 탭 목록을 치운다.
+  try { localStorage.removeItem('app-open-tabs'); } catch (e) {}
   // 구글 캘린더 연동은 2026-11-11 사용자 결정으로 없앴다. 이 기기에 남은 캐시·설정을 치운다
   //  (구글 일정 캐시는 한 해에 약 56KB 라 저장소를 많이 먹었다).
   try {

@@ -1764,11 +1764,12 @@ body.jnlw-copying, body.jnlw-copying * { cursor: copy !important; }
      설정(⚙)은 레일이 펼쳐질 때만 그 오른쪽에, 테마 스위치는 뺐다(설정 › 화면에 있다),
      레일 아이콘 20 → 16px · 아이콘 좌우 여백 24 → 12px(레일 68 → 40px), 검색창은 1/3 폭으로 오른쪽 끝,
      화면 제목은 지우고 위쪽 막대에 열린 메뉴를 탭으로 늘어놓는다(layout.js tlTabs*).
+   2026-11-27 다섯 번째 손질(사용자 요청): 왼쪽 레일을 없애고 메뉴를 위쪽 막대로(아이콘 + 이름, layout.js tlMenu*).
+     열린 메뉴 탭은 없앴다. 로그인 정보 · 설정은 막대 오른쪽 끝. 검색은 Enter 로 검색 결과 페이지(.tls-page)를 연다.
+     위의 레일 · 탭 설명은 지난 기록이다 — 지금 값은 아래 '위쪽 막대' 묶음.
    폰(768px 이하)은 예전 그대로다. 아래 '모든 폭' 규칙은 구조만 맞춘다.
    ============================================================ */
-.tl-appbar,
-.tl-rail-name,
-.tl-rail-settings { display: none; }
+.tl-appbar { display: none; }
 .content-wrapper { flex-direction: column; min-width: 0; }
 .tl-panes { flex: 1 1 auto; display: flex; min-width: 0; min-height: 0; overflow: hidden; }
 
@@ -1930,160 +1931,79 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
 @media (min-width: 769px) {
   :root {
     --tl-frame: #07090D;
-    --tl-rail-w: 40px;
-    --tl-rail-open: 220px;
-    --tl-appbar-h: 50px;   /* 탭 36px + 위아래 7px (2026-11-26 사용자 요청 — 예전 64px, 위아래 14px 의 절반) */
+    --tl-appbar-h: 50px;   /* 메뉴 칸 34px + 위아래 8px (2026-11-26 사용자 요청 — 예전 64px) */
     --tl-gap: 10px;
     --tl-pane-r: 16px;
     --tl-pane-line: rgba(255,255,255,0.07);
     --tl-search-bg: #171C26;
-    --tl-rail-shadow: 0 12px 36px rgba(0,0,0,0.55);
     --tl-pop-shadow: 0 12px 28px rgba(0,0,0,0.5);
   }
   body.light-mode {
     --tl-frame: #F0F3F8;
     --tl-pane-line: rgba(17,19,24,0.06);
     --tl-search-bg: #E2E8F0;
-    --tl-rail-shadow: 0 10px 30px rgba(17,19,24,0.16);
     --tl-pop-shadow: 0 12px 28px rgba(17,19,24,0.16);
   }
   body,
   .app,
   .content-wrapper { background: var(--tl-frame); }
 
-  /* ── 왼쪽 레일 ── */
+  /* ── 왼쪽 레일 없앰 (2026-11-27) — 메뉴는 위쪽 막대에 있다. 사이드바는 폰 '전체' 판으로만 쓴다 ── */
   .app > .sidebar,
-  .app > .sidebar.collapsed {
-    /* z 400 — 본문 · 탑바(고정 머리글) 위, 모달 덮개(만다라트 900 · 프로필 9990 …) 아래 */
-    position: fixed; top: 0; left: 0; bottom: 0; z-index: 400;
-    width: var(--tl-rail-w);
-    background: var(--tl-frame);
-    border-right: 0;
-    border-radius: 0;
-    box-shadow: none;
-    overflow: hidden;
-    transition: width .18s ease, box-shadow .18s ease, background-color .18s ease;
-  }
-  .app > .sidebar:hover,
-  .app > .sidebar:has(:focus-visible) {
-    width: var(--tl-rail-open);
-    background: var(--main-bg);
-    box-shadow: var(--tl-rail-shadow);
-    border-radius: 0 16px 16px 0;
-    transition-delay: .12s;
-  }
-  /* 위: 로그인 정보 — 아바타(28px, 레일 가운데). 펼치면 이름과 설정(⚙)이 오른쪽에 나온다 */
-  .app > .sidebar .sidebar-top,
-  .app > .sidebar.collapsed .sidebar-top {
-    flex-direction: row; justify-content: flex-start; align-items: center; gap: 8px;
-    height: var(--tl-appbar-h); padding: 0 8px 0 6px; border-bottom: 0;
-  }
-  .app > .sidebar .sidebar-top .avatar-circle {
-    flex: 0 0 28px; width: 28px; height: 28px; border-radius: 50%; font-size: 12px;
-  }
-  .app > .sidebar .sidebar-top .avatar-circle img { width: 100%; height: 100%; object-fit: cover; }
-  .tl-rail-name {
-    display: block; flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 6px; border: 0; border-radius: 8px;
-    background: transparent; color: var(--text-1); font: 600 13.5px var(--tl-sans); text-align: left;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
-    opacity: 0; visibility: hidden; transition: opacity .1s ease;
-  }
-  .tl-rail-name:hover { background: var(--sidebar-hover); }
-  .tl-rail-settings {
-    display: grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
-    background: transparent; color: var(--text-2); cursor: pointer;
-    opacity: 0; visibility: hidden; transition: opacity .1s ease;
-  }
-  .tl-rail-settings:hover { background: var(--sidebar-hover); color: var(--text-1); }
-  .app > .sidebar:hover .tl-rail-name,
-  .app > .sidebar:hover .tl-rail-settings,
-  .app > .sidebar:has(:focus-visible) .tl-rail-name,
-  .app > .sidebar:has(:focus-visible) .tl-rail-settings { opacity: 1; visibility: visible; transition: opacity .14s ease .14s; }
+  .app > .sidebar.collapsed { display: none; }
 
-  /* 메뉴: 접혔을 때와 펼쳤을 때 아이콘 자리가 같다 (레일 가운데 20px, 아이콘 좌우 여백 12px) */
-  .app > .sidebar .sidebar-nav { padding: 4px 0 8px; overflow-x: hidden; overflow-y: auto; }
-  .app > .sidebar .nav-item,
-  .app > .sidebar.collapsed .nav-item {
-    display: flex; flex-direction: row; justify-content: flex-start; align-items: center;
-    gap: 12px; width: auto; height: 32px; margin: 0 4px 2px; padding: 0 8px;
-    border-radius: 999px; overflow: hidden; color: var(--text-2);
-  }
-  .app > .sidebar .nav-item-icon { flex: 0 0 16px; width: 16px; height: 16px; }
-  .app > .sidebar .nav-item-icon svg { width: 16px; height: 16px; }
-  .app > .sidebar .nav-item-label,
-  .app > .sidebar.collapsed .nav-item-label {
-    display: block; flex: 1 1 auto; min-width: 0; width: auto; opacity: 0;
-    font-family: var(--tl-sans); font-size: 14px; font-weight: 500; letter-spacing: -0.005em;
-    text-align: left; text-transform: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    transition: opacity .1s ease;
-  }
-  .app > .sidebar .nav-item:hover { background: var(--sidebar-hover); color: var(--text-1); }
-  .app > .sidebar .nav-item.active { background: var(--tl-soft); color: var(--tl-soft-ink); box-shadow: none; }
-  .app > .sidebar .nav-item.active .nav-item-label { font-weight: 700; }
-
-  /* 묶음: 접혔을 때는 짧은 선, 펼치면 이름 */
-  .app > .sidebar .nav-group { display: flex; flex-direction: column; }
-  .app > .sidebar .nav-group + .nav-group { margin-top: 4px; }
-  .app > .sidebar .nav-group-head {
-    position: relative; display: flex; align-items: center;
-    height: 24px; margin: 2px 4px 0; padding: 0 8px;
-  }
-  .app > .sidebar .nav-group-head span {
-    font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--text-3);
-    white-space: nowrap; opacity: 0; transition: opacity .1s ease;
-  }
-  .app > .sidebar .nav-group-head::before {
-    content: ""; position: absolute; left: 8px; top: 50%; width: 16px; height: 1px;
-    background: var(--tl-rule); transition: opacity .1s ease;
-  }
-  .app > .sidebar:hover .nav-item-label,
-  .app > .sidebar:hover .nav-group-head span,
-  .app > .sidebar:has(:focus-visible) .nav-item-label,
-  .app > .sidebar:has(:focus-visible) .nav-group-head span { opacity: 1; transition: opacity .14s ease .14s; }
-  .app > .sidebar:hover .nav-group-head::before,
-  .app > .sidebar:has(:focus-visible) .nav-group-head::before { opacity: 0; }
-
-  /* 아래: 설정은 레일 위(로그인 정보 옆)로, 테마 스위치는 뺐다 — 테마는 설정 › 화면 */
-  .app > .sidebar .sidebar-bottom { display: none; }
-
-  .app > .content-wrapper { margin-left: var(--tl-rail-w); }
-
-  /* ── 위쪽 막대: 열린 메뉴 탭 · 오른쪽 끝 검색 ── */
+  /* ── 위쪽 막대: 메뉴(아이콘 + 이름) · 상태 알림 · 검색 · 설정 · 로그인 정보 ── */
   .tl-appbar {
+    position: relative;
     display: flex; align-items: center; gap: 6px; flex: 0 0 var(--tl-appbar-h);
-    height: var(--tl-appbar-h); min-width: 0; padding: 0 12px 0 2px;
+    height: var(--tl-appbar-h); min-width: 0; padding: 0 12px 0 10px;
   }
-  .tl-tabs {
-    flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px;
-    overflow-x: auto; scrollbar-width: none; padding: 4px 2px;
+  .tl-mnav {
+    flex: 0 1 auto; min-width: 0; display: flex; align-items: center;
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 4px 0;
   }
-  .tl-tabs::-webkit-scrollbar { display: none; }
-  .tl-tab {
-    flex: 0 0 auto; display: flex; align-items: center; height: 36px; padding: 0 4px 0 2px;
-    border-radius: 10px; color: var(--text-2); transition: background-color .12s, color .12s;
+  .tl-mnav::-webkit-scrollbar { display: none; }
+  .tl-mnav-group { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; }
+  /* 묶음 사이: 짧은 세로선 */
+  .tl-mnav-group + .tl-mnav-group { margin-left: 9px; padding-left: 9px; position: relative; }
+  .tl-mnav-group + .tl-mnav-group::before {
+    content: ""; position: absolute; left: 0; top: 50%; width: 1px; height: 18px; transform: translateY(-50%);
+    background: var(--tl-rule);
   }
-  .tl-tab:hover { background: var(--sidebar-hover); color: var(--text-1); }
-  .tl-tab.is-on { background: var(--main-bg); color: var(--text-1); box-shadow: 0 0 0 1px var(--tl-pane-line), 0 1px 2px rgba(0,0,0,.08); }
-  .tl-tab-main {
-    display: flex; align-items: center; gap: 6px; height: 100%; padding: 0 2px 0 8px; border: 0;
-    background: transparent; color: inherit; font: 500 13px var(--tl-sans); white-space: nowrap; cursor: pointer;
+  /* 묶음 이름(Life Log · Task Log) — 넓은 창에서만 (아래 1480px) */
+  .tl-mnav-glabel {
+    display: none; flex: 0 0 auto; margin: 0 6px 0 2px;
+    font: 700 11px var(--tl-sans); letter-spacing: 0.02em; color: var(--text-3); white-space: nowrap;
   }
-  .tl-tab.is-on .tl-tab-main { font-weight: 700; }
-  .tl-tab-ico { display: flex; width: 15px; height: 15px; }
-  .tl-tab-ico svg { width: 15px; height: 15px; }
-  .tl-tab.is-on .tl-tab-ico { color: var(--brand-primary); }
-  .tl-tab-x {
-    width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px;
-    background: transparent; color: var(--text-3); font-size: 11px; cursor: pointer; opacity: 0;
+  .tl-mnav-item {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 10px;
+    border: 0; border-radius: 999px; background: transparent; color: var(--text-2);
+    font: 500 13.5px var(--tl-sans); letter-spacing: -0.005em; white-space: nowrap; cursor: pointer;
+    transition: background-color .12s, color .12s;
   }
-  .tl-tab:hover .tl-tab-x,
-  .tl-tab.is-on .tl-tab-x,
-  .tl-tab-x:focus-visible { opacity: 1; }
-  .tl-tab-x:hover { background: var(--surface-hover); color: var(--text-1); }
+  .tl-mnav-item:hover { background: var(--sidebar-hover); color: var(--text-1); }
+  .tl-mnav-item.is-on { background: var(--tl-soft); color: var(--tl-soft-ink); font-weight: 700; }
+  .tl-mnav-item:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: -2px; }
+  .tl-mnav-ico { flex: 0 0 16px; display: flex; width: 16px; height: 16px; }
+  .tl-mnav-ico svg { width: 16px; height: 16px; }
 
-  /* 검색: 예전 폭(최대 720px)의 1/3, 오른쪽 끝 */
+  /* 설정 · 로그인 정보 (예전 레일 맨 위) */
+  .tl-appbar-btn {
+    flex: 0 0 34px; width: 34px; height: 34px; display: grid; place-items: center; padding: 0; margin-left: 4px;
+    border: 0; border-radius: 50%; background: transparent; color: var(--text-2); cursor: pointer;
+  }
+  .tl-appbar-btn:hover { background: var(--sidebar-hover); color: var(--text-1); }
+  .tl-appbar-avatar {
+    flex: 0 0 32px; width: 32px; height: 32px; display: grid; place-items: center; padding: 0; overflow: hidden;
+    border: 0; border-radius: 50%; background: var(--brand-primary); color: #fff;
+    font: 700 13px var(--tl-sans); cursor: pointer;
+  }
+  .tl-appbar-avatar:hover { box-shadow: 0 0 0 3px var(--tl-soft); }
+  .tl-appbar-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+  /* 검색: 240px, 오른쪽 끝(설정 · 로그인 정보 앞). 메뉴가 넓으면 검색칸이 먼저 줄어든다(160px 까지) */
   .tl-search {
-    position: relative; flex: 0 0 240px; min-width: 0; height: 34px;   /* 막대가 50px 로 낮아져 40 → 34px */
+    position: relative; flex: 0 100 240px; min-width: 160px; height: 34px;   /* 막대가 50px 로 낮아져 40 → 34px */
     display: flex; align-items: center; gap: 8px; padding: 0 3px 0 13px;
     border-radius: 17px; background: var(--tl-search-bg); color: var(--text-2);
     transition: background-color .15s, box-shadow .15s;
@@ -2111,7 +2031,7 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
   /* 검색 결과 — 검색칸이 좁아졌으므로 결과 창은 오른쪽 끝에 맞춰 넓게 편다 */
   .tl-search-pop {
     position: absolute; top: calc(100% + 6px); right: 0; z-index: 1300;
-    width: min(460px, calc(100vw - var(--tl-rail-w) - 24px));
+    width: min(460px, calc(100vw - 24px));
     max-height: min(70vh, 560px); overflow-y: auto; padding: 4px 0 10px;
     background: var(--main-bg); border: 1px solid var(--tl-rule-soft);
     border-radius: 16px; box-shadow: var(--tl-pop-shadow);
@@ -2159,9 +2079,47 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
   .tls-item mark { background: rgba(var(--accent-rgb), 0.2); color: inherit; border-radius: 3px; padding: 0 1px; }
   .tls-more { padding: 6px 18px 2px; font-size: 12.5px; color: var(--text-3); }
   .tls-empty { padding: 16px 18px; font-size: 13.5px; color: var(--text-3); }
+  /* 맨 위 줄: 검색 결과 페이지로 (아무 줄도 고르지 않았을 때 Enter 가 하는 일 — 그때 칠해진다) */
+  .tls-all {
+    width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 18px; margin-bottom: 2px;
+    border: 0; border-bottom: 1px solid var(--tl-rule-soft); border-radius: 0;
+    background: transparent; color: var(--text-1); font: 400 13.5px var(--tl-sans); text-align: left; cursor: pointer;
+  }
+  .tls-all.is-sel { background: var(--surface-hover); }
+  .tls-all-ico { flex: 0 0 auto; display: flex; color: var(--brand-primary); }
+  .tls-all-txt { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tls-all-txt b { font-weight: 700; }
+  .tls-all-n { flex: 0 0 auto; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+  .tls-kbd {
+    flex: 0 0 auto; padding: 1px 6px; border: 1px solid var(--tl-rule); border-radius: 5px;
+    font: 600 10.5px var(--tl-sans); color: var(--text-3); background: transparent;
+  }
+  .tls-all:not(.is-sel) .tls-kbd { visibility: hidden; }
+
+  /* ── 폭이 모자랄 때 (메뉴 9칸 + 검색 + 설정 · 로그인 정보) ──
+     1480px 이상: 묶음 이름까지 / 그 밑: 세로선만 / 1180px 밑: 검색칸은 돋보기만(누르면 펼쳐져 막대 위에 뜬다) ·
+     칸 여백을 줄인다 / 그래도 넘치면 메뉴 줄이 옆으로 밀린다(휠로 민다, 지금 메뉴는 보이게 굴린다) */
+  @media (min-width: 1480px) {
+    .tl-mnav-glabel { display: inline; }
+  }
+  @media (max-width: 1179px) {
+    .tl-mnav-item { gap: 6px; padding: 0 9px 0 8px; font-size: 13px; }
+    .tl-mnav-group + .tl-mnav-group { margin-left: 6px; padding-left: 6px; }
+    .tl-search { flex: 0 0 34px; min-width: 34px; padding: 0; justify-content: center; cursor: pointer; }
+    .tl-search:not(:focus-within):not(.is-open) .tl-search-input,
+    .tl-search:not(:focus-within):not(.is-open) .tl-search-clear { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+    /* 펼칠 때 오른쪽 끝은 제자리 — 바깥 폭은 34px 그대로 두고(음수 여백) 왼쪽으로만 늘어나 메뉴 위에 뜬다.
+       그래서 설정 · 로그인 정보 · 메뉴가 움직이지 않는다 */
+    .tl-search:focus-within,
+    .tl-search.is-open {
+      --tls-w: min(380px, calc(100vw - 140px));
+      flex: 0 0 var(--tls-w); width: var(--tls-w); margin-left: calc(34px - var(--tls-w)); z-index: 30;
+      padding: 0 3px 0 13px; justify-content: flex-start; cursor: text;
+    }
+  }
 
   /* ── 본문 3분할 — 바탕 위의 둥근 판 ── */
-  .tl-panes { padding: 0 var(--tl-gap) var(--tl-gap) 0; }
+  .tl-panes { padding: 0 var(--tl-gap) var(--tl-gap); }
   .tl-panes > .main-content {
     flex: 1 1 auto; min-width: 0;
     border: 1px solid var(--tl-pane-line);
@@ -2188,3 +2146,96 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
   #page-content .nb-write-panel { flex-wrap: wrap; }
   #page-content .nb-write-panel .nb-textarea { min-width: 180px; }
 }
+/* ── 검색 결과 페이지 (layout.js renderSearchView, 2026-11-27 사용자 요청) ──
+   위쪽 검색칸에서 Enter → 본문 자리에 맞는 Task · To Do · 메모 전부. 모든 폭에서 같은 모양(폰에는 오는 길이 없다) */
+.tls-page { max-width: 980px; margin: 0 auto; padding: 0 4px 40px; }
+.tlsp-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 12px; }
+.tlsp-top { margin: 0 0 4px -6px; }
+.tlsp-back {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 10px 0 6px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--text-2); font: 500 13px var(--tl-sans); cursor: pointer;
+}
+.tlsp-back:hover { background: var(--surface-hover); color: var(--text-1); }
+.tlsp-title-h { margin: 0; font: 700 22px/1.3 var(--tl-sans); letter-spacing: -0.01em; color: var(--text-1); }
+.tlsp-q { color: var(--brand-primary); }
+.tlsp-q::before { content: "\2018"; } .tlsp-q::after { content: "\2019"; }
+.tlsp-total { font-size: 14px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.tlsp-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px;
+  padding: 0 0 12px; margin-bottom: 6px; border-bottom: 1px solid var(--tl-rule-soft);
+}
+.tlsp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#page-content .tlsp-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 13px;
+  border: 1px solid var(--tl-rule); border-radius: 999px; background: transparent; color: var(--text-2);
+  font: 600 13px var(--tl-sans); cursor: pointer;
+}
+#page-content .tlsp-chip span { font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
+#page-content .tlsp-chip:hover { background: var(--surface-hover); color: var(--text-1); }
+#page-content .tlsp-chip.is-on { background: var(--tl-soft); border-color: transparent; color: var(--tl-soft-ink); }
+#page-content .tlsp-chip.is-on span { color: inherit; opacity: .75; }
+#page-content .tlsp-chip.is-zero { opacity: .55; }
+.tlsp-hide { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); cursor: pointer; user-select: none; }
+.tlsp-hide span { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.tlsp-sec { margin-top: 18px; }
+.tlsp-sec-head {
+  display: flex; align-items: baseline; gap: 8px; margin: 0 0 6px; padding: 0 10px;
+  font: 700 13px var(--tl-sans); color: var(--text-3); letter-spacing: 0.01em;
+}
+.tlsp-sec-head span { font-weight: 500; font-variant-numeric: tabular-nums; }
+.tlsp-list { display: flex; flex-direction: column; }
+.tlsp-row {
+  position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 11px 12px; border-radius: 12px;
+  color: var(--text-1); cursor: pointer; outline: none;
+}
+/* 줄 사이 선 — 둥근 칸의 모서리를 따라 휘지 않게 따로 긋고, 칠한 줄의 위아래에서는 감춘다 */
+.tlsp-row + .tlsp-row::before {
+  content: ""; position: absolute; left: 12px; right: 12px; top: 0; height: 1px; background: var(--tl-rule-soft);
+}
+.tlsp-row:hover::before, .tlsp-row:hover + .tlsp-row::before,
+.tlsp-row:focus-visible::before, .tlsp-row:focus-visible + .tlsp-row::before,
+.tlsp-row.is-open::before, .tlsp-row.is-open + .tlsp-row::before,
+.tlsp-row.is-editing::before, .tlsp-row.is-editing + .tlsp-row::before { opacity: 0; }
+.tlsp-row:hover,
+.tlsp-row:focus-visible { background: var(--surface-hover); }
+.tlsp-row:focus-visible { box-shadow: inset 0 0 0 2px var(--brand-primary); }
+.tlsp-row.is-open { background: var(--tl-soft); }
+.tlsp-row.is-editing { cursor: default; background: var(--surface-hover); }
+.tlsp-mark {
+  flex: 0 0 auto; width: 16px; height: 16px; margin-top: 2px; display: grid; place-items: center;
+  border: 1.6px solid var(--text-3); color: var(--main-bg); font-size: 10px; font-weight: 800; line-height: 1;
+}
+.tlsp-mark-task { border-radius: 50%; }          /* 달력과 같은 표시: Task 동그라미 · To Do 네모 · 메모 점선 */
+.tlsp-mark-step { border-radius: 3px; }
+.tlsp-mark-memo { border-radius: 3px; border-style: dashed; }
+.tlsp-row.is-done .tlsp-mark { background: var(--text-3); }
+.tlsp-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tlsp-title { font-size: 14.5px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.tlsp-row.is-done .tlsp-title { color: var(--text-3); text-decoration: line-through; font-weight: 500; }
+.tlsp-memo {
+  font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+}
+.tlsp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12.5px; color: var(--text-2); }
+.tlsp-tag {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px;
+  background: var(--bg-2, rgba(127,127,127,.1)); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.tlsp-tag i { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.tlsp-tag.is-dim { color: var(--text-3); }
+.tlsp-tag-st { color: var(--brand-primary); background: var(--tl-soft); }
+.tlsp-tag-st.is-done { color: var(--text-3); background: var(--bg-2, rgba(127,127,127,.1)); }
+.tlsp-parent { min-width: 0; max-width: 100%; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tlsp-snip { font-size: 12.5px; line-height: 1.45; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tlsp-snip span { margin-right: 6px; font-weight: 700; color: var(--text-3); }
+.tlsp-when { flex: 0 0 auto; min-width: 44px; margin-top: 2px; text-align: right; font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.tlsp-row mark { background: rgba(var(--accent-rgb), 0.22); color: inherit; border-radius: 3px; padding: 0 1px; }
+#page-content .tlsp-more {
+  display: inline-flex; align-items: baseline; gap: 8px; height: 34px; margin: 8px 0 0 40px; padding: 0 14px;
+  border: 0; border-radius: 999px; background: var(--tl-soft); color: var(--tl-soft-ink); font: 600 13px var(--tl-sans); cursor: pointer;
+  align-items: center;
+}
+#page-content .tlsp-more span { font-weight: 500; opacity: .75; }
+.tlsp-empty { padding: 36px 12px; font-size: 14px; line-height: 1.6; color: var(--text-3); text-align: center; }
+#page-content .tlsp-link { border: 0; background: transparent; padding: 0 2px; color: var(--brand-primary); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.tlsp-row .memo-edit { margin: -4px 0; }

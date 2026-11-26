@@ -485,10 +485,11 @@ function memoEditSave(quiet) {
   }
   if (!quiet) memoEditRerender();
 }
-// 편집창이 있는 화면만 다시 그린다 (Web 페이지 보드 · Home Web 위젯)
+// 편집창이 있는 화면만 다시 그린다 (Web 페이지 보드 · Home Web 위젯 · 검색 결과 페이지 — layout.js, 2026-11-27)
 function memoEditRerender() {
   if (document.getElementById('nb-board')) renderNoteBoard();
   if (document.getElementById('web-body') && typeof renderHomeWebWidget === 'function') renderHomeWebWidget();
+  if (document.getElementById('tls-page') && typeof renderSearchView === 'function') renderSearchView();
 }
 // 렌더러가 편집창을 그린 뒤 부른다 — 높이 · 포커스 · 커서 자리를 되살린다
 function memoEditMount() {

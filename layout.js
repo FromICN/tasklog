@@ -1,14 +1,14 @@
 // ============================================================
 //  🧭 PC 레이아웃 — Gmail 형 (2026-11-26, 사용자 요청)
 // ------------------------------------------------------------
-//  · 왼쪽 레일: 평소 아이콘만, 마우스를 올리면 펼쳐져 이름이 보인다.
-//    Home · Life Log(MVV · LW · M · HT) · Task Log(Calendar · Web · WD · WBS).
-//    펼침은 CSS(:hover · :focus-within) 만으로 한다 — theme.css 'PC 레이아웃 — Gmail 형'.
-//    묶음은 script.js MENU_GROUPS · initSidebar 가 그린다.
-//  · 위쪽 막대(#tl-appbar): TASK LOG · 전체 검색 · 설정 · 로그인 정보
+//  · 위쪽 막대(#tl-appbar): 메뉴(아이콘 + 이름) · 상태 알림 · 전체 검색 · 설정 · 로그인 정보
+//    2026-11-27 사용자 요청: 왼쪽 레일을 없애고 메뉴를 위쪽 막대(예전 열린 메뉴 탭 자리)로 옮겼다.
+//    Home │ Life Log(MVV · Life Wheel · Mandalart · Habit Tracker) │ Task Log(Calendar · Web · Work Diary · WBS).
+//    묶음은 script.js MENU_GROUPS 를 그대로 쓴다 — 아래 '위쪽 메뉴' 절(tlMenu*).
+//  · 전체 검색: 치는 동안 바로 가기 목록, Enter = 검색 결과 페이지(본문 자리, 2026-11-27 사용자 요청)
 //  · 본문 3분할(.tl-panes): 기본 화면 | Task 창(#right-panel) | To Do 창(#todo-pane)
 //    새 창은 오른쪽에 붙는다(사용자 결정). Task 창의 To Do 줄을 누르면 To Do 창이 열린다.
-//  폰(768px 이하)은 예전 화면 그대로다 — 막대는 숨고, To Do 창은 전체 화면으로 덮는다.
+//  폰(768px 이하)은 예전 화면 그대로다 — 막대는 숨고(하단 탭 + '전체' 판), To Do 창은 전체 화면으로 덮는다.
 //  index.html 에서 script.js 다음, pwa.js 앞에 로드한다.
 // ============================================================
 
@@ -76,6 +76,7 @@ function tdOpen(stepId) {
   pane.classList.add('open');
   pane.setAttribute('aria-hidden', 'false');
   tdPaintRows();
+  tlspPaintOpen();
   setTimeout(tdFitName, 320);   // transitionend 가 오지 않는 환경(애니메이션 끔 등) 대비
   // 폰·태블릿은 글자판이 화면을 덮으므로 저절로 포커스하지 않는다
   var touch = (typeof tlTouchKeyboard === 'function') && tlTouchKeyboard();
@@ -88,6 +89,7 @@ function tdClose(quiet) {
   _td = null;
   if (pane) { pane.classList.remove('open'); pane.setAttribute('aria-hidden', 'true'); }
   if (wasOpen && !quiet) tdPaintRows();
+  if (wasOpen) tlspPaintOpen();
 }
 
 function tdRefresh() {
@@ -317,6 +319,7 @@ document.addEventListener('input', function (e) {
     if (!rp || typeof MutationObserver === 'undefined') return;
     new MutationObserver(function () {
       if (!rp.classList.contains('open') && _td) tdClose(true);
+      tlspPaintOpen();   // 검색 결과 페이지의 '열려 있는 줄' 표시
     }).observe(rp, { attributes: true, attributeFilter: ['class'] });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
@@ -326,10 +329,14 @@ document.addEventListener('input', function (e) {
 //  🔍 전체 검색 (위쪽 막대)
 //  Task · To Do · 메모를 찾는다. 띄어 쓴 낱말은 모두 들어 있어야 맞다.
 //  Task 는 제목 · 메모, To Do 는 제목 · 상위 Task 제목, 메모는 글.
-//  누르면 Task → Task 창, To Do → Task 창 + To Do 창, 메모 → Web 에서 그 메모를 고치는 칸.
+//  · 치는 동안: 검색칸 아래 바로 가기 목록(묶음마다 8줄). 맨 위 줄 = '검색 결과 모두 보기'.
+//    ↑↓ 로 줄을 고르고 Enter. 아무 줄도 고르지 않은 Enter = 검색 결과 페이지.
+//    바로 가기 줄을 누르면 Task → Task 창, To Do → Task 창 + To Do 창, 메모 → Web 에서 그 메모를 고치는 칸.
+//  · 검색 결과 페이지 (2026-11-27, 사용자 요청 — 아래 '검색 결과 페이지' 절): 본문 자리에 맞는 것 전부를 목록으로.
 // ============================================================
-var TLS_MAX = 8;   // 묶음마다 보여 줄 줄 수
-var _tls = { q: '', flat: [], sel: 0, open: false };
+var TLS_MAX = 8;   // 바로 가기 목록에서 묶음마다 보여 줄 줄 수
+var _tls = { q: '', flat: [], sel: -1, open: false };   // sel -1 = 맨 위 '모두 보기' 줄
+var TLS_ALL_ICO = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>';
 
 function tlsWords(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); }
 function tlsHit(words, hay) {
@@ -376,13 +383,13 @@ function tlsCollect(q) {
     var title = tlCleanTitle(t.text);
     if (tlsHit(words, title + '\n' + (t.notes || ''))) {
       res.task.push({ kind: 'task', id: t.id, title: title, sub: tlsProj(t), done: !!t.completed,
-        when: t.dueDateTime || t.startDate || t.createdAt || '' });
+        when: t.dueDateTime || t.startDate || t.createdAt || '', task: t });
     }
     (t.steps || []).forEach(function (s) {
       var st = tlCleanTitle(s.text);
       if (tlsHit(words, st + '\n' + title)) {
         res.step.push({ kind: 'step', taskId: t.id, id: s.id, title: st, sub: '↳ ' + title, done: !!s.completed,
-          when: s.dueDateTime || s.completedAt || '' });   // 상위 Task 날짜는 쓰지 않는다 — To Do 날짜로 읽힌다
+          when: s.dueDateTime || s.completedAt || '', task: t, step: s });   // 상위 Task 날짜는 쓰지 않는다 — To Do 날짜로 읽힌다
       }
     });
   });
@@ -391,7 +398,7 @@ function tlsCollect(q) {
   memos.forEach(function (n) {
     if (tlsHit(words, n.text)) {
       var one = String(n.text || '').replace(/\s*\n+\s*/g, ' ');
-      res.memo.push({ kind: 'memo', id: n.id, title: one, sub: '', done: false, when: n.dueDate || n.createdAt || '' });
+      res.memo.push({ kind: 'memo', id: n.id, title: one, sub: '', done: false, when: n.dueDate || n.createdAt || '', note: n });
     }
   });
   // 끝나지 않은 것 먼저, 그 안에서는 날짜가 최근인 것 먼저
@@ -410,8 +417,16 @@ function tlsRender() {
   if (!q) { tlsClose(); return; }
   var words = tlsWords(q);
   var res = tlsCollect(q);
+  var total = res.task.length + res.step.length + res.memo.length;
   var groups = [['task', 'Task'], ['step', 'To Do'], ['memo', '메모']];
-  var flat = [], html = '';
+  var flat = [];
+  if (_tls.sel >= total) _tls.sel = -1;
+  // 맨 위: 검색 결과 페이지로 (Enter 가 하는 일을 보이게 — 아무 줄도 고르지 않았을 때 칠해진다)
+  var html = '<button type="button" class="tls-all' + (_tls.sel < 0 ? ' is-sel' : '') + '" data-i="-1"'
+    + ' onmousedown="event.preventDefault()" onclick="tlsSubmit()" onmousemove="tlsHover(-1)">'
+    + '<span class="tls-all-ico">' + TLS_ALL_ICO + '</span>'
+    + '<span class="tls-all-txt"><b>' + tlEsc(q) + '</b> 검색 결과 모두 보기</span>'
+    + '<span class="tls-all-n">' + total + '건</span><kbd class="tls-kbd">Enter</kbd></button>';
   groups.forEach(function (g) {
     var list = res[g[0]];
     if (!list.length) return;
@@ -427,14 +442,14 @@ function tlsRender() {
         + '<span class="tls-when">' + tlsDay(it.when) + '</span>'
         + '</button>';
     });
-    if (list.length > TLS_MAX) html += '<div class="tls-more">' + (list.length - TLS_MAX) + '건 더 — 낱말을 더 적어 좁혀 주세요</div>';
+    if (list.length > TLS_MAX) html += '<div class="tls-more">' + (list.length - TLS_MAX) + '건 더 — Enter 로 모두 보기</div>';
     html += '</div>';
   });
-  if (!flat.length) html = '<div class="tls-empty">\'' + tlEsc(q) + '\' 에 맞는 Task · To Do · 메모가 없습니다</div>';
+  if (!total) html += '<div class="tls-empty">\'' + tlEsc(q) + '\' 에 맞는 Task · To Do · 메모가 없습니다</div>';
   _tls.flat = flat;
-  if (_tls.sel >= flat.length) _tls.sel = 0;
   pop.innerHTML = html;
   pop.hidden = false;
+  if (!pop._tlsLeave) { pop._tlsLeave = true; pop.addEventListener('mouseleave', function () { tlsHover(-1); }); }
   _tls.open = true;
   var box = document.getElementById('tl-search');
   if (box) box.classList.add('is-open');
@@ -454,7 +469,7 @@ function tlsClose() {
 
 function tlsInput(el) {
   _tls.q = el.value;
-  _tls.sel = 0;
+  _tls.sel = -1;
   var clr = document.getElementById('tl-search-clear');
   if (clr) clr.hidden = !el.value;
   tlsRender();
@@ -463,25 +478,38 @@ function tlsClear() {
   var inp = document.getElementById('tl-search-input');
   if (inp) { inp.value = ''; inp.focus(); tlsInput(inp); }
 }
+// 좁은 화면에서 검색칸이 돋보기만 남았을 때 — 돋보기를 눌러도 입력칸으로 (theme.css '검색칸 접기')
+function tlsBoxDown(e) {
+  var t = e.target;
+  if (t && t.closest && t.closest('#tl-search-input, #tl-search-clear, #tl-search-pop')) return;
+  e.preventDefault();
+  var inp = document.getElementById('tl-search-input');
+  if (inp) inp.focus();
+}
 function tlsHover(i) {
   if (i === _tls.sel) return;
   _tls.sel = i;
-  document.querySelectorAll('#tl-search-pop .tls-item').forEach(function (b) {
+  document.querySelectorAll('#tl-search-pop .tls-item, #tl-search-pop .tls-all').forEach(function (b) {
     b.classList.toggle('is-sel', +b.dataset.i === i);
   });
 }
+// -1(모두 보기) · 0 … 끝 을 돌아가며 고른다
 function tlsMove(d) {
-  if (!_tls.flat.length) return;
-  _tls.sel = (_tls.sel + d + _tls.flat.length) % _tls.flat.length;
-  tlsHover(_tls.sel);
-  var el = document.querySelector('#tl-search-pop .tls-item[data-i="' + _tls.sel + '"]');
+  var n = _tls.flat.length + 1;
+  var k = (_tls.sel + 1 + d + n) % n;
+  tlsHover(k - 1);
+  var el = document.querySelector('#tl-search-pop [data-i="' + _tls.sel + '"]');
   if (el) try { el.scrollIntoView({ block: 'nearest' }); } catch (e) {}
 }
 function tlsKey(e) {
   if (e.isComposing || e.keyCode === 229) return;
   if (e.key === 'ArrowDown') { e.preventDefault(); if (!_tls.open) tlsRender(); else tlsMove(1); }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); tlsMove(-1); }
-  else if (e.key === 'Enter') { e.preventDefault(); if (_tls.flat.length) tlsPick(_tls.sel); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (_tls.open) tlsMove(-1); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (_tls.open && _tls.sel >= 0 && _tls.flat[_tls.sel]) tlsPick(_tls.sel);
+    else tlsSubmit(e.target.value);
+  }
   else if (e.key === 'Escape') {
     e.preventDefault(); e.stopPropagation();
     if (_tls.open) tlsClose(); else e.target.blur();
@@ -494,9 +522,14 @@ function tlsPick(i) {
   tlsClose();
   var inp = document.getElementById('tl-search-input');
   if (inp) inp.blur();
-  if (it.kind === 'task') { tlOpenTask(it.id); return; }
-  if (it.kind === 'step') { tlOpenStep(it.taskId, it.id); return; }
+  if (it.kind === 'task') { tlOpenTask(it.id); tlspPaintOpen(); return; }
+  if (it.kind === 'step') { tlOpenStep(it.taskId, it.id); tlspPaintOpen(); return; }
   if (it.kind === 'memo') {
+    // 검색 결과 페이지에 그 메모가 있으면 그 자리에서 고친다
+    if (document.querySelector('#tls-page .tlsp-row[data-kind="memo"][data-id="' + it.id + '"]')) {
+      if (typeof memoEditOpen === 'function') memoEditOpen(it.id);
+      return;
+    }
     if (!tlCanLeavePanel()) return;
     if (typeof navToMenu === 'function' && typeof currentMenu !== 'undefined' && currentMenu !== 'cloud') navToMenu('cloud');
     // Web 화면은 그린 뒤 50ms 에 위쪽 입력칸에 포커스한다 — 그다음에 메모를 연다
@@ -525,19 +558,288 @@ document.addEventListener('keydown', function (e) {
   if (mine) { e.stopPropagation(); tdClose(); }
 }, true);
 
-// 레일 위 로그인 정보의 이름 — auth.js updateAuthUI · _syncAvatarInitial 이 부른다.
-//  아바타(#sidebar-avatar) 자체는 auth.js 가 칠한다(사진은 칸에 꽉 맞춘 100% — 예전 막대 아바타는
-//  사진 크기를 정하지 않아 96px 사진이 34px 칸에서 잘려 확대된 것처럼 보였다).
+// ============================================================
+//  📄 검색 결과 페이지 (2026-11-27, 사용자 요청)
+//  검색칸에서 Enter(또는 '모두 보기')를 누르면 본문 자리에 맞는 Task · To Do · 메모를 모두 목록으로 보여 준다.
+//  currentMenu = 'search' 인 화면이다(위쪽 메뉴에는 켜진 칸이 없다). MENU_RENDERERS.search 로 그리므로
+//  Task 창 저장 · 동기화로 값이 바뀌면 이 목록도 다시 그려진다(보던 자리는 그대로).
+//  · 위: ‹ 돌아가기(검색 전 화면) · 검색어 · 건수 · 종류 칩(전체 · Task · To Do · 메모) · 끝난 것 숨기기
+//  · 줄: Task = Section · Project · 상태 · 기간 · To Do 진행, 메모 칸에서 맞았으면 그 부분 / To Do = 상위 Task · 마감 · 수행 시간 · 완료일
+//        메모 = 글 네 줄까지
+//  · 누르면 Task · To Do 는 오른쪽에 Task 창(+ To Do 창)이 열리고 목록은 그대로 남는다. 메모는 그 자리에서 고친다
+//    (notes.js memoEditRerender 가 이 페이지도 다시 그린다).
+//  · 다른 메뉴로 가면 위쪽 검색칸을 비운다. 폰에는 검색칸이 없어 이 페이지로 오는 길도 없다.
+// ============================================================
+var TLSP_STEP = 60;   // 묶음마다 처음 보여 줄 줄 수 — '더 보기' 로 늘린다
+var TLSP_KINDS = [['task', 'Task'], ['step', 'To Do'], ['memo', '메모']];
+var _tlsPage = { q: '', kind: 'all', prev: '', more: {}, hideDone: false, on: false, fresh: false };
+
+if (typeof MENU_RENDERERS !== 'undefined') MENU_RENDERERS.search = 'renderSearchView';
+if (typeof RAIL_LABEL !== 'undefined') RAIL_LABEL.search = '검색 결과';
+if (typeof MENU_TITLES !== 'undefined') MENU_TITLES.search = '검색 결과';
+
+function tlsSubmit(q) {
+  q = String(q != null ? q : (_tls.q || '')).trim();
+  if (!q) return;
+  tlsClose();
+  var inp = document.getElementById('tl-search-input');
+  if (inp) { inp.value = q; inp.blur(); }
+  _tls.q = q;
+  var here = (typeof currentMenu !== 'undefined' && currentMenu === 'search');
+  if (!here && !tlCanLeavePanel()) return;   // 다른 화면에서 오면 navToMenu 가 Task 창을 닫는다
+  _tlsPage.q = q; _tlsPage.kind = 'all'; _tlsPage.more = {}; _tlsPage.fresh = true;
+  if (here) { renderSearchView(); return; }
+  _tlsPage.prev = (typeof currentMenu !== 'undefined') ? currentMenu : '';
+  navToMenu('search');
+}
+function tlsBack() {
+  var to = _tlsPage.prev;
+  if (!to || to === 'search' || !tlMenuValid(to)) to = (typeof appDefaultMenu === 'function') ? appDefaultMenu() : 'home';
+  if (!tlCanLeavePanel()) return;
+  navToMenu(to);
+}
+// 검색 결과 페이지를 떠나면 위쪽 검색칸을 비운다 (tlMenuOnNav 가 부른다)
+function tlsLeavePage() {
+  if (!_tlsPage.on) return;
+  _tlsPage.on = false;
+  var inp = document.getElementById('tl-search-input');
+  if (inp && document.activeElement !== inp) {
+    inp.value = ''; _tls.q = '';
+    var clr = document.getElementById('tl-search-clear');
+    if (clr) clr.hidden = true;
+  }
+  tlsClose();
+}
+function tlsSetKind(k) { _tlsPage.kind = k; _tlsPage.fresh = true; renderSearchView(); }
+function tlsSetHideDone(on) { _tlsPage.hideDone = !!on; _tlsPage.fresh = true; renderSearchView(); }
+function tlsMore(k) { _tlsPage.more[k] = (_tlsPage.more[k] || TLSP_STEP) + 200; renderSearchView(); }
+
+// 메모 칸 안에서 맞은 곳 앞뒤만 한 줄로
+function tlspSnippet(text, words, r) {
+  var s = String(text || '').replace(/\s+/g, ' ').trim();
+  r = r || 48;
+  var low = s.toLowerCase(), at = -1;
+  words.forEach(function (w) { var i = low.indexOf(w); if (i >= 0 && (at < 0 || i < at)) at = i; });
+  if (at < 0) return '';
+  var a = Math.max(0, at - r), b = Math.min(s.length, at + r * 2);
+  return (a > 0 ? '…' : '') + s.slice(a, b) + (b < s.length ? '…' : '');
+}
+function tlspDue(iso, hasTime) {
+  if (!iso) return '';
+  return tlsDay(iso) + (hasTime && typeof toTimeInputVal === 'function' ? ' ' + toTimeInputVal(iso) : '');
+}
+// 완료일 [YYMMDD] → 11/20 (다른 해면 25.11/20)
+function tlspDoneDay(obj) {
+  var m = /^\[(\d{2})(\d{2})(\d{2})\]/.exec((obj && obj.text) || '');
+  if (!m) return obj && obj.completedAt ? tlsDay(obj.completedAt) : '';
+  return tlsDay('20' + m[1] + '-' + m[2] + '-' + m[3] + 'T12:00:00');
+}
+function tlspChip(k, label, n, cur) {
+  var on = k === cur;
+  return '<button type="button" class="tlsp-chip' + (on ? ' is-on' : '') + (n ? '' : ' is-zero') + '" role="tab" aria-selected="' + on + '"'
+    + ' onclick="tlsSetKind(\'' + k + '\')">' + label + '<span>' + n + '</span></button>';
+}
+function tlspIsOpen(it) {
+  if (!tlPanelOpen('right-panel') || typeof rpState === 'undefined') return false;
+  if (it.kind === 'task') return String(rpState.taskId) === String(it.id);
+  if (it.kind === 'step') return !!_td && String(_td.stepId) === String(it.id) && String(rpState.taskId) === String(it.taskId);
+  return false;
+}
+
+function tlspRowHtml(it, words) {
+  var cls = 'tlsp-row tlsp-k-' + it.kind + (it.done ? ' is-done' : '') + (tlspIsOpen(it) ? ' is-open' : '');
+  var mark = '<span class="tlsp-mark tlsp-mark-' + it.kind + '" aria-hidden="true">' + (it.done ? '✓' : '') + '</span>';
+  var when = '<span class="tlsp-when">' + tlsDay(it.when) + '</span>';
+  var meta = [], extra = '', main;
+  function tag(txt, c) { return '<span class="tlsp-tag' + (c ? ' ' + c : '') + '">' + txt + '</span>'; }
+
+  if (it.kind === 'memo') {
+    var n = it.note;
+    if (typeof memoIsEditing === 'function' && memoIsEditing(n.id) && typeof memoEditorHtml === 'function') {
+      return '<div class="' + cls + ' is-editing" data-kind="memo" data-id="' + tlEsc(n.id) + '">' + mark
+        + '<div class="tlsp-main">' + memoEditorHtml() + '</div></div>';
+    }
+    if (n.dueDate) meta.push(tag('마감 ' + tlEsc(tlsDay(n.dueDate + 'T12:00:00') + (n.dueTime ? ' ' + n.dueTime : ''))));
+    main = '<div class="tlsp-memo">' + tlsMark(n.text, words) + '</div>';
+    when = '<span class="tlsp-when" title="적은 날">' + tlsDay(n.createdAt) + '</span>';
+    return '<div class="' + cls + '" role="button" tabindex="0" data-kind="memo" data-id="' + tlEsc(n.id) + '" title="눌러서 고치기"'
+      + ' onclick="tlspOpen(this, event)" onkeydown="tlspKey(this, event)">' + mark
+      + '<div class="tlsp-main">' + main + (meta.length ? '<div class="tlsp-meta">' + meta.join('') + '</div>' : '') + '</div>'
+      + when + '</div>';
+  }
+
+  var t = it.task;
+  if (it.kind === 'task') {
+    var L = (typeof mdtLinkOf === 'function') ? mdtLinkOf(t) : null;
+    var col = (typeof calTaskColor === 'function') ? calTaskColor(t) : '';
+    var sec = L ? ((L.sgEmoji ? L.sgEmoji + ' ' : '') + (L.sgText || '') + (L.actionId != null && L.text ? ' · ' + L.text : '')) : tlsProj(t);
+    meta.push(sec ? tag('<i style="background:' + tlEsc(col) + '"></i>' + tlEsc(sec), 'tlsp-tag-sec') : tag('Project 없음', 'is-dim'));
+    if (t.status) meta.push(tag(tlEsc(t.status), 'tlsp-tag-st' + (t.status === '완료' ? ' is-done' : '')));
+    var a = t.startDate ? tlsDay(t.startDate) : '', b = t.dueDateTime ? tlsDay(t.dueDateTime) : '';
+    if (a && b && a !== b) meta.push(tag(tlEsc(a + ' ~ ' + b)));
+    else if (a && !b) meta.push(tag('시작 ' + tlEsc(a)));
+    var steps = t.steps || [];
+    if (steps.length) meta.push(tag('To Do ' + steps.filter(function (s) { return s.completed; }).length + '/' + steps.length));
+    if (it.done) { var dd = tlspDoneDay(t); if (dd) meta.push(tag('완료 ' + tlEsc(dd))); }
+    // 메모 칸에서 맞은 낱말이 있으면 그 부분을 한 줄로 보여 준다 (제목만 보고는 왜 나왔는지 모른다)
+    var nlow = String(t.notes || '').toLowerCase();
+    if (nlow && words.some(function (w) { return nlow.indexOf(w) >= 0; })) {
+      var snip = tlspSnippet(t.notes, words);
+      if (snip) extra = '<div class="tlsp-snip"><span>메모</span>' + tlsMark(snip, words) + '</div>';
+    }
+    when = '<span class="tlsp-when">' + (b || a || '') + '</span>';
+  } else {
+    var s = it.step;
+    meta.push('<span class="tlsp-parent">↳ ' + tlsMark(tlCleanTitle(t.text), words) + '</span>');
+    if (s.dueDateTime) meta.push(tag('마감 ' + tlEsc(tlspDue(s.dueDateTime, s.hasTime))));
+    var min = (typeof stepSlotMin === 'function') ? stepSlotMin(s) : 0;
+    if (min) meta.push(tag('⏱ ' + fmtWorkMin(min)));
+    if (it.done) { var sd = tlspDoneDay(s); if (sd) meta.push(tag('완료 ' + tlEsc(sd))); }
+    when = '<span class="tlsp-when">' + (s.dueDateTime ? tlsDay(s.dueDateTime) : (it.done ? tlspDoneDay(s) : '')) + '</span>';
+  }
+  return '<div class="' + cls + '" role="button" tabindex="0" data-kind="' + it.kind + '" data-id="' + tlEsc(it.id) + '"'
+    + (it.kind === 'step' ? ' data-task="' + tlEsc(it.taskId) + '"' : '')
+    + ' onclick="tlspOpen(this, event)" onkeydown="tlspKey(this, event)">' + mark
+    + '<div class="tlsp-main"><div class="tlsp-title">' + tlsMark(it.title, words) + '</div>'
+    + '<div class="tlsp-meta">' + meta.join('') + '</div>' + extra + '</div>'
+    + when + '</div>';
+}
+
+function renderSearchView() {
+  var pc = document.getElementById('page-content');
+  if (!pc) return;
+  // 다시 그릴 때(Task 저장 · 동기화 · 메모 고치기)는 보던 자리 그대로, 새로 검색했으면 맨 위
+  var keep = (!_tlsPage.fresh && document.getElementById('tls-page')) ? pc.scrollTop : 0;
+  _tlsPage.fresh = false;
+  _tlsPage.on = true;
+  var q = String(_tlsPage.q || '').trim();
+  var words = tlsWords(q);
+  var res = tlsCollect(q);
+  var hide = !!_tlsPage.hideDone;
+  var lists = {}, doneN = 0;
+  TLSP_KINDS.forEach(function (k) {
+    doneN += res[k[0]].filter(function (x) { return x.done; }).length;
+    lists[k[0]] = hide ? res[k[0]].filter(function (x) { return !x.done; }) : res[k[0]];
+  });
+  var total = lists.task.length + lists.step.length + lists.memo.length;
+  var kind = _tlsPage.kind;
+  if (kind !== 'all' && !lists[kind]) kind = _tlsPage.kind = 'all';
+
+  var prev = _tlsPage.prev;
+  var prevName = prev ? ((typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[prev]) || (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[prev]) || prev) : '';
+  var html = '<div class="tls-page" id="tls-page">'
+    + (prevName && prev !== 'search' ? '<div class="tlsp-top"><button type="button" class="tlsp-back" onclick="tlsBack()" title="검색 전 화면으로">‹ ' + tlEsc(prevName) + '</button></div>' : '')
+    + '<div class="tlsp-head">'
+    +   '<h1 class="tlsp-title-h">' + (q ? '<span class="tlsp-q">' + tlEsc(q) + '</span> 검색 결과' : '검색') + '</h1>'
+    +   (q ? '<span class="tlsp-total">' + total + '건</span>' : '')
+    + '</div>';
+  if (!q) {
+    html += '<div class="tlsp-empty">위쪽 검색칸에 낱말을 적고 Enter 를 누르면 맞는 Task · To Do · 메모가 여기에 모두 나옵니다.</div></div>';
+  } else {
+    html += '<div class="tlsp-bar"><div class="tlsp-chips" role="tablist" aria-label="종류">'
+      + tlspChip('all', '전체', total, kind)
+      + TLSP_KINDS.map(function (k) { return tlspChip(k[0], k[1], lists[k[0]].length, kind); }).join('')
+      + '</div>'
+      + '<label class="tlsp-hide"><input type="checkbox"' + (hide ? ' checked' : '') + ' onchange="tlsSetHideDone(this.checked)"> 끝난 것 숨기기'
+      +   (doneN ? ' <span>' + doneN + '</span>' : '') + '</label>'
+      + '</div>';
+    var shown = 0;
+    TLSP_KINDS.forEach(function (k) {
+      if (kind !== 'all' && kind !== k[0]) return;
+      var list = lists[k[0]];
+      if (!list.length) return;
+      shown += list.length;
+      var lim = _tlsPage.more[k[0]] || TLSP_STEP;
+      html += '<section class="tlsp-sec" data-kind="' + k[0] + '">'
+        + '<h2 class="tlsp-sec-head">' + k[1] + '<span>' + list.length + '</span></h2>'
+        + '<div class="tlsp-list">' + list.slice(0, lim).map(function (it) { return tlspRowHtml(it, words); }).join('') + '</div>'
+        + (list.length > lim
+            ? '<button type="button" class="tlsp-more" onclick="tlsMore(\'' + k[0] + '\')">' + Math.min(list.length - lim, 200) + '건 더 보기'
+              + '<span>' + (list.length - lim) + '건 남음</span></button>'
+            : '')
+        + '</section>';
+    });
+    if (!shown) {
+      html += '<div class="tlsp-empty">\'' + tlEsc(q) + '\' 에 맞는 ' + (hide ? '끝나지 않은 ' : '')
+        + (kind === 'all' ? 'Task · To Do · 메모' : (TLSP_KINDS.filter(function (k) { return k[0] === kind; })[0] || ['', ''])[1]) + '가 없습니다.'
+        + (hide && doneN ? ' <button type="button" class="tlsp-link" onclick="tlsSetHideDone(false)">끝난 것 ' + doneN + '건도 보기</button>' : '')
+        + '</div>';
+    }
+    html += '</div>';
+  }
+  pc.innerHTML = html;
+  pc.scrollTop = keep;
+  // 위쪽 검색칸에도 검색어를 남긴다 (치던 중이면 건드리지 않는다)
+  var inp = document.getElementById('tl-search-input');
+  if (inp && document.activeElement !== inp && inp.value !== q) { inp.value = q; _tls.q = q; }
+  var clr = document.getElementById('tl-search-clear');
+  if (clr && inp) clr.hidden = !inp.value;
+  if (typeof memoEditMount === 'function') memoEditMount();
+}
+
+function tlspOpen(el, e) {
+  if (!el || !el.dataset) return;
+  // 글자를 끌어 고른 뒤 손을 뗀 것이면 열지 않는다 (복사하려던 것)
+  try { var sel = window.getSelection(); if (sel && !sel.isCollapsed && String(sel).trim()) return; } catch (x) {}
+  var kind = el.dataset.kind, id = el.dataset.id;
+  if (kind === 'memo') { if (typeof memoEditOpen === 'function') memoEditOpen(id, e); return; }
+  var tid = kind === 'step' ? el.dataset.task : id;
+  var t = tlTasks().find(function (x) { return String(x.id) === String(tid); });
+  if (!t) return;
+  if (kind === 'task') tlOpenTask(t.id);
+  else {
+    var s = (t.steps || []).find(function (x) { return String(x.id) === String(id); });
+    if (s) tlOpenStep(t.id, s.id);
+  }
+  tlspPaintOpen();
+}
+function tlspKey(el, e) {
+  if (e.target !== el) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tlspOpen(el, e); }
+  else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    var rows = Array.prototype.slice.call(document.querySelectorAll('#tls-page .tlsp-row[tabindex]'));
+    var i = rows.indexOf(el) + (e.key === 'ArrowDown' ? 1 : -1);
+    if (rows[i]) { e.preventDefault(); rows[i].focus(); }
+  }
+}
+// Task 창 · To Do 창에 열려 있는 줄을 칠한다
+function tlspPaintOpen() {
+  var page = document.getElementById('tls-page');
+  if (!page) return;
+  var rpOpen = tlPanelOpen('right-panel') && typeof rpState !== 'undefined';
+  page.querySelectorAll('.tlsp-row').forEach(function (r) {
+    var on = false;
+    if (rpOpen && r.dataset.kind === 'task') on = String(rpState.taskId) === r.dataset.id;
+    else if (rpOpen && r.dataset.kind === 'step') on = !!_td && String(_td.stepId) === r.dataset.id && String(rpState.taskId) === r.dataset.task;
+    r.classList.toggle('is-open', on);
+  });
+}
+
+// 위쪽 막대 오른쪽 끝의 로그인 정보(아바타) — auth.js updateAuthUI · _syncAvatarInitial 이 부른다.
+//  (2026-11-27 왼쪽 레일을 없애면서 레일 맨 위에서 이리로 왔다. 폰 '전체' 판의 #sidebar-avatar 는 auth.js 가 칠한다)
+//  사진은 칸에 꽉 맞춘다(100% · cover) — 크기를 정하지 않으면 96px 사진이 작은 칸에서 잘려 확대돼 보인다.
+//  이름 · 메일은 마우스를 올리면 보인다(title).
 function tlPaintAppbarAccount(user, displayName) {
-  var nm = document.getElementById('rail-name');
-  if (!nm) return;
-  nm.textContent = user ? (displayName || '') : '로그인';
-  nm.title = user ? ((displayName || '') + (user.email ? ' · ' + user.email : '')) : '로그인';
+  var av = document.getElementById('tl-appbar-avatar');
+  if (!av) return;
+  var name = user ? (displayName || '') : '';
+  var tip = user ? ((name || '프로필') + (user.email ? ' · ' + user.email : '')) : '로그인';
+  av.title = tip;
+  av.setAttribute('aria-label', tip);
+  if (user && user.picture) {
+    if (av.dataset.pic !== user.picture) {
+      av.innerHTML = '<img src="' + tlEsc(user.picture) + '" alt="" referrerpolicy="no-referrer">';
+      av.dataset.pic = user.picture;
+    }
+  } else {
+    av.dataset.pic = '';
+    av.textContent = user ? (name || '?').charAt(0).toUpperCase() : '?';
+  }
 }
 
 // ============================================================
 //  🖱 화면 설정 — 우클릭 메뉴 (2026-11-26, 사용자 요청)
-//  PC 에서는 오른쪽 위 줄(#topbar)을 없앴다. 본문 빈 곳이나 위쪽 막대의 탭을 우클릭하면
+//  PC 에서는 오른쪽 위 줄(#topbar)을 없앴다. 본문 빈 곳이나 위쪽 메뉴의 칸을 우클릭하면
 //  그 화면의 내역과 도구가 든 작은 창이 뜬다:
 //    · 오늘 날짜(Home) · 표시 기간(Web · WBS · Calendar — 그 자리에서 바꾼다)
 //    · 예전 오른쪽 위에 있던 것 전부 — 연도 선택, Web · WBS 검색/필터, Home 위젯 배치, Work Diary 저장
@@ -622,13 +924,13 @@ document.addEventListener('contextmenu', function (e) {
   if (e.defaultPrevented || e.shiftKey || !tlPmEnabled()) return;
   var t = e.target;
   if (!t || !t.closest) return;
-  var tab = t.closest('#tl-tabs .tl-tab');
+  var tab = t.closest('#tl-mnav .tl-mnav-item');
   var main = document.getElementById('main-content');
   if (!tab && !(main && main.contains(t))) return;
   if (t.closest('input, textarea, select, [contenteditable="true"], a[href]')) return;
   try { var sel = window.getSelection(); if (sel && !sel.isCollapsed && String(sel).trim()) return; } catch (err) {}
   e.preventDefault();
-  // 다른 탭을 우클릭하면 그 화면으로 간 뒤 연다
+  // 다른 메뉴를 우클릭하면 그 화면으로 간 뒤 연다
   if (tab && tab.dataset.menu && typeof currentMenu !== 'undefined' && tab.dataset.menu !== currentMenu) navToMenu(tab.dataset.menu);
   tlPmOpen(e.clientX, e.clientY);
 });
@@ -659,75 +961,84 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ============================================================
-//  🗂 열린 메뉴 탭 (2026-11-26, 사용자 요청 — 화면 제목 대신)
-//  메뉴를 열 때마다 위쪽 막대에 탭이 하나씩 생기고, 누르면 그 메뉴로 간다. ✕ · 가운데 클릭으로 닫는다.
-//  지금 메뉴의 탭을 닫으면 오른쪽(없으면 왼쪽) 탭으로 간다. 탭이 하나뿐이면 닫지 않는다.
-//  목록은 이 기기에만 둔다(app-open-tabs — 동기화 · 백업 대상 아님). 숨긴 메뉴는 탭에서도 빠진다.
-//  탭을 옮겨도 화면은 예전처럼 새로 그린다(메뉴를 누른 것과 같다).
+//  🧭 위쪽 메뉴 (2026-11-27, 사용자 요청)
+//  PC 는 왼쪽 레일을 없애고 메뉴를 위쪽 막대(예전 '열린 메뉴 탭' 자리)에 아이콘 + 이름으로 늘어놓는다.
+//    Home │ Life Log: MVV · Life Wheel · Mandalart · Habit Tracker │ Task Log: Calendar · Web · Work Diary · WBS
+//  순서 · 표시는 설정 › 메뉴(데스크탑) 그대로다(script.js orderedMenus · getMenuVis · MENU_GROUPS).
+//  폭이 모자라면 theme.css 가 묶음 이름 → 검색칸(돋보기만) → 칸 여백 순으로 줄이고, 그래도 넘치면 메뉴 줄이 옆으로 밀린다.
+//  열린 메뉴 탭(app-open-tabs)은 없앴다 — bootApp 이 남은 목록을 지운다.
+//  폰은 예전 그대로(하단 탭 + '전체' 판) — 이 막대는 폰에서 숨는다.
 // ============================================================
-var TL_TABS_KEY = 'app-open-tabs';
-var _tlTabs = null;
-function tlTabsLoad() {
-  if (_tlTabs) return _tlTabs;
-  _tlTabs = [];
-  try { var v = JSON.parse(localStorage.getItem(TL_TABS_KEY) || '[]'); if (Array.isArray(v)) _tlTabs = v; } catch (e) {}
-  return _tlTabs;
-}
-function tlTabsSave() { try { localStorage.setItem(TL_TABS_KEY, JSON.stringify(_tlTabs || [])); } catch (e) {} }
-function tlTabValid(id) {
+function tlMenuValid(id) {
   if (typeof MENUS === 'undefined' || !MENUS.some(function (m) { return m.id === id; })) return false;
   return typeof isMenuVisible !== 'function' || isMenuVisible(id);
 }
-// navToMenu 가 부른다
-function tlTabsOnNav(id) {
-  // 우클릭 메뉴가 열려 있으면 닫는다 — 오른쪽 위 도구를 제자리(#topbar)로 돌려놓은 뒤에 새 화면이 그것을 채운다
-  if (typeof tlPmClose === 'function') tlPmClose();
-  var t = tlTabsLoad();
-  if (tlTabValid(id) && t.indexOf(id) < 0) { t.push(id); tlTabsSave(); }
-  tlTabsRender();
+function tlMenuItemHtml(m) {
+  var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
+  var lbl = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[m.id]) || full;
+  return '<button type="button" class="tl-mnav-item" data-menu="' + m.id + '"' + (full !== lbl ? ' title="' + tlEsc(full) + '"' : '')
+    + ' onclick="navToMenu(\'' + m.id + '\')">'
+    + '<span class="tl-mnav-ico" aria-hidden="true">' + m.icon + '</span>'
+    + '<span class="tl-mnav-lbl">' + tlEsc(lbl) + '</span></button>';
 }
-function tlTabClose(id, ev) {
-  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-  var t = tlTabsLoad();
-  var shown = t.filter(tlTabValid);
-  var i = shown.indexOf(id);
-  if (i < 0 || shown.length <= 1) return;
-  t.splice(t.indexOf(id), 1);
-  shown.splice(i, 1);
-  tlTabsSave();
-  if (typeof currentMenu !== 'undefined' && currentMenu === id) {
-    navToMenu(shown[Math.min(i, shown.length - 1)]);
-  } else {
-    tlTabsRender();
+function tlMenuRender() {
+  var bar = document.getElementById('tl-mnav');
+  if (!bar || typeof orderedMenus !== 'function' || typeof getMenuVis !== 'function') return;
+  var vis = getMenuVis('desktop');
+  var items = orderedMenus('desktop').filter(function (m) { return vis[m.id] !== false; });
+  var groups = (typeof MENU_GROUPS !== 'undefined') ? MENU_GROUPS : [];
+  function groupOf(id) { return (typeof menuGroupOf === 'function') ? menuGroupOf(id) : groups.length; }
+  function groupHtml(g, list) {
+    return '<div class="tl-mnav-group" role="group" data-group="' + g.id + '"' + (g.label ? ' aria-label="' + tlEsc(g.label) + '"' : '') + '>'
+      + (g.label ? '<span class="tl-mnav-glabel" aria-hidden="true">' + tlEsc(g.label) + '</span>' : '')
+      + list.map(tlMenuItemHtml).join('')
+      + '</div>';
+  }
+  var html = '';
+  groups.forEach(function (g, gi) {
+    var mine = items.filter(function (m) { return groupOf(m.id) === gi; });
+    if (mine.length) html += groupHtml(g, mine);
+  });
+  var rest = items.filter(function (m) { return groupOf(m.id) >= groups.length; });   // 묶음에 없는(새로 생긴) 메뉴
+  if (rest.length) html += groupHtml({ id: 'etc', label: '' }, rest);
+  bar.innerHTML = html;
+  tlMenuPaint();
+}
+// 지금 메뉴 칸을 켠다. 메뉴 줄이 옆으로 밀려 있으면(좁은 창) 그 칸이 보이게 굴린다
+function tlMenuPaint() {
+  var bar = document.getElementById('tl-mnav');
+  if (!bar) return;
+  var cur = (typeof currentMenu !== 'undefined') ? currentMenu : '';
+  var act = null;
+  bar.querySelectorAll('.tl-mnav-item').forEach(function (b) {
+    var on = b.dataset.menu === cur;
+    b.classList.toggle('is-on', on);
+    if (on) { b.setAttribute('aria-current', 'page'); act = b; } else b.removeAttribute('aria-current');
+  });
+  if (act && bar.scrollWidth > bar.clientWidth + 1) {
+    var br = bar.getBoundingClientRect(), ar = act.getBoundingClientRect();
+    if (ar.left < br.left) bar.scrollLeft -= (br.left - ar.left) + 12;
+    else if (ar.right > br.right) bar.scrollLeft += (ar.right - br.right) + 12;
   }
 }
-function tlTabsRender() {
-  var bar = document.getElementById('tl-tabs');
-  if (!bar) return;
-  var t = tlTabsLoad();
-  // 숨긴 메뉴 · 없어진 메뉴는 뺀다. 폰 폭에서는 메뉴 구성이 달라(Home 등이 꺼져 있다) 저장된 목록은 건드리지 않는다
-  //  — 창을 잠깐 좁혔다고 PC 탭이 사라지면 안 된다. 폰에는 탭 막대가 보이지 않는다.
-  var keep = t.filter(tlTabValid);
-  var desk = (typeof appMenuProfile !== 'function') || appMenuProfile() === 'desktop';
-  if (keep.length !== t.length && desk) { _tlTabs = keep; tlTabsSave(); }
-  t = keep;
-  var cur = (typeof currentMenu !== 'undefined') ? currentMenu : '';
-  var solo = t.length <= 1;
-  bar.innerHTML = t.map(function (id) {
-    var m = MENUS.find(function (x) { return x.id === id; });
-    var label = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[id]) || (m && m.label) || id;
-    var on = id === cur;
-    return '<div class="tl-tab' + (on ? ' is-on' : '') + '" role="presentation" data-menu="' + id + '"'
-      + ' onauxclick="if(event.button===1)tlTabClose(\'' + id + '\',event)">'
-      + '<button type="button" class="tl-tab-main" role="tab" aria-selected="' + on + '"'
-      +   (on ? ' aria-current="page"' : '') + ' onclick="navToMenu(\'' + id + '\')">'
-      +   '<span class="tl-tab-ico" aria-hidden="true">' + (m ? m.icon : '') + '</span>'
-      +   '<span class="tl-tab-lbl">' + tlEsc(label) + '</span>'
-      + '</button>'
-      + (solo ? '' : '<button type="button" class="tl-tab-x" aria-label="' + tlEsc(label) + ' 탭 닫기" title="닫기"'
-          + ' onclick="tlTabClose(\'' + id + '\',event)">✕</button>')
-      + '</div>';
-  }).join('');
-  var act = bar.querySelector('.tl-tab.is-on');
-  if (act && act.scrollIntoView) try { act.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {}
+// navToMenu 가 부른다
+function tlMenuOnNav(id) {
+  // 우클릭 메뉴가 열려 있으면 닫는다 — 오른쪽 위 도구를 제자리(#topbar)로 돌려놓은 뒤에 새 화면이 그것을 채운다
+  if (typeof tlPmClose === 'function') tlPmClose();
+  if (id !== 'search') tlsLeavePage();
+  tlMenuPaint();
 }
+// 메뉴 줄이 넘칠 때는 마우스 휠로 옆으로 민다
+(function () {
+  function hook() {
+    var bar = document.getElementById('tl-mnav');
+    if (!bar) return;
+    bar.addEventListener('wheel', function (e) {
+      if (bar.scrollWidth <= bar.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      bar.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
+})();
+window.addEventListener('resize', function () { tlMenuPaint(); });
