@@ -60,7 +60,7 @@
   <!-- 🎨 제도(製圖) 테마 — 토큰·타이포·컴포넌트 스킨. 반드시 마지막에 로드할 것.
        글꼴은 자체 호스팅이라 CDN을 타지 않는다(오프라인·APK에서도 그대로 나온다). -->
   <link rel="stylesheet" href="fonts/pretendard.css?v=20260809a">
-  <link rel="stylesheet" href="theme.css?v=20261126c">
+  <link rel="stylesheet" href="theme.css?v=20261126d">
   <link rel="stylesheet" href="calpage.css?v=20261110k">
   <script>
     // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
@@ -107,9 +107,12 @@
   <!-- ===== 66px 사이드바 ===== -->
   <aside class="sidebar" id="sidebar">
 
-    <!-- 상단: 아바타 + 접기/펼치기 -->
+    <!-- 상단: 폰 '전체' 판은 아바타, PC 레일은 앱 표시(누르면 시작 화면) -->
     <div class="sidebar-top">
       <div class="avatar-circle" id="sidebar-avatar" title="프로필 / 로그인" onclick="openProfilePanel()">M</div>
+      <button type="button" class="tl-rail-mark" aria-label="TaskLog 시작 화면" onclick="navToMenu(appDefaultMenu())">
+        <img src="tasklog-icon.svg" alt="" width="32" height="32">
+      </button>
     </div>
 
     <!-- 메뉴 -->
@@ -130,8 +133,32 @@
   <!-- ===== 폰 하단 탭 (script.js renderTabbar 가 채운다. PC 에서는 theme.css 가 감춘다) ===== -->
   <nav class="tl-tabbar" id="tl-tabbar" aria-label="주 메뉴"></nav>
 
-  <!-- ===== 중앙 + 오른쪽 패널 래퍼 ===== -->
+  <!-- ===== 위쪽 막대 + 본문 3분할 래퍼 ===== -->
   <div class="content-wrapper">
+
+    <!-- ===== PC 위쪽 막대 (2026-11-26 Gmail 형): TASK LOG · 검색 · 설정 · 로그인 정보 — 폰에서는 숨는다 (layout.js) ===== -->
+    <header class="tl-appbar" id="tl-appbar">
+      <button type="button" class="tl-brand" onclick="navToMenu(appDefaultMenu())" title="시작 화면">TASK LOG</button>
+      <div class="tl-search" id="tl-search" role="search">
+        <svg class="tl-search-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="text" id="tl-search-input" class="tl-search-input" placeholder="Task · To Do · 메모 검색" autocomplete="off" spellcheck="false"
+               role="combobox" aria-expanded="false" aria-controls="tl-search-pop" aria-label="Task · To Do · 메모 검색"
+               oninput="tlsInput(this)" onkeydown="tlsKey(event)" onfocus="if(this.value)tlsRender()">
+        <button type="button" class="tl-search-clear" id="tl-search-clear" hidden onclick="tlsClear()" aria-label="검색어 지우기">✕</button>
+        <div class="tl-search-pop" id="tl-search-pop" role="listbox" hidden></div>
+      </div>
+      <div class="tl-appbar-gap"></div>
+      <button type="button" class="tl-appbar-icon" title="Setting" aria-label="설정" onclick="openSettings()">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+      <button type="button" class="tl-account" id="tl-account" onclick="openProfilePanel()">
+        <span class="tl-account-name" id="appbar-name"></span>
+        <span class="avatar-circle tl-account-av" id="appbar-avatar">?</span>
+      </button>
+    </header>
+
+    <!-- ===== 본문 3분할: 기본 화면 | Task 창 | To Do 창 (새 창은 오른쪽에 붙는다) ===== -->
+    <div class="tl-panes" id="tl-panes">
 
     <!-- 메인 콘텐츠 -->
     <main class="main-content" id="main-content">
@@ -189,6 +216,21 @@
       </div>
     </div>
 
+    <!-- ===== To Do 창 (Task 창의 To Do 를 누르면 그 오른쪽에 열린다 · layout.js) ===== -->
+    <div class="right-panel todo-pane" id="todo-pane" aria-hidden="true">
+      <div class="rp-header">
+        <span class="rp-title">To Do</span>
+        <button class="rp-close" onclick="tdClose()" aria-label="To Do 창 닫기">✕</button>
+      </div>
+      <div class="rp-body" id="td-body"></div>
+      <div class="rp-footer td-footer">
+        <button class="btn-primary" onclick="saveRightPanel()">저장</button>
+        <button class="btn-secondary" onclick="tdClose()">닫기</button>
+      </div>
+    </div>
+
+    </div><!-- .tl-panes -->
+
   </div><!-- .content-wrapper -->
 
 </div><!-- .app -->
@@ -204,23 +246,23 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="firebase-init.js?v=20260808a"></script>
 <script src="colresize.js?v=20260722"></script>
-<script src="backup-core.js?v=20261125d"></script>
+<script src="backup-core.js?v=20261126d"></script>
 <script src="backup-xlsx.js?v=20261126b"></script>
-<script src="auth.js?v=20261111i"></script>
+<script src="auth.js?v=20261126d"></script>
 <script src="mandalart.js?v=20261125a"></script>
 <script src="lifewheel.js?v=20260816e"></script>
-<script src="home.js?v=20261126b"></script>
+<script src="home.js?v=20261126d"></script>
 <!-- 🌱 Habit Tracker 페이지 — 만다라트의 습관형 실행항목을 연 단위로 관리 -->
 <script src="habit.js?v=20260824a"></script>
 <!-- 📅 FullCalendar 표준판 v6.1.22 (MIT) — 라이선스: fullcalendar.LICENSE.txt -->
 <script src="fullcalendar.min.js?v=6.1.22"></script>
-<script src="calpage.js?v=20261111j"></script>
+<script src="calpage.js?v=20261126d"></script>
 <script src="gantt.js?v=20261110n"></script>
-<script src="notes.js?v=20261112f"></script>
+<script src="notes.js?v=20261126d"></script>
 <script src="journal.js?v=20261126b"></script>
-<script src="wbs.js?v=20261110b"></script>
+<script src="wbs.js?v=20261126d"></script>
 <script src="mvv.js?v=20261104a"></script>
-<script src="settings.js?v=20261126c"></script>
+<script src="settings.js?v=20261126d"></script>
 <script src="drive.js?v=20260722"></script>
 <!-- firestore-sync.js가 scheduleAutoBackup/updateBackupStatus/initAutoBackup을 같은 이름으로
      재정의해 drive.js의 자동 백업을 대체한다 — 반드시 drive.js보다 뒤에 로드할 것.
@@ -228,10 +270,12 @@
 <script src="firestore-sync.js?v=20261111i"></script>
 <script src="todo.js?v=20261110o"></script>
 <script src="yearsync.js?v=20260722"></script>
-<script src="script.js?v=20261126b"></script>
+<script src="script.js?v=20261126d"></script>
+<!-- 🧭 PC 레이아웃 (Gmail 형): 위쪽 막대 검색 · To Do 창 — script.js 다음 -->
+<script src="layout.js?v=20261126a"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20261126c"></script>
+<script src="pwa.js?v=20261126d"></script>
 
 <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
 <script src="mobile-ui.js?v=20260807c"></script>

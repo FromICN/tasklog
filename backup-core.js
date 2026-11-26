@@ -29,7 +29,7 @@ const BACKUP_REGISTRY = [
   { key: 'nbStepOrder',               label: 'Web To Do 순서',     type: 'json'   },
   { key: 'app-menu-visible-desktop',  label: '메뉴 표시 (PC)',     type: 'json'   },
   { key: 'app-menu-visible-mobile',   label: '메뉴 표시 (폰)',     type: 'json'   },
-  { key: 'app-menu-order-v2-desktop', label: '메뉴 순서 (PC)',     type: 'json'   },
+  { key: 'app-menu-order-v3-desktop', label: '메뉴 순서 (PC)',     type: 'json'   },   // 2026-11-26 v2 → v3 (Life Log · Task Log 묶음)
   { key: 'app-menu-order-v2-mobile',  label: '메뉴 순서 (폰)',     type: 'json'   },
   // ── 환경설정(사용자 선택값) ─────────────
   { key: 'app-theme',             label: '테마',                 type: 'string' },

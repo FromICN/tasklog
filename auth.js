@@ -577,6 +577,8 @@ function saveNickname() {
 }
 
 function _syncAvatarInitial() {
+  // PC 위쪽 막대의 로그인 정보도 같이 (layout.js, 2026-11-26)
+  if (typeof tlPaintAppbarAccount === 'function') tlPaintAppbarAccount(currentUser, getDisplayName());
   var av = document.getElementById('sidebar-avatar');
   if (!av) return;
   if (currentUser && currentUser.picture) return; // 사진 있으면 변경 불필요
@@ -587,6 +589,8 @@ function _syncAvatarInitial() {
 var _origUpdateAuthUI = updateAuthUI;
 updateAuthUI = function() {
   _origUpdateAuthUI();
+  // PC 위쪽 막대의 로그인 정보 (layout.js, 2026-11-26)
+  if (typeof tlPaintAppbarAccount === 'function') tlPaintAppbarAccount(currentUser, getDisplayName());
   // 사이드바 아바타 이미지/이니셜 갱신
   var av = document.getElementById('sidebar-avatar');
   if (!av) return;

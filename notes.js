@@ -369,8 +369,8 @@ function buildTaskCard(task) {
 function buildStepCard(task, step) {
   var dueHtml = nbDueBadgeIso(step.dueDateTime, step.hasTime);
   return '<div class="nb-card" draggable="true" data-kind="step" data-task-id="' + task.id + '" data-step-id="' + step.id + '"'
-    + ' style="cursor:pointer;" title="클릭하면 상위 Task 상세 보기"'
-    + ' onclick="openDetailPanel(' + task.id + ')"'
+    + ' style="cursor:pointer;" title="클릭하면 상위 Task 와 이 To Do 를 엽니다"'
+    + ' onclick="if(typeof tlOpenStep===\'function\')tlOpenStep(' + task.id + ',' + step.id + ');else openDetailPanel(' + task.id + ')"'
     + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
     + '<div class="nb-card-strip" style="background:var(--info);"></div>'
     + '<div class="nb-card-body">'

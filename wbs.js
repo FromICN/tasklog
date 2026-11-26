@@ -636,7 +636,9 @@ document.addEventListener('click', function(e) {
   if (stepEdit) {
     e.stopPropagation();
     var sParts = stepEdit.dataset.wbsStepEdit.split(':');
-    if (typeof openDetailPanel === 'function') openDetailPanel(parseInt(sParts[0]));
+    // 상위 Task 창 + 그 오른쪽 To Do 창 (2026-11-26 3분할, layout.js)
+    if (typeof tlOpenStep === 'function') tlOpenStep(parseInt(sParts[0]), parseInt(sParts[1]));
+    else if (typeof openDetailPanel === 'function') openDetailPanel(parseInt(sParts[0]));
     return;
   }
 });

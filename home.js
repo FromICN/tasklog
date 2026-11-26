@@ -843,7 +843,7 @@ function renderHomeWebWidget() {
   // To Do 아래에 상위 Task 이름을 한 줄 더 적는다 (2026-11-12 사용자 요청 — Web 페이지 카드의 '↳ Task' 와 같다)
   var stepHtml = actSteps.map(function(e) {
     var parent = cleanName(e.task.text);
-    return '<div class="hwb-item hwb-item-step" onclick="openDetailPanel(' + e.task.id + ')" title="상위 Task 상세 보기">'
+    return '<div class="hwb-item hwb-item-step" onclick="if(typeof tlOpenStep===\'function\')tlOpenStep(' + e.task.id + ',' + e.step.id + ');else openDetailPanel(' + e.task.id + ')" title="상위 Task 와 이 To Do 열기">'
       + '<span class="hwb-strip" style="background:var(--info);"></span>'
       + '<span class="hwb-stack">'
       +   '<span class="hwb-text">' + hwEsc(cleanName(e.step.text)) + '</span>'

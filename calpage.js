@@ -731,7 +731,7 @@ function calItemPop(p, anchor) {
     + rows
     + '<div class="tlc-pop-actions">'
     +   '<button type="button" class="tlc-btn" onclick="calPopDone(' + ids + ')">' + (done ? '완료 취소' : '완료') + '</button>'
-    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + t.id + ')">수정</button>'
+    +   '<button type="button" class="tlc-btn" onclick="calPopEdit(' + ids + ')">수정</button>'
     +   '<button type="button" class="tlc-btn tlc-pop-del" onclick="calPopDelete(' + ids + ')">삭제</button>'
     + '</div>';
   _calPopShow(html, anchor.getBoundingClientRect());
@@ -741,8 +741,10 @@ function calPopDone(taskId, stepId) {
   if (stepId !== null) { toggleStep(taskId, stepId); return; }
   toggleComplete(taskId);
 }
-function calPopEdit(taskId) {
+function calPopEdit(taskId, stepId) {
   calPopClose(true);
+  // To Do 는 상위 Task 창 + 그 오른쪽 To Do 창 (2026-11-26 3분할, layout.js)
+  if (stepId != null && typeof tlOpenStep === 'function') { tlOpenStep(taskId, stepId); return; }
   calOpenEvent(taskId);
 }
 function calPopDelete(taskId, stepId) {

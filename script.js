@@ -2314,6 +2314,8 @@ var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '�
 //  due   'YYYY-MM-DD' — Due 기본값. 달력에서 만들 때 준다 (달력은 Task 를 Due 에 놓으므로 없으면 안 보인다)
 //  values · allDay · name · mdtLink — 달력 빠른 입력의 '옵션 더보기' (mdtLink = Section/Project 연결)
 function openNewTaskPanel(taskId, opts) {
+  // 다른 Task 를 열면 To Do 창은 닫는다 — 그 창은 이전 Task 의 To Do 를 보고 있었다
+  if (typeof tdClose === 'function') tdClose(true);
   rpState.taskId = taskId || null;
   rpState.dirty  = false;
   var task = taskId ? tasks.find(function(t){ return t.id === taskId; }) : null;
@@ -2678,7 +2680,7 @@ function rpBuildStepsHtml() {
       +   ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
       +   ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">\u283F</span>'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
-      + '<div class="step-content">'
+      + '<div class="step-content" onclick="if(typeof tdOpen===\'function\')tdOpen(' + s.id + ')">'
       + '<span class="step-line">'
       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
       +   ' title="'+escapeHtml(stepTip)+'" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
@@ -2693,7 +2695,9 @@ function rpBuildStepsHtml() {
       + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정">'
       + (hasDate ? '📅 '+formatDueDate(s.dueDateTime, false) : '📅')
       + '</button>'
-      + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button></div>'
+      + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button>'
+      // To Do 창 열기 (2026-11-26 3분할 — layout.js tdOpen). 지금 열려 있는 To Do 는 칠해 둔다
+      + '<button class="step-open' + ((typeof _td !== 'undefined' && _td && _td.stepId === s.id) ? ' is-on' : '') + '" onclick="event.stopPropagation();if(typeof tdOpen===\'function\')tdOpen(' + s.id + ')" title="To Do 창 열기" aria-label="To Do 창 열기">›</button></div>'
       + dateForm
       + rpStepTimeFormHtml(s);
   }).join('');
@@ -3013,6 +3017,8 @@ function rpHandleStepInput(event) { if (event.key === 'Enter') rpAddStep(); }
 function rpRefreshSteps() {
   var list = document.getElementById('rp-steps-list');
   if (list) list.innerHTML = rpBuildStepsHtml();
+  // To Do 창이 열려 있으면 같이 맞춘다 (layout.js — 같은 rpState.steps 사본을 본다)
+  if (typeof tdRefresh === 'function') tdRefresh();
 }
 
 // Start/Due 시간 입력 자동 포맷 (1800 → 18:00, 24시간)
@@ -3470,6 +3476,19 @@ var MENUS = [
 var MENU_DIVIDER_AT = MENUS.findIndex(function(m) { return m.divider; });
 var MENU_HEAD_IDS = MENUS.slice(0, MENU_DIVIDER_AT).map(function(m) { return m.id; });
 
+// PC 주메뉴 묶음 (2026-11-26 사용자 요청 — Gmail 형 레이아웃).
+//  Home 은 맨 위에 따로, 그 아래 Life Log · Task Log 두 묶음. 묶음 안의 순서도 사용자가 정한 대로다.
+//  폰은 묶지 않는다 — 하단 탭 4개가 MENUS 순서를 따르므로, 여기를 폰에 걸면 탭이 바뀐다.
+var MENU_GROUPS = [
+  { id: 'top',  label: '',         ids: ['home'] },
+  { id: 'life', label: 'Life Log', ids: ['mvv', 'wheel', 'mandalart', 'habit'] },
+  { id: 'task', label: 'Task Log', ids: ['calendar', 'cloud', 'journal', 'wbs'] },
+];
+function menuGroupOf(id) {
+  for (var i = 0; i < MENU_GROUPS.length; i++) if (MENU_GROUPS[i].ids.indexOf(id) >= 0) return i;
+  return MENU_GROUPS.length;   // 묶음에 없는(새로 생긴) 메뉴는 맨 뒤
+}
+
 var MENU_TITLES = {
   home:'Home', cloud:'Web', mvv:'Mission Vision Value',
   wheel:'Life Wheel', mandalart:'Mandalart', calendar:'Calendar',
@@ -3548,16 +3567,34 @@ function isMenuVisible(id) { return getMenuVis(appMenuProfile())[id] !== false; 
 // ============================================
 // v2 (2026-11-10): 사용자가 정한 새 기본 순서를 모든 기기에 한 번 적용하려고 키를 올렸다.
 //  옛 키(app-menu-order-desktop · -mobile)는 bootApp 이 지운다.
-var MENU_ORDER_KEY = { desktop: 'app-menu-order-v2-desktop', mobile: 'app-menu-order-v2-mobile' };
+// v3 (2026-11-26, PC 만): Life Log · Task Log 묶음과 그 안의 순서를 모든 PC 에 한 번 적용하려고 올렸다.
+//  폰은 v2 그대로 — 하단 탭이 바뀌지 않게. 옛 PC 키(v2-desktop)는 bootApp 이 지운다.
+var MENU_ORDER_KEY = { desktop: 'app-menu-order-v3-desktop', mobile: 'app-menu-order-v2-mobile' };
 
-// MENUS 선언 순서의 id 목록 (구분선 제외)
-function defaultMenuIds() {
-  return MENUS.filter(function(m) { return !m.divider; }).map(function(m) { return m.id; });
+// 기본 순서 (구분선 제외). PC 는 묶음 순서, 폰은 MENUS 선언 순서.
+function defaultMenuIds(profile) {
+  var ids = MENUS.filter(function(m) { return !m.divider; }).map(function(m) { return m.id; });
+  if (profile !== 'desktop') return ids;
+  var out = [];
+  MENU_GROUPS.forEach(function(g) { g.ids.forEach(function(id) { if (ids.indexOf(id) >= 0) out.push(id); }); });
+  ids.forEach(function(id) { if (out.indexOf(id) < 0) out.push(id); });
+  return out;
 }
 
 function getMenuOrder(profile) {
   profile = (profile === 'mobile') ? 'mobile' : 'desktop';
-  var base = defaultMenuIds(), out = [];
+  var out = getMenuOrderRaw(profile);
+  // PC 는 묶음이 섞이지 않게 묶음 순서로 다시 줄 세운다(묶음 안의 순서는 저장된 대로)
+  if (profile === 'desktop') {
+    out = out.map(function(id, i) { return { id: id, g: menuGroupOf(id), i: i }; })
+      .sort(function(a, b) { return (a.g - b.g) || (a.i - b.i); })
+      .map(function(x) { return x.id; });
+  }
+  return out;
+}
+
+function getMenuOrderRaw(profile) {
+  var base = defaultMenuIds(profile), out = [];
   try {
     var raw = localStorage.getItem(MENU_ORDER_KEY[profile]);
     if (raw) {
@@ -3592,6 +3629,8 @@ function moveMenuOrder(profile, fromId, toId, after) {
   var arr = getMenuOrder(profile);
   var fi = arr.indexOf(fromId);
   if (fi < 0 || fromId === toId) return false;
+  // PC 는 묶음 안에서만 옮긴다 (Life Log 메뉴를 Task Log 로 옮길 수 없다)
+  if (profile === 'desktop' && menuGroupOf(fromId) !== menuGroupOf(toId)) return false;
   arr.splice(fi, 1);
   var ti = arr.indexOf(toId);
   if (ti < 0) ti = arr.length; else if (after) ti += 1;
@@ -3623,6 +3662,19 @@ function initSidebarCollapse() {
   if (typeof updateDarkModeBtn === 'function') updateDarkModeBtn(); // 테마 스위치 초기 동기화
 }
 
+// PC 레일에 쓰는 짧은 이름 (사용자가 적은 이름 그대로). 전체 이름은 aria-label 로 남긴다.
+var RAIL_LABEL = {
+  home:'Home', mvv:'MVV', wheel:'Life Wheel', mandalart:'Mandalart', habit:'Habit Tracker',
+  calendar:'Calendar', cloud:'Web', journal:'Work Diary', wbs:'WBS',
+};
+function railMenuBtn(m) {
+  var full = MENU_TITLES[m.id] || m.label;
+  return '<button class="nav-item" id="nav-' + m.id + '" aria-label="' + full + '" onclick="navToMenu(\'' + m.id + '\')">'
+    + '<span class="nav-item-icon">' + m.icon + '</span>'
+    + '<span class="nav-item-label">' + (RAIL_LABEL[m.id] || full) + '</span>'
+    + '</button>';
+}
+
 function initSidebar() {
   var nav = document.getElementById('sidebar-nav');
   if (!nav) return;
@@ -3637,6 +3689,23 @@ function initSidebar() {
   var prof = appMenuProfile();
   var vis = getMenuVis(prof);
   var items = orderedMenus(prof).filter(function(m) { return vis[m.id] !== false; });
+
+  // PC: Home · Life Log · Task Log 묶음 (2026-11-26). 레일은 평소 아이콘만, 마우스를 올리면
+  //  펼쳐져 이름과 묶음 이름이 보인다(theme.css 'PC 레이아웃 — Gmail 형'). 이름은 짧게 쓴다.
+  if (prof === 'desktop') {
+    nav.innerHTML = MENU_GROUPS.map(function(g, gi) {
+      var mine = items.filter(function(m) { return menuGroupOf(m.id) === gi; });
+      if (!mine.length) return '';
+      return '<div class="nav-group" data-group="' + g.id + '">'
+        + (g.label ? '<div class="nav-group-head"><span>' + g.label + '</span></div>' : '')
+        + mine.map(railMenuBtn).join('')
+        + '</div>';
+    }).join('')
+      + (function() {   // 묶음에 없는(새로 생긴) 메뉴
+        var rest = items.filter(function(m) { return menuGroupOf(m.id) >= MENU_GROUPS.length; });
+        return rest.length ? '<div class="nav-group">' + rest.map(railMenuBtn).join('') + '</div>' : '';
+      })();
+  } else {
   // 구분선은 위에서 센 자리에 둔다(MENU_HEAD_IDS 참조).
   // 순서를 바꿔도 사이드바의 덩어리 나눔이 그대로 유지된다.
   var divAt = items.filter(function(m) { return MENU_HEAD_IDS.indexOf(m.id) >= 0; }).length;
@@ -3650,6 +3719,7 @@ function initSidebar() {
       + '<span class="nav-item-label">'+full+'</span>'
       + '</button>';
   }).join('');
+  }
   var act = document.getElementById('nav-'+currentMenu);
   if (act) act.classList.add('active');
   renderTabbar();
@@ -3853,6 +3923,8 @@ function bootApp() {
   try { localStorage.removeItem('alert-fired'); } catch (e) {}
   // 메뉴 순서 키를 v2 로 올렸다(2026-11-10). 옛 순서는 다시 읽지 않으므로 치운다.
   try { localStorage.removeItem('app-menu-order-desktop'); localStorage.removeItem('app-menu-order-mobile'); } catch (e) {}
+  // PC 메뉴 순서 키를 v3 로 올렸다(2026-11-26, Life Log · Task Log 묶음). 옛 PC 순서는 치운다.
+  try { localStorage.removeItem('app-menu-order-v2-desktop'); } catch (e) {}
   // 구글 캘린더 연동은 2026-11-11 사용자 결정으로 없앴다. 이 기기에 남은 캐시·설정을 치운다
   //  (구글 일정 캐시는 한 해에 약 56KB 라 저장소를 많이 먹었다).
   try {

@@ -343,10 +343,21 @@ function buildTabMenus() {
     ? orderedMenus(prof)
     : MENUS.filter(function(m) { return !m.divider; });
 
+  // PC 는 Home · Life Log · Task Log 묶음으로 보여 준다(2026-11-26). 순서는 묶음 안에서만 바뀐다.
+  var lastGroup = -1;
   var rows = menuList.map(function(m) {
     var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
     var on = vis[m.id] !== false;
-    return '<div class="settings-row menuord-row tl-dnd-row" data-menuid="' + m.id + '"'
+    var head = '';
+    if (prof === 'desktop' && typeof menuGroupOf === 'function' && typeof MENU_GROUPS !== 'undefined') {
+      var gi = menuGroupOf(m.id);
+      if (gi !== lastGroup) {
+        lastGroup = gi;
+        var g = MENU_GROUPS[gi];
+        if (g && g.label) head = '<div class="menuord-group">' + sEsc(g.label) + '</div>';
+      }
+    }
+    return head + '<div class="settings-row menuord-row tl-dnd-row" data-menuid="' + m.id + '"'
       + ' ondragover="settingsMenuDragOver(event,this)" ondragleave="settingsMenuDragLeave(event,this)"'
       + ' ondrop="settingsMenuDrop(event,this)">'
       + '<span class="tl-drag-handle menuord-handle" draggable="true" title="드래그해 메뉴 순서 변경"'
@@ -359,7 +370,9 @@ function buildTabMenus() {
   return '<div class="settings-section-head" style="margin-top:8px;">메뉴 표시 · 순서</div>'
     + '<div class="settings-row-desc" style="margin-bottom:10px;">'
     + '사이드바에 보일 메뉴를 고릅니다. 왼쪽 손잡이를 끌면 순서를 바꿀 수 있습니다.'
-    + ' 데스크탑과 모바일 구성을 따로 저장하며, 접속한 화면 크기에 맞는 구성이 적용됩니다.</div>'
+    + ' 데스크탑과 모바일 구성을 따로 저장하며, 접속한 화면 크기에 맞는 구성이 적용됩니다.'
+    + (prof === 'desktop' ? ' 데스크탑은 Life Log · Task Log 묶음 안에서만 순서를 바꿉니다.' : '')
+    + '</div>'
     + '<div class="menuvis-segs">' + segs + '</div>'
     + rows
     + '<div class="settings-row-desc" style="margin-top:12px;">'
