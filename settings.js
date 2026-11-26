@@ -131,6 +131,7 @@ function buildSettingsModal() {
     + buildSettingsTabBtn('menus',    '메뉴')
     + buildSettingsTabBtn('home',     'Home')
     + buildSettingsTabBtn('backup',   '백업 & 복원')
+    + buildSettingsTabBtn('version',  '버전')
     + '</div>'
     + '<div class="settings-content" id="settings-content"></div>'
     + '</div>'
@@ -147,7 +148,7 @@ function buildSettingsTabBtn(id, label) {
 
 function setSettingsTab(tabId) {
   settingsState.tab = tabId;
-  ['general','display','menus','home','backup'].forEach(function(t) {
+  ['general','display','menus','home','backup','version'].forEach(function(t) {
     var el = document.getElementById('stab-' + t);
     if (el) el.classList.toggle('active', t === tabId);
   });
@@ -158,7 +159,61 @@ function setSettingsTab(tabId) {
   if (tabId === 'menus')    content.innerHTML = buildTabMenus();
   if (tabId === 'home')     content.innerHTML = buildTabHome();
   if (tabId === 'backup')   content.innerHTML = buildTabBackup();
+  if (tabId === 'version')  content.innerHTML = buildTabVersion();
   content.scrollTop = 0;   // 탭 이동 시 상단 고정
+}
+
+// ── Version tab (2026-11-26) ──────────────
+//  공식 버전은 여기 한 곳에 적는다. 새 버전을 낼 때 이 값과 CLAUDE.md 머리 표를 같이 고친다.
+//  빌드 번호는 적지 않는다 — pwa.js 의 window.TASKLOG_BUILD 가 빌드마다 저절로 맞는다.
+var TASKLOG_VERSION = {
+  name: '1',                 // 공식 버전 1 (사용자 지정, 2026-11-26)
+  date: '2026-11-26',        // 공식 배포일
+  firstBuild: 'v20261126c',  // 버전 1 의 첫 빌드
+  url: 'fromicn.github.io/tasklog'
+};
+var TASKLOG_V1_MENUS = [
+  ['Home', '위젯 대시보드 — 6×5 격자에 위젯을 자유롭게 배치'],
+  ['Calendar', '일 · 주 · 월 · 연 · 목록 · Gantt 보기와 검색'],
+  ['MVV', 'Why · How · What · Action Plan'],
+  ['LW', 'Life Wheel — 8개 영역 점수 · Goal · Ideal · 핵심가치'],
+  ['M', 'Mandalart — Section 별 Project 실적 관리'],
+  ['Web', 'Archiving(메모) · Task · To Do 세 칼럼'],
+  ['HT', 'Habit Tracker — 습관형 Project 의 달성 달력'],
+  ['WD', 'Work Diary — 주간 시간표 · 달력 · Weekly Review'],
+  ['WBS', 'Section › Project › Task › To Do 트리']
+];
+function tasklogRunEnv() {
+  try { if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) return 'Android 앱'; } catch (e) {}
+  if (document.documentElement.classList.contains('pwa-standalone')) return '설치한 웹앱 (PWA)';
+  return '웹 브라우저';
+}
+function buildTabVersion() {
+  var v = TASKLOG_VERSION;
+  var build = window.TASKLOG_BUILD || '';
+  function row(label, value, desc) {
+    return '<div class="settings-row">'
+      + '<div><div class="settings-row-label">' + label + '</div>'
+      + (desc ? '<div class="settings-row-desc">' + desc + '</div>' : '') + '</div>'
+      + '<div class="ver-value">' + value + '</div>'
+      + '</div>';
+  }
+  var menus = TASKLOG_V1_MENUS.map(function (m) {
+    return '<li><span class="ver-menu-name">' + sEsc(m[0]) + '</span><span class="ver-menu-desc">' + sEsc(m[1]) + '</span></li>';
+  }).join('');
+  return '<div class="ver-hero">'
+    +   '<div class="ver-hero-name">TaskLog <b>v' + sEsc(v.name) + '</b></div>'
+    +   '<div class="ver-hero-sub">공식 버전 ' + sEsc(v.name) + ' · ' + sEsc(v.date) + ' 배포</div>'
+    + '</div>'
+    + '<div class="settings-section-head">버전 정보</div>'
+    + row('버전', '<span class="ver-badge">공식</span> ' + sEsc(v.name) + '.0')
+    + row('공식 배포일', sEsc(v.date))
+    + row('빌드', sEsc(build || '—'), '화면 파일 묶음 번호 · 업데이트하면 바뀝니다 (버전 ' + sEsc(v.name) + ' 첫 빌드 ' + sEsc(v.firstBuild) + ')')
+    + row('실행 환경', sEsc(tasklogRunEnv()))
+    + row('웹 주소', sEsc(v.url))
+    + '<div class="settings-section-head">버전 ' + sEsc(v.name) + ' 구성</div>'
+    + '<ul class="ver-menus">' + menus + '</ul>'
+    + '<div class="settings-row-desc ver-foot">폰 바탕화면 위젯 7종(만다라트 · 메모 목록 · 메모 + · To Do · 습관 · 오늘 일정 · 월간 달력)은 Android 앱에 들어 있습니다.</div>';
 }
 
 // ── General tab ───────────────────────────

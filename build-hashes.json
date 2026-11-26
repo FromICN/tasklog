@@ -5,7 +5,7 @@
   "login.css": "e4d2a0107b36",
   "mobile.css": "89c592da95f8",
   "fonts/pretendard.css": "c0e7f4fe547d",
-  "theme.css": "a3c45336aad2",
+  "theme.css": "d4eda6f96873",
   "calpage.css": "b0952aa3e31c",
   "config.js": "e527a2fdb624",
   "firebase-init.js": "230b871dea67",
@@ -24,12 +24,12 @@
   "journal.js": "ec3678d34632",
   "wbs.js": "e01cbb9ca9c3",
   "mvv.js": "d21b5ecb299a",
-  "settings.js": "aaf6819c3376",
+  "settings.js": "247df8bc0b29",
   "drive.js": "3d1a9d575670",
   "firestore-sync.js": "09f3c9789ca3",
   "todo.js": "2994d9df1f4b",
   "yearsync.js": "20e085b8cc42",
   "script.js": "2d438d708fa6",
-  "pwa.js": "022810af016b",
+  "pwa.js": "aae113c48adc",
   "mobile-ui.js": "ff2c7494ef27"
 }

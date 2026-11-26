@@ -1727,3 +1727,25 @@ body.jnlw-copying, body.jnlw-copying * { cursor: copy !important; }
 /* ── Task 패널: 방금 더한 To Do 를 잠깐 칠한다 (script.js rpRevealStep, 2026-11-26) ── */
 @keyframes rp-step-new { from { background-color: var(--tl-soft); } to { background-color: transparent; } }
 .rp-form .dp-step.rp-step-new { animation: rp-step-new 1.6s ease-out; border-radius: 6px; }
+
+/* ── 설정 > 버전 탭 (settings.js buildTabVersion, 2026-11-26) ── */
+.ver-hero { margin: 8px 0 4px; padding: 18px 20px; border-radius: 12px; background: var(--tl-soft); }
+.ver-hero-name { font-size: 22px; font-weight: 700; color: var(--text-1); letter-spacing: -0.01em; }
+.ver-hero-name b { color: var(--brand-primary); font-weight: 800; }
+.ver-hero-sub { margin-top: 4px; font-size: 13px; color: var(--text-2); }
+.ver-value { font-size: 14px; font-weight: 600; color: var(--text-1); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ver-badge { display: inline-block; margin-right: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: var(--brand-primary); background: var(--tl-soft); vertical-align: 1px; }
+.ver-menus { list-style: none; margin: 0; padding: 0; }
+.ver-menus li { display: flex; gap: 12px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.ver-menus li:last-child { border-bottom: none; }
+.ver-menu-name { flex: 0 0 72px; font-size: 13px; font-weight: 700; color: var(--text-1); }
+.ver-menu-desc { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text-2); }
+.ver-foot { margin: 12px 0 4px; }
+@media (max-width: 768px) {
+  /* 탭이 6개가 되면서 375px 에서 27px 넘쳤다 — 좌우 여백을 줄여 한 줄에 담고, 그래도 좁으면 옆으로 민다 */
+  .settings-tabs { padding-left: 8px; padding-right: 8px; overflow-x: auto; scrollbar-width: none; }
+  .settings-tabs::-webkit-scrollbar { display: none; }
+  .settings-tab { flex-shrink: 0; padding-left: 10px; padding-right: 10px; }
+  .ver-menu-name { flex-basis: 60px; }
+}
