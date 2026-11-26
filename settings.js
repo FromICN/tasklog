@@ -611,12 +611,11 @@ function downloadRestoreTemplate() {
 
 function exportCSV() {
   if (typeof tasks === 'undefined' || !tasks.length) { alert('내보낼 Task가 없습니다.'); return; }
-  var header = ['ID', '이름', '완료', '시작일', '마감일', '아이젠하워'];
+  var header = ['ID', '이름', '완료', '시작일', '마감일'];
   var rows = tasks.map(function(t) {
     return [t.id, '"' + t.text.replace(/"/g, '""') + '"',
       t.completed ? '완료' : '미완료',
-      t.startDate || '', t.dueDateTime ? t.dueDateTime.slice(0, 10) : '',
-      t.eisenhower || ''].join(',');
+      t.startDate || '', t.dueDateTime ? t.dueDateTime.slice(0, 10) : ''].join(',');
   });
   var csv = '﻿' + header.join(',') + '\n' + rows.join('\n');
   var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

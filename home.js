@@ -15,9 +15,6 @@ var homeCalWeekStart = (function() {
 var HOME_SECTIONS = ['건강','커리어','재정','관계','성장','여가','환경','내면'];
 var HOME_SEC_COLORS = ['#22C08B','#4F6EF7','#F5A623','#E05C7A','#A78BFA','#34D399','#38BDF8','#FB923C'];
 
-// 아이젠하워 색상 (SCHEDULE=그린 계열, SOMEDAY(DROP)=기존 SCHEDULE 컬러)
-var EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--success)', DELEGATE:'var(--warning)', DROP:'var(--brand-primary)' };
-
 // 캘린더 위젯에서 현재 선택된 날짜 (기본: 오늘)
 var homeCalSelectedKey = fmtKey(new Date());
 

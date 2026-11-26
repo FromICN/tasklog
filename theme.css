@@ -1723,3 +1723,7 @@ body.hw-peek .home-grid.is-edit > .card:not(.hw-active) { opacity: 0.85; }
 /* ── Work Diary: Ctrl 을 누른 채 끌면 복사 ── */
 body.jnlw-copying, body.jnlw-copying * { cursor: copy !important; }
 .jnlw-ghost-copy { color: var(--brand-primary); font-weight: 800; }
+
+/* ── Task 패널: 방금 더한 To Do 를 잠깐 칠한다 (script.js rpRevealStep, 2026-11-26) ── */
+@keyframes rp-step-new { from { background-color: var(--tl-soft); } to { background-color: transparent; } }
+.rp-form .dp-step.rp-step-new { animation: rp-step-new 1.6s ease-out; border-radius: 6px; }

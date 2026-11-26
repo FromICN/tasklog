@@ -56,7 +56,9 @@ function xlsxTimeStr(v) {
 //  ⚠️ 시트 이름 '할일(Task)' · 'To Do' 를 바꾸지 말 것 — handleRestoreXlsx 가 시트 이름으로 양식을 가른다.
 var TX_SHEET_TASK = '할일(Task)';
 var TX_SHEET_TODO = 'To Do';
-var TX_TASK_HEADERS = ['ID', '할 일', '완료', '완료 시각', '중요(별표)', '상태', '우선순위',
+// '우선순위' 칸은 2026-11-26 Priority 를 없애면서 뺐다. 그 칸이 있는 예전 파일을 올려도 그 칸은 읽지 않는다
+//  (아래 읽기가 이 목록만 돈다). 값은 '보존 데이터' 에 그대로 실려 다닌다.
+var TX_TASK_HEADERS = ['ID', '할 일', '완료', '완료 시각', '중요(별표)', '상태',
   '시작일', '시작 시간', '마감일', '마감 시간', '막대', '만다라트 연도', 'Section', 'Project',
   '장소', '메모', 'Coworker', 'UpStream', '선행 Task ID', '후행 Task ID', '만든 시각', '구글 일정 ID', '보존 데이터'];
 var TX_TODO_HEADERS = ['Task ID', 'Task', 'To Do ID', 'To Do', '완료', '완료 시각', '마감일', '마감 시간',
@@ -129,7 +131,6 @@ function txTaskCells(t, mdts) {
     '완료 시각': txLocal(t.completedAt),
     '중요(별표)': t.starred ? 'O' : '',
     '상태': t.status || '',
-    '우선순위': t.eisenhower || '',
     '시작일': sd.slice(0, 10),
     '시작 시간': (t.startHasTime && sd.length >= 16) ? sd.slice(11, 16) : '',
     '마감일': dd.slice(0, 10),
@@ -190,7 +191,7 @@ function buildTaskWorkbook(tasksArr) {
   [wsT, wsS].forEach(function (ws) {
     Object.keys(ws).forEach(function (k) { if (k[0] !== '!' && ws[k] && ws[k].t === 's') ws[k].z = '@'; });
   });
-  wsT['!cols'] = [16, 36, 6, 16, 8, 7, 10, 11, 8, 11, 8, 5, 8, 14, 22, 18, 24, 12, 12, 14, 14, 16, 14, 12].map(function (w) { return { wch: w }; });
+  wsT['!cols'] = [16, 36, 6, 16, 8, 7, 11, 8, 11, 8, 5, 8, 14, 22, 18, 24, 12, 12, 14, 14, 16, 14, 12].map(function (w) { return { wch: w }; });
   wsS['!cols'] = [16, 30, 16, 32, 6, 16, 11, 8, 30, 14, 12].map(function (w) { return { wch: w }; });
   var guide = [
     ['📊 TaskLog 할 일 엑셀 — 사용법'],
@@ -205,7 +206,7 @@ function buildTaskWorkbook(tasksArr) {
     ['할 일', '필수. 완료한 Task 는 앞에 [YYMMDD](완료일)가 붙어 있습니다 — 만다라트 실적이 이 날짜를 읽습니다.'],
     ['완료 · 완료 시각', '완료/O. 완료로 바꾸면 [YYMMDD]·완료 시각이 붙고, 지우면 떼어집니다. 완료 시각은 YYYY-MM-DD HH:MM.'],
     ['중요(별표) · 막대', 'O 면 켬. 막대 = 달력에 Start~Due 를 막대로.'],
-    ['상태 · 우선순위', '상태: 대기 · 진행 · 중단 · 완료 · 취소. 우선순위: DO · SCHEDULE · DELEGATE · DELETE.'],
+    ['상태', '대기 · 진행 · 중단 · 완료 · 취소.'],
     ['시작일·시간 / 마감일·시간', 'YYYY-MM-DD / HH:MM. 시간을 비우면 종일.'],
     ['만다라트 연도 · Section · Project', '그 해 만다라트의 이름 그대로. Project 를 비우면 Section 에만, 셋 다 비우면 연결 없음.'],
     ['장소 · 메모', '그대로.'],
@@ -270,7 +271,8 @@ function txNorm(h, v) {
   if (TX_STAMP_COLS[h]) { var iso = txParseLocal(v); return iso === null ? null : txLocal(iso); }
   if (TX_ID_COLS[h]) return txIdStr(v);
   if (h === '수행 시간') return String(v == null ? '' : v).split('|').map(function (x) { return x.trim().replace(/\s+/g, ' '); }).filter(Boolean).join(' | ');
-  return v == null ? '' : String(v);
+  // 엑셀이 다시 저장하면서 칸 안 줄바꿈을 \r\n 으로 바꾼다(2026-11-26 실제 파일) — 줄바꿈 모양 차이는 '고친 것'이 아니다
+  return v == null ? '' : String(v).replace(/\r\n?/g, '\n');
 }
 function txDonePrefix(iso) {
   var d = iso ? new Date(iso) : new Date();
@@ -384,12 +386,11 @@ function workbookToTaskPlan(wb, cur) {
       if (curCells && v === txNorm(h, curCells[h])) return;
       if (isNew ? (v !== '' && v !== rv) || (v === null) : v !== rv) { ch[h] = true; any = true; }
     });
-    if (ch['할 일']) { ch['_text'] = true; c['_text'] = String(textRaw); }
+    if (ch['할 일']) { ch['_text'] = true; c['_text'] = String(textRaw).replace(/\r\n?/g, '\n'); }
     txApplyDone(t, c, ch, errs, tag, isNew);
     if (ch['구글 일정 ID']) { if (String(c['구글 일정 ID']).trim()) t.gcalId = String(c['구글 일정 ID']).trim(); else delete t.gcalId; }
     if (ch['중요(별표)']) t.starred = c['중요(별표)'] === 'Y';
     if (ch['상태']) t.status = c['상태'] || '대기';
-    if (ch['우선순위']) t.eisenhower = c['우선순위'] || null;
     if (ch['막대']) { if (c['막대'] === 'Y') t.calBar = true; else delete t.calBar; }
     if (ch['장소']) { if (c['장소'].trim()) t.location = c['장소']; else delete t.location; }
     if (ch['메모']) t.notes = c['메모'];
@@ -466,7 +467,7 @@ function workbookToTaskPlan(wb, cur) {
         if (scur && v === txNorm(h, scur[h])) return;
         if (sNew ? (v !== '' && v !== rv) || v === null : v !== rv) { sch[h] = true; sAny = true; }
       });
-      if (sch['To Do']) { sch['_text'] = true; sc['_text'] = String(sText); }
+      if (sch['To Do']) { sch['_text'] = true; sc['_text'] = String(sText).replace(/\r\n?/g, '\n'); }
       txApplyDone(s, sc, sch, errs, stag, sNew);
       if (sch['구글 일정 ID']) { if (String(sc['구글 일정 ID']).trim()) s.gcalId = String(sc['구글 일정 ID']).trim(); else delete s.gcalId; }
       if (sch['마감일'] || sch['마감 시간']) {
@@ -1271,7 +1272,7 @@ function gcalXlsxApply(plan, arr) {
       location: it.location, calBar: it.bar
     };
     var doc = (typeof newTaskDoc === 'function') ? newTaskDoc(o) : Object.assign({
-      createdAt: nowIso, reminder: null, assignee: '', assignees: [], repeat: null, eisenhower: null,
+      createdAt: nowIso, reminder: null, assignee: '', assignees: [], repeat: null,
       upstreamDepts: [], upstreamDept: '', prevTaskIds: [], nextTaskIds: []
     }, o);
     if (!doc.mdtGoal) delete doc.mdtGoal;

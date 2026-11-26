@@ -183,12 +183,15 @@ function toggleComplete(id) {
     }
     task.completedAt = new Date().toISOString();
     delete task.wdTimed; delete task.wdLogAt;
+    task.status = '완료';                              // 완료 체크 = Status '완료' (2026-11-26)
   } else {
     // 완료 취소: [YYMMDD] 접두사 제거
     task.text = task.text.replace(/^\[\d{6}\] /, '');
     delete task.completedAt;
     delete task.wdTimed; delete task.wdLogAt;
+    if (task.status === '완료') task.status = '대기';   // 체크 전 상태는 남겨 두지 않으므로 기본값으로
   }
+  // ⚠️ 같은 규칙: native-bridge.js setDone · WidgetCloud.java applyDone (폰 위젯 체크)
 
   saveTasks(); renderTasks(); updateCategoryCounts();
   if (detailTaskId === id) {
@@ -2284,8 +2287,8 @@ function updateDateText() {
 var rpState = {
   taskId: null,   // null = 새 Task, id = 수정
   dirty: false,
-  eisenhower: null,
   status: '대기',
+  statusBeforeDone: null,   // 완료 체크로 '완료' 가 되기 전 상태 — 체크를 풀면 되돌린다
   steps: [],
   assignees: [],
   upstreamDepts: [],
@@ -2301,9 +2304,8 @@ var rpState = {
   createdAt: null,
 };
 
-var RP_EI_COLORS = { DO:'var(--danger)', SCHEDULE:'var(--success)', DELEGATE:'var(--warning)', DROP:'var(--brand-primary)' };
-var RP_EI_NAME   = { DO:'ASAP', SCHEDULE:'SCHEDULE', DELEGATE:'NEXT', DROP:'SOMEDAY' };
-var RP_EI_DESC   = { DO:'지금 바로', SCHEDULE:'일정 예약', DELEGATE:'다음 차례', DROP:'언젠가' };
+// Priority(eisenhower: ASAP·NEXT·SCHEDULE·SOMEDAY) 칸은 2026-11-26 사용자 요청으로 없앴다.
+//  이미 저장된 task.eisenhower 값은 지우지 않는다 — 읽는 화면이 없을 뿐이고, 패널 저장도 그 칸을 건드리지 않는다.
 var RP_STATUS_OPTS = ['대기','진행','중단','완료','취소'];
 var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '중단':'var(--danger)', '완료':'var(--info)', '취소':'var(--text-3)' };
 
@@ -2319,8 +2321,8 @@ function openNewTaskPanel(taskId, opts) {
   rpState.workOpen = true;
   rpState.newDate  = (!task && opts && opts.date) || null;
   rpState.newDue   = (!task && opts && opts.due) || null;
-  rpState.eisenhower = task ? (task.eisenhower || null) : null;
   rpState.status     = task ? (task.status     || '대기') : '대기';
+  rpState.statusBeforeDone = null;
   // 깊은 사본 — 수행 시간(slots)은 배열이라 얕게 복사하면 저장 전에 원본이 바뀐다
   rpState.steps       = task ? JSON.parse(JSON.stringify(task.steps || [])) : [];
   rpState.calBar      = task ? !!task.calBar : false;
@@ -2512,7 +2514,6 @@ function rpToggleWork() {
 function rpWorkSummary() {
   var parts = [];
   if (rpState.steps.length) parts.push('To Do ' + rpState.steps.length);
-  if (rpState.eisenhower) parts.push(RP_EI_NAME[rpState.eisenhower] || rpState.eisenhower);
   if (rpState.status && rpState.status !== '대기') parts.push(rpState.status);
   if (rpState.assignees.length) parts.push('Coworker ' + rpState.assignees.length);
   if (rpState.upstreamDepts.length) parts.push('UpStream ' + rpState.upstreamDepts.length);
@@ -2558,18 +2559,6 @@ function buildRpForm(task) {
   var dueTimeStr = (task && task.dueDateTime && task.hasTime) ? toTimeInputVal(task.dueDateTime) : '';
   var startTimeStr = (task && task.startDate && task.startHasTime) ? toTimeInputVal(task.startDate) : '';
   var notesVal   = task ? (task.notes || '') : '';
-
-  // Priority (ASAP / NEXT / SCHEDULE / SOMEDAY) — 내부값은 DO/DELEGATE/SCHEDULE/DROP 유지
-  var eiHtml = '<div class="rp-sect"><div class="rp-section-head">Priority</div><div class="rp-ei-grid">';
-  ['DO','DELEGATE','SCHEDULE','DROP'].forEach(function(k) {
-    var sel = rpState.eisenhower === k;
-    var selStyle = sel ? 'border-color:'+RP_EI_COLORS[k]+';background:color-mix(in srgb, '+RP_EI_COLORS[k]+' 10%, transparent);' : '';
-    eiHtml += '<button class="rp-ei-btn'+(sel?' rp-ei-sel':'')+'" data-ei="'+k+'" style="'+selStyle+'" onclick="rpSetEi(\''+k+'\')">'
-      + '<span class="rp-ei-name" style="color:'+RP_EI_COLORS[k]+';">'+RP_EI_NAME[k]+'</span>'
-      + '<span class="rp-ei-desc">'+RP_EI_DESC[k]+'</span>'
-      + '</button>';
-  });
-  eiHtml += '</div></div>';
 
   // Status (한 줄 5등분)
   var statusHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Status</div><div class="rp-status-row">';
@@ -2651,7 +2640,6 @@ function buildRpForm(task) {
     + '<button type="button" class="rp-work-head" onclick="rpToggleWork()"><span id="rp-work-arrow">▾</span>작업 관리<span class="rp-work-sum" id="rp-work-sum"></span></button>'
     + '<div class="rp-work-body">'
     + todoHtml
-    + eiHtml
     + statusHtml
     + coworkerHtml
     + upstreamHtml
@@ -2976,12 +2964,30 @@ function rpAddStep() {
   if (!text) { if (input) input.focus(); return; }
   var linkSel = document.getElementById('rp-step-link-sel');
   var linkedTaskId = (linkSel && linkSel.value) ? parseInt(linkSel.value) : null;
-  rpState.steps.push({ id: Date.now() + Math.floor(Math.random()*1000), text: text, completed: false, linkedTaskId: linkedTaskId });
+  var newId = Date.now() + Math.floor(Math.random()*1000);
+  rpState.steps.push({ id: newId, text: text, completed: false, linkedTaskId: linkedTaskId });
   rpState.dirty = true;
   input.value = '';
   if (linkSel) linkSel.value = '';
   rpRefreshSteps();
+  rpRevealStep(newId, true);   // 목록 맨 아래에 붙으므로, 목록이 길면 안 보였다 (2026-11-26 사용자 요청)
   setTimeout(function(){ var i = document.getElementById('rp-step-input'); if (i) i.focus(); }, 50);
+}
+
+// To Do 목록(#rp-steps-list — 높이가 정해진 자체 스크롤 칸) 안에서 그 줄이 보이게 목록만 굴린다.
+//  패널 본문은 건드리지 않는다 — 방금 친 입력칸이 제자리에 있어야 이어서 칠 수 있다.
+//  flash: 잠깐 칠해 어느 줄인지 알려 준다 (.rp-step-new, theme.css)
+function rpRevealStep(stepId, flash) {
+  var list = document.getElementById('rp-steps-list');
+  var el = document.getElementById('rp-step-' + stepId);
+  if (!list || !el) return;
+  var lr = list.getBoundingClientRect(), er = el.getBoundingClientRect();
+  if (er.bottom > lr.bottom) list.scrollTop += Math.ceil(er.bottom - lr.bottom);
+  else if (er.top < lr.top) list.scrollTop -= Math.ceil(lr.top - er.top);
+  if (flash) {
+    el.classList.add('rp-step-new');
+    setTimeout(function(){ el.classList.remove('rp-step-new'); }, 1600);
+  }
 }
 
 function rpToggleStep(stepId) {
@@ -3167,6 +3173,17 @@ function rpToggleComplete() {
       try { inp.focus(); inp.setSelectionRange(1, 7); } catch (e) {}
     }
   }
+  // 완료를 체크하면 Status 도 '완료' (2026-11-26 사용자 요청). 풀면 체크 전 상태로 되돌린다 —
+  //  처음부터 '완료' 였던 Task 를 풀면 기본값 '대기'. Status 를 손으로 다른 값으로 바꿔 둔 뒤 풀면 그대로 둔다.
+  if (rpState.completed) {
+    if (rpState.status !== '완료') rpState.statusBeforeDone = rpState.status;
+    rpSetStatus('완료');
+  } else if (rpState.status === '완료') {
+    var back = rpState.statusBeforeDone;
+    rpSetStatus(back && back !== '완료' ? back : '대기');
+  }
+  rpState.statusBeforeDone = rpState.completed ? rpState.statusBeforeDone : null;
+  rpSyncForm();   // 작업 관리를 접어 둔 경우 요약줄의 상태도 바꾼다
 }
 
 // ── Linked Tasks (선행 1 / 후행 1) ──
@@ -3227,19 +3244,6 @@ function rpDeleteTask() {
   updateCategoryCounts();
 }
 
-function rpSetEi(key) {
-  rpState.eisenhower = (rpState.eisenhower === key) ? null : key;
-  rpState.dirty = true;
-  document.querySelectorAll('.rp-ei-btn').forEach(function(btn) {
-    var k = btn.getAttribute('data-ei');
-    if (!RP_EI_COLORS[k]) return;
-    var sel = rpState.eisenhower === k;
-    btn.classList.toggle('rp-ei-sel', sel);
-    btn.style.borderColor = sel ? RP_EI_COLORS[k] : '';
-    btn.style.background  = sel ? 'color-mix(in srgb, '+RP_EI_COLORS[k]+' 10%, transparent)' : '';
-  });
-}
-
 function rpSetStatus(s) {
   rpState.status = s;
   rpState.dirty  = true;
@@ -3274,7 +3278,7 @@ function newTaskDoc(o) {
     createdAt: new Date().toISOString(),
     dueDateTime: o.dueDateTime || null, hasTime: !!o.hasTime,
     startDate: o.startDate || null, startHasTime: !!o.startHasTime,
-    eisenhower: o.eisenhower || null, status: o.status || '대기', notes: o.notes || '',
+    status: o.status || '대기', notes: o.notes || '',
     steps: o.steps || [], reminder: o.reminder || null, assignee: '', assignees: o.assignees || [],
     repeat: o.repeat || null,
     upstreamDepts: o.upstreamDepts || [], upstreamDept: o.upstreamDept || '',
@@ -3347,7 +3351,6 @@ function saveRightPanel() {
       task.text        = applyCompletePrefix(name, rpState.completed, task.text);
       task.completed   = rpState.completed;
       task.starred     = rpState.starred;
-      task.eisenhower  = rpState.eisenhower;
       task.status      = rpState.status;
       task.startDate    = startDate ? (startTime ? startDate+'T'+startTime+':00' : startDate+'T09:00:00') : null;
       task.startHasTime = !!(startDate && startTime);
@@ -3381,7 +3384,7 @@ function saveRightPanel() {
       dueDateTime: dueDateTime, hasTime: hasTime,
       startDate: startDate ? (startTime ? startDate+'T'+startTime+':00' : startDate+'T09:00:00') : null,
       startHasTime: !!(startDate && startTime),
-      eisenhower: rpState.eisenhower, status: rpState.status, notes: notesVal,
+      status: rpState.status, notes: notesVal,
       steps: rpState.steps, reminder: reminderVal, assignees: rpState.assignees.slice(),
       repeat: rpState.repeat || null,
       upstreamDepts: upstreamDepts,

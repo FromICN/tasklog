@@ -383,7 +383,6 @@ function jnlCollectWeekGridItems(weekKey) {
   if (typeof tasks === 'undefined' || !Array.isArray(tasks)) return out;
   var r = getWeekRange(weekKey);
   var mondayMid = new Date(r.start); mondayMid.setHours(0, 0, 0, 0);
-  var eiColors = (typeof EI_COLORS !== 'undefined') ? EI_COLORS : {};
   function place(obj, type, task) {
     if (!obj || !obj.completed) return;         // 완료된 항목만 대상
     var info = jnlItemLogInfo(obj);
@@ -398,7 +397,7 @@ function jnlCollectWeekGridItems(weekKey) {
       // 왼쪽 컬러: task 우선순위 색이 아니라, 상위 project 의 section 테마 색
       color: (typeof getGanttColor === 'function')
         ? getGanttColor(task)
-        : (eiColors[task.eisenhower] || 'var(--brand-primary)'),
+        : 'var(--brand-primary)',
       day: di, timed: info.timed, hour: info.date.getHours(), min: info.date.getMinutes(), dt: info.date
     };
     if (info.timed) {
