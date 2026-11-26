@@ -234,7 +234,8 @@ function jnlFillEntry(key) {
 
 function jnlPaintDirty() {
   var btn = document.getElementById('jnl-save-btn');
-  if (btn) { btn.textContent = '저장 *'; btn.style.opacity = '1'; }
+  // is-dirty — PC 위쪽 막대의 '저장 안 됨' 표시가 이것을 본다 (theme.css, 2026-11-26 우클릭 메뉴)
+  if (btn) { btn.textContent = '저장 *'; btn.style.opacity = '1'; btn.classList.add('is-dirty'); }
 }
 
 function jnlMarkDirty() {
@@ -243,7 +244,7 @@ function jnlMarkDirty() {
 
 function jnlClearDirty() {
   var btn = document.getElementById('jnl-save-btn');
-  if (btn) { btn.textContent = '저장'; btn.style.opacity = '0.6'; }
+  if (btn) { btn.textContent = '저장'; btn.style.opacity = '0.6'; btn.classList.remove('is-dirty'); }
 }
 
 // 화면에서 '마지막 저장' 줄을 걷어냈다(그 높이는 본문이 가져갔다).

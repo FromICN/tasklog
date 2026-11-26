@@ -903,8 +903,14 @@ function buildPeriodInner() {
   return html;
 }
 function _settingsPeriodRefresh() {
-  var el = document.getElementById('set-period');
-  if (el) el.innerHTML = buildPeriodInner();
+  // 설정 › 화면, 그리고 PC 우클릭 메뉴(layout.js tlPm*)의 같은 칸
+  ['set-period', 'tl-pm-period'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = buildPeriodInner();
+  });
+  var v = document.getElementById('tl-pm-period-val');
+  if (v) v.textContent = appPeriodLabel();
+  if (typeof tlPmFit === 'function') tlPmFit();
 }
 function settingsSetPeriodMode(mode) {
   var y = new Date().getFullYear(), cur = appPeriod(), next = { mode: mode };
@@ -935,7 +941,10 @@ function settingsPeriodCommit(el, which) {
   if (next.from && next.to && next.from > next.to) { var t = next.from; next.from = next.to; next.to = t; }
   appSetPeriod(next);
   // 다음 칸으로 옮겨 간 포커스를 잃지 않게 값만 맞춘다
+  var vEl = document.getElementById('tl-pm-period-val');
+  if (vEl) vEl.textContent = appPeriodLabel();
   var inputs = document.querySelectorAll('#set-period .nb-period-inp');
+  if (inputs.length !== 2) inputs = document.querySelectorAll('#tl-pm-period .nb-period-inp');
   if (inputs.length === 2) {
     if (document.activeElement !== inputs[0]) inputs[0].value = next.from;
     if (document.activeElement !== inputs[1]) inputs[1].value = next.to;

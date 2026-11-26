@@ -60,7 +60,7 @@
   <!-- 🎨 제도(製圖) 테마 — 토큰·타이포·컴포넌트 스킨. 반드시 마지막에 로드할 것.
        글꼴은 자체 호스팅이라 CDN을 타지 않는다(오프라인·APK에서도 그대로 나온다). -->
   <link rel="stylesheet" href="fonts/pretendard.css?v=20260809a">
-  <link rel="stylesheet" href="theme.css?v=20261126e">
+  <link rel="stylesheet" href="theme.css?v=20261126f">
   <link rel="stylesheet" href="calpage.css?v=20261110k">
   <script>
     // 자동 로그인/세션 토큰이 있으면 → 새로고침 직후 로그인 게이트가 깜빡이지 않도록
@@ -140,6 +140,9 @@
     <!-- ===== PC 위쪽 막대 (2026-11-26): 열린 메뉴 탭 · 오른쪽 끝 검색 — 폰에서는 숨는다 (layout.js) ===== -->
     <header class="tl-appbar" id="tl-appbar">
       <nav class="tl-tabs" id="tl-tabs" role="tablist" aria-label="열린 메뉴"></nav>
+      <!-- 우클릭 메뉴로 옮긴 도구 중 '지금 기다리는 일'만 여기 작게 남긴다 (theme.css 가 상태를 보고 켠다) -->
+      <button type="button" class="tl-pill tl-pill-save" onclick="if(typeof jnlSave==='function')jnlSave()" title="Work Diary 저장 (Ctrl+S)">저장 안 됨 · 저장</button>
+      <button type="button" class="tl-pill tl-pill-hw" onclick="if(typeof hwSetEditMode==='function')hwSetEditMode(false)" title="위젯 배치 끝내기 (Esc)">위젯 배치 중 · 완료</button>
       <div class="tl-appbar-gap"></div>
       <div class="tl-search" id="tl-search" role="search">
         <svg class="tl-search-ico" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -253,10 +256,10 @@
 <script src="calpage.js?v=20261126e"></script>
 <script src="gantt.js?v=20261110n"></script>
 <script src="notes.js?v=20261126d"></script>
-<script src="journal.js?v=20261126b"></script>
+<script src="journal.js?v=20261126f"></script>
 <script src="wbs.js?v=20261126d"></script>
 <script src="mvv.js?v=20261104a"></script>
-<script src="settings.js?v=20261126e"></script>
+<script src="settings.js?v=20261126f"></script>
 <script src="drive.js?v=20260722"></script>
 <!-- firestore-sync.js가 scheduleAutoBackup/updateBackupStatus/initAutoBackup을 같은 이름으로
      재정의해 drive.js의 자동 백업을 대체한다 — 반드시 drive.js보다 뒤에 로드할 것.
@@ -266,10 +269,10 @@
 <script src="yearsync.js?v=20260722"></script>
 <script src="script.js?v=20261126e"></script>
 <!-- 🧭 PC 레이아웃 (Gmail 형): 위쪽 막대 검색 · To Do 창 — script.js 다음 -->
-<script src="layout.js?v=20261126e"></script>
+<script src="layout.js?v=20261126f"></script>
 
 <!-- 📱 PWA: 서비스워커 등록 · 설치 버튼 · 모바일 보정 (항상 마지막) -->
-<script src="pwa.js?v=20261126e"></script>
+<script src="pwa.js?v=20261126f"></script>
 
 <!-- 📱 모바일 전용 UI 보강 (Web 탭 · WD 달력 접기 · 만다라트 3×3) -->
 <script src="mobile-ui.js?v=20260807c"></script>

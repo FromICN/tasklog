@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261126e'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261126f'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -28,7 +28,7 @@ const PRECACHE_URLS = [
   './login.css?v=20260720b',
   './mobile.css?v=20261125a',
   './fonts/pretendard.css?v=20260809a',
-  './theme.css?v=20261126e',
+  './theme.css?v=20261126f',
   './calpage.css?v=20261110k',
   './config.js?v=20261111i',
   './firebase-init.js?v=20260808a',
@@ -44,17 +44,17 @@ const PRECACHE_URLS = [
   './calpage.js?v=20261126e',
   './gantt.js?v=20261110n',
   './notes.js?v=20261126d',
-  './journal.js?v=20261126b',
+  './journal.js?v=20261126f',
   './wbs.js?v=20261126d',
   './mvv.js?v=20261104a',
-  './settings.js?v=20261126e',
+  './settings.js?v=20261126f',
   './drive.js?v=20260722',
   './firestore-sync.js?v=20261111i',
   './todo.js?v=20261110o',
   './yearsync.js?v=20260722',
   './script.js?v=20261126e',
-  './layout.js?v=20261126e',
-  './pwa.js?v=20261126e',
+  './layout.js?v=20261126f',
+  './pwa.js?v=20261126f',
   './mobile-ui.js?v=20260807c',
   './tasklog-icon.svg',
   './favicon-32.png',

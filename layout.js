@@ -535,6 +535,124 @@ function tlPaintAppbarAccount(user, displayName) {
   nm.title = user ? ((displayName || '') + (user.email ? ' · ' + user.email : '')) : '로그인';
 }
 
+// ============================================================
+//  🖱 화면 설정 — 우클릭 메뉴 (2026-11-26, 사용자 요청)
+//  PC 에서는 오른쪽 위 줄(#topbar)을 없앴다. 본문 빈 곳이나 위쪽 막대의 탭을 우클릭하면
+//  그 화면의 내역과 도구가 든 작은 창이 뜬다:
+//    · 오늘 날짜(Home) · 표시 기간(Web · WBS · Calendar — 그 자리에서 바꾼다)
+//    · 예전 오른쪽 위에 있던 것 전부 — 연도 선택, Web · WBS 검색/필터, Home 위젯 배치, Work Diary 저장
+//  예전 도구는 다시 만들지 않고 #topbar-right 를 통째로 이 창에 옮겨 왔다가 닫을 때 돌려놓는다.
+//  그래서 각 화면이 그 칸을 다시 그려도(연도 바꾸기 등) 창 안에서 그대로 바뀐다.
+//  · 입력칸 · 글자를 고른 상태 · Shift+우클릭은 브라우저 메뉴 그대로(복사 · 붙여넣기)
+//  · WBS 제목 글자의 우클릭(추가 메뉴)은 WBS 가 먼저 받는다 — defaultPrevented 면 열지 않는다
+//  · 닫기: 바깥 누르기 · Esc · ✕ · 메뉴 이동 · 위젯 배치 · 저장을 누른 뒤
+//  폰은 우클릭이 없어 예전 오른쪽 위 줄 그대로다.
+// ============================================================
+var TL_PM_PERIOD_MENUS = ['cloud', 'wbs', 'calendar'];   // 표시 기간이 걸리는 화면 (settings.js APP_PERIOD_MENUS + Calendar 목록·연도·검색)
+function tlPmEnabled() { return typeof appMenuProfile !== 'function' || appMenuProfile() === 'desktop'; }
+function tlPmEl() {
+  var pm = document.getElementById('tl-pagemenu');
+  if (!pm) {
+    pm = document.createElement('div');
+    pm.id = 'tl-pagemenu';
+    pm.className = 'tl-pagemenu';
+    pm.setAttribute('role', 'dialog');
+    pm.setAttribute('aria-label', '화면 설정');
+    pm.hidden = true;
+    // 위젯 배치 · 저장은 누르면 할 일이 끝나므로 창을 닫는다
+    pm.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('.hw-edit-btn, #jnl-save-btn')) setTimeout(tlPmClose, 0);
+      else setTimeout(tlPmFit, 0);
+    });
+    document.body.appendChild(pm);
+  }
+  return pm;
+}
+function tlPmIsOpen() { var pm = document.getElementById('tl-pagemenu'); return !!(pm && !pm.hidden); }
+
+function tlPmOpen(x, y) {
+  if (tlPmIsOpen()) tlPmClose();
+  var pm = tlPmEl();
+  var id = (typeof currentMenu !== 'undefined') ? currentMenu : '';
+  var name = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[id]) || (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[id]) || '';
+  var dateTxt = '';
+  if (id === 'home') { var d = document.getElementById('topbar-date'); dateTxt = d ? d.textContent : ''; }
+  var period = TL_PM_PERIOD_MENUS.indexOf(id) >= 0 && typeof buildPeriodInner === 'function';
+  pm.innerHTML = '<div class="tl-pm-head"><span>' + tlEsc(name) + ' 화면</span>'
+    +   '<button type="button" class="tl-pm-x" onclick="tlPmClose()" aria-label="닫기">✕</button></div>'
+    + (dateTxt ? '<div class="tl-pm-row"><span class="tl-pm-lbl">오늘</span><span class="tl-pm-val">' + tlEsc(dateTxt) + '</span></div>' : '')
+    + (period
+        ? '<div class="tl-pm-sec"><div class="tl-pm-row"><span class="tl-pm-lbl">표시 기간</span><b class="tl-pm-val" id="tl-pm-period-val">' + tlEsc(appPeriodLabel()) + '</b></div>'
+          + '<div class="set-period tl-pm-period" id="tl-pm-period">' + buildPeriodInner() + '</div></div>'
+        : '')
+    + '<div class="tl-pm-tools" id="tl-pm-tools"></div>'
+    + '<div class="tl-pm-empty">이 화면에는 바꿀 것이 없습니다</div>'
+    + '<div class="tl-pm-foot"><button type="button" onclick="tlPmClose();openSettings()">설정 열기</button>'
+    +   '<span>Shift+우클릭 = 브라우저 메뉴</span></div>';
+  // 예전 오른쪽 위 도구를 통째로 옮겨 온다 (이벤트 · 열린 패널 그대로)
+  var tr = document.getElementById('topbar-right');
+  if (tr) pm.querySelector('#tl-pm-tools').appendChild(tr);
+  pm.style.left = x + 'px';
+  pm.style.top = y + 'px';
+  pm.hidden = false;
+  pm.dataset.x = x; pm.dataset.y = y;
+  tlPmFit();
+}
+// 화면 밖으로 나가지 않게 — 내용이 바뀔 때(기간 방식 바꾸기 · 필터 패널 열기)도 다시 맞춘다
+function tlPmFit() {
+  var pm = document.getElementById('tl-pagemenu');
+  if (!pm || pm.hidden) return;
+  var x = +pm.dataset.x || 0, y = +pm.dataset.y || 0;
+  var w = pm.offsetWidth, h = pm.offsetHeight, M = 8;
+  pm.style.left = Math.max(M, Math.min(x, innerWidth - w - M)) + 'px';
+  pm.style.top = Math.max(M, Math.min(y, innerHeight - h - M)) + 'px';
+}
+function tlPmClose() {
+  var pm = document.getElementById('tl-pagemenu');
+  var tr = document.getElementById('topbar-right'), tb = document.getElementById('topbar');
+  if (tr && tb && tr.parentNode !== tb) tb.appendChild(tr);   // 제자리로 (모바일 · 다음 화면이 쓴다)
+  if (!pm || pm.hidden) return;
+  pm.hidden = true;
+  pm.innerHTML = '';
+}
+
+document.addEventListener('contextmenu', function (e) {
+  var pm = document.getElementById('tl-pagemenu');
+  if (pm && !pm.hidden && pm.contains(e.target)) { e.preventDefault(); return; }   // 창 안의 우클릭은 무시
+  if (e.defaultPrevented || e.shiftKey || !tlPmEnabled()) return;
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var tab = t.closest('#tl-tabs .tl-tab');
+  var main = document.getElementById('main-content');
+  if (!tab && !(main && main.contains(t))) return;
+  if (t.closest('input, textarea, select, [contenteditable="true"], a[href]')) return;
+  try { var sel = window.getSelection(); if (sel && !sel.isCollapsed && String(sel).trim()) return; } catch (err) {}
+  e.preventDefault();
+  // 다른 탭을 우클릭하면 그 화면으로 간 뒤 연다
+  if (tab && tab.dataset.menu && typeof currentMenu !== 'undefined' && tab.dataset.menu !== currentMenu) navToMenu(tab.dataset.menu);
+  tlPmOpen(e.clientX, e.clientY);
+});
+// 바깥을 누르면 닫는다 (설정 · 프로필 창처럼 그 위에 뜬 것은 제외)
+document.addEventListener('mousedown', function (e) {
+  if (!tlPmIsOpen() || e.button === 2) return;
+  var t = e.target;
+  if (t && t.closest && t.closest('#tl-pagemenu, #settings-overlay, #profile-modal-overlay')) return;
+  tlPmClose();
+}, true);
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && tlPmIsOpen() && !e.isComposing) { e.stopPropagation(); tlPmClose(); }
+}, true);
+window.addEventListener('resize', function () { if (tlPmIsOpen()) { if (tlPmEnabled()) tlPmFit(); else tlPmClose(); } });
+
+// Work Diary — 저장 단추가 우클릭 메뉴로 들어갔으므로 Ctrl+S(맥 ⌘S)로도 저장한다
+document.addEventListener('keydown', function (e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.isComposing) return;
+  if (e.code !== 'KeyS' && String(e.key).toLowerCase() !== 's') return;
+  if (typeof currentMenu === 'undefined' || currentMenu !== 'journal' || typeof jnlSave !== 'function') return;
+  e.preventDefault();
+  jnlSave();
+});
+
 // 처음 그릴 때도 한 번 — 로그인 전이면 '로그인', 로그인 정보는 auth.js 가 오는 대로 다시 칠한다
 document.addEventListener('DOMContentLoaded', function () {
   try { tlPaintAppbarAccount(typeof currentUser !== 'undefined' ? currentUser : null, typeof getDisplayName === 'function' ? getDisplayName() : ''); } catch (e) {}
@@ -562,6 +680,8 @@ function tlTabValid(id) {
 }
 // navToMenu 가 부른다
 function tlTabsOnNav(id) {
+  // 우클릭 메뉴가 열려 있으면 닫는다 — 오른쪽 위 도구를 제자리(#topbar)로 돌려놓은 뒤에 새 화면이 그것을 채운다
+  if (typeof tlPmClose === 'function') tlPmClose();
   var t = tlTabsLoad();
   if (tlTabValid(id) && t.indexOf(id) < 0) { t.push(id); tlTabsSave(); }
   tlTabsRender();
@@ -597,7 +717,7 @@ function tlTabsRender() {
     var m = MENUS.find(function (x) { return x.id === id; });
     var label = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[id]) || (m && m.label) || id;
     var on = id === cur;
-    return '<div class="tl-tab' + (on ? ' is-on' : '') + '" role="presentation"'
+    return '<div class="tl-tab' + (on ? ' is-on' : '') + '" role="presentation" data-menu="' + id + '"'
       + ' onauxclick="if(event.button===1)tlTabClose(\'' + id + '\',event)">'
       + '<button type="button" class="tl-tab-main" role="tab" aria-selected="' + on + '"'
       +   (on ? ' aria-current="page"' : '') + ' onclick="navToMenu(\'' + id + '\')">'
