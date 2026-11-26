@@ -250,7 +250,8 @@ function renderNotesView() {
     '<div class="nb-layout">'
     + '<div class="nb-write-panel">'
     + '<div class="nb-write-header">+ Memo</div>'
-    + '<textarea class="nb-textarea" id="nb-input" placeholder="' + (tlTouchKeyboard() ? '메모를 입력하세요...' : '메모를 입력하세요 · Enter 추가 · Shift+Enter 줄바꿈') + '" onkeydown="nbInputKeyDown(event)"></textarea>'
+    // 안내 문구(placeholder)는 2026-11-26 사용자 요청으로 뺐다. 화면 읽기용 이름만 남긴다.
+    + '<textarea class="nb-textarea" id="nb-input" rows="1" aria-label="메모 입력 (Enter 추가 · Shift+Enter 줄바꿈)" onkeydown="nbInputKeyDown(event)" oninput="nbFitInput(this)"></textarea>'
     + '<button class="nb-add-btn" onclick="nbAddNote()">+ Archiving</button>'
     + '</div>'
     + '<div class="nb-board" id="nb-board">'
@@ -526,8 +527,19 @@ function nbAddNote() {
   var note = createNote(ta.value);
   if (!note) return;
   ta.value = '';
+  nbFitInput(ta);   // 여러 줄로 자랐던 칸을 한 줄로 되돌린다
   ta.focus();
   renderNoteBoard();
+}
+
+// +Memo 칸 높이를 글에 맞춘다 — 줄이 늘면 자라고, 132px 를 넘을 때만 스크롤 (2026-11-26)
+function nbFitInput(ta) {
+  if (!ta) return;
+  var MAX = 132;
+  ta.style.height = 'auto';
+  var h = ta.scrollHeight;
+  ta.style.height = Math.min(h, MAX) + 'px';
+  ta.style.overflowY = h > MAX ? 'auto' : 'hidden';
 }
 
 //  Enter 추가 · Shift+Enter 줄바꿈 — Home +Memo 칸·메모 고치기와 같다 (2026-11-12 사용자 요청.

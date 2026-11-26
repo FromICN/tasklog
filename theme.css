@@ -1854,6 +1854,20 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
 
 #todo-pane .field-group { margin-bottom: 16px; }
 
+/* Web +Memo 입력칸 (2026-11-26 사용자 요청): 안내 문구를 지웠고, 처음부터 스크롤바가 생기지 않게 한다.
+   예전에는 높이 38px 에 위아래 안쪽 여백 12px 라 글 한 줄(44px)도 넘쳐 세로 스크롤바가 늘 있었다.
+   이제 한 줄 높이로 시작해 줄이 늘면 칸이 자란다(notes.js nbFitInput, 132px 까지 — 그 뒤에만 스크롤).
+   긴 글은 옆으로 밀리지 않고 줄을 바꾼다. */
+#page-content .nb-write-panel .nb-textarea {
+  height: auto; min-height: 0; white-space: pre-wrap; overflow-x: hidden; overflow-y: hidden;
+  scrollbar-width: thin;
+  /* flex-basis 가 0 이면 폰(세로로 쌓는 판)에서 높이가 무시돼 두 줄부터 스크롤이 생겼다 — auto 로 높이를 따르게 */
+  flex: 1 1 auto;
+}
+@media (min-width: 769px) {
+  #page-content .nb-write-panel .nb-textarea { padding-top: 9px; padding-bottom: 9px; }
+}
+
 /* ── 화면 설정 우클릭 메뉴 (layout.js tlPm*, 2026-11-26) — PC 에서만 열린다 ── */
 .tl-pill { display: none; }
 .tl-pagemenu {
@@ -1918,7 +1932,7 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
     --tl-frame: #07090D;
     --tl-rail-w: 40px;
     --tl-rail-open: 220px;
-    --tl-appbar-h: 64px;
+    --tl-appbar-h: 50px;   /* 탭 36px + 위아래 7px (2026-11-26 사용자 요청 — 예전 64px, 위아래 14px 의 절반) */
     --tl-gap: 10px;
     --tl-pane-r: 16px;
     --tl-pane-line: rgba(255,255,255,0.07);
@@ -2069,9 +2083,9 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
 
   /* 검색: 예전 폭(최대 720px)의 1/3, 오른쪽 끝 */
   .tl-search {
-    position: relative; flex: 0 0 240px; min-width: 0; height: 40px;
-    display: flex; align-items: center; gap: 8px; padding: 0 4px 0 14px;
-    border-radius: 20px; background: var(--tl-search-bg); color: var(--text-2);
+    position: relative; flex: 0 0 240px; min-width: 0; height: 34px;   /* 막대가 50px 로 낮아져 40 → 34px */
+    display: flex; align-items: center; gap: 8px; padding: 0 3px 0 13px;
+    border-radius: 17px; background: var(--tl-search-bg); color: var(--text-2);
     transition: background-color .15s, box-shadow .15s;
   }
   .tl-search:focus-within,
@@ -2088,7 +2102,7 @@ body .tlc-sec-only:hover { background: var(--surface-hover); color: var(--brand-
   body .tl-search .tl-search-input:focus,
   body .tl-search .tl-search-input:focus-visible { outline: none; box-shadow: none !important; border: 0; border-radius: 0; }
   .tl-search-clear {
-    flex: 0 0 auto; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%;
+    flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
     background: transparent; color: var(--text-2); font-size: 13px; cursor: pointer;
   }
   .tl-search-clear:hover { background: var(--surface-hover); color: var(--text-1); }
