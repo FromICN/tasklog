@@ -97,6 +97,8 @@ var FS_VIEW_DEPS = {
   home:      ['my-tasklog-data', 'my-tasklog-notes', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
   cloud:     ['my-tasklog-data', 'my-tasklog-notes', 'my-tasklog-mandalart'],
   journal:   ['my-tasklog-data', 'my-tasklog-journal'],
+  // Recap (2026-11-27): 만다라트 · 연간 달력(Task) · Weekly Tracker(저널). 회고 쓰는 창이 떠 있는 동안은 recap.js 가 다시 그리기를 막는다
+  recap:     ['my-tasklog-data', 'my-tasklog-journal', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],
   mvv:       ['tasklog-mvv-data'],
   wheel:     ['my-tasklog-mandalart', 'my-tasklog-lifewheel', 'my-tasklog-corevalues'],
   mandalart: ['my-tasklog-data', 'my-tasklog-mandalart', 'my-tasklog-lifewheel'],

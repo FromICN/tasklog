@@ -34,7 +34,62 @@ function renderWbsView() {
     + '<div class="wbs-wrap" id="wbs-root">' + buildWbsTree() + '</div>'
     + '</div>';
   wbsAttachColResize();
+  wbsFitCols();
 }
+
+// ── Task · To Do 창이 열려도 Section(트리) 칸 폭은 그대로 두고, 오른쪽 칸들을 줄인다 (2026-11-27 사용자 요청) ──
+//  창이 닫혀 있을 때 머리글 Section 칸 폭을 기억해 두고(_wbsLabBase), 창이 열려 본문이 좁아지면
+//  오른쪽 칸 폭에 곱하는 비율(--wbs-cs, theme.css)을 줄여 Section 칸이 그 폭을 지키게 한다. 35% 밑으로는 줄이지 않는다.
+//  폰은 창이 전체 화면이라 하지 않는다.
+var _wbsLabBase = null;
+function wbsPanesOpen() {
+  var rp = document.getElementById('right-panel');
+  return window.innerWidth > 768 && !!(rp && rp.classList.contains('open'));
+}
+//  칸을 많이 켜면 Section 칸이 글자 한두 개 폭까지 눌렸다 — 트리 전체에 최소 폭(칸 합 + Section 320px)을 주고,
+//  화면보다 넓으면 옆으로 밀리게 한다.
+var WBS_LABEL_MIN = 320;
+function wbsFitCols() {
+  var root = document.getElementById('wbs-root');
+  if (!root) return;
+  var hr = root.querySelector('.wbs-header-row');
+  var head = hr ? hr.querySelector('.wbs-head-label') : null;
+  if (!head) return;
+  // 지금 모양을 먼저 잰다 (바꾸기 전에 한 번만)
+  var s0 = parseFloat(root.style.getPropertyValue('--wbs-cs')) || 1;
+  var cur = 0;
+  hr.querySelectorAll('.wbs-colhead').forEach(function (c) { cur += c.getBoundingClientRect().width; });
+  var S = cur / s0;                                   // 비율 1 일 때 칸 합
+  var L = head.getBoundingClientRect().width;          // 지금 Section 칸
+  var chrome = hr.getBoundingClientRect().width - L - cur;   // 접기 칸 · 끝 칸 · 간격
+  var s = 1;
+  if (wbsPanesOpen() && _wbsLabBase != null && S) {
+    s = Math.max(0.35, Math.min(1, (L + cur - _wbsLabBase) / S));
+  }
+  if (Math.abs(s - s0) > 0.004) {
+    if (s === 1) root.style.removeProperty('--wbs-cs'); else root.style.setProperty('--wbs-cs', s.toFixed(3));
+  }
+  root.style.minWidth = Math.round(S * s + chrome + WBS_LABEL_MIN) + 'px';
+  if (!wbsPanesOpen()) _wbsLabBase = head.getBoundingClientRect().width;
+}
+(function () {
+  var t = null;
+  function later() {
+    if (!document.getElementById('wbs-root')) return;
+    wbsFitCols();
+    clearTimeout(t);
+    t = setTimeout(wbsFitCols, 360);   // 창이 열리는 움직임(0.3초)이 끝난 뒤 한 번 더
+  }
+  window.addEventListener('resize', later);
+  function hook() {
+    ['right-panel', 'todo-pane'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && typeof MutationObserver === 'function') new MutationObserver(later).observe(el, { attributes: true, attributeFilter: ['class'] });
+      if (el) el.addEventListener('transitionend', later);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
+})();
 
 // ── 타이틀 영역 연도 선택 (전역 연도 — MVV·LifeWheel·Mandalart·Task 함께 이동) ──
 function handleWbsYearSelect(val) {
@@ -244,19 +299,46 @@ function wbsDueCol(task) {
 // ── 오른쪽 컬럼 구성 · 순서 ────────────────────────────────
 //  Section(트리 이름) 칸은 자리가 고정이고, 그 오른쪽 네 칸만 순서를 바꾼다.
 //  Board 의 컬럼 드래그와 같은 방식(localStorage 저장)이다.
+// 2026-11-27 사용자 요청: Task · To Do 의 항목을 모두 칸으로 볼 수 있고, 무엇을 보일지는 머리글 오른쪽 끝 ☰ 에서 고른다.
+//  기본으로 켜진 칸은 예전 다섯 칸 그대로다. 표시 여부는 wbsColVis (이 기기 전용).
+//  edit: 'status' · 'date' · 'list' · 'text' = 칸을 누르면 그 자리에서 고친다(wbsEditCell). 없으면 읽기 전용.
 var WBS_COLS = [
-  { key: 'prev',   label: '선행 Task', cls: 'wbs-col-prev'   },
-  { key: 'next',   label: '후행 Task', cls: 'wbs-col-next'   },
-  { key: 'start',  label: 'Start',     cls: 'wbs-col-start'  },
-  { key: 'due',    label: 'Due',       cls: 'wbs-col-due'    },
-  { key: 'status', label: 'Status',    cls: 'wbs-col-status-cell' },
+  { key: 'prev',     label: '선행 Task', cls: 'wbs-col-prev',        on: true  },
+  { key: 'next',     label: '후행 Task', cls: 'wbs-col-next',        on: true  },
+  { key: 'start',    label: 'Start',     cls: 'wbs-col-start',       on: true,  edit: 'date'   },
+  { key: 'due',      label: 'Due',       cls: 'wbs-col-due',         on: true,  edit: 'date'   },
+  { key: 'status',   label: 'Status',    cls: 'wbs-col-status-cell', on: true,  edit: 'status' },
+  { key: 'project',  label: 'Project',   cls: 'wbs-col-project',     on: false },
+  { key: 'progress', label: 'To Do',     cls: 'wbs-col-progress',    on: false },
+  { key: 'work',     label: '수행 시간', cls: 'wbs-col-work',        on: false },
+  { key: 'donedate', label: '완료일',    cls: 'wbs-col-donedate',    on: false },
+  { key: 'coworker', label: 'Coworker',  cls: 'wbs-col-coworker',    on: false, edit: 'list'   },
+  { key: 'upstream', label: 'UpStream',  cls: 'wbs-col-upstream',    on: false, edit: 'list'   },
+  { key: 'memo',     label: 'Memo',      cls: 'wbs-col-memo',        on: false, edit: 'text'   },
 ];
+function wbsColDef(key) { return WBS_COLS.find(function (c) { return c.key === key; }); }
+function wbsLoadColVis() {
+  try { var r = localStorage.getItem('wbsColVis'); if (r) { var o = JSON.parse(r); if (o && typeof o === 'object') return o; } } catch (e) {}
+  return {};
+}
+function wbsColVisible(key) {
+  var v = wbsLoadColVis(), c = wbsColDef(key);
+  return (typeof v[key] === 'boolean') ? v[key] : !!(c && c.on);
+}
+function wbsSetColVisible(key, on) {
+  var v = wbsLoadColVis();
+  v[key] = !!on;
+  try { localStorage.setItem('wbsColVis', JSON.stringify(v)); } catch (e) {}
+}
 
 function wbsLoadColOrder() {
   try { var r = localStorage.getItem('wbsColOrder'); if (r) { var o = JSON.parse(r); if (Array.isArray(o)) return o; } } catch (e) {}
   return [];
 }
-function wbsOrderedCols() {
+// 보이는 칸만 (행 · 머리글)
+function wbsOrderedCols() { return wbsAllOrderedCols().filter(function (c) { return wbsColVisible(c.key); }); }
+// 숨긴 칸까지 (순서 저장 · 표시 고르기)
+function wbsAllOrderedCols() {
   var order = wbsLoadColOrder();
   if (!order.length) return WBS_COLS.slice();
   var byKey = {}; WBS_COLS.forEach(function(c){ byKey[c.key] = c; });
@@ -275,6 +357,59 @@ function wbsColsHtml(cells) {
   }).join('');
 }
 
+// ── 칸 내용 (2026-11-27) ──
+function wbsShortDate(iso, withTime) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return wbsFmtDate(iso) + (withTime ? ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '');
+}
+function wbsDoneDay(obj) {
+  var m = /^\[(\d{2})(\d{2})(\d{2})\]/.exec(String(obj.text || ''));
+  if (m) return '20' + m[1] + '-' + m[2] + '-' + m[3];
+  return obj.completed && obj.completedAt ? wbsFmtDate(obj.completedAt) : '';
+}
+function wbsProjText(task) {
+  if (task.mdtAction && task.mdtAction.text) return task.mdtAction.text;
+  if (task.mdtGoal && task.mdtGoal.text) return task.mdtGoal.text + ' (Section)';
+  return '';
+}
+function wbsTaskWorkMin(task) {
+  return (task.steps || []).reduce(function (n, s) { return n + ((typeof stepSlotMin === 'function') ? stepSlotMin(s) : 0); }, 0);
+}
+// 칸 하나 — 고칠 수 있으면 data-wbs-ed 를 단다 (누르면 wbsEditCell)
+function wbsCell(c, text, ed, title) {
+  var cls = 'wbs-col ' + c.cls + (text ? ' set' : '') + (ed ? ' wbs-ed-cell' : '');
+  var tip = title != null ? title : text;
+  return '<span class="' + cls + '"' + (ed ? ' data-wbs-ed="' + ed + '"' : '') + (tip ? ' title="' + wbsEsc(tip) + '"' : '') + '>' + wbsEsc(text) + '</span>';
+}
+function wbsTaskCells(task) {
+  var id = task.id, out = {};
+  out.prev = wbsLinkedCol(task, 'prev');
+  out.next = wbsLinkedCol(task, 'next');
+  out.start = wbsCell(wbsColDef('start'), task.startDate ? wbsShortDate(task.startDate, task.startHasTime) : '', 't:' + id + ':start');
+  out.due = wbsCell(wbsColDef('due'), task.dueDateTime ? wbsShortDate(task.dueDateTime, task.hasTime) : '', 't:' + id + ':due');
+  out.status = '<span class="wbs-col-status-cell wbs-ed-cell" data-wbs-ed="t:' + id + ':status" title="눌러서 바꾸기">' + wbsStatusBadge(wbsTaskStatusLabel(task)) + '</span>';
+  out.project = wbsCell(wbsColDef('project'), wbsProjText(task), null);
+  var steps = task.steps || [];
+  out.progress = wbsCell(wbsColDef('progress'), steps.length ? steps.filter(function (s) { return s.completed; }).length + '/' + steps.length : '', null);
+  var wm = wbsTaskWorkMin(task);
+  out.work = wbsCell(wbsColDef('work'), wm ? fmtWorkMin(wm) : '', null);
+  out.donedate = wbsCell(wbsColDef('donedate'), task.completed ? wbsDoneDay(task) : '', null);
+  out.coworker = wbsCell(wbsColDef('coworker'), (task.assignees || []).join(', '), 't:' + id + ':coworker');
+  out.upstream = wbsCell(wbsColDef('upstream'), (task.upstreamDepts || []).join(', '), 't:' + id + ':upstream');
+  out.memo = wbsCell(wbsColDef('memo'), String(task.notes || '').replace(/\s+/g, ' ').trim(), 't:' + id + ':memo', task.notes || '');
+  return out;
+}
+function wbsStepCells(task, step) {
+  var k = 's:' + task.id + ':' + step.id, out = {};
+  out.due = wbsCell(wbsColDef('due'), step.dueDateTime ? wbsShortDate(step.dueDateTime, step.hasTime) : '', k + ':due');
+  out.status = '<span class="wbs-col-status-cell wbs-ed-cell" data-wbs-ed="' + k + ':status" title="눌러서 바꾸기">' + wbsStatusBadge(step.completed ? '완료' : '대기') + '</span>';
+  var wm = (typeof stepSlotMin === 'function') ? stepSlotMin(step) : 0;
+  out.work = wbsCell(wbsColDef('work'), wm ? fmtWorkMin(wm) : '', null);
+  out.donedate = wbsCell(wbsColDef('donedate'), step.completed ? wbsDoneDay(step) : '', null);
+  return out;
+}
+
 // ── 컬럼 헤더 드래그로 순서 변경 ──
 var _wbsColDrag = null;
 function wbsColDragStart(key, ev) {
@@ -291,7 +426,7 @@ function wbsColDrop(toKey, ev) {
   ev.preventDefault(); if (ev.stopPropagation) ev.stopPropagation();
   var from = _wbsColDrag; _wbsColDrag = null;
   if (!from || from === toKey) return;
-  var order = wbsOrderedCols().map(function(c){ return c.key; });
+  var order = wbsAllOrderedCols().map(function(c){ return c.key; });
   var fi = order.indexOf(from); if (fi < 0) return;
   order.splice(fi, 1);
   var ti = order.indexOf(toKey); if (ti < 0) ti = order.length;
@@ -310,6 +445,13 @@ var _wbsTitleFilter = {};                        // { sectionKey: true(숨김) }
 var _wbsFilterOpen = null;
 
 function wbsColVal(task, key) {
+  if (key === 'project')  return wbsProjText(task);
+  if (key === 'progress') { var ss = task.steps || []; return ss.length ? ss.filter(function (s) { return s.completed; }).length + '/' + ss.length : ''; }
+  if (key === 'work')     { var wm = wbsTaskWorkMin(task); return wm ? fmtWorkMin(wm) : ''; }
+  if (key === 'donedate') return task.completed ? wbsDoneDay(task) : '';
+  if (key === 'coworker') return (task.assignees || []).join(', ');
+  if (key === 'upstream') return (task.upstreamDepts || []).join(', ');
+  if (key === 'memo')     return String(task.notes || '').replace(/\s+/g, ' ').trim();
   if (key === 'start')  return task.startDate ? wbsFmtDate(task.startDate) : '';
   if (key === 'due')    return task.dueDateTime ? wbsFmtDate(task.dueDateTime) : '';
   if (key === 'status') return wbsTaskStatusLabel(task);
@@ -456,7 +598,7 @@ function wbsFilterAll(key, on, ev) {
 
 function wbsRefreshTree() {
   var root = document.getElementById('wbs-root');
-  if (root) { root.innerHTML = buildWbsTree(); wbsAttachColResize(); }
+  if (root) { root.innerHTML = buildWbsTree(); wbsAttachColResize(); wbsFitCols(); }
 }
 
 // 헤더 셀: 항목 텍스트(셀) 자체 클릭 = 필터 드롭다운, 오른쪽 ▲▼ = 정렬
@@ -506,13 +648,70 @@ function wbsHeadCell(key, label, cls, filterable) {
 function wbsHeaderRow() {
   return '<div class="wbs-row wbs-header-row">'
     + '<span class="wbs-tog-empty"></span>'
-    + wbsHeadCell('item', 'Section', 'wbs-sec-label wbs-head-label', false)
+    // 표시할 칸 고르기(☰)는 Section 머리글 칸의 오른쪽 끝 — 칸을 많이 켜 트리가 옆으로 밀려도 보인다
+    + wbsHeadCell('item', 'Section', 'wbs-sec-label wbs-head-label', false).replace(/<\/span>$/,
+        '<button type="button" class="wbs-colpick-btn' + (_wbsColPickOpen ? ' on' : '') + '" title="표시할 칸 고르기" aria-label="표시할 칸 고르기" onclick="wbsToggleColPick(event)">'
+        + '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button></span>')
     + wbsOrderedCols().map(function(c) {
         return wbsHeadCell(c.key, c.label, 'wbs-colhead ' + c.cls, true);
       }).join('')
     + '<span class="wbs-count-spacer"></span>'
     + '</div>';
 }
+
+// 표시할 칸 고르기 (2026-11-27)
+var _wbsColPickOpen = false;
+function wbsColPickHtml() {
+  return '<div class="wbs-colpick-h">표시할 칸</div>'
+    + wbsAllOrderedCols().map(function (c) {
+        return '<label class="todo-colpick-item"><input type="checkbox"' + (wbsColVisible(c.key) ? ' checked' : '')
+          + ' onchange="wbsColPickToggle(\'' + c.key + '\', this.checked)"><span>' + wbsEsc(c.label) + '</span>'
+          + (c.edit ? '<em class="wbs-colpick-ed">고치기</em>' : '') + '</label>';
+      }).join('')
+    + '<div class="wbs-colpick-foot">Status · Start · Due · Coworker · UpStream · Memo 칸은 눌러서 바로 고칩니다</div>';
+}
+function wbsOpenColPick() {
+  var btn = document.querySelector('#wbs-root .wbs-colpick-btn');
+  if (!btn) { wbsCloseColPick(); return; }
+  var p = document.getElementById('wbs-colpick');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = 'wbs-colpick';
+    p.className = 'wbs-colpick-panel';
+    p.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    p.addEventListener('click', function (e) { e.stopPropagation(); });
+    document.body.appendChild(p);
+  }
+  p.innerHTML = wbsColPickHtml();
+  var r = btn.getBoundingClientRect(), w = p.offsetWidth, h = p.offsetHeight;
+  p.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
+  p.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, r.bottom + 4)) + 'px';
+  btn.classList.add('on');
+}
+function wbsCloseColPick() {
+  _wbsColPickOpen = false;
+  var p = document.getElementById('wbs-colpick');
+  if (p) p.remove();
+  var btn = document.querySelector('#wbs-root .wbs-colpick-btn');
+  if (btn) btn.classList.remove('on');
+}
+function wbsToggleColPick(ev) {
+  if (ev) ev.stopPropagation();
+  if (_wbsColPickOpen) { wbsCloseColPick(); return; }
+  _wbsColPickOpen = true;
+  wbsOpenColPick();
+}
+function wbsColPickToggle(key, on) {
+  wbsSetColVisible(key, on);
+  wbsRefreshTree();
+  if (_wbsColPickOpen) wbsOpenColPick();
+}
+document.addEventListener('click', function (e) {
+  if (!_wbsColPickOpen) return;
+  if (e.target && e.target.closest && e.target.closest('#wbs-colpick, .wbs-colpick-btn')) return;
+  wbsCloseColPick();
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _wbsColPickOpen) wbsCloseColPick(); });
 
 // 컬럼 너비 드래그 조정 (Linked Task / Start / Due / Status — localStorage 저장)
 function wbsAttachColResize() {
@@ -524,6 +723,13 @@ function wbsAttachColResize() {
     { key: 'start',  headSel: '#wbs-th-start',  varName: '--wbs-w-start',  min: 64 },
     { key: 'due',    headSel: '#wbs-th-due',    varName: '--wbs-w-due',    min: 64 },
     { key: 'status', headSel: '#wbs-th-status', varName: '--wbs-w-status', min: 64 },
+    { key: 'project',  headSel: '#wbs-th-project',  varName: '--wbs-w-project',  min: 70 },
+    { key: 'progress', headSel: '#wbs-th-progress', varName: '--wbs-w-progress', min: 48 },
+    { key: 'work',     headSel: '#wbs-th-work',     varName: '--wbs-w-work',     min: 56 },
+    { key: 'donedate', headSel: '#wbs-th-donedate', varName: '--wbs-w-donedate', min: 64 },
+    { key: 'coworker', headSel: '#wbs-th-coworker', varName: '--wbs-w-coworker', min: 70 },
+    { key: 'upstream', headSel: '#wbs-th-upstream', varName: '--wbs-w-upstream', min: 70 },
+    { key: 'memo',     headSel: '#wbs-th-memo',     varName: '--wbs-w-memo',     min: 80 },
   ]);
 }
 
@@ -600,6 +806,9 @@ function wbsEsc(s) {
 document.addEventListener('click', function(e) {
   // WBS 페이지가 아니면 무시
   if (typeof currentMenu !== 'undefined' && currentMenu !== 'wbs') return;
+  // 고칠 수 있는 칸 (2026-11-27)
+  var edCell = e.target.closest && e.target.closest('[data-wbs-ed]');
+  if (edCell && edCell.closest('#wbs-root')) { e.stopPropagation(); wbsEditCell(edCell); return; }
 
   // 접기/펼치기
   var togRow = e.target.closest('[data-wbs-toggle]');
@@ -642,6 +851,152 @@ document.addEventListener('click', function(e) {
     return;
   }
 });
+
+// ============================================================
+//  ✎ 칸에서 바로 고치기 (2026-11-27, 사용자 요청)
+//  Status → 목록에서 고르기 · Start/Due → 날짜(YYYY-MM-DD) · Coworker/UpStream → 쉼표로 여러 개 · Memo → 글.
+//  Enter 저장 · Esc 취소 · 바깥 누르기 = 저장(Status 는 고르면 바로).
+//  Status 를 '완료' 로 고르면 완료 체크(목록 체크와 같은 규칙 toggleComplete · toggleStep)를 하고,
+//  완료된 것을 다른 상태로 고르면 완료를 푼 뒤 그 상태로 둔다 — WBS 의 Status 칸은 완료 체크를 그대로 보여 주기 때문이다.
+//  시간 · 막대 등 날짜 밖의 값은 그대로 둔다(날짜만 바꾼다).
+// ============================================================
+var WBS_ED_STATUS = ['대기', '진행', '중단', '완료', '취소'];
+function wbsEdFind(ref) {
+  var p = String(ref).split(':');   // t:taskId:key | s:taskId:stepId:key
+  var task = (typeof tasks !== 'undefined') ? tasks.find(function (x) { return String(x.id) === p[1]; }) : null;
+  if (!task) return null;
+  if (p[0] === 't') return { kind: 'task', task: task, obj: task, key: p[2] };
+  var step = (task.steps || []).find(function (s) { return String(s.id) === p[2]; });
+  return step ? { kind: 'step', task: task, obj: step, key: p[3] } : null;
+}
+function wbsEdClose() {
+  var el = document.getElementById('wbs-ed');
+  if (el) el.remove();
+  document.querySelectorAll('.wbs-ed-cell.is-editing').forEach(function (c) { c.classList.remove('is-editing'); });
+}
+function wbsEdPlace(box, cell, minW) {
+  var r = cell.getBoundingClientRect();
+  document.body.appendChild(box);
+  var w = Math.max(minW || 0, r.width);
+  box.style.minWidth = w + 'px';
+  var bw = box.offsetWidth, bh = box.offsetHeight;
+  var x = Math.max(8, Math.min(window.innerWidth - bw - 8, r.left));
+  var y = r.bottom + 4;
+  if (y + bh > window.innerHeight - 8) y = Math.max(8, r.top - bh - 4);
+  box.style.left = x + 'px';
+  box.style.top = y + 'px';
+}
+function wbsEditCell(cell) {
+  wbsEdClose();
+  var f = wbsEdFind(cell.dataset.wbsEd);
+  if (!f) return;
+  cell.classList.add('is-editing');
+  var box = document.createElement('div');
+  box.id = 'wbs-ed';
+  box.className = 'wbs-ed';
+  box.dataset.ref = cell.dataset.wbsEd;
+  if (f.key === 'status') {
+    var cur = f.kind === 'task' ? wbsTaskStatusLabel(f.task) : (f.obj.completed ? '완료' : '대기');
+    var opts = f.kind === 'task' ? WBS_ED_STATUS : ['대기', '완료'];
+    box.innerHTML = opts.map(function (s) {
+      return '<button type="button" class="wbs-ed-opt' + (s === cur ? ' is-on' : '') + '" data-v="' + s + '">' + wbsStatusBadge(s) + '</button>';
+    }).join('');
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-v]');
+      if (!b) return;
+      e.stopPropagation();
+      wbsEdClose();
+      wbsApplyStatus(f, b.dataset.v);
+    });
+    wbsEdPlace(box, cell, 110);
+    var on = box.querySelector('.is-on') || box.querySelector('button');
+    if (on) on.focus();
+    return;
+  }
+  var isDate = f.key === 'start' || f.key === 'due';
+  var isMemo = f.key === 'memo';
+  var val = '';
+  if (isDate) { var iso = f.key === 'start' ? f.obj.startDate : f.obj.dueDateTime; val = iso ? wbsFmtDate(iso) : ''; }
+  else if (f.key === 'coworker') val = (f.obj.assignees || []).join(', ');
+  else if (f.key === 'upstream') val = (f.obj.upstreamDepts || []).join(', ');
+  else if (isMemo) val = f.obj.notes || '';
+  box.innerHTML = (isMemo
+      ? '<textarea class="wbs-ed-inp wbs-ed-ta" rows="4" aria-label="Memo (Enter 저장 · Shift+Enter 줄바꿈)"></textarea>'
+      : '<input type="text" class="wbs-ed-inp" ' + (isDate ? 'inputmode="numeric" maxlength="10" aria-label="날짜 YYYY-MM-DD (비우면 지움)"' : 'aria-label="쉼표로 여러 개"') + '>')
+    + '<div class="wbs-ed-hint">' + (isDate ? 'YYYY-MM-DD · 비우면 지움' : isMemo ? 'Enter 저장 · Shift+Enter 줄바꿈 · Esc 취소' : '쉼표로 여러 개 · Enter 저장 · Esc 취소') + '</div>';
+  var inp = box.querySelector('.wbs-ed-inp');
+  inp.value = val;
+  if (isDate && typeof mdtDateMask === 'function') inp.addEventListener('input', function () { mdtDateMask(inp); });
+  var done = false;
+  function commit() {
+    if (done) return; done = true;
+    var v = inp.value;
+    wbsEdClose();
+    wbsApplyText(f, v, val);
+  }
+  function cancel() { if (done) return; done = true; wbsEdClose(); }
+  inp.addEventListener('keydown', function (e) {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancel(); return; }
+    if (e.key === 'Enter' && (!isMemo || (typeof tlEnterSubmits === 'function' ? tlEnterSubmits(e) : !e.shiftKey))) { e.preventDefault(); commit(); }
+  });
+  box._commit = commit;
+  wbsEdPlace(box, cell, isMemo ? 280 : (isDate ? 150 : 200));
+  inp.focus();
+  try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+}
+// 바깥을 누르면 글 칸은 저장하고 닫는다
+document.addEventListener('mousedown', function (e) {
+  var box = document.getElementById('wbs-ed');
+  if (!box || box.contains(e.target)) return;
+  if (box._commit) box._commit(); else wbsEdClose();
+}, true);
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && document.getElementById('wbs-ed')) { e.stopPropagation(); wbsEdClose(); }
+}, true);
+
+function wbsApplyStatus(f, s) {
+  if (f.kind === 'step') {
+    var want = s === '완료';
+    if (!!f.obj.completed !== want) { wbsToggleStep(f.task.id, f.obj.id); return; }
+    return;
+  }
+  var t = f.task;
+  if (s === '완료') {
+    if (!t.completed && typeof toggleComplete === 'function') toggleComplete(t.id);   // 체크 → status '완료'
+  } else {
+    if (t.completed && typeof toggleComplete === 'function') toggleComplete(t.id);    // 완료 풀기
+    t.status = s;
+    if (typeof saveTasks === 'function') saveTasks();
+  }
+  renderWbsView();
+}
+function wbsApplyText(f, v, before) {
+  var o = f.obj, key = f.key;
+  v = String(v == null ? '' : v);
+  if (key === 'start' || key === 'due') {
+    v = v.trim();
+    if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { if (typeof showNbToast === 'function') showNbToast('날짜는 YYYY-MM-DD 로 적어 주세요'); return; }
+    if (v === before) return;
+    var field = key === 'start' ? 'startDate' : 'dueDateTime';
+    if (!v) {
+      delete o[field];
+      if (key === 'start') delete o.startHasTime; else o.hasTime = false;
+    } else {
+      var old = o[field] ? String(o[field]) : '';
+      o[field] = v + (old.length > 10 ? old.slice(10) : 'T09:00:00');   // 시각은 그대로 둔다
+    }
+  } else if (key === 'coworker' || key === 'upstream') {
+    var arr = v.split(/[,，]/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (arr.join(', ') === before) return;
+    if (key === 'coworker') o.assignees = arr; else o.upstreamDepts = arr;
+  } else if (key === 'memo') {
+    if (v === before) return;
+    o.notes = v;
+  } else return;
+  if (typeof saveTasks === 'function') saveTasks();
+  renderWbsView();
+}
 
 function wbsToggle(nodeId) {
   _wbsOpen[nodeId] = !_wbsOpen[nodeId];
@@ -824,7 +1179,7 @@ function renderWbsTask(task) {
           return '<div class="wbs-row wbs-step-row" draggable="true" data-wbs-drag-step="' + cbKey + '">'
             + '<span class="wbs-step-cb" data-wbs-step-cb="' + cbKey + '">' + (step.completed ? '☑' : '☐') + '</span>'
             + '<span class="wbs-step-text' + (step.completed ? ' done' : '') + '" data-wbs-step-edit="' + cbKey + '" title="클릭해서 편집">' + wbsEsc(step.text) + '</span>'
-            + wbsColsHtml({ status: wbsStatusCell(wbsStatusBadge(step.completed ? '완료' : '대기')) })
+            + wbsColsHtml(wbsStepCells(task, step))
             + '<span class="wbs-count-spacer"></span>'
             + '</div>';
         }).join('')
@@ -835,13 +1190,7 @@ function renderWbsTask(task) {
     + (hasSteps ? '<span class="wbs-tog" id="tog-' + nodeId + '" data-wbs-toggle="' + nodeId + '">' + (open ? '▼' : '▶') + '</span>' : '<span class="wbs-tog-empty"></span>')
     + '<span class="wbs-cb" data-wbs-task="' + task.id + '">' + (task.completed ? '☑' : '☐') + '</span>'
     + wbsTaskTextHtml(task)
-    + wbsColsHtml({
-        prev:   wbsLinkedCol(task, 'prev'),
-        next:   wbsLinkedCol(task, 'next'),
-        start:  wbsStartCol(task),
-        due:    wbsDueCol(task),
-        status: wbsStatusCell(wbsStatusBadge(wbsTaskStatusLabel(task))),
-      })
+    + wbsColsHtml(wbsTaskCells(task))
     + '<span class="wbs-count-spacer"></span>'
     + '</div>'
     + stepsHtml

@@ -824,7 +824,7 @@ function buildMdtPerfSectionHtml(m, sg) {
     +   '<span class="mdt-perf-section-title" style="color:' + sg.color + ';">' + sg.emoji + ' ' + escMdt(sg.text) + '</span>'
     +   '<span class="mdt-perf-section-prog">' + done + '/' + total + '</span>'
     +   '<button class="mdt-smart-open-btn" id="mdt-smart-btn-' + sg.id + '"'
-    +     ' onclick="openMdtIdeal(' + m.year + ',' + sg.id + ')" style="color:var(--brand-primary);">&#127919; 목표</button>'
+    +     ' onclick="openMdtIdeal(' + m.year + ',' + sg.id + ')" style="color:var(--brand-primary);">목표</button>'
     + '</div>';
 
   html += '<div class="mdt-act-cards" id="mdt-act-cards-' + sg.id + '">';
@@ -1153,35 +1153,29 @@ function openMdtIdeal(year, sgId) {
   // Life Wheel \uc5d0 \uc5c6\uc73c\uba74 \ub9cc\ub2e4\ub77c\ud2b8 Section \uc790\uccb4\uc758 SMART \ucd5c\uc885\ubaa9\ud45c\ub85c \ud3f4\ubc31
   if (!goal && sg.smart && sg.smart.finalGoal) goal = sg.smart.finalGoal;
 
-  function _fieldBlock(icon, label, text, emptyMsg) {
-    var inner = text
-      ? '<div style="white-space:pre-wrap;line-height:1.7;font-size:14px;color:var(--text-1);">' + escMdt(text) + '</div>'
-      : '<div class="smart-desc">' + emptyMsg + '</div>';
-    return '<div class="smart-field"><div class="smart-field-header">'
-      + '<span class="smart-icon">' + icon + '</span>'
-      + '<span class="smart-label">' + label + '</span></div>'
-      + inner + '</div>';
+  // 2026-11-27 사용자 요청: 칸을 상자로 나누고, 이름표는 영어만(한글 설명 · 이모지 없음). 비어 있으면 '—'.
+  function _box(label, src, text) {
+    return '<section class="mdt-goal-box">'
+      + '<div class="mdt-goal-box-head"><span class="mdt-goal-box-label">' + label + '</span><span class="mdt-goal-box-src">' + src + '</span></div>'
+      + (text ? '<div class="mdt-goal-box-text">' + escMdt(text) + '</div>' : '<div class="mdt-goal-box-text is-empty">\u2014</div>')
+      + '</section>';
   }
-
-  var body = _fieldBlock('&#127919;', '\ubaa9\ud45c (Life Wheel \u00b7 Goal)', goal,
-      '\ub77c\uc774\ud504\ud720\uc5d0\uc11c \uc774 \uc601\uc5ed\uc758 \'Goal\'\uc744 \uc544\uc9c1 \uc785\ub825\ud558\uc9c0 \uc54a\uc558\uc5b4\uc694.')
-    + _fieldBlock('&#10024;', '\uc774\uc0c1\uc801\uc778 \ubaa8\uc2b5 (Life Wheel \u00b7 Ideal)', ideal,
-      '\ub77c\uc774\ud504\ud720\uc5d0\uc11c \uc774 \uc601\uc5ed\uc758 \'\uc774\uc0c1\uc801 \ubaa8\uc2b5(Ideal)\'\uc744 \uc544\uc9c1 \uc785\ub825\ud558\uc9c0 \uc54a\uc558\uc5b4\uc694.');
+  var body = _box('Goal', 'Life Wheel', goal) + _box('Ideal', 'Life Wheel', ideal);
 
   var overlay = document.createElement('div');
   overlay.id = 'mdt-ideal-overlay';
   overlay.className = 'lw-modal-overlay';
   overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
-  overlay.innerHTML = '<div class="lw-modal smart-modal">'
+  overlay.innerHTML = '<div class="lw-modal smart-modal mdt-goal-modal">'
     + '<div class="lw-modal-header">'
-    + '<span>' + sg.emoji + ' ' + escMdt(secName) + ' \u2014 \ubaa9\ud45c</span>'
-    + '<button class="lw-modal-close" onclick="document.getElementById(\'mdt-ideal-overlay\').remove()">&#10005;</button>'
+    + '<span class="mdt-goal-title"><b>Goal</b><span class="mdt-goal-sec" style="color:' + (sg.color || 'inherit') + ';">' + escMdt(secName) + '</span></span>'
+    + '<button class="lw-modal-close" aria-label="Close" onclick="document.getElementById(\'mdt-ideal-overlay\').remove()">&#10005;</button>'
     + '</div>'
-    + '<div class="smart-fields-wrap">'
+    + '<div class="mdt-goal-boxes">'
     + body
     + '</div>'
     + '<div class="lw-modal-footer">'
-    + '<button class="lw-modal-cancel" onclick="document.getElementById(\'mdt-ideal-overlay\').remove()">\ub2eb\uae30</button>'
+    + '<button class="lw-modal-cancel" onclick="document.getElementById(\'mdt-ideal-overlay\').remove()">Close</button>'
     + '</div>'
     + '</div>';
   document.body.appendChild(overlay);
@@ -1198,7 +1192,7 @@ function buildSgDetailHtml(m, sg) {
     + '<button class="mdt-back-btn" onclick="closeSgDetail()">&#8592; Mandalart</button>'
     + '<div class="mdt-detail-actions">'
     + '<button class="mdt-smart-open-btn" id="mdt-smart-btn-'+sg.id+'"'
-    + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:var(--brand-primary);">&#127919; 목표</button>'
+    + ' onclick="openMdtIdeal('+m.year+','+sg.id+')" style="color:var(--brand-primary);">목표</button>'
     + '<button class="mdt-detail-save-btn" id="mdt-detail-save-btn" onclick="saveSgDetail('+m.year+','+sg.id+')">저장</button>'
     + '</div>'
     + '</div>'

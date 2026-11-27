@@ -10,14 +10,16 @@
 //   · TaskLog 의 '일정'(kind:'event')과 반복은 2026-11-10 에 없앴다 — 달력에 그리는 것은 Task 와 To Do 뿐이다.
 // =============================================================
 
+// 2026-11-27 사용자 요청: 일 · 목록 보기를 없앴고, 연 보기는 Recap 의 연간 달력 위젯으로 옮겼다(recap.js).
+//  주 보기는 Work Diary 의 시간표를 이어받았다 — 07:00 에 시작해 다음 날 07:00 까지, To Do 수행 시간 블록을 끌고 늘린다.
+//  예전 보기 이름(day · list · year)으로 들어오면 _calViewId 가 주 · 월로 바꾼다(저장된 보기 · 폰 위젯 · 바로가기).
 var CAL_VIEWS = [
-  { id: 'day',   label: '일',   fc: 'timeGridDay'  },
   { id: 'week',  label: '주',   fc: 'timeGridWeek' },
   { id: 'month', label: '월',   fc: 'dayGridMonth' },
-  { id: 'year',  label: '연',   fc: null           },
-  { id: 'list',  label: '목록', fc: 'listPeriod'   },
   { id: 'gantt', label: 'Gantt', fc: null          },   // gantt.js renderGanttView 가 #tlc-gantt 에 그린다
 ];
+var CAL_OLD_VIEWS = { day: 'week', list: 'month', year: 'month' };
+function _calViewId(id) { return CAL_OLD_VIEWS[id] || id; }
 var CAL_DOW = ['일', '월', '화', '수', '목', '금', '토'];
 var CAL_NO_PROJECT_COLOR = 'var(--text-3)';
 var CAL_LOCALE_KO = {
@@ -61,18 +63,19 @@ function _calSave(key, val) {
   try { localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val)); } catch (e) {}
 }
 function _calFirstDay() { return (typeof appWeekStart === 'function' && appWeekStart() === 'sun') ? 0 : 1; }
-function _calViewDef(id) { return CAL_VIEWS.find(function (v) { return v.id === id; }) || CAL_VIEWS[1]; }
+function _calViewDef(id) { id = _calViewId(id); return CAL_VIEWS.find(function (v) { return v.id === id; }) || CAL_VIEWS[0]; }
 
-// PC 는 주, 폰은 목록이 기본. 마지막에 본 보기를 기기별로 기억한다.
+// PC 는 주, 폰은 월이 기본(2026-11-27 — 목록 보기를 없앴다). 마지막에 본 보기를 기기별로 기억한다.
 function _calInitialView() {
   var saved = null;
-  try { saved = localStorage.getItem('cal-view-' + _calProfile()); } catch (e) {}
+  try { saved = _calViewId(localStorage.getItem('cal-view-' + _calProfile())); } catch (e) {}
   if (CAL_VIEWS.some(function (v) { return v.id === saved; })) return saved;
-  return _calProfile() === 'mobile' ? 'list' : 'week';
+  return _calProfile() === 'mobile' ? 'month' : 'week';
 }
 
 // 다른 메뉴(홈 Gantt 위젯 제목 등)에서 Calendar 를 특정 보기로 열 때 — navToMenu 가 렌더 전에 부른다
 function calPresetView(id) {
+  id = _calViewId(id);
   if (!CAL_VIEWS.some(function (v) { return v.id === id; })) return;
   _cal.view = id;
   _calSave('cal-view-' + _calProfile(), id);
@@ -439,6 +442,128 @@ function calYearStep(dir) {
   return (i >= 0 && i < a.length) ? a[i] : null;
 }
 
+// ── To Do 수행 시간 블록 (2026-11-27, Work Diary 시간표를 주 보기로 옮겼다) ──
+//  · 수행 시간(step.slots) 한 줄 = 블록 하나. 끌면 옮기고, 아래 끝을 끌면 길이가 바뀐다. Ctrl(⌘)을 누른 채 놓으면 복사.
+//  · 수행 시간이 없는 '완료된' To Do 는 예전 Work Diary 처럼 완료 시각에 점선 블록(길이 wdDurMin, 없으면 60분).
+//    이 블록을 끌거나 늘리면 그 자리로 수행 시간 한 줄이 생기고 wd* 값은 지운다. 완료일([YYMMDD]) · completedAt 은 바꾸지 않는다.
+//  · 주 보기(시간 칸)에만 그린다. 월 보기에는 마감일 줄만 있다.
+//  · Section 필터와 '표시 › To Do' 를 따른다. 완료 블록은 '완료 항목' 을 끄면 숨는다.
+var CAL_WORK_MIN = 10;   // 블록 최소 길이(분) — 예전 그리드와 같다
+function _calLegacyAt(s) {
+  var m = /^\[(\d{2})(\d{2})(\d{2})\]/.exec(String(s.text || ''));
+  if (!m) return null;
+  var y = 2000 + +m[1], mo = +m[2] - 1, d = +m[3], src = null;
+  if (s.wdTimed && s.wdLogAt) src = new Date(s.wdLogAt);
+  if ((!src || isNaN(src.getTime())) && s.completedAt) src = new Date(s.completedAt);
+  if (!src || isNaN(src.getTime())) return null;   // 시각이 없는 완료는 마감일 줄로만 보인다
+  var a = new Date(y, mo, d, src.getHours(), src.getMinutes(), 0, 0);
+  return { a: a, b: new Date(a.getTime() + Math.max(CAL_WORK_MIN, s.wdDurMin || 60) * 60000) };
+}
+function calCollectWork(start, end, show) {
+  var out = [];
+  if (!show.todo) return out;
+  mdtAllTasks().forEach(function (t) {
+    var keys = _calItemKeys(t);
+    if (_calFilterHides(keys, show.filter)) return;
+    var color = calTaskColor(t), parent = _calCleanTitle(t.text);
+    (t.steps || []).forEach(function (s) {
+      var done = !!s.completed || !!t.completed;
+      var slots = (typeof stepSlots === 'function') ? stepSlots(s) : [];
+      function push(a, b, slotId, legacy) {
+        if (!a || !b || a >= end || b <= start) return;
+        out.push({
+          id: 'w' + t.id + '_' + s.id + '_' + (legacy ? 'L' : slotId),
+          title: _calCleanTitle(s.text), start: a, end: b, allDay: false,
+          backgroundColor: 'transparent', borderColor: 'transparent',
+          editable: true, durationEditable: true,
+          classNames: ['tlc-work'].concat(legacy ? ['is-legacy'] : []).concat(done ? ['tlc-is-done'] : []),
+          extendedProps: { kind: 'work', taskId: t.id, stepId: s.id, slotId: legacy ? null : slotId, legacy: !!legacy, done: done, color: color, parent: parent },
+        });
+      }
+      if (slots.length) {
+        slots.forEach(function (sl) {
+          var a = slotDate(sl.start), b = slotDate(sl.end);
+          if (a && (!b || b <= a)) b = new Date(a.getTime() + CAL_WORK_MIN * 60000);
+          push(a, b, sl.id, false);
+        });
+      } else if (s.completed && show.done) {
+        var L = _calLegacyAt(s);
+        if (L) push(L.a, L.b, null, true);
+      }
+    });
+  });
+  return out;
+}
+function _calWorkStep(p) {
+  var f = _calFindItem({ kind: 'step', taskId: p.taskId, stepId: p.stepId });
+  return f ? f.obj : null;
+}
+// 끌기 · 길이 조절 · Ctrl 복사
+function calMoveWork(info) {
+  var ev = info.event, p = ev.extendedProps, s = _calWorkStep(p);
+  if (!s || ev.allDay || !ev.start) { info.revert(); return; }
+  var a = ev.start, b = ev.end || new Date(a.getTime() + 3600000);
+  if (b - a < CAL_WORK_MIN * 60000) b = new Date(a.getTime() + CAL_WORK_MIN * 60000);
+  var je = info.jsEvent, copy = !!(info.oldEvent && info.delta && je && (je.ctrlKey || je.metaKey));
+  if (!Array.isArray(s.slots)) s.slots = [];
+  var id0 = (typeof newSlotId === 'function') ? newSlotId() : Date.now();
+  if (copy) {
+    // 원래 블록은 그대로 두고 놓은 자리에 한 줄 더. 완료 시각 블록이면 원래 자리도 수행 시간으로 남긴다(안 그러면 사라진다)
+    if (p.slotId == null) {
+      var oa = info.oldEvent.start, ob = info.oldEvent.end || new Date(oa.getTime() + 3600000);
+      s.slots.push({ id: id0, start: slotLocal(oa), end: slotLocal(ob) });
+    }
+    s.slots.push({ id: id0 + 1, start: slotLocal(a), end: slotLocal(b) });
+  } else if (p.slotId != null) {
+    var sl = s.slots.find(function (x) { return String(x.id) === String(p.slotId); });
+    if (!sl) { info.revert(); return; }
+    sl.start = slotLocal(a); sl.end = slotLocal(b);
+  } else {
+    s.slots.push({ id: id0, start: slotLocal(a), end: slotLocal(b) });
+  }
+  if (p.slotId == null) { delete s.wdTimed; delete s.wdLogAt; delete s.wdDurMin; }   // 이제 수행 시간으로 그린다
+  if (copy) info.revert();
+  _calAfterMove();
+}
+function _calHm(d) { return _calPad(d.getHours()) + ':' + _calPad(d.getMinutes()); }
+function calWorkPop(ev, anchor) {
+  var p = ev.extendedProps, s = _calWorkStep(p);
+  if (!s) return;
+  var a = ev.start, b = ev.end || a;
+  var min = Math.round((b - a) / 60000);
+  var t = mdtAllTasks().find(function (x) { return x.id === p.taskId; });
+  var proj = t ? _calProjectLine(t) : '';
+  var ids = p.taskId + ',' + JSON.stringify(String(p.stepId)).replace(/"/g, "'");
+  var html = '<div class="tlc-pop-title">' + _calMarkHtml('step', p.color, !!s.completed)
+    + '<span class="' + (s.completed ? 'tlc-pop-done' : '') + '">' + _calEsc(_calCleanTitle(s.text)) + '</span></div>'
+    + '<div class="tlc-pop-kind">' + (p.legacy ? '완료 시각' : '수행 시간') + (s.completed ? ' · 완료' : '') + '</div>'
+    + '<div class="tlc-pop-row">' + _calEsc(_calFmtWhen(a.toISOString(), true) + ' – ' + _calHm(b) + ' · ' + fmtWorkMin(min)) + '</div>'
+    + (p.legacy ? '<div class="tlc-pop-row tlc-pop-dim">끌거나 늘리면 그 자리가 수행 시간으로 남습니다</div>' : '')
+    + '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(p.parent || '') + '</div>'
+    + (proj ? '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>' : '')
+    + '<div class="tlc-pop-actions">'
+    +   '<button type="button" class="tlc-btn" onclick="calWorkDone(' + ids + ')">' + (s.completed ? '완료 취소' : '완료') + '</button>'
+    +   '<button type="button" class="tlc-btn" onclick="calWorkEdit(' + ids + ')">수정</button>'
+    +   (p.slotId != null ? '<button type="button" class="tlc-btn tlc-pop-del" onclick="calWorkDelete(' + ids + ',\'' + _calEsc(String(p.slotId)) + '\')">이 시간 지우기</button>' : '')
+    + '</div>';
+  _calPopShow(html, anchor.getBoundingClientRect());
+}
+function _calWorkFind(taskId, sid) {
+  var t = mdtAllTasks().find(function (x) { return x.id === taskId; });
+  var s = t && t.steps ? t.steps.find(function (x) { return String(x.id) === String(sid); }) : null;
+  return s ? { t: t, s: s } : null;
+}
+function calWorkDone(taskId, sid) { var f = _calWorkFind(taskId, sid); if (f) calPopDone(f.t.id, f.s.id); }
+function calWorkEdit(taskId, sid) { var f = _calWorkFind(taskId, sid); if (f) calPopEdit(f.t.id, f.s.id); }
+function calWorkDelete(taskId, sid, slotId) {
+  var f = _calWorkFind(taskId, sid);
+  if (!f || !Array.isArray(f.s.slots)) return;
+  calPopClose(true);
+  f.s.slots = f.s.slots.filter(function (x) { return String(x.id) !== String(slotId); });
+  if (!f.s.slots.length) delete f.s.slots;
+  _calAfterMove();
+}
+
 // ── FullCalendar ──
 function calFcEvents(start, end) {
   var show = calShow(), out = [], listing = _cal.view === 'list';
@@ -449,6 +574,7 @@ function calFcEvents(start, end) {
     if (listing && !_calInPeriod(it.date, itEnd)) return;
     out.push(_calItemToFc(it));
   });
+  if (_cal.view === 'week') out = out.concat(calCollectWork(start, end, show));
   return out;
 }
 function _calMarkHtml(kind, color, done) {
@@ -473,6 +599,10 @@ function calEnsureFc() {
     firstDay: _calFirstDay(),
     height: '100%',
     nowIndicator: true,
+    // 주 보기의 하루는 07:00 에 시작해 다음 날 07:00 에 끝난다(Work Diary 시간표와 같다, 2026-11-27 사용자 요청).
+    //  새벽 2시 항목은 전날 칸 아래쪽에 보인다. 놓은 자리의 실제 날짜 · 시각은 FullCalendar 가 맞게 준다.
+    slotMinTime: '07:00:00',
+    slotMaxTime: '31:00:00',
     scrollTime: '07:00:00',
     slotDuration: '00:30:00',
     snapDuration: '00:15:00',
@@ -481,7 +611,7 @@ function calEnsureFc() {
     dayMaxEvents: true,
     fixedWeekCount: false,
     navLinks: true,
-    navLinkDayClick: function (date) { calGoDate(_calKey(date), 'day'); },
+    navLinkDayClick: function (date) { calGoDate(_calKey(date), 'week'); },
     editable: true,
     eventDurationEditable: false,        // 길이는 일정·시간 칸 Task 만 항목별로 켠다
     selectable: true,
@@ -495,7 +625,7 @@ function calEnsureFc() {
       var end = new Date(info.date.getTime() + (info.allDay ? 86400000 : 1800000));
       calQuickFromRange(info.date, end, info.allDay, info.jsEvent);
     },
-    eventResize: function (info) { calDropItem(info); },
+    eventResize: function (info) { if (info.event.extendedProps.kind === 'work') calMoveWork(info); else calDropItem(info); },
     moreLinkContent: function (arg) { return '+' + arg.num; },
     views: {
       // 종일 칸은 3줄까지만. 위쪽을 다 먹으면 시간 칸이 안 보인다
@@ -530,19 +660,25 @@ function calEnsureFc() {
     eventContent: function (arg) {
       var p = arg.event.extendedProps, isList = arg.view.type.indexOf('list') === 0;
       if (p.anchor === 'bar' && !isList) return true;   // Task 막대는 기본 막대 그대로
+      if (p.kind === 'work') {
+        return { html: '<span class="tlc-work-in"><span class="tlc-work-tt">' + _calEsc(arg.event.title) + '</span>'
+          + (arg.timeText ? '<span class="tlc-work-time">' + _calEsc(arg.timeText) + '</span>' : '')
+          + (p.parent ? '<span class="tlc-work-par">' + _calEsc(p.parent) + '</span>' : '') + '</span>' };
+      }
       var time = (!isList && arg.timeText) ? '<span class="tlc-time">' + _calEsc(arg.timeText) + '</span>' : '';   // 목록은 시간 칸이 따로 있다
       return { html: '<span class="tlc-ev">' + _calMarkHtml(p.kind, p.color, p.done) + time + '<span class="tlc-tt">' + _calEsc(arg.event.title) + '</span></span>' };
     },
     eventDidMount: function (info) {
       var p = info.event.extendedProps;
       if (p.color) info.el.style.setProperty('--tlc-c', p.color);
-      info.el.title = (p.parent ? p.parent + ' › ' : '') + info.event.title;
+      info.el.title = (p.parent ? p.parent + ' › ' : '') + info.event.title + (p.kind === 'work' ? ' (끌어 옮기기 · 아래 끝으로 길이 · Ctrl 복사)' : '');
     },
     eventClick: function (info) {
       info.jsEvent.preventDefault();
+      if (info.event.extendedProps.kind === 'work') { calWorkPop(info.event, info.el); return; }
       calItemPop(info.event.extendedProps, info.el);
     },
-    eventDrop: function (info) { calDropItem(info); },
+    eventDrop: function (info) { if (info.event.extendedProps.kind === 'work') calMoveWork(info); else calDropItem(info); },
     datesSet: function () {
       // 목록은 표시 기간에 맞춰 날짜를 끌어당긴다. 받아 적으면 달력 칸으로 돌아왔을 때 엉뚱한 해로 간다
       if (_cal.view !== 'list') _cal.date = _cal.fc.getDate();
@@ -949,7 +1085,7 @@ function calSyncTools() {
 function calSetView(id) {
   calCloseMenus();
   _cal.view = _calViewDef(id).id;
-  _calSave('cal-view-' + _calProfile(), _cal.view);
+  _calSave('cal-view-' + _calProfile(), _cal.view);   // 예전 이름은 _calViewDef 가 주 · 월로 바꿔 준다
   _cal.scrollTo = (_cal.view === 'list') ? _calKey(_cal.date) : null;
   _calClearSearch();
   calRefresh();
@@ -998,7 +1134,7 @@ function calGoDate(key, view) {
   _calClearSearch();
   var p = key.split('-');
   _cal.date = new Date(+p[0], +p[1] - 1, +p[2]);
-  if (view) { _cal.view = view; _calSave('cal-view-' + _calProfile(), view); }
+  if (view) { view = _calViewId(view); _cal.view = view; _calSave('cal-view-' + _calProfile(), view); }
   if (_cal.view === 'list') _cal.scrollTo = key;
   if (_cal.fc) _cal.fc.gotoDate(_cal.date);
   calRefresh();
@@ -1057,7 +1193,7 @@ function calMiniStep(dir) {
   _cal.miniM = d.getMonth();
   calRenderMini();
 }
-function calMiniPick(key) { calGoDate(key, _cal.view === 'year' ? 'day' : null); }
+function calMiniPick(key) { calGoDate(key, null); }
 function calRenderShowMenu() {
   var el = _calEl('tlc-menu-show');
   if (!el) return;
@@ -1110,7 +1246,7 @@ function calRenderYear() {
   el.innerHTML = '<div class="tlc-year-grid">' + html + '</div>';
   calYearFit();
 }
-function calYearPick(key) { calGoDate(key, 'day'); }
+function calYearPick(key) { calGoDate(key, 'week'); }
 
 // ── 연도 보기를 화면에 맞춘다 (2026-11-11, 사용자 요청: 아래 여백이 너무 많다) ──
 //  예전에는 달 하나를 190px 이상 폭으로 늘어놓고 날짜 칸을 정사각형으로 두어서,
@@ -1362,6 +1498,7 @@ function renderCalendarView() {
   calDestroyFc();
   calPopClose(true);
   _cal.menu = null;
+  if (_cal.view) _cal.view = _calViewId(_cal.view);
   if (!_cal.view) {
     _cal.view = _calInitialView();
     if (_cal.view === 'list') _cal.scrollTo = _calKey(new Date());
@@ -1396,12 +1533,11 @@ document.addEventListener('keydown', function (e) {
 // ── 단축키 (구글 캘린더와 같은 글자) ──
 //  ⚠️ e.key 가 아니라 e.code 로 본다. 한글 입력 상태에서는 e.key 가 'ㅇ' 이나 'Process' 로 와서 아무것도 안 눌린다.
 var CAL_KEYS = {
-  KeyD: function () { calSetView('day'); }, KeyW: function () { calSetView('week'); }, KeyM: function () { calSetView('month'); },
-  KeyY: function () { calSetView('year'); }, KeyA: function () { calSetView('list'); },
+  KeyW: function () { calSetView('week'); }, KeyM: function () { calSetView('month'); }, KeyG: function () { calSetView('gantt'); },
   KeyT: function () { calToday(); }, KeyJ: function () { calStep(1); }, KeyN: function () { calStep(1); },
   KeyK: function () { calStep(-1); }, KeyP: function () { calStep(-1); }, KeyC: function () { calCreate(); },
 };
-var CAL_KEY_HELP = [['T', '오늘'], ['D · W · M · Y · A', '일 · 주 · 월 · 연 · 목록'], ['J · N', '다음'], ['K · P', '이전'], ['C', '만들기'], ['/', '검색'], ['?', '이 도움말'], ['Esc', '닫기']];
+var CAL_KEY_HELP = [['T', '오늘'], ['W · M · G', '주 · 월 · Gantt'], ['J · N', '다음'], ['K · P', '이전'], ['C', '만들기'], ['/', '검색'], ['?', '이 도움말'], ['Esc', '닫기']];
 function calKeyHelp() {
   var html = '<div class="tlc-pop-title"><span>단축키</span></div>'
     + CAL_KEY_HELP.map(function (k) { return '<div class="tlc-key-row"><span class="tlc-key">' + k[0] + '</span><span>' + k[1] + '</span></div>'; }).join('');

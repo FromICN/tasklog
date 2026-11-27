@@ -101,8 +101,11 @@ function updateDarkModeBtn() {
 }
 
 // ── open / close ──────────────────────────
-function openSettings() {
-  if (document.getElementById('settings-overlay')) return;
+//  2026-11-27 사용자 요청: 설정과 내 계정을 한 창으로 합쳤다. 위쪽 막대의 아바타(PC) · 사이드바 아바타(폰 '전체' 판)
+//  · Setting 단추가 모두 이 창을 연다(auth.js openProfilePanel 도 이리로 온다). 창 맨 위에 계정 줄, 그 아래 설정 탭.
+function openSettings(tab) {
+  if (typeof tab !== 'string') tab = '';
+  if (document.getElementById('settings-overlay')) { if (tab) setSettingsTab(tab); return; }
   var overlay = document.createElement('div');
   overlay.className = 'settings-overlay';
   overlay.id = 'settings-overlay';
@@ -110,7 +113,57 @@ function openSettings() {
   overlay.innerHTML = buildSettingsModal();
   document.body.appendChild(overlay);
   requestAnimationFrame(function() { overlay.classList.add('open'); });
-  setSettingsTab(settingsState.tab || 'general');
+  setSettingsTab(tab || settingsState.tab || 'general');
+}
+
+// ── 내 계정 줄 (예전 '내 계정' 창의 내용) ──
+function settingsAcctUser() {
+  var u = null;
+  try { if (typeof currentUser !== 'undefined' && currentUser) u = currentUser; } catch (e) {}
+  if (!u) { try { u = JSON.parse(localStorage.getItem('my-tasklog-user') || 'null'); } catch (e) {} }
+  return u;
+}
+function buildSettingsAccount() {
+  var u = settingsAcctUser();
+  if (!u) {
+    return '<div class="set-acct is-guest">'
+      + '<div class="set-acct-av">?</div>'
+      + '<div class="set-acct-main"><div class="set-acct-name">로그인 전</div>'
+      + '<div class="set-acct-sub">로그인하면 기기 간 동기화와 Drive 백업을 쓸 수 있어요.</div></div>'
+      + '<div class="set-acct-acts"><button class="btn-primary" onclick="if(typeof handleSignIn===\'function\')handleSignIn();closeSettings()">구글로 로그인</button></div>'
+      + '</div>';
+  }
+  var disp = (typeof getDisplayName === 'function') ? getDisplayName() : (u.name || '');
+  var av = u.picture
+    ? '<img src="' + sEsc(u.picture) + '" alt="" referrerpolicy="no-referrer">'
+    : sEsc((disp || '?').charAt(0).toUpperCase());
+  var linked = (typeof _getValidSessionToken === 'function') ? !!_getValidSessionToken() : true;
+  return '<div class="set-acct">'
+    + '<div class="set-acct-av">' + av + '</div>'
+    + '<div class="set-acct-main">'
+    +   '<div class="set-acct-name pm-display-name">' + sEsc(disp) + '</div>'
+    +   '<div class="set-acct-sub">' + (u.name && u.name !== disp ? 'Google: ' + sEsc(u.name) + ' · ' : '') + sEsc(u.email || '') + '</div>'
+    + '</div>'
+    + (linked
+        ? '<span class="set-acct-badge" title="Google 계정 연결됨">연결됨</span>'
+        : '<button class="set-acct-badge is-warn" title="데이터 동기화는 정상입니다. 드라이브 백업만 재연결이 필요해요." onclick="if(typeof handleSignIn===\'function\')handleSignIn();closeSettings()">재연결</button>')
+    + '<div class="set-acct-acts">'
+    +   '<button class="btn-secondary" onclick="settingsAcctEditName(true)">이름 바꾸기</button>'
+    +   '<button class="btn-secondary" onclick="if(typeof handleSignOut===\'function\')handleSignOut();closeSettings()">로그아웃</button>'
+    + '</div>'
+    + '<div class="set-acct-edit" id="set-acct-edit" hidden>'
+    +   '<input type="text" id="pm-nickname-input" class="settings-input" maxlength="30" value="' + sEsc(disp) + '" aria-label="표시 이름 (닉네임)"'
+    +     ' onkeydown="if(event.key===\'Enter\'&&!event.isComposing){event.preventDefault();saveNickname();}else if(event.key===\'Escape\'){event.stopPropagation();settingsAcctEditName(false);}">'
+    +   '<button class="btn-primary pm-btn-save" onclick="saveNickname()">저장</button>'
+    +   '<span class="set-acct-hint">Google 계정 이름 대신 앱에서 쓸 이름</span>'
+    + '</div>'
+    + '</div>';
+}
+function settingsAcctEditName(on) {
+  var box = document.getElementById('set-acct-edit');
+  if (!box) return;
+  box.hidden = !on;
+  if (on) { var inp = document.getElementById('pm-nickname-input'); if (inp) { inp.focus(); inp.select(); } }
 }
 
 function closeSettings() {
@@ -121,9 +174,10 @@ function closeSettings() {
 function buildSettingsModal() {
   return '<div class="settings-modal" onclick="event.stopPropagation()">'
     + '<div class="settings-modal-header">'
-    + '<span class="settings-modal-title">Setting</span>'
+    + '<span class="settings-modal-title">내 계정 · 설정</span>'
     + '<button class="settings-close" onclick="closeSettings()">✕</button>'
     + '</div>'
+    + buildSettingsAccount()
     + '<div class="settings-body">'
     + '<div class="settings-tabs" id="settings-tabs">'
     + buildSettingsTabBtn('general',  '일반')
@@ -218,29 +272,7 @@ function buildTabVersion() {
 
 // ── General tab ───────────────────────────
 function buildTabGeneral() {
-  var signedIn = typeof isSignedIn === 'function' && isSignedIn();
-  var user = null;
-  try { user = JSON.parse(localStorage.getItem('my-tasklog-user') || 'null'); } catch(e) {}
-
-  var authHtml = (signedIn && user)
-    ? '<div class="settings-row">'
-      + '<div class="user-info">'
-      + '<div class="user-avatar">'
-      + (user.picture ? '<img src="' + user.picture + '" referrerpolicy="no-referrer" alt="">' : '<div class="user-avatar-fallback">👤</div>')
-      + '</div>'
-      + '<div><div class="user-name">' + sEsc(user.name || '') + '</div><div class="user-email">' + sEsc(user.email || '') + '</div></div>'
-      + '</div>'
-      + '<button class="btn-secondary" style="font-size:12px;" onclick="if(typeof handleSignOut===\'function\')handleSignOut();closeSettings();">로그아웃</button>'
-      + '</div>'
-    : '<div class="settings-row">'
-      + '<div><div class="settings-row-label">사용자 이름</div></div>'
-      + '<input class="settings-input" id="settings-username" value="Mia">'
-      + '</div>'
-      + '<div class="settings-row" style="border-bottom:none;">'
-      + '<div><div class="settings-row-label">Google 로그인</div><div class="settings-row-desc">Drive 백업에 필요합니다</div></div>'
-      + '<button class="signin-btn" id="settings-signin-btn" style="width:auto;padding:7px 14px;" onclick="if(typeof handleSignIn===\'function\')handleSignIn()"><span class="g-icon">G</span> 로그인</button>'
-      + '</div>';
-
+  // 계정(로그인 정보 · 로그아웃)은 2026-11-27 창 맨 위 계정 줄(buildSettingsAccount)로 옮겼다
   return '<div class="settings-section-head" style="margin-top:8px;">지역</div>'
     + '<div class="settings-row">'
     + '<div><div class="settings-row-label">주 시작 요일</div><div class="settings-row-desc">캘린더 첫 번째 열 기준</div></div>'
@@ -266,8 +298,7 @@ function buildTabGeneral() {
     + '<div><div class="settings-row-label">주간일지 작성 알림</div><div class="settings-row-desc">매주 목요일부터 일요일까지</div></div>'
     + buildToggle('settings-notif-journal', settingsState.notifJournal, "settingsToggleKey('notifJournal','settings-notif-journal')")
     + '</div>'
-    + '<div class="settings-section-head">계정</div>'
-    + authHtml;
+    + '';
 }
 
 // ── Display tab ───────────────────────────
@@ -369,9 +400,8 @@ function buildTabMenus() {
 
   return '<div class="settings-section-head" style="margin-top:8px;">메뉴 표시 · 순서</div>'
     + '<div class="settings-row-desc" style="margin-bottom:10px;">'
-    + '사이드바에 보일 메뉴를 고릅니다. 왼쪽 손잡이를 끌면 순서를 바꿀 수 있습니다.'
+    + '메뉴(PC 는 왼쪽 위 ☰)에 보일 메뉴를 고릅니다. 왼쪽 손잡이를 끌면 순서를 바꿀 수 있습니다.'
     + ' 데스크탑과 모바일 구성을 따로 저장하며, 접속한 화면 크기에 맞는 구성이 적용됩니다.'
-    + (prof === 'desktop' ? ' 데스크탑은 Life Log · Task Log 묶음 안에서만 순서를 바꿉니다.' : '')
     + '</div>'
     + '<div class="menuvis-segs">' + segs + '</div>'
     + rows
@@ -393,6 +423,10 @@ function buildTabMenus() {
 var HW_MAP_COLORS = ['#0C5DED', '#E8590C', '#2B8A3E', '#7048E8', '#C2255C', '#0B7285', '#5C940D', '#862E9C'];
 
 function buildTabHome() {
+  if (typeof hwWithBoard === 'function' && typeof HW_HOME_BOARD !== 'undefined') return hwWithBoard(HW_HOME_BOARD, buildTabHomeInner);
+  return buildTabHomeInner();
+}
+function buildTabHomeInner() {
   if (typeof HOME_WIDGETS === 'undefined' || typeof hwVisible !== 'function') {
     return '<div class="settings-row-desc" style="padding:12px 0;">Home 위젯 정보를 불러오지 못했습니다.</div>';
   }
@@ -454,6 +488,11 @@ function buildTabHome() {
 }
 
 function settingsToggleHomeWidget(id) {
+  if (typeof hwWithBoard === 'function' && typeof HW_HOME_BOARD !== 'undefined' && !settingsToggleHomeWidget._in) {
+    settingsToggleHomeWidget._in = true;
+    try { return hwWithBoard(HW_HOME_BOARD, function () { return settingsToggleHomeWidget(id); }); }
+    finally { settingsToggleHomeWidget._in = false; }
+  }
   if (typeof hwSetVisible !== 'function') return;
   var on = (typeof hwVisible === 'function') ? hwVisible(id) : true;
   // 전부 끄면 홈이 텅 빈다 — 마지막 하나는 남긴다
@@ -471,7 +510,7 @@ function settingsToggleHomeWidget(id) {
 function settingsResetHomeWidgets() {
   if (!confirm('Home 위젯의 표시 · 자리 · 칸 크기를 기본값으로 되돌릴까요?')) return;
   // 지우지 않고 빈 배치로 덮는다 — 키가 없으면 hwLoadLayout 이 옛 v8 배치를 다시 옮겨 온다
-  try { if (typeof HW_LKEY !== 'undefined') localStorage.setItem(HW_LKEY, '{}'); } catch (e) {}
+  try { localStorage.setItem((typeof HW_HOME_BOARD !== 'undefined') ? HW_HOME_BOARD.lkey : HW_LKEY, '{}'); } catch (e) {}
   if (typeof currentMenu !== 'undefined' && currentMenu === 'home' && typeof renderHomeView === 'function') renderHomeView();
   setSettingsTab('home');
 }

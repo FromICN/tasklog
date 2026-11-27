@@ -443,6 +443,9 @@ function getDisplayName() {
 }
 
 function openProfilePanel() {
+  // 2026-11-27 사용자 요청: 내 계정과 설정을 한 창으로 합쳤다(settings.js openSettings — 맨 위 계정 줄).
+  //  아래 예전 창은 settings.js 가 없을 때만 쓴다.
+  if (typeof openSettings === 'function') { closeProfilePanel(); openSettings(); return; }
   // 이미 열려있으면 닫기
   if (document.getElementById('profile-modal-overlay')) {
     closeProfilePanel();

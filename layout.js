@@ -1,10 +1,9 @@
 // ============================================================
 //  🧭 PC 레이아웃 — Gmail 형 (2026-11-26, 사용자 요청)
 // ------------------------------------------------------------
-//  · 위쪽 막대(#tl-appbar): 메뉴(아이콘 + 이름) · 상태 알림 · 전체 검색 · 설정 · 로그인 정보
-//    2026-11-27 사용자 요청: 왼쪽 레일을 없애고 메뉴를 위쪽 막대(예전 열린 메뉴 탭 자리)로 옮겼다.
-//    Home │ Life Log(MVV · Life Wheel · Mandalart · Habit Tracker) │ Task Log(Calendar · Web · Work Diary · WBS).
-//    묶음은 script.js MENU_GROUPS 를 그대로 쓴다 — 아래 '위쪽 메뉴' 절(tlMenu*).
+//  · 위쪽 막대(#tl-appbar): ☰ 메뉴 · 열린 메뉴 탭 · 상태 알림 · 전체 검색 · 내 계정(아바타 = 계정 + 설정 한 창)
+//    2026-11-27 다섯 번째 손질에서 메뉴를 막대에 늘어놓았다가, 같은 날 여섯 번째 손질(사용자 요청)에서
+//    왼쪽 끝 ☰ (누르면 메뉴 목록) + 실행 이력 탭으로 바꿨다. 묶음(Life Log · Task Log)은 없앴다 — 아래 '☰ 메뉴 + 열린 메뉴 탭' 절.
 //  · 전체 검색: 치는 동안 바로 가기 목록, Enter = 검색 결과 페이지(본문 자리, 2026-11-27 사용자 요청)
 //  · 본문 3분할(.tl-panes): 기본 화면 | Task 창(#right-panel) | To Do 창(#todo-pane)
 //    새 창은 오른쪽에 붙는다(사용자 결정). Task 창의 To Do 줄을 누르면 To Do 창이 열린다.
@@ -823,7 +822,8 @@ function tlPaintAppbarAccount(user, displayName) {
   var av = document.getElementById('tl-appbar-avatar');
   if (!av) return;
   var name = user ? (displayName || '') : '';
-  var tip = user ? ((name || '프로필') + (user.email ? ' · ' + user.email : '')) : '로그인';
+  // 누르면 내 계정 · 설정 창(settings.js) — 2026-11-27 ⚙ 단추와 합쳤다
+  var tip = '내 계정 · 설정' + (user ? ' — ' + (name || '프로필') + (user.email ? ' · ' + user.email : '') : ' (로그인 전)');
   av.title = tip;
   av.setAttribute('aria-label', tip);
   if (user && user.picture) {
@@ -874,6 +874,7 @@ function tlPmIsOpen() { var pm = document.getElementById('tl-pagemenu'); return 
 
 function tlPmOpen(x, y) {
   if (tlPmIsOpen()) tlPmClose();
+  if (typeof tlMdropClose === 'function') tlMdropClose();
   var pm = tlPmEl();
   var id = (typeof currentMenu !== 'undefined') ? currentMenu : '';
   var name = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[id]) || (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[id]) || '';
@@ -924,7 +925,7 @@ document.addEventListener('contextmenu', function (e) {
   if (e.defaultPrevented || e.shiftKey || !tlPmEnabled()) return;
   var t = e.target;
   if (!t || !t.closest) return;
-  var tab = t.closest('#tl-mnav .tl-mnav-item');
+  var tab = t.closest('#tl-otabs .tl-otab, #tl-mdrop .tl-mdrop-item');
   var main = document.getElementById('main-content');
   if (!tab && !(main && main.contains(t))) return;
   if (t.closest('input, textarea, select, [contenteditable="true"], a[href]')) return;
@@ -946,14 +947,7 @@ document.addEventListener('keydown', function (e) {
 }, true);
 window.addEventListener('resize', function () { if (tlPmIsOpen()) { if (tlPmEnabled()) tlPmFit(); else tlPmClose(); } });
 
-// Work Diary — 저장 단추가 우클릭 메뉴로 들어갔으므로 Ctrl+S(맥 ⌘S)로도 저장한다
-document.addEventListener('keydown', function (e) {
-  if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.isComposing) return;
-  if (e.code !== 'KeyS' && String(e.key).toLowerCase() !== 's') return;
-  if (typeof currentMenu === 'undefined' || currentMenu !== 'journal' || typeof jnlSave !== 'function') return;
-  e.preventDefault();
-  jnlSave();
-});
+// (Work Diary 의 Ctrl+S 저장은 2026-11-27 Work Diary 를 없애면서 뺐다 — 주간 회고는 Recap 의 쓰기 창이 Ctrl+S 를 받는다)
 
 // 처음 그릴 때도 한 번 — 로그인 전이면 '로그인', 로그인 정보는 auth.js 가 오는 대로 다시 칠한다
 document.addEventListener('DOMContentLoaded', function () {
@@ -961,77 +955,148 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ============================================================
-//  🧭 위쪽 메뉴 (2026-11-27, 사용자 요청)
-//  PC 는 왼쪽 레일을 없애고 메뉴를 위쪽 막대(예전 '열린 메뉴 탭' 자리)에 아이콘 + 이름으로 늘어놓는다.
-//    Home │ Life Log: MVV · Life Wheel · Mandalart · Habit Tracker │ Task Log: Calendar · Web · Work Diary · WBS
-//  순서 · 표시는 설정 › 메뉴(데스크탑) 그대로다(script.js orderedMenus · getMenuVis · MENU_GROUPS).
-//  폭이 모자라면 theme.css 가 묶음 이름 → 검색칸(돋보기만) → 칸 여백 순으로 줄이고, 그래도 넘치면 메뉴 줄이 옆으로 밀린다.
-//  열린 메뉴 탭(app-open-tabs)은 없앴다 — bootApp 이 남은 목록을 지운다.
-//  폰은 예전 그대로(하단 탭 + '전체' 판) — 이 막대는 폰에서 숨는다.
+//  ☰ 메뉴 + 열린 메뉴 탭 (2026-11-27 여섯 번째 손질, 사용자 요청)
+//  위쪽 막대 왼쪽 끝 ☰ 를 누르면 메뉴 목록(아이콘 + 이름)이 내려온다. 묶음(Life Log · Task Log)은 없앴다.
+//  메뉴를 열 때마다 그 오른쪽에 탭이 하나씩 생긴다(실행 이력) — 11/26 의 '열린 메뉴 탭' 으로 되돌렸다.
+//    · 탭을 누르면 그 메뉴, ✕ · 가운데 클릭으로 닫는다. 지금 메뉴의 탭을 닫으면 오른쪽(없으면 왼쪽) 탭으로 간다.
+//    · 탭이 하나뿐이면 ✕ 가 없다. 숨긴 메뉴는 탭에서도 빠진다(폰 폭에서는 저장된 목록을 건드리지 않는다).
+//    · 목록은 이 기기에만 둔다(app-open-tabs — 동기화 · 백업 대상 아님).
+//  순서 · 표시는 설정 › 메뉴(데스크탑) 그대로다. 폰은 예전 그대로(하단 탭 + '전체' 판) — 이 막대는 폰에서 숨는다.
+//  클래스는 tl-otab* 다 — 폰 하단 탭이 tl-tab* 을 쓴다.
 // ============================================================
+var TL_TABS_KEY = 'app-open-tabs';
+var _tlTabs = null;
 function tlMenuValid(id) {
   if (typeof MENUS === 'undefined' || !MENUS.some(function (m) { return m.id === id; })) return false;
   return typeof isMenuVisible !== 'function' || isMenuVisible(id);
 }
-function tlMenuItemHtml(m) {
-  var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
-  var lbl = (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[m.id]) || full;
-  return '<button type="button" class="tl-mnav-item" data-menu="' + m.id + '"' + (full !== lbl ? ' title="' + tlEsc(full) + '"' : '')
-    + ' onclick="navToMenu(\'' + m.id + '\')">'
-    + '<span class="tl-mnav-ico" aria-hidden="true">' + m.icon + '</span>'
-    + '<span class="tl-mnav-lbl">' + tlEsc(lbl) + '</span></button>';
+function tlMenuName(id) {
+  return (typeof RAIL_LABEL !== 'undefined' && RAIL_LABEL[id]) || (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[id]) || id;
 }
-function tlMenuRender() {
-  var bar = document.getElementById('tl-mnav');
-  if (!bar || typeof orderedMenus !== 'function' || typeof getMenuVis !== 'function') return;
-  var vis = getMenuVis('desktop');
-  var items = orderedMenus('desktop').filter(function (m) { return vis[m.id] !== false; });
-  var groups = (typeof MENU_GROUPS !== 'undefined') ? MENU_GROUPS : [];
-  function groupOf(id) { return (typeof menuGroupOf === 'function') ? menuGroupOf(id) : groups.length; }
-  function groupHtml(g, list) {
-    return '<div class="tl-mnav-group" role="group" data-group="' + g.id + '"' + (g.label ? ' aria-label="' + tlEsc(g.label) + '"' : '') + '>'
-      + (g.label ? '<span class="tl-mnav-glabel" aria-hidden="true">' + tlEsc(g.label) + '</span>' : '')
-      + list.map(tlMenuItemHtml).join('')
-      + '</div>';
-  }
-  var html = '';
-  groups.forEach(function (g, gi) {
-    var mine = items.filter(function (m) { return groupOf(m.id) === gi; });
-    if (mine.length) html += groupHtml(g, mine);
-  });
-  var rest = items.filter(function (m) { return groupOf(m.id) >= groups.length; });   // 묶음에 없는(새로 생긴) 메뉴
-  if (rest.length) html += groupHtml({ id: 'etc', label: '' }, rest);
-  bar.innerHTML = html;
-  tlMenuPaint();
+function tlTabsLoad() {
+  if (_tlTabs) return _tlTabs;
+  _tlTabs = [];
+  try { var v = JSON.parse(localStorage.getItem(TL_TABS_KEY) || '[]'); if (Array.isArray(v)) _tlTabs = v; } catch (e) {}
+  return _tlTabs;
 }
-// 지금 메뉴 칸을 켠다. 메뉴 줄이 옆으로 밀려 있으면(좁은 창) 그 칸이 보이게 굴린다
-function tlMenuPaint() {
-  var bar = document.getElementById('tl-mnav');
+function tlTabsSave() { try { localStorage.setItem(TL_TABS_KEY, JSON.stringify(_tlTabs || [])); } catch (e) {} }
+
+// navToMenu 가 부른다
+function tlMenuOnNav(id) {
+  // 우클릭 메뉴가 열려 있으면 닫는다 — 오른쪽 위 도구를 제자리(#topbar)로 돌려놓은 뒤에 새 화면이 그것을 채운다
+  if (typeof tlPmClose === 'function') tlPmClose();
+  tlMdropClose();
+  if (id !== 'search') tlsLeavePage();
+  var t = tlTabsLoad();
+  if (tlMenuValid(id) && t.indexOf(id) < 0) { t.push(id); tlTabsSave(); }
+  tlTabsRender();
+}
+function tlTabClose(id, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  var t = tlTabsLoad();
+  var shown = t.filter(tlMenuValid);
+  var i = shown.indexOf(id);
+  if (i < 0 || shown.length <= 1) return;
+  t.splice(t.indexOf(id), 1);
+  shown.splice(i, 1);
+  tlTabsSave();
+  if (typeof currentMenu !== 'undefined' && currentMenu === id) navToMenu(shown[Math.min(i, shown.length - 1)]);
+  else tlTabsRender();
+}
+function tlTabsRender() {
+  var bar = document.getElementById('tl-otabs');
   if (!bar) return;
+  var t = tlTabsLoad();
+  // 숨긴 메뉴 · 없어진 메뉴(예: Work Diary)는 뺀다. 폰 폭에서는 메뉴 구성이 달라(Home 등이 꺼져 있다)
+  //  저장된 목록은 건드리지 않는다 — 창을 잠깐 좁혔다고 PC 탭이 사라지면 안 된다.
+  var keep = t.filter(tlMenuValid);
+  var desk = (typeof appMenuProfile !== 'function') || appMenuProfile() === 'desktop';
+  if (keep.length !== t.length && desk) { _tlTabs = keep; tlTabsSave(); }
+  t = keep;
   var cur = (typeof currentMenu !== 'undefined') ? currentMenu : '';
-  var act = null;
-  bar.querySelectorAll('.tl-mnav-item').forEach(function (b) {
-    var on = b.dataset.menu === cur;
-    b.classList.toggle('is-on', on);
-    if (on) { b.setAttribute('aria-current', 'page'); act = b; } else b.removeAttribute('aria-current');
-  });
+  var solo = t.length <= 1;
+  bar.innerHTML = t.map(function (id) {
+    var m = MENUS.find(function (x) { return x.id === id; });
+    var label = tlMenuName(id);
+    var on = id === cur;
+    return '<div class="tl-otab' + (on ? ' is-on' : '') + '" role="presentation" data-menu="' + id + '"'
+      + ' onauxclick="if(event.button===1)tlTabClose(\'' + id + '\',event)">'
+      + '<button type="button" class="tl-otab-main" role="tab" aria-selected="' + on + '"'
+      +   (on ? ' aria-current="page"' : '') + ' onclick="navToMenu(\'' + id + '\')">'
+      +   '<span class="tl-otab-ico" aria-hidden="true">' + (m ? m.icon : '') + '</span>'
+      +   '<span class="tl-otab-lbl">' + tlEsc(label) + '</span>'
+      + '</button>'
+      + (solo ? '' : '<button type="button" class="tl-otab-x" aria-label="' + tlEsc(label) + ' 탭 닫기" title="닫기"'
+          + ' onclick="tlTabClose(\'' + id + '\',event)">✕</button>')
+      + '</div>';
+  }).join('');
+  var act = bar.querySelector('.tl-otab.is-on');
   if (act && bar.scrollWidth > bar.clientWidth + 1) {
     var br = bar.getBoundingClientRect(), ar = act.getBoundingClientRect();
     if (ar.left < br.left) bar.scrollLeft -= (br.left - ar.left) + 12;
     else if (ar.right > br.right) bar.scrollLeft += (ar.right - br.right) + 12;
   }
+  if (tlMdropIsOpen()) tlMdropRender();
 }
-// navToMenu 가 부른다
-function tlMenuOnNav(id) {
-  // 우클릭 메뉴가 열려 있으면 닫는다 — 오른쪽 위 도구를 제자리(#topbar)로 돌려놓은 뒤에 새 화면이 그것을 채운다
-  if (typeof tlPmClose === 'function') tlPmClose();
-  if (id !== 'search') tlsLeavePage();
-  tlMenuPaint();
+// initSidebar 가 부른다 (메뉴 표시 · 순서가 바뀔 때)
+function tlMenuRender() { tlTabsRender(); }
+
+// ── ☰ 메뉴 목록 ──
+function tlMdropIsOpen() { var d = document.getElementById('tl-mdrop'); return !!(d && !d.hidden); }
+function tlMdropRender() {
+  var d = document.getElementById('tl-mdrop');
+  if (!d || typeof orderedMenus !== 'function' || typeof getMenuVis !== 'function') return;
+  var vis = getMenuVis('desktop');
+  var cur = (typeof currentMenu !== 'undefined') ? currentMenu : '';
+  d.innerHTML = orderedMenus('desktop').filter(function (m) { return vis[m.id] !== false; }).map(function (m) {
+    var on = m.id === cur;
+    var full = (typeof MENU_TITLES !== 'undefined' && MENU_TITLES[m.id]) || m.label;
+    var lbl = tlMenuName(m.id);
+    return '<button type="button" class="tl-mdrop-item' + (on ? ' is-on' : '') + '" role="menuitem" data-menu="' + m.id + '"'
+      + (full !== lbl ? ' title="' + tlEsc(full) + '"' : '') + ' onclick="tlMdropPick(\'' + m.id + '\')">'
+      + '<span class="tl-mdrop-ico" aria-hidden="true">' + m.icon + '</span>'
+      + '<span class="tl-mdrop-lbl">' + tlEsc(lbl) + '</span>'
+      + '</button>';
+  }).join('');
 }
-// 메뉴 줄이 넘칠 때는 마우스 휠로 옆으로 민다
+function tlMdropToggle(ev) {
+  if (ev) ev.stopPropagation();
+  if (tlMdropIsOpen()) { tlMdropClose(); return; }
+  var d = document.getElementById('tl-mdrop'), b = document.getElementById('tl-hamb');
+  if (!d) return;
+  tlMdropRender();
+  d.hidden = false;
+  if (b) b.setAttribute('aria-expanded', 'true');
+  var on = d.querySelector('.tl-mdrop-item.is-on') || d.querySelector('.tl-mdrop-item');
+  if (on) try { on.focus({ preventScroll: true }); } catch (e) {}
+}
+function tlMdropClose() {
+  var d = document.getElementById('tl-mdrop'), b = document.getElementById('tl-hamb');
+  if (d) d.hidden = true;
+  if (b) b.setAttribute('aria-expanded', 'false');
+}
+function tlMdropPick(id) { tlMdropClose(); navToMenu(id); }
+document.addEventListener('mousedown', function (e) {
+  if (!tlMdropIsOpen()) return;
+  if (e.target && e.target.closest && e.target.closest('#tl-mdrop, #tl-hamb')) return;
+  tlMdropClose();
+}, true);
+document.addEventListener('keydown', function (e) {
+  if (!tlMdropIsOpen() || e.isComposing) return;
+  if (e.key === 'Escape') { e.stopPropagation(); tlMdropClose(); var b = document.getElementById('tl-hamb'); if (b) b.focus(); return; }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  var items = Array.prototype.slice.call(document.querySelectorAll('#tl-mdrop .tl-mdrop-item'));
+  if (!items.length) return;
+  e.preventDefault();
+  var i = items.indexOf(document.activeElement);
+  i = (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[i].focus();
+}, true);
+
+// 탭 줄이 넘칠 때는 마우스 휠로 옆으로 민다
 (function () {
   function hook() {
-    var bar = document.getElementById('tl-mnav');
+    var bar = document.getElementById('tl-otabs');
     if (!bar) return;
     bar.addEventListener('wheel', function (e) {
       if (bar.scrollWidth <= bar.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
@@ -1041,4 +1106,3 @@ function tlMenuOnNav(id) {
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
 })();
-window.addEventListener('resize', function () { tlMenuPaint(); });

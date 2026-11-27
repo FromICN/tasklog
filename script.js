@@ -3447,6 +3447,7 @@ var _SVG = {
   journal:   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm80-80h240v-80H280v80Zm0-160h400v-80H280v80Zm0-160h400v-80H280v80Z"/></svg>',
   calendar:  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Zm280 240q-17 0-28.5-11.5T440-440q0-17 11.5-28.5T480-480q17 0 28.5 11.5T520-440q0 17-11.5 28.5T480-400Zm-160 0q-17 0-28.5-11.5T280-440q0-17 11.5-28.5T320-480q17 0 28.5 11.5T360-440q0 17-11.5 28.5T320-400Zm320 0q-17 0-28.5-11.5T600-440q0-17 11.5-28.5T640-480q17 0 28.5 11.5T680-440q0 17-11.5 28.5T640-400ZM480-240q-17 0-28.5-11.5T440-280q0-17 11.5-28.5T480-320q17 0 28.5 11.5T520-280q0 17-11.5 28.5T480-240Zm-160 0q-17 0-28.5-11.5T280-280q0-17 11.5-28.5T320-320q17 0 28.5 11.5T360-280q0 17-11.5 28.5T320-240Zm320 0q-17 0-28.5-11.5T600-280q0-17 11.5-28.5T640-320q17 0 28.5 11.5T680-280q0 17-11.5 28.5T640-240Z"/></svg>',
   habit:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6"/></svg>',
+  recap:     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 3.5v17h17"/><path d="M7.5 15.5l3.6-4.2 3 2.7 5-6"/></svg>',
 };
 
 // 2026-11-10 사용자 요청: Home · Calendar · MVV · LW · M · Web · HT 순서.
@@ -3455,8 +3456,11 @@ var _SVG = {
 //  사용자가 순서를 말하지 않은 WD · WBS 는 맨 뒤에 둔다.
 // 2026-11-11 사용자 요청: Calendar 를 구분선 바로 밑으로 — 구분선이 Home 과 Calendar 사이로 왔다.
 //  순서 자체(Home · Calendar · MVV …)는 그대로라 저장된 순서와 폰 하단 탭은 바뀌지 않는다.
+// 2026-11-27 사용자 요청: Recap 을 새로 만들고(recap.js) Work Diary 를 없앴다 — 시간표는 Calendar 주 보기로,
+//  Weekly Tracker 는 Recap 위젯으로 갔다. 옛 id 'journal' 은 navToMenu 가 Recap 으로 바꿔 연다.
 var MENUS = [
   { id:'home',      icon:_SVG.home,      label:'Home',         short:'Home' },
+  { id:'recap',     icon:_SVG.recap,     label:'Recap',        short:'Recap' },
   { divider:true },
   { id:'calendar',  icon:_SVG.calendar,  label:'Calendar',     short:'Cal'  },
   { id:'mvv',       icon:_SVG.mvv,       label:'MVV',          short:'MVV'  },
@@ -3464,7 +3468,6 @@ var MENUS = [
   { id:'mandalart', icon:_SVG.mandalart, label:'M',            short:'M'    },
   { id:'cloud',     icon:_SVG.cloud,     label:'Web',          short:'Web'  },
   { id:'habit',     icon:_SVG.habit,     label:'HT',           short:'HT'   },
-  { id:'journal',   icon:_SVG.journal,   label:'WD',           short:'WD'   },
   { id:'wbs',       icon:_SVG.wbs,       label:'WBS',          short:'WBS'  },
 ];
 
@@ -3476,10 +3479,10 @@ var MENU_HEAD_IDS = MENUS.slice(0, MENU_DIVIDER_AT).map(function(m) { return m.i
 // PC 주메뉴 묶음 (2026-11-26 사용자 요청 — Gmail 형 레이아웃).
 //  Home 은 맨 위에 따로, 그 아래 Life Log · Task Log 두 묶음. 묶음 안의 순서도 사용자가 정한 대로다.
 //  폰은 묶지 않는다 — 하단 탭 4개가 MENUS 순서를 따르므로, 여기를 폰에 걸면 탭이 바뀐다.
+// 2026-11-27 사용자 요청: 묶음(Life Log · Task Log)을 없앴다 — 이름 없는 한 묶음이라 설정 › 메뉴에서 어디로든 옮길 수 있다.
+//  PC 기본 순서는 예전 묶음 순서 그대로(+ Recap 은 Home 다음).
 var MENU_GROUPS = [
-  { id: 'top',  label: '',         ids: ['home'] },
-  { id: 'life', label: 'Life Log', ids: ['mvv', 'wheel', 'mandalart', 'habit'] },
-  { id: 'task', label: 'Task Log', ids: ['calendar', 'cloud', 'journal', 'wbs'] },
+  { id: 'all', label: '', ids: ['home', 'recap', 'mvv', 'wheel', 'mandalart', 'habit', 'calendar', 'cloud', 'wbs'] },
 ];
 function menuGroupOf(id) {
   for (var i = 0; i < MENU_GROUPS.length; i++) if (MENU_GROUPS[i].ids.indexOf(id) >= 0) return i;
@@ -3490,13 +3493,13 @@ var MENU_TITLES = {
   home:'Home', cloud:'Web', mvv:'Mission Vision Value',
   wheel:'Life Wheel', mandalart:'Mandalart', calendar:'Calendar',
   wbs:'Work Breakdown Structure', journal:'Work Diary',
-  habit:'Habit Tracker',
+  habit:'Habit Tracker', recap:'Recap',
 };
 
 var MENU_EMOJI = {
   home:'🏠', cloud:'☁️', mvv:'🎯', calendar:'📅',
   wheel:'🎡', mandalart:'🔮',
-  wbs:'🌳', journal:'📓', habit:'🌱',
+  wbs:'🌳', journal:'📓', habit:'🌱', recap:'📈',
 };
 
 // ============================================
@@ -3512,8 +3515,8 @@ var MENU_VIS_KEY = { desktop: 'app-menu-visible-desktop', mobile: 'app-menu-visi
 //  · 데스크탑: 전부 표시
 //  · 모바일  : Web · Calendar · Habit Tracker · Mandalart · WBS 만 표시
 var MENU_VIS_DEFAULTS = {
-  desktop: { home:true,  cloud:true, calendar:true, journal:true,  mvv:true,  wheel:true,  mandalart:true, habit:true, wbs:true },
-  mobile:  { home:false, cloud:true, calendar:true, journal:false, mvv:false, wheel:false, mandalart:true, habit:true, wbs:true },
+  desktop: { home:true,  recap:true,  cloud:true, calendar:true, mvv:true,  wheel:true,  mandalart:true, habit:true, wbs:true },
+  mobile:  { home:false, recap:false, cloud:true, calendar:true, mvv:false, wheel:false, mandalart:true, habit:true, wbs:true },
 };
 
 // mobile-ui.js 와 같은 기준(768px)을 쓴다 — 두 곳이 어긋나면 폰에서
@@ -3603,8 +3606,13 @@ function getMenuOrderRaw(profile) {
       }
     }
   } catch (e) {}
-  // 저장된 순서에 없던 메뉴는 기본 순서대로 뒤에 붙인다
-  base.forEach(function(id) { if (out.indexOf(id) < 0) out.push(id); });
+  // 저장된 순서에 없던 메뉴는 기본 순서에서 바로 앞에 있는 메뉴 뒤에 끼운다(2026-11-27 Recap — 예전엔 맨 뒤에 붙였다)
+  base.forEach(function(id, bi) {
+    if (out.indexOf(id) >= 0) return;
+    var at = 0;
+    for (var k = bi - 1; k >= 0; k--) { var p = out.indexOf(base[k]); if (p >= 0) { at = p + 1; break; } }
+    out.splice(at, 0, id);
+  });
   return out;
 }
 
@@ -3663,7 +3671,7 @@ function initSidebarCollapse() {
 //  (2026-11-27 왼쪽 레일을 없애고 메뉴를 위쪽 막대로 옮겼다 — layout.js tlMenuRender. 아래 레일 그리기는 숨은 사이드바용으로 남아 있다)
 var RAIL_LABEL = {
   home:'Home', mvv:'MVV', wheel:'Life Wheel', mandalart:'Mandalart', habit:'Habit Tracker',
-  calendar:'Calendar', cloud:'Web', journal:'Work Diary', wbs:'WBS',
+  calendar:'Calendar', cloud:'Web', journal:'Work Diary', wbs:'WBS', recap:'Recap', search:'검색 결과',
 };
 function railMenuBtn(m) {
   var full = MENU_TITLES[m.id] || m.label;
@@ -3734,7 +3742,7 @@ function initSidebar() {
 var TABBAR_MAX = 4;
 var TABBAR_LABEL = {
   home:'Home', calendar:'Calendar', mvv:'MVV', wheel:'Life Wheel',
-  mandalart:'Mandalart', cloud:'Web', habit:'Habit', journal:'Diary', wbs:'WBS',
+  mandalart:'Mandalart', cloud:'Web', habit:'Habit', journal:'Diary', wbs:'WBS', recap:'Recap',
 };
 var TABBAR_ALL_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
 
@@ -3822,7 +3830,9 @@ var MENU_RENDERERS = {
   //  홈 Gantt 위젯 제목과 ?page=project 바로가기가 아직 이 id 로 온다(pwa.js 는 여기 있는지로 판단한다).
   project:   'renderCalendarView',
   wbs:       'renderWbsView',
-  journal:   'renderJournalView',
+  // 'journal' = 예전 Work Diary(2026-11-27 없앰). navToMenu 가 Recap 으로 바꿔 연다.
+  journal:   'renderRecapView',
+  recap:     'renderRecapView',
   habit:     'renderHabitView',
 };
 
@@ -3849,6 +3859,8 @@ function navToMenu(id) {
     id = 'calendar';
     if (typeof calPresetView === 'function') calPresetView('gantt');
   }
+  // 예전 Work Diary → Recap (2026-11-27 — 회고는 Recap 의 Weekly Tracker 에서 쓴다, 시간표는 Calendar 주 보기)
+  if (id === 'journal') id = 'recap';
   currentMenu = id;
 
   // PC 위쪽 메뉴의 켜진 칸 (layout.js, 2026-11-27 — 예전 열린 메뉴 탭 자리)
@@ -3927,8 +3939,7 @@ function bootApp() {
   try { localStorage.removeItem('app-menu-order-desktop'); localStorage.removeItem('app-menu-order-mobile'); } catch (e) {}
   // PC 메뉴 순서 키를 v3 로 올렸다(2026-11-26, Life Log · Task Log 묶음). 옛 PC 순서는 치운다.
   try { localStorage.removeItem('app-menu-order-v2-desktop'); } catch (e) {}
-  // PC 위쪽 막대의 열린 메뉴 탭은 2026-11-27 사용자 요청으로 없앴다(메뉴가 그 자리로 왔다). 남은 탭 목록을 치운다.
-  try { localStorage.removeItem('app-open-tabs'); } catch (e) {}
+  // (열린 메뉴 탭 app-open-tabs 는 2026-11-27 여섯 번째 손질에서 되살렸다 — 지우지 않는다)
   // 구글 캘린더 연동은 2026-11-11 사용자 결정으로 없앴다. 이 기기에 남은 캐시·설정을 치운다
   //  (구글 일정 캐시는 한 해에 약 56KB 라 저장소를 많이 먹었다).
   try {

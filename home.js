@@ -517,7 +517,9 @@ function renderHomeHabitWidget() {
     return;
   }
   var today = new Date();
-  var DOW = ['일','월','화','수','목','금','토'];
+  // 요일은 영문 한 글자(2026-11-27 사용자 요청 — 예전 일·월·화…). 마우스를 올리면 한글 요일 · 날짜가 보인다
+  var DOW = ['S','M','T','W','T','F','S'];
+  var DOW_KO = ['일','월','화','수','목','금','토'];
   // 정렬: 가나다순 · 단, 오늘 달성한 습관은 하단으로
   habits = habits.slice().sort(function(x, y) {
     var tk = fmtKey(today);
@@ -536,7 +538,7 @@ function renderHomeHabitWidget() {
       var dk=fmtKey(day), done=!!log[dk], isToday=(j===0);
       var cls='habit-dot'+(done?' done':'')+(isToday?' today':'');
       var oc=' onclick="hpToggleHabitDay(\''+h.m.year+'\','+sg.id+','+a.id+',\''+dk+'\')"';
-      dots += '<div class="'+cls+'"'+oc+'><span class="habit-dot-dow">'+DOW[day.getDay()]+'</span></div>';
+      dots += '<div class="'+cls+'"'+oc+' title="'+(day.getMonth()+1)+'/'+day.getDate()+' ('+DOW_KO[day.getDay()]+')"><span class="habit-dot-dow">'+DOW[day.getDay()]+'</span></div>';
     }
     return '<div class="habit-row">'
       + '<div class="habit-info"><div class="habit-name">'+hwEsc(a.text)+'</div></div>'
@@ -861,7 +863,7 @@ function renderHomeWebWidget() {
   var hadFocus = !!(prevInp && document.activeElement === prevInp);
   var caret = hadFocus ? [prevInp.selectionStart, prevInp.selectionEnd] : null;
   var writeHtml = '<div class="hwb-write">'
-    + '<textarea class="hwb-write-inp" id="hwb-memo-inp" rows="1" placeholder="메모 입력 · Shift+Enter 줄바꿈"'
+    + '<textarea class="hwb-write-inp" id="hwb-memo-inp" rows="1" aria-label="메모 입력 (Enter 추가 · Shift+Enter 줄바꿈)"'
     + ' autocomplete="off" oninput="tlAutosize(this, 120)"'
     + ' onkeydown="if(tlEnterSubmits(event)){event.preventDefault();hwbAddMemo();}"></textarea>'
     + '<button class="hwb-write-btn" onclick="hwbAddMemo()">+ Memo</button>'
@@ -1036,7 +1038,8 @@ function focusPause() {
   renderFocusWidget();
 }
 
-// 종료 = 이번 세션을 마친다. 잰 구간마다 수행 시간 한 줄씩 남긴다. 완료는 하지 않는다.
+// 종료 = 이번 세션을 마친다. 잰 구간마다 수행 시간 한 줄씩 남긴다.
+//  그다음 'To Do 를 완료할까요?' 를 묻는다(2026-11-27 사용자 요청) — 예를 누르면 목록 체크와 같은 규칙(toggleStep)으로 완료한다.
 //  1분이 안 되는 구간은 버린다(정지를 잘못 누른 것). 분 단위로 잘라 적는다.
 function focusEnd() {
   var s = focusLoad();
@@ -1071,15 +1074,62 @@ function focusEnd() {
   // 같은 To Do 를 이어서 잴 수 있게 골라 둔 채로 비운다 (끝내지 않았으므로 목록에 그대로 있다)
   focusSave(step ? { taskId: s.taskId, stepId: s.stepId, text: step.text, taskText: s.taskText, running: false, segments: [], log: [] } : null);
   focusRefreshSiblings();
-  // Work Diary 에 무엇이 남았는지 알려 준다 (2026-11-12) — 1분이 안 된 세션은 블록이 안 생겨서 고장처럼 보였다
-  if (typeof showNbToast === 'function') {
-    if (!step) showNbToast('To Do 를 찾지 못해 Work Diary 에 남기지 못했어요');
-    else if (madeN) {
-      var hh = Math.floor(madeMin / 60), mm = madeMin % 60;
-      showNbToast('Work Diary 에 ' + (hh ? hh + '시간' + (mm ? ' ' : '') : '') + (mm || !hh ? mm + '분' : '') + ' 기록했어요' + (madeN > 1 ? ' (' + madeN + '칸)' : ''));
-    }
-    else if (sec > 0) showNbToast('1분이 안 돼 Work Diary 에는 남기지 않았어요');
+  // 무엇이 남았는지 알려 준다 (2026-11-12) — 1분이 안 된 세션은 블록이 안 생겨서 고장처럼 보였다.
+  //  수행 시간은 Calendar 주 보기에 블록으로 나온다(2026-11-27 Work Diary 시간표를 그리로 옮겼다)
+  var note = '';
+  if (!step) note = 'To Do 를 찾지 못해 수행 시간을 남기지 못했어요';
+  else if (madeN) {
+    var hh = Math.floor(madeMin / 60), mm = madeMin % 60;
+    note = '수행 시간 ' + (hh ? hh + '시간' + (mm ? ' ' : '') : '') + (mm || !hh ? mm + '분' : '') + ' 기록' + (madeN > 1 ? ' (' + madeN + '칸)' : '');
   }
+  else if (sec > 0) note = '1분이 안 돼 수행 시간은 남기지 않았어요';
+  if (step && !step.completed) focusAskComplete(task, step, note);
+  else if (note && typeof showNbToast === 'function') showNbToast(note);
+}
+
+// ── 종료 뒤 '완료할까요?' 창 ──
+//  예 → toggleStep(목록 체크와 같은 규칙: [YYMMDD] · completedAt). 아니요 · Esc · 바깥 → 그대로(다음에 이어서 잰다).
+function focusAskComplete(task, step, note) {
+  var old = document.getElementById('tl-ask');
+  if (old) old.remove();
+  var ov = document.createElement('div');
+  ov.id = 'tl-ask';
+  ov.className = 'tl-ask-overlay';
+  ov.innerHTML = '<div class="tl-ask" role="dialog" aria-modal="true" aria-labelledby="tl-ask-title">'
+    + '<div class="tl-ask-title" id="tl-ask-title">To Do 를 완료할까요?</div>'
+    + '<div class="tl-ask-name">' + hwEsc(focusCleanText(step.text)) + '</div>'
+    + '<div class="tl-ask-sub">' + hwEsc(focusCleanText(task.text)) + (note ? ' · ' + hwEsc(note) : '') + '</div>'
+    + '<div class="tl-ask-acts">'
+    +   '<button type="button" class="btn-secondary" data-ans="no">아니요</button>'
+    +   '<button type="button" class="btn-primary" data-ans="yes">완료</button>'
+    + '</div></div>';
+  function done(yes) {
+    document.removeEventListener('keydown', onKey, true);
+    ov.remove();
+    if (!yes) return;
+    var t2 = (typeof tasks !== 'undefined') ? tasks.find(function(x){ return x.id === task.id; }) : null;
+    var s2 = t2 && t2.steps ? t2.steps.find(function(x){ return String(x.id) === String(step.id); }) : null;
+    if (!s2 || s2.completed) return;
+    if (typeof toggleStep === 'function') toggleStep(t2.id, s2.id);
+    var cur = focusLoad();
+    if (cur && cur.taskId === t2.id && String(cur.stepId) === String(s2.id) && !cur.running) focusSave(null);   // 끝낸 To Do 는 고른 것에서 뺀다
+    focusRefreshSiblings();
+    if (typeof showNbToast === 'function') showNbToast('완료했어요');
+  }
+  function onKey(e) {
+    if (e.isComposing) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); }
+    else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); done(true); }
+  }
+  ov.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-ans]') : null;
+    if (b) done(b.dataset.ans === 'yes');
+    else if (e.target === ov) done(false);
+  });
+  document.addEventListener('keydown', onKey, true);
+  document.body.appendChild(ov);
+  var yes = ov.querySelector('[data-ans="yes"]');
+  if (yes) yes.focus();
 }
 
 // 오늘 끝낸 세션 모으기 — To Do 에 붙여 둔 focusSessions 에서 읽는다
@@ -1548,6 +1598,28 @@ var HW_DEF_V8 = {
   'wheel-widget': {c:6,r:3,w:1,h:1}, 'gantt-widget': {c:6,r:4,w:1,h:1}
 };
 
+// ── 격자 판 (2026-11-27 Recap) ──
+//  격자 엔진(hw*)은 전역 HW_LKEY · HOME_WIDGETS · HW_COLS · HW_ROWS 를 읽는다. Recap 은 같은 엔진을
+//  자기 위젯 목록 · 자기 저장 키로 쓴다 — 화면을 그릴 때 hwUseBoard 로 판을 바꿔 끼운다.
+//  설정 › Home 탭처럼 다른 화면에서 Home 판을 만질 때는 hwWithBoard(HW_HOME_BOARD, fn) 로 잠깐 바꿨다 돌려놓는다.
+var HW_HOME_BOARD = { id: 'home', lkey: HW_LKEY, widgets: HOME_WIDGETS, cols: HW_COLS, rows: HW_ROWS, render: 'renderHomeView' };
+var _hwBoard = HW_HOME_BOARD;
+function hwUseBoard(b) {
+  if (!b) return;
+  _hwBoard = b;
+  HW_LKEY = b.lkey; HOME_WIDGETS = b.widgets; HW_COLS = b.cols; HW_ROWS = b.rows;
+}
+function hwWithBoard(b, fn) {
+  var prev = _hwBoard;
+  hwUseBoard(b);
+  try { return fn(); } finally { hwUseBoard(prev); }
+}
+// 지금 판의 화면을 다시 그린다 (옮기기 · 켜기 뒤)
+function hwRenderBoard() {
+  var fn = window[_hwBoard.render];
+  if (typeof fn === 'function') fn();
+}
+
 function hwDef(id) { return HOME_WIDGETS.find(function (w) { return w.id === id; }); }
 
 // v8 → v9: 지금 보이는 배치를 그대로 살리고, 맨 아래(4행)에 닿은 위젯만 새 5행까지 한 칸 늘린다.
@@ -1573,7 +1645,7 @@ function hwLoadLayout() {
   var raw = null;
   try { raw = localStorage.getItem(HW_LKEY); } catch (e) {}
   if (raw == null) {
-    var mig = hwMigrateV8();
+    var mig = (_hwBoard.id === 'home') ? hwMigrateV8() : null;   // 옛 v8 배치는 Home 에만 있다
     if (mig) { hwSaveLayout(mig); return mig; }
     return {};
   }
@@ -1605,7 +1677,7 @@ function hwSetVisible(id, on) {
   }
   L.visible[id] = !!on;
   hwSaveLayout(L);
-  if (typeof currentMenu !== 'undefined' && currentMenu === 'home') renderHomeView();
+  if (typeof currentMenu !== 'undefined' && currentMenu === _hwBoard.id) hwRenderBoard();
   return true;
 }
 
@@ -1678,6 +1750,7 @@ function buildHomeLayout() {
 function renderHomeView() {
   var content = document.getElementById('page-content');
   if (!content) return;
+  hwUseBoard(HW_HOME_BOARD);
   renderHomeEditBtn();
   content.innerHTML = buildHomeLayout();
   hwVisibleWidgets().forEach(function (w) {
@@ -2043,7 +2116,7 @@ function hwMoveTo(id, p) {
     hwSetPlace(other, { c: cur.c, r: cur.r, w: p.w, h: p.h });
     hwSetPlace(id, p);
   }
-  renderHomeView();
+  hwRenderBoard();
 }
 
 // ── 크기 조정 (오른쪽 아래 손잡이) ──
@@ -2108,6 +2181,7 @@ function hwAddResizeGrip(card, id) {
 
 // ── 크기에 반응하는 위젯들 한꺼번에 갱신 ──
 function hwSyncResponsive() {
+  if (typeof recapSyncResponsive === 'function') recapSyncResponsive();   // Recap 위젯 (recap.js)
   if (typeof calSyncScale === 'function') calSyncScale();
   if (typeof habitSyncColumns === 'function') habitSyncColumns();
   if (typeof mdaSyncColumns === 'function') mdaSyncColumns();

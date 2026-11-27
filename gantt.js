@@ -320,6 +320,32 @@ document.addEventListener('click', function(e) {
 });
 
 // ── 본문 렌더 — Calendar 의 Gantt 탭 (#tlc-gantt) ──
+// 2026-11-27 사용자 요청: 오늘 기준 앞뒤 3일(오늘 -3 ~ +3) 안에 To Do 가 있는 Task 를 먼저.
+//  To Do 의 마감일이나 수행 시간이 그 7일 안에 걸리면 '있다'로 본다(끝낸 것도 친다 — 지금 손대는 일이다).
+//  앞 묶음 안에서는 그 To Do 날짜가 이른 순, 나머지는 예전 순서 그대로.
+var GANTT_NEAR_DAYS = 3;
+function ganttNearTodoMs(t) {
+  var now = new Date(); now.setHours(0, 0, 0, 0);
+  var from = now.getTime() - GANTT_NEAR_DAYS * 86400000, to = now.getTime() + (GANTT_NEAR_DAYS + 1) * 86400000;
+  var best = Infinity;
+  function hit(d) { var ms = d ? d.getTime() : NaN; if (!isNaN(ms) && ms >= from && ms < to && ms < best) best = ms; }
+  (t.steps || []).forEach(function (s) {
+    if (s.dueDateTime) hit(new Date(s.dueDateTime));
+    if (Array.isArray(s.slots)) s.slots.forEach(function (sl) { if (typeof slotDate === 'function') hit(slotDate(sl.start)); });
+  });
+  return best;
+}
+function ganttSortNearTodos(list) {
+  return list.map(function (t, i) { return { t: t, i: i, k: ganttNearTodoMs(t) }; })
+    .sort(function (a, b) {
+      var an = a.k !== Infinity, bn = b.k !== Infinity;
+      if (an !== bn) return an ? -1 : 1;
+      if (an && a.k !== b.k) return a.k - b.k;
+      return a.i - b.i;
+    })
+    .map(function (x) { return x.t; });
+}
+
 function renderGanttView() {
   var content = document.getElementById('tlc-gantt');
   if (!content) return;
@@ -354,6 +380,7 @@ function renderGanttView() {
   var vis = monthTasks.filter(function(t) {
     return ganttTaskPassesSecFilter(t) && ganttTaskPassesSearch(t);
   });
+  vis = ganttSortNearTodos(vis);
 
   if (!vis.length) {
     content.innerHTML = '<div class="gantt-page">'
