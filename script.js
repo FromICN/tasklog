@@ -2314,8 +2314,6 @@ var RP_STATUS_COLORS = { '대기':'var(--text-2)', '진행':'var(--success)', '�
 //  due   'YYYY-MM-DD' — Due 기본값. 달력에서 만들 때 준다 (달력은 Task 를 Due 에 놓으므로 없으면 안 보인다)
 //  values · allDay · name · mdtLink — 달력 빠른 입력의 '옵션 더보기' (mdtLink = Section/Project 연결)
 function openNewTaskPanel(taskId, opts) {
-  // 다른 Task 를 열면 To Do 창은 닫는다 — 그 창은 이전 Task 의 To Do 를 보고 있었다
-  if (typeof tdClose === 'function') tdClose(true);
   rpState.taskId = taskId || null;
   rpState.dirty  = false;
   var task = taskId ? tasks.find(function(t){ return t.id === taskId; }) : null;
@@ -2329,7 +2327,8 @@ function openNewTaskPanel(taskId, opts) {
   rpState.steps       = task ? JSON.parse(JSON.stringify(task.steps || [])) : [];
   rpState.calBar      = task ? !!task.calBar : false;
   _rpTimeOpen         = null;
-  rpState.assignees   = task ? (task.assignees || []).slice() : [];
+  _rpDueAllDay        = {};
+  rpState.assignees  = task ? (task.assignees || []).slice() : [];
   rpState.upstreamDepts = task ? (Array.isArray(task.upstreamDepts) ? task.upstreamDepts.slice() : (task.upstreamDept ? [task.upstreamDept] : [])) : [];
   // 새로 만들 때 opts.mdtLink(달력 빠른 입력) 를 잇는다. 그 경우 저장할 값이므로 '건드림'으로 둔다.
   rpState.mdtLink     = task ? mdtLinkOf(task) : ((opts && opts.mdtLink) || null);
@@ -2679,7 +2678,8 @@ function rpBuildStepsHtml() {
       +   ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
       +   ' ondragstart="rpStepDragStart(event,'+s.id+')" ondragend="rpStepDragEnd(event)">\u283F</span>'
       + '<div class="task-check step-check '+(s.completed?'is-done':'')+'" onclick="rpToggleStep('+s.id+')"></div>'
-      + '<div class="step-content" onclick="if(typeof tdOpen===\'function\')tdOpen(' + s.id + ')">'
+      // 줄의 빈 곳을 누르면 그 아래에 세부(마감 시간 · 수행 시간)가 펼쳐진다 — 예전 To Do 창 자리 (2026-11-27 사용자 요청으로 창을 없앴다)
+      + '<div class="step-content" onclick="rpToggleStepTimeForm(' + s.id + ')" title="눌러서 마감 시간 · 수행 시간">'
       + '<span class="step-line">'
       + '<span class="step-text '+(s.completed?'is-done':'')+'" contenteditable="true" spellcheck="false"'
       +   ' title="'+escapeHtml(stepTip)+'" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"'
@@ -2688,14 +2688,15 @@ function rpBuildStepsHtml() {
       + '</span>'
       + (linkBadge ? '<div class="step-meta">'+linkBadge+'</div>' : '')
       + '</div>'
-      // 수행 시간(⏱)은 2026-11-26 사용자 요청으로 To Do 창에서만 넣고 고친다 — 이 줄에서는 뺐다
-      + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 설정 (시간 · 종일은 To Do 창에서)">'
+      // ⏱ = 세부 펼치기(수행 시간 합계를 보여 준다). 2026-11-26 To Do 창으로 옮겼다가 11-27 창을 없애며 되돌렸다
+      + '<button class="step-cal-btn step-time-btn' + (_rpTimeOpen === s.id ? ' is-open' : '') + (stepSlotMin(s) ? ' has-date' : '') + '"'
+      +   ' onclick="event.stopPropagation();rpToggleStepTimeForm('+s.id+')" title="마감 시간 · 수행 시간">' + rpStepTimeLabel(s) + '</button>'
+      + '<button class="step-cal-btn'+(hasDate?' has-date':'')+'" onclick="event.stopPropagation();rpToggleStepDateForm('+s.id+')" title="마감일 (시간 · 종일은 ⏱ 에서)">'
       + (hasDate ? '📅 '+formatDueDate(s.dueDateTime, !!s.hasTime) : '📅')
       + '</button>'
-      + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button>'
-      // To Do 창 열기 (2026-11-26 3분할 — layout.js tdOpen). 지금 열려 있는 To Do 는 칠해 둔다
-      + '<button class="step-open' + ((typeof _td !== 'undefined' && _td && _td.stepId === s.id) ? ' is-on' : '') + '" onclick="event.stopPropagation();if(typeof tdOpen===\'function\')tdOpen(' + s.id + ')" title="To Do 창 열기" aria-label="To Do 창 열기">›</button></div>'
-      + dateForm;
+      + '<button class="step-delete" onclick="rpDeleteStep('+s.id+')">✕</button></div>'
+      + dateForm
+      + rpStepTimeFormHtml(s);
   }).join('');
 }
 
@@ -2784,36 +2785,128 @@ function rpStepTimeLabel(s) {
   var min = stepSlotMin(s);
   return min ? '⏱ ' + fmtWorkMin(min) : '⏱';
 }
+//  펼친 칸 = 마감(날짜 · 시간 / 종일) + 수행 시간 줄들. 2026-11-27 To Do 창(layout.js)을 없애며 그 창의 칸을 여기로 옮겼다.
+//  칸을 고칠 때는 목록을 다시 그리지 않는다(다음 칸으로 옮긴 포커스가 사라지므로) — 줄의 단추 글자만 고친다(rpPatchStepRow).
+//  줄을 더하거나 지우기 · 시간 ↔ 종일처럼 모양이 바뀔 때만 다시 그린다.
+var _rpDueAllDay = {};    // stepId → 종일로 둔 채 날짜가 없는 To Do 도 '시간' 을 고를 수 있게 따로 기억
+function rpStepAllDay(s) {
+  if (s.dueDateTime) return !s.hasTime;
+  return _rpDueAllDay[s.id] !== false;
+}
 function rpStepTimeFormHtml(s) {
   var rows = stepSlots(s).slice().sort(function (x, y) { return String(x.start).localeCompare(String(y.start)); }).map(function (sl) {
     var a = slotDate(sl.start), b = slotDate(sl.end);
     var d = a ? toDateInputVal(a) : '', ts = a ? toTimeInputVal(a) : '', te = b ? toTimeInputVal(b) : '';
     var next = (a && b && toDateInputVal(b) !== d) ? '<span class="rp-slot-next" title="다음 날 끝남">+1</span>' : '';
+    var p = 'rp-sl-' + sl.id;
     return '<div class="rp-slot" data-slot="' + sl.id + '">'
-      + '<input class="field-input rp-dtinput rp-slot-d" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" value="' + d + '"'
+      + '<input class="field-input rp-dtinput rp-slot-d" id="' + p + '-d" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" value="' + d + '"'
       +   ' oninput="rpDtInput(this)" onchange="rpSlotEdit(' + s.id + ',' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
-      + '<input class="field-input rp-dtinput rp-tminput rp-slot-s" inputmode="numeric" placeholder="시작" value="' + ts + '"'
+      + '<input class="field-input rp-dtinput rp-tminput rp-slot-s" id="' + p + '-s" inputmode="numeric" placeholder="시작" value="' + ts + '"'
       +   ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onchange="rpSlotEdit(' + s.id + ',' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
       + '<span class="rp-slot-sep">~</span>'
-      + '<input class="field-input rp-dtinput rp-tminput rp-slot-e" inputmode="numeric" placeholder="끝" value="' + te + '"'
+      + '<input class="field-input rp-dtinput rp-tminput rp-slot-e" id="' + p + '-e" inputmode="numeric" placeholder="끝" value="' + te + '"'
       +   ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onchange="rpSlotEdit(' + s.id + ',' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
       + next
       + '<button type="button" class="rp-slot-del" onclick="rpSlotDelete(' + s.id + ',' + sl.id + ')" title="이 수행 시간 지우기">✕</button>'
       + '</div>';
   }).join('');
   var min = stepSlotMin(s);
-  return '<div class="rp-slot-form" id="rp-step-time-form-' + s.id + '"' + (_rpTimeOpen === s.id ? '' : ' style="display:none;"')
+  var allDay = rpStepAllDay(s);
+  var dueD = s.dueDateTime ? toDateInputVal(s.dueDateTime) : '';
+  var dueT = (s.dueDateTime && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '';
+  var q = 'rp-sd-' + s.id;
+  return '<div class="rp-slot-form rp-step-detail" id="rp-step-time-form-' + s.id + '"' + (_rpTimeOpen === s.id ? '' : ' style="display:none;"')
     + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();">'
+    + '<div class="rp-sd-head"><span class="rp-sd-label">마감</span>'
+    +   '<div class="td-seg" role="group" aria-label="마감 시간 또는 종일">'
+    +     '<button type="button" class="td-seg-btn' + (allDay ? '' : ' is-on') + '" aria-pressed="' + !allDay + '" onclick="rpStepSetAllDay(' + s.id + ',false)">시간</button>'
+    +     '<button type="button" class="td-seg-btn' + (allDay ? ' is-on' : '') + '" aria-pressed="' + allDay + '" onclick="rpStepSetAllDay(' + s.id + ',true)">종일</button>'
+    +   '</div></div>'
+    + '<div class="rp-slot rp-sd-due">'
+    +   '<input type="text" class="field-input rp-dtinput rp-slot-d" id="' + q + '-d" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="마감일" value="' + dueD + '"'
+    +     ' oninput="rpDtInput(this)" onchange="rpStepSaveDue(' + s.id + ')" onfocus="try{this.select()}catch(e){}">'
+    +   (allDay ? ''
+        : '<input type="text" class="field-input rp-dtinput rp-tminput rp-slot-s" id="' + q + '-t" inputmode="numeric" placeholder="시간" aria-label="마감 시간" value="' + dueT + '"'
+        + ' oninput="rpTmMask(this);rpState.dirty=true" onblur="rpTmBlur(this)" onchange="rpStepSaveDue(' + s.id + ')" onfocus="try{this.select()}catch(e){}">')
+    + '</div>'
+    + '<div class="rp-sd-head"><span class="rp-sd-label">수행 시간</span><span class="rp-slot-sum" id="' + q + '-sum">' + (min ? '합계 ' + fmtWorkMin(min) : '') + '</span></div>'
     + (rows || '<div class="rp-slot-empty">아직 적은 수행 시간이 없습니다</div>')
     + '<div class="rp-slot-foot">'
     +   '<button type="button" class="rp-slot-add" onclick="rpSlotAdd(' + s.id + ')">+ 수행 시간</button>'
-    +   (min ? '<span class="rp-slot-sum">합계 ' + fmtWorkMin(min) + '</span>' : '')
     + '</div></div>';
 }
 function rpToggleStepTimeForm(stepId) {
   _rpTimeOpen = (_rpTimeOpen === stepId) ? null : stepId;
   rpRefreshSteps();
   if (_rpTimeOpen !== null) revealStepCal(document.getElementById('rp-step-time-form-' + stepId));
+}
+// 그 To Do 의 세부를 펼쳐 보여 준다 (다른 화면에서 To Do 를 눌렀을 때 — layout.js tlOpenStep)
+function rpOpenStepDetail(stepId) {
+  if (typeof rpState === 'undefined' || !Array.isArray(rpState.steps)) return;
+  if (!rpState.steps.some(function (x) { return x.id === stepId; })) return;
+  _rpTimeOpen = stepId;
+  rpRefreshSteps();
+  var list = document.getElementById('rp-steps-list');
+  var el = document.getElementById('rp-step-' + stepId);
+  var form = document.getElementById('rp-step-time-form-' + stepId);
+  if (list && el) {
+    // 목록(자체 스크롤 칸) 안에서 그 줄을 맨 위 쪽으로, 패널 본문은 목록이 보이게
+    list.scrollTop += el.getBoundingClientRect().top - list.getBoundingClientRect().top - 4;
+    try { list.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+    el.classList.add('rp-step-new');
+    setTimeout(function () { el.classList.remove('rp-step-new'); }, 1600);
+  }
+  if (form) revealStepCal(form);
+}
+// 칸만 고쳤을 때: 줄의 ⏱ · 📅 단추 글자와 합계만 맞춘다
+function rpPatchStepRow(s) {
+  var row = document.getElementById('rp-step-' + s.id);
+  if (row) {
+    var tb = row.querySelector('.step-time-btn');
+    if (tb) { tb.textContent = rpStepTimeLabel(s); tb.classList.toggle('has-date', !!stepSlotMin(s)); }
+    var cb = row.querySelector('.step-cal-btn:not(.step-time-btn)');
+    if (cb) { cb.classList.toggle('has-date', !!s.dueDateTime); cb.textContent = s.dueDateTime ? '📅 ' + formatDueDate(s.dueDateTime, !!s.hasTime) : '📅'; }
+  }
+  var sum = document.getElementById('rp-sd-' + s.id + '-sum');
+  if (sum) { var m = stepSlotMin(s); sum.textContent = m ? '합계 ' + fmtWorkMin(m) : ''; }
+}
+// 마감: 종일이면 날짜만, 시간이면 날짜 + 시간 (시간 칸을 비우면 09:00 — '시간' 을 고른 것이므로)
+function rpStepSaveDue(stepId) {
+  var s = rpState.steps.find(function (x) { return x.id === stepId; });
+  if (!s) return;
+  var dEl = document.getElementById('rp-sd-' + stepId + '-d'), tEl = document.getElementById('rp-sd-' + stepId + '-t');
+  var dv = (dEl && dEl.value || '').trim();
+  var timed = !rpStepAllDay(s);
+  var tv = (timed && tEl) ? (rpTmParse(tEl.value) || '09:00') : null;
+  if (!dv) {
+    if (dEl) dEl.style.outline = '';
+    s.dueDateTime = null; s.hasTime = false;
+    _rpDueAllDay[stepId] = !timed;
+  } else {
+    var ok = /^\d{4}-\d{2}-\d{2}$/.test(dv) && !isNaN(new Date(dv + 'T00:00:00').getTime());
+    if (dEl) dEl.style.outline = ok ? '' : '2px solid var(--danger)';
+    if (!ok) return;
+    s.dueDateTime = dv + 'T' + (tv || '09:00') + ':00';
+    s.hasTime = !!tv;
+    if (tEl && tv && !tEl.value) tEl.value = tv;
+  }
+  rpState.dirty = true;
+  rpPatchStepRow(s);
+}
+// 시간 ↔ 종일. 날짜가 있으면 바로 적용한다(시간으로 바꾸면 09:00 부터).
+function rpStepSetAllDay(stepId, on) {
+  var s = rpState.steps.find(function (x) { return x.id === stepId; });
+  if (!s || rpStepAllDay(s) === !!on) return;
+  _rpDueAllDay[stepId] = !!on;
+  if (s.dueDateTime) {
+    var day = String(s.dueDateTime).slice(0, 10);
+    s.dueDateTime = day + 'T09:00:00';
+    s.hasTime = !on;
+  }
+  rpState.dirty = true;
+  rpRefreshSteps();   // 시간 칸이 생기거나 사라진다
+  if (!on) setTimeout(function () { var t = document.getElementById('rp-sd-' + stepId + '-t'); if (t) { t.focus(); try { t.select(); } catch (e) {} } }, 30);
 }
 // 새 줄: 오늘, 지금을 30분 단위로 내린 시각부터 1시간
 function rpSlotAdd(stepId) {
@@ -2854,7 +2947,11 @@ function rpSlotEdit(stepId, slotId) {
   sl.start = slotLocal(a);
   sl.end = slotLocal(b);
   rpState.dirty = true;
-  rpRefreshSteps();
+  // 다시 그리지 않는다 — 다음 칸으로 옮긴 포커스를 지킨다. '+1'(다음 날 끝남) 표시만 맞춘다.
+  var nx = row.querySelector('.rp-slot-next'), over = toDateInputVal(b) !== dv;
+  if (over && !nx) eEl.insertAdjacentHTML('afterend', '<span class="rp-slot-next" title="다음 날 끝남">+1</span>');
+  else if (!over && nx) nx.remove();
+  rpPatchStepRow(s);
 }
 
 // [YYMMDD] 6자리가 유효한 날짜인지 검사
@@ -2941,7 +3038,8 @@ function rpSaveStepFromPicker(id) {
   if (!s) return;
   var pv = getPickerValue(id);
   // 날짜만 바꾼다. 마감 시간이 있으면 그 시간은 지킨다(시간 · 종일은 To Do 창에서 정한다, 2026-11-26)
-  var keepTm = (s.hasTime && s.dueDateTime) ? String(s.dueDateTime).slice(11, 16) : null;
+  //  (2026-11-27 To Do 창을 없애며 시간 · 종일은 줄의 ⏱ 세부로 옮겼다. 날짜가 없을 때 '시간' 을 골라 두었으면 09:00)
+  var keepTm = (s.hasTime && s.dueDateTime) ? String(s.dueDateTime).slice(11, 16) : (!s.dueDateTime && _rpDueAllDay[s.id] === false ? '09:00' : null);
   if (pv.dateStr) { s.dueDateTime = pv.dateStr + 'T' + (keepTm || '09:00') + ':00'; s.hasTime = !!keepTm; }
   else { s.dueDateTime = null; s.hasTime = false; }
   rpState.dirty = true;
@@ -3015,8 +3113,7 @@ function rpHandleStepInput(event) { if (event.key === 'Enter') rpAddStep(); }
 function rpRefreshSteps() {
   var list = document.getElementById('rp-steps-list');
   if (list) list.innerHTML = rpBuildStepsHtml();
-  // To Do 창이 열려 있으면 같이 맞춘다 (layout.js — 같은 rpState.steps 사본을 본다)
-  if (typeof tdRefresh === 'function') tdRefresh();
+  if (typeof tlspPaintOpen === 'function') tlspPaintOpen();   // 검색 결과 페이지의 '열린 줄' 표시 (layout.js)
 }
 
 // Start/Due 시간 입력 자동 포맷 (1800 → 18:00, 24시간)

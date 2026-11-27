@@ -249,15 +249,14 @@ function renderNotesView() {
   content.innerHTML =
     '<div class="nb-layout">'
     + '<div class="nb-write-panel">'
-    + '<div class="nb-write-header">+ Memo</div>'
-    // 안내 문구(placeholder)는 2026-11-26 사용자 요청으로 뺐다. 화면 읽기용 이름만 남긴다.
+    // 안내 문구(placeholder)는 2026-11-26, 입력칸 왼쪽의 '+ Memo' 이름표는 2026-11-27 사용자 요청으로 뺐다. 화면 읽기용 이름만 남긴다.
     + '<textarea class="nb-textarea" id="nb-input" rows="1" aria-label="메모 입력 (Enter 추가 · Shift+Enter 줄바꿈)" onkeydown="nbInputKeyDown(event)" oninput="nbFitInput(this)"></textarea>'
     + '<button class="nb-add-btn" onclick="nbAddNote()">+ Memo</button>'
     + '</div>'
-    // 2026-11-27 사용자 요청: 세 칼럼 → 두 칼럼. To Do 칼럼을 없애고 To Do 는 Task 카드 안에서 보고 · 끝내고 · 더한다.
-    + '<div class="nb-board nb-board-2" id="nb-board">'
+    + '<div class="nb-board" id="nb-board">'
     + buildNbColumn('memo', 'Archiving', '작성한 메모가 여기 쌓여요')
     + buildNbColumn('task', 'Task', '미완료 Task가 모두 표시돼요')
+    + buildNbColumn('step', 'To Do', '미완료 To Do가 모두 표시돼요')
     + '</div>'
     + '</div>';
   renderNotesTools();
@@ -281,12 +280,16 @@ function renderNoteBoard() {
   _nbFillColumn('memo', memos.length, memos.map(function(n){ return buildMemoCard(n); }).join(''));
   // TASK — 섹션 필터 + 표시 기간 + 검색 적용. 여기는 미완료만 오므로 밀린 일은 기간과 상관없이 남는다
   var actTasks = getActiveTasks().filter(function(t){
-    return notesTaskPassesSecFilter(t) && appPeriodHit(appTaskRange(t), true)
-      && (notesMatchesSearch(t.text) || (t.steps || []).some(function(s){ return !s.completed && notesMatchesSearch(s.text); }));
+    return notesTaskPassesSecFilter(t) && appPeriodHit(appTaskRange(t), true) && notesMatchesSearch(t.text);
   });
   _nbFillColumn('task', actTasks.length, actTasks.map(function(t){ return buildTaskCard(t); }).join(''));
+  // TO DO — 상위 Task 섹션 필터 + 표시 기간 + 검색(To Do 또는 상위 Task명) 적용
+  var actSteps = getActiveSteps().filter(function(e){
+    return notesTaskPassesSecFilter(e.task) && appPeriodHit(appStepRange(e.task, e.step), true)
+      && (notesMatchesSearch(e.step.text) || notesMatchesSearch(e.task.text));
+  });
+  _nbFillColumn('step', actSteps.length, actSteps.map(function(e){ return buildStepCard(e.task, e.step); }).join(''));
   memoEditMount();
-  nbStepAddMount();
 }
 
 function _nbFillColumn(type, count, html) {
@@ -348,17 +351,7 @@ function buildTaskCard(task) {
   else if (task.mdtGoal && task.mdtGoal.text) proj = (_em ? _em + ' ' : '') + task.mdtGoal.text;   // Section 에만 걸린 Task
   else if (task.lwSectionName) proj = (_em ? _em + ' ' : '') + task.lwSectionName;
   var projHtml = proj ? '<div class="nb-card-taskref">'+escNb(proj)+'</div>' : '';
-  // 안 끝난 To Do — 체크하면 끝내고(목록 체크와 같은 규칙), 이름을 누르면 To Do 창. 끌어서 다른 Task 카드 · 메모 칼럼으로 옮긴다
-  var open = (task.steps || []).filter(function(s){ return !s.completed; });
-  var adding = !!(_nbStepAdd && String(_nbStepAdd.taskId) === String(task.id));
-  var todos = '<div class="nb-todos" onclick="event.stopPropagation()">'
-    + open.map(function(s){ return nbTodoRowHtml(task, s); }).join('')
-    + (adding
-        ? '<div class="nb-todo-add is-open"><input type="text" class="nb-todo-inp" id="nb-todo-inp" data-task-id="' + task.id + '" aria-label="To Do 이름 (Enter 추가 · Esc 닫기)"'
-          + ' onkeydown="nbStepAddKey(event)" oninput="nbStepAddInput(this)" onblur="nbStepAddBlur(this)"></div>'
-        : '<button type="button" class="nb-todo-add" onclick="nbStepAddOpen(' + task.id + ')">+ To Do</button>')
-    + '</div>';
-  return '<div class="nb-card nb-card-task' + (adding ? ' is-adding' : '') + '" draggable="' + (adding ? 'false' : 'true') + '" data-kind="task" data-task-id="' + task.id + '"'
+  return '<div class="nb-card" draggable="true" data-kind="task" data-task-id="' + task.id + '"'
     + ' style="cursor:pointer;" title="클릭하면 상세 보기"'
     + ' onclick="openDetailPanel(' + task.id + ')"'
     + ' ondragstart="nbDragStart(event)" ondragover="nbCardDragOver(event,this)" ondrop="nbCardDrop(event,this)">'
@@ -369,81 +362,8 @@ function buildTaskCard(task) {
     + dueBadge
     + '</div>'
     + projHtml
-    + todos
     + '</div>'
     + '</div>';
-}
-
-// ── Task 카드 안의 To Do (2026-11-27) ──
-function nbTodoDue(s) {
-  if (!s.dueDateTime) return '';
-  var d = new Date(s.dueDateTime);
-  if (isNaN(d.getTime())) return '';
-  var txt = (d.getMonth() + 1) + '/' + d.getDate() + (s.hasTime ? ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : '');
-  var st = (typeof getDueStatus === 'function') ? getDueStatus(s.dueDateTime) : '';
-  return '<span class="nb-todo-due' + (st ? ' is-' + st : '') + '">' + txt + '</span>';
-}
-function nbTodoRowHtml(task, s) {
-  var sid = escNb(String(s.id));
-  return '<div class="nb-todo" draggable="true" data-kind="step" data-task-id="' + task.id + '" data-step-id="' + sid + '"'
-    + ' ondragstart="nbDragStart(event);event.stopPropagation()" title="누르면 To Do 창이 열립니다"'
-    + ' onclick="nbOpenStep(' + task.id + ',\'' + sid + '\')">'
-    + '<button type="button" class="nb-todo-check" aria-label="완료" title="완료" onclick="event.stopPropagation();nbToggleStep(' + task.id + ',\'' + sid + '\')"></button>'
-    + '<span class="nb-todo-text">' + escNb(s.text) + '</span>'
-    + nbTodoDue(s)
-    + '</div>';
-}
-function nbFindStep(taskId, sid) {
-  var task = (typeof tasks !== 'undefined') ? tasks.find(function(t){ return String(t.id) === String(taskId); }) : null;
-  var step = task && task.steps ? task.steps.find(function(s){ return String(s.id) === String(sid); }) : null;
-  return step ? { task: task, step: step } : null;
-}
-function nbOpenStep(taskId, sid) {
-  var f = nbFindStep(taskId, sid);
-  if (!f) return;
-  if (typeof tlOpenStep === 'function') tlOpenStep(f.task.id, f.step.id); else openDetailPanel(f.task.id);
-}
-// 끝내기 — 목록 체크와 같은 규칙(script.js toggleStep: [YYMMDD] · completedAt)
-function nbToggleStep(taskId, sid) {
-  var f = nbFindStep(taskId, sid);
-  if (!f) return;
-  if (typeof toggleStep === 'function') toggleStep(f.task.id, f.step.id);
-  if (document.getElementById('nb-board')) renderNoteBoard();
-  if (f.step.completed) showNbToast('완료했어요');
-}
-// '+ To Do' — 누르면 그 자리가 입력칸이 된다. Enter 더하기(칸은 열린 채로 다음 것), Esc · 빈 칸에서 나가기 = 닫기.
-//  다시 그려도(동기화) 적던 글이 남게 _nbStepAdd 에 들고 있다.
-var _nbStepAdd = null;   // { taskId, draft }
-function nbStepAddOpen(taskId) {
-  _nbStepAdd = { taskId: taskId, draft: '' };
-  renderNoteBoard();
-}
-function nbStepAddMount() {
-  if (!_nbStepAdd) return;
-  var inp = document.getElementById('nb-todo-inp');
-  if (!inp) { _nbStepAdd = null; return; }   // 그 Task 가 목록에서 빠졌다
-  inp.value = _nbStepAdd.draft || '';
-  inp.focus();
-  try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
-}
-function nbStepAddInput(inp) { if (_nbStepAdd) _nbStepAdd.draft = inp.value; }
-function nbStepAddKey(e) {
-  if (e.isComposing || e.keyCode === 229) return;
-  if (e.key === 'Escape') { e.preventDefault(); _nbStepAdd = null; renderNoteBoard(); return; }
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  var inp = e.target, v = (inp.value || '').trim();
-  if (!v) return;
-  nbAddStepToTask(Number(inp.dataset.taskId), v, null, null);
-  _nbStepAdd = { taskId: Number(inp.dataset.taskId), draft: '' };
-  renderNoteBoard();
-}
-function nbStepAddBlur(inp) {
-  // 빈 칸으로 나가면 닫는다. 글이 있으면 그대로 둔다(실수로 다른 데를 눌러도 적던 것이 남는다)
-  setTimeout(function () {
-    if (!_nbStepAdd || document.activeElement === inp) return;
-    if (!(inp.value || '').trim()) { _nbStepAdd = null; if (document.getElementById('nb-board')) renderNoteBoard(); }
-  }, 120);
 }
 
 function buildStepCard(task, step) {
@@ -666,7 +586,7 @@ function nbDrop(e, colEl) {
 document.addEventListener('dragend', function() {
   document.querySelectorAll('.nb-col-over').forEach(function(el){ el.classList.remove('nb-col-over'); });
   document.querySelectorAll('.nb-dragging').forEach(function(el){ el.classList.remove('nb-dragging'); });
-  document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after, .nb-card-drop-into').forEach(function(el){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); el.classList.remove('nb-card-drop-into'); });
+  document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after').forEach(function(el){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); });
 });
 
 // ── 같은 칼럼 내 카드 순서 변경 (Archiving / Task / To Do) ──
@@ -677,9 +597,7 @@ function nbCardDragOver(e, card){
   e.preventDefault();
   e.dataTransfer.dropEffect='move';
   var sameKind=(_nbDrag.kind===card.dataset.kind)&&nbKindReorderable(card.dataset.kind);
-  document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after, .nb-card-drop-into').forEach(function(el){ if(el!==card){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); el.classList.remove('nb-card-drop-into'); } });
-  // 메모 · To Do → Task 카드: 그 Task 의 To Do 로 (2026-11-27)
-  card.classList.toggle('nb-card-drop-into', card.dataset.kind==='task' && (_nbDrag.kind==='memo' || (_nbDrag.kind==='step' && String(_nbDrag.taskId)!==String(card.dataset.taskId))));
+  document.querySelectorAll('.nb-card-drop-before, .nb-card-drop-after').forEach(function(el){ if(el!==card){ el.classList.remove('nb-card-drop-before'); el.classList.remove('nb-card-drop-after'); } });
   if(sameKind){
     var r=card.getBoundingClientRect(); var after=e.clientY>r.top+r.height/2;
     card.classList.toggle('nb-card-drop-after',after);
@@ -688,10 +606,9 @@ function nbCardDragOver(e, card){
 }
 function nbCardDrop(e, card){
   e.preventDefault(); e.stopPropagation();
-  card.classList.remove('nb-card-drop-before'); card.classList.remove('nb-card-drop-after'); card.classList.remove('nb-card-drop-into');
+  card.classList.remove('nb-card-drop-before'); card.classList.remove('nb-card-drop-after');
   var d=_nbDrag; _nbDrag=null; if(!d) return;
   var cardKind=card.dataset.kind;
-  if(cardKind==='task' && (d.kind==='memo' || d.kind==='step')){ nbDropOnTask(d, Number(card.dataset.taskId)); return; }
   var sameKind=(d.kind===cardKind)&&nbKindReorderable(cardKind);
   if(!sameKind){ nbApplyMove(d, cardKind); return; }   // 다른 종류 → 칼럼 이동 로직
   var r=card.getBoundingClientRect(); var after=e.clientY>r.top+r.height/2;
@@ -709,29 +626,6 @@ function nbCardDrop(e, card){
     nbReorderSave('nbStepOrder', getActiveSteps().map(function(x){ return x.task.id+':'+x.step.id; }), fromKeyS, toKeyS, after);
   }
   renderNoteBoard();
-}
-// 메모 · To Do 를 Task 카드에 놓았을 때 — 그 Task 의 To Do 로 옮긴다 (2026-11-27, To Do 칼럼을 없애면서)
-function nbDropOnTask(d, taskId) {
-  if (d.kind === 'memo') {
-    var note = notesData.find(function(n){ return String(n.id) === String(d.noteId); });
-    if (!note) return;
-    if (!nbAddStepToTask(taskId, note.text, note.dueDate, note.dueTime)) return;
-    nbRemoveNote(note.id);
-    renderNoteBoard();
-    showNbToast('📋 TO DO로 연결됐어요');
-    return;
-  }
-  var f = nbFindStep(d.taskId, d.stepId);
-  if (!f || String(f.task.id) === String(taskId)) return;
-  var dest = (typeof tasks !== 'undefined') ? tasks.find(function(t){ return t.id === taskId; }) : null;
-  if (!dest) return;
-  // To Do 를 통째로 옮긴다(수행 시간 · 완료 정보 · Focus 기록 그대로)
-  f.task.steps = f.task.steps.filter(function(s){ return s !== f.step; });
-  if (!Array.isArray(dest.steps)) dest.steps = [];
-  dest.steps.push(f.step);
-  if (typeof saveTasks === 'function') saveTasks();
-  renderNoteBoard();
-  showNbToast('📋 다른 Task 로 옮겼어요');
 }
 function nbReorderSave(storeKey, keyList, fromKey, toKey, after){
   var arr=keyList.slice();

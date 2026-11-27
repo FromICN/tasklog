@@ -333,19 +333,45 @@ function _calTaskBar(t) {
   if (isNaN(s.getTime()) || isNaN(e.getTime()) || _calKey(s) >= _calKey(e)) return null;
   return { date: new Date(s.getFullYear(), s.getMonth(), s.getDate()), end: new Date(e.getFullYear(), e.getMonth(), e.getDate() + 1), hasTime: false, anchor: 'bar' };
 }
-// 문서마다 Task 한 줄(또는 막대) + 날짜가 있는 To Do 들. 범위로 거르는 것은 FullCalendar 와 부르는 쪽이 한다.
+// 완료일 — 이름 앞 [YYMMDD] 가 먼저(사용자가 고칠 수 있는 '공식 완료일'), 없으면 completedAt 의 날짜. 둘 다 없으면 null
+function _calDoneDay(o) {
+  var m = /^\[(\d{2})(\d{2})(\d{2})\]/.exec(String(o && o.text || ''));
+  if (m) {
+    var d = new Date(2000 + +m[1], +m[2] - 1, +m[3]);
+    if (!isNaN(d.getTime()) && d.getMonth() === +m[2] - 1) return d;
+  }
+  if (o && o.completedAt) {
+    var c = new Date(o.completedAt);
+    if (!isNaN(c.getTime())) return new Date(c.getFullYear(), c.getMonth(), c.getDate());
+  }
+  return null;
+}
+// 문서마다 Task 한 줄(또는 막대) + To Do 들. 범위로 거르는 것은 FullCalendar 와 부르는 쪽이 한다.
+//  표시 기준 (2026-11-27 사용자 요청): 끝나기 전 = 마감일(Task 는 아래 _calTaskPlace · 막대), 끝난 뒤 = 완료일.
+//   · 끝난 것은 완료일 칸에 종일 한 줄(anchor 'done') — 끌어 옮기지 않는다(옮기면 마감일이 바뀌어 버린다).
+//   · 끝낸 To Do 에 수행 시간이 있거나 완료 시각을 알면, 주 보기에서는 그 블록(calCollectWork)이 그 To Do 다 — 줄은 그리지 않는다(work 표시).
+//   · 완료일을 모르는 완료(접두어 · completedAt 모두 없음)는 예전처럼 마감일에 둔다.
+//   · 상위 Task 만 끝나고 To Do 는 안 끝났으면 그 To Do 는 마감일 그대로(흐리게).
 function calCollectItems() {
   var out = [];
   mdtAllTasks().forEach(function (t) {
     var color = calTaskColor(t), keys = _calItemKeys(t);
-    var place = _calTaskBar(t) || _calTaskPlace(t);
+    var tDone = t.completed ? _calDoneDay(t) : null;
+    var place = tDone ? { date: tDone, hasTime: false, anchor: 'done' } : (_calTaskBar(t) || _calTaskPlace(t));
     if (place) out.push({ kind: 'task', taskId: t.id, title: _calCleanTitle(t.text), color: color, keys: keys, date: place.date, end: place.end, anchor: place.anchor, hasTime: place.hasTime, done: !!t.completed });
     (t.steps || []).forEach(function (s) {
-      if (!s.dueDateTime) return;
-      var sd = new Date(s.dueDateTime);
-      if (isNaN(sd.getTime())) return;
-      // Task 를 닫았으면 그 아래 To Do 도 끝난 것으로 본다
-      out.push({ kind: 'step', taskId: t.id, stepId: s.id, title: _calCleanTitle(s.text), parent: _calCleanTitle(t.text), date: sd, hasTime: !!s.hasTime, done: !!s.completed || !!t.completed, color: color, keys: keys });
+      var sDone = s.completed ? _calDoneDay(s) : null;
+      var it = { kind: 'step', taskId: t.id, stepId: s.id, title: _calCleanTitle(s.text), parent: _calCleanTitle(t.text), done: !!s.completed || !!t.completed, color: color, keys: keys };
+      if (sDone) {
+        it.date = sDone; it.hasTime = false; it.anchor = 'done';
+        it.work = !!((typeof stepSlots === 'function' && stepSlots(s).length) || _calLegacyAt(s));
+      } else {
+        if (!s.dueDateTime) return;
+        var sd = new Date(s.dueDateTime);
+        if (isNaN(sd.getTime())) return;
+        it.date = sd; it.hasTime = !!s.hasTime;
+      }
+      out.push(it);
     });
   });
   return out;
@@ -371,7 +397,7 @@ function _calItemToFc(it) {
       extendedProps: { kind: 'task', taskId: it.taskId, done: it.done, color: it.color, anchor: 'bar' },
     };
   }
-  return {
+  var ev = {
     id: it.kind === 'task' ? ('t' + it.taskId) : ('s' + it.taskId + '_' + it.stepId),
     title: it.title,
     start: it.hasTime ? it.date : _calKey(it.date),
@@ -380,9 +406,12 @@ function _calItemToFc(it) {
     backgroundColor: 'transparent',
     borderColor: 'transparent',
     durationEditable: it.anchor === 'both',   // 시작~마감이 칸으로 그려지는 Task 만 길이를 바꾼다
-    classNames: ['tlc-item', 'tlc-k-' + it.kind].concat(it.done ? ['tlc-is-done'] : []),
+    classNames: ['tlc-item', 'tlc-k-' + it.kind].concat(it.done ? ['tlc-is-done'] : []).concat(it.anchor === 'done' ? ['tlc-at-done'] : []),
     extendedProps: { kind: it.kind, taskId: it.taskId, stepId: it.stepId, parent: it.parent || '', done: it.done, color: it.color, anchor: it.anchor || 'due' },
   };
+  // 완료일 칸의 줄은 옮기지 않는다(옮기면 마감일이 바뀐다). ⚠️ 다른 항목에 editable 을 아예 넣지 말 것 — undefined 도 false 로 읽힌다
+  if (it.anchor === 'done') ev.editable = false;
+  return ev;
 }
 
 
@@ -446,7 +475,8 @@ function calYearStep(dir) {
 //  · 수행 시간(step.slots) 한 줄 = 블록 하나. 끌면 옮기고, 아래 끝을 끌면 길이가 바뀐다. Ctrl(⌘)을 누른 채 놓으면 복사.
 //  · 수행 시간이 없는 '완료된' To Do 는 예전 Work Diary 처럼 완료 시각에 점선 블록(길이 wdDurMin, 없으면 60분).
 //    이 블록을 끌거나 늘리면 그 자리로 수행 시간 한 줄이 생기고 wd* 값은 지운다. 완료일([YYMMDD]) · completedAt 은 바꾸지 않는다.
-//  · 주 보기(시간 칸)에만 그린다. 월 보기에는 마감일 줄만 있다.
+//  · 주 보기(시간 칸)에만 그린다. 월 보기에는 마감일(끝난 것은 완료일) 줄만 있다.
+//    끝낸 To Do 는 주 보기에서 이 블록만 그린다 — 완료일 줄은 빠진다(calFcEvents, it.work).
 //  · Section 필터와 '표시 › To Do' 를 따른다. 완료 블록은 '완료 항목' 을 끄면 숨는다.
 var CAL_WORK_MIN = 10;   // 블록 최소 길이(분) — 예전 그리드와 같다
 function _calLegacyAt(s) {
@@ -572,6 +602,7 @@ function calFcEvents(start, end) {
     var itEnd = _calItemEnd(it);
     if (it.date >= end || itEnd <= start) return;
     if (listing && !_calInPeriod(it.date, itEnd)) return;
+    if (_cal.view === 'week' && it.work) return;   // 블록(작업 시간)이 그 To Do 다
     out.push(_calItemToFc(it));
   });
   if (_cal.view === 'week') out = out.concat(calCollectWork(start, end, show));
@@ -660,10 +691,16 @@ function calEnsureFc() {
     eventContent: function (arg) {
       var p = arg.event.extendedProps, isList = arg.view.type.indexOf('list') === 0;
       if (p.anchor === 'bar' && !isList) return true;   // Task 막대는 기본 막대 그대로
+      // 주 보기는 시간을 적지 않고 제목만 — 칸 위치가 곧 시각이다. To Do 는 아래 줄에 상위 Task (예전 Work Diary 처럼, 2026-11-27 사용자 요청)
+      var isWeek = arg.view.type === 'timeGridWeek';
       if (p.kind === 'work') {
         return { html: '<span class="tlc-work-in"><span class="tlc-work-tt">' + _calEsc(arg.event.title) + '</span>'
-          + (arg.timeText ? '<span class="tlc-work-time">' + _calEsc(arg.timeText) + '</span>' : '')
           + (p.parent ? '<span class="tlc-work-par">' + _calEsc(p.parent) + '</span>' : '') + '</span>' };
+      }
+      if (isWeek) {
+        return { html: '<span class="tlc-ev tlc-ev-wk">' + _calMarkHtml(p.kind, p.color, p.done)
+          + '<span class="tlc-ev-txt"><span class="tlc-tt">' + _calEsc(arg.event.title) + '</span>'
+          + (p.kind === 'step' && p.parent ? '<span class="tlc-par">' + _calEsc(p.parent) + '</span>' : '') + '</span></span>' };
       }
       var time = (!isList && arg.timeText) ? '<span class="tlc-time">' + _calEsc(arg.timeText) + '</span>' : '';   // 목록은 시간 칸이 따로 있다
       return { html: '<span class="tlc-ev">' + _calMarkHtml(p.kind, p.color, p.done) + time + '<span class="tlc-tt">' + _calEsc(arg.event.title) + '</span></span>' };
@@ -945,6 +982,9 @@ function calItemPop(p, anchor) {
   var done = !!o.completed;
   var kindLabel = isStep ? 'To Do' : 'Task';
   var rows = '<div class="tlc-pop-row">' + _calEsc(_calItemWhen(p, found)) + '</div>';
+  var dd = done ? _calDoneDay(o) : null;
+  if (dd) rows = '<div class="tlc-pop-row">완료 ' + _calEsc(_calFmtWhen(dd.toISOString(), false)) + '</div>'
+    + (_calItemWhen(p, found) ? '<div class="tlc-pop-row tlc-pop-dim">마감 ' + _calEsc(_calItemWhen(p, found)) + '</div>' : '');
   if (isStep && typeof stepSlotMin === 'function' && stepSlotMin(o)) rows += '<div class="tlc-pop-row tlc-pop-dim">수행 시간 ' + _calEsc(fmtWorkMin(stepSlotMin(o))) + '</div>';
   var proj = _calProjectLine(t);
   if (proj) rows += '<div class="tlc-pop-row tlc-pop-dim">' + _calEsc(proj) + '</div>';
@@ -973,7 +1013,7 @@ function calPopDone(taskId, stepId) {
 }
 function calPopEdit(taskId, stepId) {
   calPopClose(true);
-  // To Do 는 상위 Task 창 + 그 오른쪽 To Do 창 (2026-11-26 3분할, layout.js)
+  // To Do 는 상위 Task 창을 열고 그 To Do 의 세부를 펼친다 (layout.js tlOpenStep)
   if (stepId != null && typeof tlOpenStep === 'function') { tlOpenStep(taskId, stepId); return; }
   calOpenEvent(taskId);
 }

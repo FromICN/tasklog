@@ -49,6 +49,50 @@ function wbsPanesOpen() {
 //  칸을 많이 켜면 Section 칸이 글자 한두 개 폭까지 눌렸다 — 트리 전체에 최소 폭(칸 합 + Section 320px)을 주고,
 //  화면보다 넓으면 옆으로 밀리게 한다.
 var WBS_LABEL_MIN = 320;
+// ── Section 칸 폭을 손으로 정하기 (2026-11-27 사용자 요청) ──
+//  머리글 Section 칸 오른쪽 경계를 끌면 그 폭으로 고정한다(이 기기 전용 'wbsSecW'). 두 번 누르면 예전처럼 남는 폭을 모두 쓴다.
+//  고정하면 트리 폭 = Section + 오른쪽 칸 합 — 화면보다 좁으면 오른쪽이 비고, 넓으면 옆으로 밀린다.
+//  창이 열리면 Section 은 그 폭 그대로, 오른쪽 칸이 35% 까지 준다(아래 wbsFitCols). 폰은 쓰지 않는다(손가락 끌기 없음).
+var WBS_SEC_KEY = 'wbsSecW', WBS_SEC_MIN = 160;
+var _wbsSecDrag = null;   // 끄는 동안의 폭
+function wbsSecW() {
+  if (window.innerWidth <= 768) return null;
+  if (_wbsSecDrag != null) return _wbsSecDrag;
+  var v = parseInt(localStorage.getItem(WBS_SEC_KEY), 10);
+  return v >= WBS_SEC_MIN ? v : null;
+}
+function wbsAttachSecResize() {
+  var root = document.getElementById('wbs-root');
+  var head = root ? root.querySelector('.wbs-header-row .wbs-head-label') : null;
+  if (!head || head.querySelector('.cr-handle')) return;
+  var h = document.createElement('div');
+  h.className = 'cr-handle wbs-sec-handle';
+  h.title = '끌어서 Section 칸 폭 조정 · 두 번 누르면 원래대로';
+  head.appendChild(h);
+  h.addEventListener('click', function (e) { e.stopPropagation(); });
+  h.addEventListener('dblclick', function (e) {
+    e.preventDefault(); e.stopPropagation();
+    try { localStorage.removeItem(WBS_SEC_KEY); } catch (er) {}
+    wbsFitCols();
+  });
+  h.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
+    e.preventDefault(); e.stopPropagation();
+    var x0 = e.clientX, w0 = Math.round(head.getBoundingClientRect().width);
+    document.body.classList.add('cr-resizing');
+    function mm(ev) { _wbsSecDrag = Math.max(WBS_SEC_MIN, Math.round(w0 + ev.clientX - x0)); wbsFitCols(); }
+    function mu() {
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+      document.body.classList.remove('cr-resizing');
+      if (_wbsSecDrag != null) { try { localStorage.setItem(WBS_SEC_KEY, String(_wbsSecDrag)); } catch (er) {} }
+      _wbsSecDrag = null;
+      wbsFitCols();
+    }
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+}
 function wbsFitCols() {
   var root = document.getElementById('wbs-root');
   if (!root) return;
@@ -61,15 +105,31 @@ function wbsFitCols() {
   hr.querySelectorAll('.wbs-colhead').forEach(function (c) { cur += c.getBoundingClientRect().width; });
   var S = cur / s0;                                   // 비율 1 일 때 칸 합
   var L = head.getBoundingClientRect().width;          // 지금 Section 칸
-  var chrome = hr.getBoundingClientRect().width - L - cur;   // 접기 칸 · 끝 칸 · 간격
+  var hrW = hr.getBoundingClientRect().width;
+  var chrome = hrW - L - cur;                          // 접기 칸 · 끝 칸 · 간격
+  var W = wbsSecW();
   var s = 1;
-  if (wbsPanesOpen() && _wbsLabBase != null && S) {
+  if (W != null) {
+    // 고정 폭: 창이 열려 있으면 오른쪽 칸을 줄여 쓸 수 있는 폭에 맞춘다
+    var pad = root.getBoundingClientRect().width - hrW;          // 트리의 안쪽 여백 · 테두리
+    var avail = (root.parentElement ? root.parentElement.clientWidth : hrW + pad) - pad;
+    if (wbsPanesOpen() && S) s = Math.max(0.35, Math.min(1, (avail - W - chrome) / S));
+  } else if (wbsPanesOpen() && _wbsLabBase != null && S) {
     s = Math.max(0.35, Math.min(1, (L + cur - _wbsLabBase) / S));
   }
   if (Math.abs(s - s0) > 0.004) {
     if (s === 1) root.style.removeProperty('--wbs-cs'); else root.style.setProperty('--wbs-cs', s.toFixed(3));
   }
-  root.style.minWidth = Math.round(S * s + chrome + WBS_LABEL_MIN) + 'px';
+  if (W != null) {
+    var bs = getComputedStyle(root).boxSizing === 'border-box' ? (root.getBoundingClientRect().width - hrW) : 0;
+    root.style.minWidth = '';
+    root.style.width = Math.round(W + S * s + chrome + bs) + 'px';
+    root.classList.add('wbs-sec-fixed');
+  } else {
+    root.style.width = '';
+    root.classList.remove('wbs-sec-fixed');
+    root.style.minWidth = Math.round(S * s + chrome + WBS_LABEL_MIN) + 'px';
+  }
   if (!wbsPanesOpen()) _wbsLabBase = head.getBoundingClientRect().width;
 }
 (function () {
@@ -82,7 +142,7 @@ function wbsFitCols() {
   }
   window.addEventListener('resize', later);
   function hook() {
-    ['right-panel', 'todo-pane'].forEach(function (id) {
+    ['right-panel'].forEach(function (id) {
       var el = document.getElementById(id);
       if (el && typeof MutationObserver === 'function') new MutationObserver(later).observe(el, { attributes: true, attributeFilter: ['class'] });
       if (el) el.addEventListener('transitionend', later);
@@ -717,6 +777,7 @@ document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _w
 function wbsAttachColResize() {
   var root = document.getElementById('wbs-root');
   if (!root || typeof TLColResize === 'undefined') return;
+  wbsAttachSecResize();
   TLColResize.flex(root, root, 'wbsColW', [
     { key: 'prev',   headSel: '#wbs-th-prev',   varName: '--wbs-w-prev',   min: 80 },
     { key: 'next',   headSel: '#wbs-th-next',   varName: '--wbs-w-next',   min: 80 },

@@ -12,7 +12,7 @@
       (수동 편집 시 index.html의 ?v= 와 어긋나 캐시가 영원히 낡은 채로 남는다.)
    ============================================================ */
 
-const CACHE_VERSION = 'v20261127b'; /* @@BUILD:VERSION */
+const CACHE_VERSION = 'v20261127c'; /* @@BUILD:VERSION */
 const STATIC_CACHE  = `tasklog-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `tasklog-runtime-${CACHE_VERSION}`;
 
@@ -28,7 +28,7 @@ const PRECACHE_URLS = [
   './login.css?v=20260720b',
   './mobile.css?v=20261125a',
   './fonts/pretendard.css?v=20260809a',
-  './theme.css?v=20261127b',
+  './theme.css?v=20261127c',
   './calpage.css?v=20261110k',
   './config.js?v=20261111i',
   './firebase-init.js?v=20260808a',
@@ -41,22 +41,22 @@ const PRECACHE_URLS = [
   './home.js?v=20261127b',
   './habit.js?v=20260824a',
   './fullcalendar.min.js?v=6.1.22',
-  './calpage.js?v=20261127b',
+  './calpage.js?v=20261127c',
   './gantt.js?v=20261127b',
-  './notes.js?v=20261127b',
+  './notes.js?v=20261127c',
   './journal.js?v=20261126f',
   './recap.js?v=20261127a',
-  './wbs.js?v=20261127b',
+  './wbs.js?v=20261127c',
   './mvv.js?v=20261104a',
   './settings.js?v=20261127b',
   './drive.js?v=20260722',
   './firestore-sync.js?v=20261127b',
   './todo.js?v=20261110o',
   './yearsync.js?v=20260722',
-  './script.js?v=20261127b',
-  './layout.js?v=20261127b',
-  './pwa.js?v=20261127b',
-  './mobile-ui.js?v=20261127b',
+  './script.js?v=20261127c',
+  './layout.js?v=20261127c',
+  './pwa.js?v=20261127c',
+  './mobile-ui.js?v=20261127c',
   './tasklog-icon.svg',
   './favicon-32.png',
   './apple-touch-icon.png',

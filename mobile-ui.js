@@ -49,7 +49,7 @@
   var NB_COLS = [
     { id: 'memo', label: 'Archiving' },
     { id: 'task', label: 'Task' },
-    // To Do 칼럼은 2026-11-27 없앴다 — To Do 는 Task 카드 안에 있다
+    { id: 'step', label: 'To Do' },
   ];
   var NB_KEY = 'tasklog-m-nbtab';
 

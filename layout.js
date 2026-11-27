@@ -5,9 +5,9 @@
 //    2026-11-27 다섯 번째 손질에서 메뉴를 막대에 늘어놓았다가, 같은 날 여섯 번째 손질(사용자 요청)에서
 //    왼쪽 끝 ☰ (누르면 메뉴 목록) + 실행 이력 탭으로 바꿨다. 묶음(Life Log · Task Log)은 없앴다 — 아래 '☰ 메뉴 + 열린 메뉴 탭' 절.
 //  · 전체 검색: 치는 동안 바로 가기 목록, Enter = 검색 결과 페이지(본문 자리, 2026-11-27 사용자 요청)
-//  · 본문 3분할(.tl-panes): 기본 화면 | Task 창(#right-panel) | To Do 창(#todo-pane)
-//    새 창은 오른쪽에 붙는다(사용자 결정). Task 창의 To Do 줄을 누르면 To Do 창이 열린다.
-//  폰(768px 이하)은 예전 화면 그대로다 — 막대는 숨고(하단 탭 + '전체' 판), To Do 창은 전체 화면으로 덮는다.
+//  · 본문(.tl-panes): 기본 화면 | Task 창(#right-panel) — 창은 오른쪽에 붙는다(사용자 결정).
+//    11-26 에 만든 To Do 창(Task 창 오른쪽, 3분할)은 2026-11-27 사용자 요청으로 없앴다. To Do 는 Task 창 안에서 고친다.
+//  폰(768px 이하)은 예전 화면 그대로다 — 막대는 숨고 하단 탭 + '전체' 판.
 //  index.html 에서 script.js 다음, pwa.js 앞에 로드한다.
 // ============================================================
 
@@ -33,293 +33,29 @@ function tlOpenTask(taskId) {
   if (!tlCanLeavePanel()) return;
   if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
 }
-// To Do 를 연다 = 그 Task 창 + 그 오른쪽 To Do 창.
+// To Do 를 연다 = 그 Task 창을 열고, 그 To Do 줄의 세부(마감 시간 · 수행 시간)를 펼쳐 보여 준다.
+//  2026-11-27 사용자 요청으로 Task 창 오른쪽의 To Do 창을 없앴다 — To Do 는 Task 창 안에서 고친다(script.js rpOpenStepDetail).
 //  이미 그 Task 가 열려 있으면 Task 창을 다시 만들지 않는다 — 적던 것이 지워지지 않게.
 function tlOpenStep(taskId, stepId) {
   if (tlPanelOpen('right-panel') && typeof rpState !== 'undefined' && rpState.taskId === taskId) {
-    tdOpen(stepId);
+    if (typeof rpOpenStepDetail === 'function') rpOpenStepDetail(stepId);
     return;
   }
   if (!tlCanLeavePanel()) return;
   if (typeof openDetailPanel === 'function') openDetailPanel(taskId);
-  tdOpen(stepId);
+  if (typeof rpOpenStepDetail === 'function') setTimeout(function () { rpOpenStepDetail(stepId); }, 0);
+}
+// 펼쳐 둔 To Do (script.js _rpTimeOpen) — 검색 결과 페이지가 '열린 줄' 을 칠할 때 쓴다
+function tlOpenStepId() {
+  try { return (tlPanelOpen('right-panel') && _rpTimeOpen != null) ? _rpTimeOpen : null; } catch (e) { return null; }
 }
 
-// ============================================================
-//  ✅ To Do 창 (#todo-pane)
-//  Task 창이 들고 있는 rpState.steps 사본의 그 줄을 고친다. 저장은 Task 와 함께
-//  (이 창의 '저장' = Task 창의 '저장'). Task 창이 닫히면 이 창도 닫힌다.
-// ============================================================
-var _td = null;          // { stepId } — 열려 있는 To Do
-var _tdQuiet = false;    // 이 창에서 고친 값을 반영할 때는 이 창을 다시 그리지 않는다(입력칸·커서 유지)
-
-function tdStep() {
-  if (!_td || typeof rpState === 'undefined' || !Array.isArray(rpState.steps)) return null;
-  return rpState.steps.find(function (s) { return s.id === _td.stepId; }) || null;
-}
-// Task 창의 To Do 목록만 다시 그린다 (어느 줄이 열려 있는지 칠한 것도 함께)
-function tdPaintRows() {
-  var list = document.getElementById('rp-steps-list');
-  if (list && typeof rpBuildStepsHtml === 'function') list.innerHTML = rpBuildStepsHtml();
-}
-
-function tdOpen(stepId) {
-  if (!tlPanelOpen('right-panel')) return;
-  var st0 = (rpState.steps || []).find(function (s) { return s.id === stepId; });
-  if (!st0) return;
-  // 마감 '종일' 여부 — 시간이 적혀 있으면 시간, 아니면 종일로 연다 (2026-11-26)
-  _td = { stepId: stepId, allDay: !(st0.dueDateTime && st0.hasTime) };
-  var pane = document.getElementById('todo-pane');
-  if (!pane) return;
-  tdRender();
-  pane.classList.add('open');
-  pane.setAttribute('aria-hidden', 'false');
-  tdPaintRows();
-  tlspPaintOpen();
-  setTimeout(tdFitName, 320);   // transitionend 가 오지 않는 환경(애니메이션 끔 등) 대비
-  // 폰·태블릿은 글자판이 화면을 덮으므로 저절로 포커스하지 않는다
-  var touch = (typeof tlTouchKeyboard === 'function') && tlTouchKeyboard();
-  if (!touch) setTimeout(function () { var n = document.getElementById('td-name'); if (n) n.focus(); }, 60);
-}
-
-function tdClose(quiet) {
-  var pane = document.getElementById('todo-pane');
-  var wasOpen = !!_td || (pane && pane.classList.contains('open'));
-  _td = null;
-  if (pane) { pane.classList.remove('open'); pane.setAttribute('aria-hidden', 'true'); }
-  if (wasOpen && !quiet) tdPaintRows();
-  if (wasOpen) tlspPaintOpen();
-}
-
-function tdRefresh() {
-  if (!_td || _tdQuiet) return;
-  if (!tdStep()) { tdClose(true); return; }   // 줄이 지워졌다
-  tdRender();
-}
-
-function tdSlotRowHtml(sl) {
-  var a = slotDate(sl.start), b = slotDate(sl.end);
-  var d = a ? toDateInputVal(a) : '', ts = a ? toTimeInputVal(a) : '', te = b ? toTimeInputVal(b) : '';
-  var next = (a && b && toDateInputVal(b) !== d) ? '<span class="rp-slot-next" title="다음 날 끝남">+1</span>' : '';
-  var id = 'td-sl-' + sl.id;
-  return '<div class="rp-slot" data-slot="' + sl.id + '">'
-    + '<input class="field-input rp-dtinput rp-slot-d" id="' + id + '-d" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" value="' + d + '"'
-    +   ' oninput="rpDtInput(this)" onchange="tdSlotEdit(' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
-    + '<input class="field-input rp-dtinput rp-tminput rp-slot-s" id="' + id + '-s" inputmode="numeric" placeholder="시작" value="' + ts + '"'
-    +   ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onchange="tdSlotEdit(' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
-    + '<span class="rp-slot-sep">~</span>'
-    + '<input class="field-input rp-dtinput rp-tminput rp-slot-e" id="' + id + '-e" inputmode="numeric" placeholder="끝" value="' + te + '"'
-    +   ' oninput="rpTmMask(this)" onblur="rpTmBlur(this)" onchange="tdSlotEdit(' + sl.id + ')" onfocus="try{this.select()}catch(e){}">'
-    + next
-    + '<button type="button" class="rp-slot-del" onclick="tdSlotDelete(' + sl.id + ')" title="이 수행 시간 지우기">✕</button>'
-    + '</div>';
-}
-
-function tdRender() {
-  var body = document.getElementById('td-body');
-  var s = tdStep();
-  if (!body || !s) return;
-
-  // 다시 그려도 쓰던 칸과 커서는 그대로
-  var ae = document.activeElement, keepId = (ae && ae.id && body.contains(ae)) ? ae.id : null, ss = null, se = null;
-  if (keepId) { try { ss = ae.selectionStart; se = ae.selectionEnd; } catch (e) {} }
-
-  var done = !!s.completed;
-  var name = done ? (s.text || '') : tlCleanTitle(s.text);
-  var taskName = ((document.getElementById('rp-task-name') || {}).value || '').trim() || '(이름 없는 Task)';
-  var dueD = s.dueDateTime ? toDateInputVal(s.dueDateTime) : '';
-  var dueT = (s.dueDateTime && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '';
-  if (s.dueDateTime && s.hasTime) _td.allDay = false;   // 다른 곳(Task 창 등)에서 시간이 생겼으면 따라간다
-  var allDay = !!_td.allDay;
-  var slots = stepSlots(s).slice().sort(function (x, y) { return String(x.start).localeCompare(String(y.start)); });
-  var min = stepSlotMin(s);
-  var doneAt = done ? (doneFullTip(s) || '') : '';
-  var linked = null;
-  if (s.linkedTaskId) linked = tlTasks().find(function (t) { return t.id === s.linkedTaskId; }) || null;
-
-  body.innerHTML =
-    '<div class="td-parent">'
-    +   '<span class="td-parent-label">상위 Task</span>'
-    +   '<button type="button" class="td-parent-name" onclick="tdFocusTask()" title="Task 창으로">' + tlEsc(tlCleanTitle(taskName)) + '</button>'
-    + '</div>'
-    + '<div class="field-group">'
-    +   '<label class="field-label" for="td-name">To Do</label>'
-    +   '<div class="rp-task-row td-name-row">'
-    +     '<div class="task-check td-check' + (done ? ' is-done' : '') + '" role="checkbox" aria-checked="' + done + '" tabindex="0"'
-    +       ' onclick="tdToggle()" onkeydown="if(event.key===\' \'||event.key===\'Enter\'){event.preventDefault();tdToggle();}" title="완료 여부"></div>'
-    +     '<textarea class="field-input td-name" id="td-name" rows="1" spellcheck="false"'
-    +       ' onkeydown="if(event.key===\'Enter\'&&!event.isComposing&&event.keyCode!==229){event.preventDefault();this.blur();}"'
-    +       ' oninput="rpState.dirty=true;tdFitName()" onchange="tdSaveName(this)">' + tlEsc(name) + '</textarea>'
-    +   '</div>'
-    +   (done ? '<div class="td-hint">완료 ' + tlEsc(doneAt) + ' · 이름 앞 [YYMMDD] 를 고치면 완료일이 바뀝니다</div>' : '')
-    + '</div>'
-    + '<div class="field-group">'
-    +   '<div class="td-due-head"><label class="field-label" for="td-due-d">마감일</label>'
-    +     '<div class="td-seg" role="group" aria-label="마감 시간 또는 종일">'
-    +       '<button type="button" class="td-seg-btn' + (allDay ? '' : ' is-on') + '" aria-pressed="' + !allDay + '" onclick="tdSetAllDay(false)">시간</button>'
-    +       '<button type="button" class="td-seg-btn' + (allDay ? ' is-on' : '') + '" aria-pressed="' + allDay + '" onclick="tdSetAllDay(true)">종일</button>'
-    +     '</div>'
-    +   '</div>'
-    +   '<div class="rp-dt-pair' + (allDay ? ' td-allday' : '') + '">'
-    +     '<input type="text" class="field-input rp-dtinput" id="td-due-d" inputmode="numeric" placeholder="YYYY-MM-DD" value="' + dueD + '"'
-    +       ' oninput="rpDtInput(this)" onchange="tdSaveDue()" onfocus="try{this.select()}catch(e){}">'
-    +     (allDay ? ''
-          : '<input type="text" class="field-input rp-dtinput rp-tminput" id="td-due-t" inputmode="numeric" placeholder="시간" aria-label="마감 시간" value="' + dueT + '"'
-          + ' oninput="rpTmMask(this);rpState.dirty=true" onblur="rpTmBlur(this)" onchange="tdSaveDue()" onfocus="try{this.select()}catch(e){}">')
-    +   '</div>'
-    + '</div>'
-    + '<div class="field-group">'
-    +   '<div class="td-slot-head"><span class="field-label">수행 시간</span><span class="td-slot-sum" id="td-slot-sum">' + (min ? '합계 ' + fmtWorkMin(min) : '') + '</span></div>'
-    +   '<div class="rp-slot-form td-slots" id="td-slots">'
-    +     (slots.length ? slots.map(tdSlotRowHtml).join('') : '<div class="rp-slot-empty">아직 적은 수행 시간이 없습니다</div>')
-    +     '<div class="rp-slot-foot"><button type="button" class="rp-slot-add" onclick="tdSlotAdd()">+ 수행 시간</button></div>'
-    +   '</div>'
-    + '</div>'
-    + (linked ? '<div class="field-group"><span class="field-label">연계 Task</span><div class="td-linked">🔗 ' + tlEsc(tlCleanTitle(linked.text)) + '</div></div>' : '')
-    + '<div class="rp-edit-footer">'
-    +   '<span class="rp-created">저장은 Task 와 함께 됩니다</span>'
-    +   '<button type="button" class="rp-delete-btn" onclick="tdDelete()" title="이 To Do 지우기">🗑️ 삭제</button>'
-    + '</div>';
-
-  tdFitName();
-  if (keepId) {
-    var el = document.getElementById(keepId);
-    if (el) { el.focus(); try { if (ss != null) el.setSelectionRange(ss, se); } catch (e) {} }
-  }
-}
-
-// 이름 칸 높이를 글에 맞춘다. 창이 열리는 동안(폭이 0 → 300px)에 재면 글이 한 자씩 접혀
-//  칸이 지나치게 커지므로, 창 폭이 다 늘어난 뒤(transitionend)에도 한 번 더 잰다.
-function tdFitName() {
-  var ta = document.getElementById('td-name');
-  if (ta && ta.offsetWidth > 120 && typeof tlAutosize === 'function') tlAutosize(ta, 160);
-}
-(function () {
-  function hook() {
-    var pane = document.getElementById('todo-pane');
-    if (pane) pane.addEventListener('transitionend', function (e) { if (e.target === pane && e.propertyName === 'width') tdFitName(); });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
-})();
-
-function tdFocusTask() {
-  var n = document.getElementById('rp-task-name');
-  if (n) { n.focus(); try { n.scrollIntoView({ block: 'nearest' }); } catch (e) {} }
-}
-
-function tdToggle() {
-  if (!_td || typeof rpToggleStep !== 'function') return;
-  rpToggleStep(_td.stepId);   // rpRefreshSteps → tdRefresh 가 이 창도 다시 그린다
-}
-
-// 이름: Task 창 줄과 같은 규칙(완료면 앞의 [YYMMDD] 로 완료일을 고친다)
-function tdSaveName(el) {
-  var s = tdStep();
-  if (!s || typeof rpSaveStepText !== 'function') return;
-  _tdQuiet = true;
-  try { rpSaveStepText(s.id, { textContent: String(el.value || '').replace(/\s*\n+\s*/g, ' ') }); }
-  finally { _tdQuiet = false; }
-}
-
-// 마감: 종일이면 날짜만, 시간이면 날짜 + 시간 (시간 칸을 비우면 09:00 으로 둔다 — '시간' 을 고른 것이므로)
-function tdSaveDue() {
-  var s = tdStep();
-  if (!s) return;
-  var dEl = document.getElementById('td-due-d'), tEl = document.getElementById('td-due-t');
-  var dv = (dEl && dEl.value || '').trim();
-  var timed = !_td.allDay;
-  var tv = (timed && tEl) ? (rpTmParse(tEl.value) || '09:00') : null;
-  if (!dv) {
-    s.dueDateTime = null; s.hasTime = false;
-  } else {
-    var ok = /^\d{4}-\d{2}-\d{2}$/.test(dv) && !isNaN(new Date(dv + 'T00:00:00').getTime());
-    if (dEl) dEl.style.outline = ok ? '' : '2px solid var(--danger)';
-    if (!ok) return;
-    s.dueDateTime = dv + 'T' + (tv || '09:00') + ':00';
-    s.hasTime = !!tv;
-    if (tEl && tv && !tEl.value) tEl.value = tv;
-  }
-  rpState.dirty = true;
-  _tdQuiet = true;
-  try { if (typeof rpRefreshSteps === 'function') rpRefreshSteps(); } finally { _tdQuiet = false; }
-}
-// 시간 ↔ 종일. 날짜가 있으면 바로 적용한다(시간으로 바꾸면 09:00 부터).
-function tdSetAllDay(on) {
-  var s = tdStep();
-  if (!s || !!_td.allDay === !!on) return;
-  _td.allDay = !!on;
-  if (s.dueDateTime) {
-    var day = String(s.dueDateTime).slice(0, 10);
-    var tm = on ? '09:00' : ((s.hasTime && String(s.dueDateTime).slice(11, 16)) || '09:00');
-    s.dueDateTime = day + 'T' + tm + ':00';
-    s.hasTime = !on;
-  }
-  rpState.dirty = true;
-  rpRefreshSteps();   // 이 창도 다시 그린다 — 시간 칸이 생기거나 사라진다
-  if (!on) setTimeout(function () { var t = document.getElementById('td-due-t'); if (t) { t.focus(); try { t.select(); } catch (e) {} } }, 30);
-}
-
-// 새 줄: 오늘, 지금을 30분 단위로 내린 시각부터 1시간 (Task 창 rpSlotAdd 와 같다)
-function tdSlotAdd() {
-  var s = tdStep();
-  if (!s) return;
-  var a = new Date(); a.setMinutes(a.getMinutes() < 30 ? 0 : 30, 0, 0);
-  var b = new Date(a.getTime() + 3600000);
-  if (!Array.isArray(s.slots)) s.slots = [];
-  s.slots.push({ id: newSlotId(), start: slotLocal(a), end: slotLocal(b) });
-  rpState.dirty = true;
-  rpRefreshSteps();
-}
-function tdSlotDelete(slotId) {
-  if (_td && typeof rpSlotDelete === 'function') rpSlotDelete(_td.stepId, slotId);
-}
-// 칸을 고치면 바로 그 줄에 쓴다. 잘못 적었으면 빨갛게만 두고 예전 값을 지킨다 (rpSlotEdit 와 같은 규칙)
-function tdSlotEdit(slotId) {
-  var s = tdStep();
-  var sl = s && stepSlots(s).find(function (x) { return x.id === slotId; });
-  var p = 'td-sl-' + slotId;
-  var dEl = document.getElementById(p + '-d'), sEl = document.getElementById(p + '-s'), eEl = document.getElementById(p + '-e');
-  if (!sl || !dEl || !sEl || !eEl) return;
-  var dv = dEl.value.trim(), sv = rpTmParse(sEl.value), ev = rpTmParse(eEl.value);
-  var okD = /^\d{4}-\d{2}-\d{2}$/.test(dv) && !isNaN(new Date(dv + 'T00:00:00').getTime());
-  dEl.style.outline = okD ? '' : '2px solid var(--danger)';
-  sEl.style.outline = sv ? '' : '2px solid var(--danger)';
-  eEl.style.outline = (ev && ev !== sv) ? '' : '2px solid var(--danger)';
-  if (!okD || !sv || !ev || ev === sv) return;
-  var a = slotDate(dv + 'T' + sv), b = slotDate(dv + 'T' + ev);
-  if (b <= a) b = new Date(b.getTime() + 86400000);
-  sl.start = slotLocal(a);
-  sl.end = slotLocal(b);
-  rpState.dirty = true;
-  _tdQuiet = true;
-  try { rpRefreshSteps(); } finally { _tdQuiet = false; }
-  var sum = document.getElementById('td-slot-sum');
-  if (sum) { var m = stepSlotMin(s); sum.textContent = m ? '합계 ' + fmtWorkMin(m) : ''; }
-}
-
-function tdDelete() {
-  if (!_td || typeof rpDeleteStep !== 'function') return;
-  var id = _td.stepId;
-  tdClose(true);
-  rpDeleteStep(id);   // Task 창 목록에서 빠진다 — 저장해야 반영된다
-}
-
-// Task 창 이름을 고치면 To Do 창의 '상위 Task' 도 따라간다
-document.addEventListener('input', function (e) {
-  if (!_td || !e.target || e.target.id !== 'rp-task-name') return;
-  var b = document.querySelector('#todo-pane .td-parent-name');
-  if (b) b.textContent = tlCleanTitle(e.target.value.trim()) || '(이름 없는 Task)';
-});
-
-// Task 창이 닫히면(저장 · 취소 · 삭제 · 메뉴 이동 — 닫는 길이 여러 곳이다) To Do 창도 닫는다
+// Task 창이 열리고 닫힐 때 검색 결과 페이지의 '열려 있는 줄' 표시를 맞춘다
 (function watchTaskPane() {
   function hook() {
     var rp = document.getElementById('right-panel');
     if (!rp || typeof MutationObserver === 'undefined') return;
-    new MutationObserver(function () {
-      if (!rp.classList.contains('open') && _td) tdClose(true);
-      tlspPaintOpen();   // 검색 결과 페이지의 '열려 있는 줄' 표시
-    }).observe(rp, { attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(function () { tlspPaintOpen(); }).observe(rp, { attributes: true, attributeFilter: ['class'] });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
 })();
@@ -547,14 +283,10 @@ document.addEventListener('mousedown', function (e) {
   if (box && !box.contains(e.target)) tlsClose();
 });
 
-// Esc: 검색 창 → To Do 창 순으로 먼저 닫는다 (script.js 의 Esc 는 Task 창을 닫는다)
+// Esc: 검색 창을 먼저 닫는다 (script.js 의 Esc 는 Task 창을 닫는다)
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Escape' || e.isComposing) return;
   if (_tls.open) { tlsClose(); e.stopPropagation(); return; }
-  if (!_td) return;
-  var t = e.target;
-  var mine = !t || t === document.body || t === document.documentElement || (t.closest && t.closest('#todo-pane'));
-  if (mine) { e.stopPropagation(); tdClose(); }
 }, true);
 
 // ============================================================
@@ -641,7 +373,7 @@ function tlspChip(k, label, n, cur) {
 function tlspIsOpen(it) {
   if (!tlPanelOpen('right-panel') || typeof rpState === 'undefined') return false;
   if (it.kind === 'task') return String(rpState.taskId) === String(it.id);
-  if (it.kind === 'step') return !!_td && String(_td.stepId) === String(it.id) && String(rpState.taskId) === String(it.taskId);
+  if (it.kind === 'step') return tlOpenStepId() != null && String(tlOpenStepId()) === String(it.id) && String(rpState.taskId) === String(it.taskId);
   return false;
 }
 
@@ -801,7 +533,7 @@ function tlspKey(el, e) {
     if (rows[i]) { e.preventDefault(); rows[i].focus(); }
   }
 }
-// Task 창 · To Do 창에 열려 있는 줄을 칠한다
+// Task 창에 열려 있는 줄(To Do 는 세부를 펼친 줄)을 칠한다
 function tlspPaintOpen() {
   var page = document.getElementById('tls-page');
   if (!page) return;
@@ -809,7 +541,7 @@ function tlspPaintOpen() {
   page.querySelectorAll('.tlsp-row').forEach(function (r) {
     var on = false;
     if (rpOpen && r.dataset.kind === 'task') on = String(rpState.taskId) === r.dataset.id;
-    else if (rpOpen && r.dataset.kind === 'step') on = !!_td && String(_td.stepId) === r.dataset.id && String(rpState.taskId) === r.dataset.task;
+    else if (rpOpen && r.dataset.kind === 'step') on = tlOpenStepId() != null && String(tlOpenStepId()) === r.dataset.id && String(rpState.taskId) === r.dataset.task;
     r.classList.toggle('is-open', on);
   });
 }
