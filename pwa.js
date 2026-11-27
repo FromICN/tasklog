@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var SW_URL  = './sw.js?v=20261127c';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
+  var SW_URL  = './sw.js?v=20261127e';   /* @@BUILD:SW_URL — build-sw.js가 자동 갱신 */
   // 지금 화면 파일 묶음의 빌드 번호 (설정 > 버전 이 보여 준다). SW_URL 은 빌드마다 바뀌므로 늘 맞다 — APK 에도 이 파일이 들어간다.
   window.TASKLOG_BUILD = 'v' + SW_URL.replace(/^.*[?&]v=/, '');
   var isHttps = location.protocol === 'https:';

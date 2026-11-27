@@ -338,11 +338,12 @@ function wbsLinkedText(task, dir) {
 
 // 선행 / 후행은 각각 자기 열을 갖는다.
 //  한 칸에 몰아 넣으면 어느 쪽이 몇 개인지 눈으로 세야 해서, 열로 갈랐다.
+//  2026-11-27: 칸을 누르면 그 자리에서 고친다(걸린 것마다 ✕ · 목록으로 더하기 — wbsEditCell 'link').
+//  여러 개면 '이름 외 n' 으로 줄여 보이고, 전부는 마우스를 올리면 보인다.
 function wbsLinkedCol(task, dir) {
-  var cls = (dir === 'prev') ? 'wbs-col-prev' : 'wbs-col-next';
-  var txt = wbsLinkedText(task, dir);
-  if (!txt) return wbsEmptyCol(cls);
-  return '<span class="wbs-col ' + cls + ' set" title="' + wbsEsc(txt) + '">' + wbsEsc(txt) + '</span>';
+  var names = wbsLinkedNames(task, dir);
+  var txt = names.length > 1 ? names[0] + ' 외 ' + (names.length - 1) : (names[0] || '');
+  return wbsCell(wbsColDef(dir), txt, 't:' + task.id + ':' + dir, names.length ? names.join('\n') + '\n(눌러서 고치기)' : '눌러서 연계 Task 걸기');
 }
 
 function wbsStartCol(task) {
@@ -363,8 +364,8 @@ function wbsDueCol(task) {
 //  기본으로 켜진 칸은 예전 다섯 칸 그대로다. 표시 여부는 wbsColVis (이 기기 전용).
 //  edit: 'status' · 'date' · 'list' · 'text' = 칸을 누르면 그 자리에서 고친다(wbsEditCell). 없으면 읽기 전용.
 var WBS_COLS = [
-  { key: 'prev',     label: '선행 Task', cls: 'wbs-col-prev',        on: true  },
-  { key: 'next',     label: '후행 Task', cls: 'wbs-col-next',        on: true  },
+  { key: 'prev',     label: '선행 Task', cls: 'wbs-col-prev',        on: true,  edit: 'link'   },
+  { key: 'next',     label: '후행 Task', cls: 'wbs-col-next',        on: true,  edit: 'link'   },
   { key: 'start',    label: 'Start',     cls: 'wbs-col-start',       on: true,  edit: 'date'   },
   { key: 'due',      label: 'Due',       cls: 'wbs-col-due',         on: true,  edit: 'date'   },
   { key: 'status',   label: 'Status',    cls: 'wbs-col-status-cell', on: true,  edit: 'status' },
@@ -728,7 +729,7 @@ function wbsColPickHtml() {
           + ' onchange="wbsColPickToggle(\'' + c.key + '\', this.checked)"><span>' + wbsEsc(c.label) + '</span>'
           + (c.edit ? '<em class="wbs-colpick-ed">고치기</em>' : '') + '</label>';
       }).join('')
-    + '<div class="wbs-colpick-foot">Status · Start · Due · Coworker · UpStream · Memo 칸은 눌러서 바로 고칩니다</div>';
+    + '<div class="wbs-colpick-foot">선행 · 후행 · Status · Start · Due · Coworker · UpStream · Memo 칸은 눌러서 바로 고칩니다</div>';
 }
 function wbsOpenColPick() {
   var btn = document.querySelector('#wbs-root .wbs-colpick-btn');
@@ -974,6 +975,7 @@ function wbsEditCell(cell) {
     if (on) on.focus();
     return;
   }
+  if (f.key === 'prev' || f.key === 'next') { wbsEditLinks(f, cell, box); return; }
   var isDate = f.key === 'start' || f.key === 'due';
   var isMemo = f.key === 'memo';
   var val = '';
@@ -1015,6 +1017,56 @@ document.addEventListener('mousedown', function (e) {
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' && document.getElementById('wbs-ed')) { e.stopPropagation(); wbsEdClose(); }
 }, true);
+
+// 선행 · 후행 고치기 (2026-11-27 사용자 요청 — 둘 이상 걸린 Task 를 패널에서 고칠 수 없었다)
+//  걸린 것마다 이름표 + ✕(바로 끊기), 아래 목록에서 고르면 바로 건다. 양쪽 Task 를 함께 맞추고 저장한다(script.js taskLinkSet).
+//  목록 = 같은 Project → 안 끝난 Task → 끝난 Task 묶음. 고칠 때마다 창을 다시 그려 열어 둔다(Esc · 바깥 누르기로 닫기).
+function wbsLinkOptionsHtml(task, dir) {
+  var have = (dir === 'prev' ? task.prevTaskIds : task.nextTaskIds) || [];
+  var a = task.mdtAction, same = [], open = [], done = [];
+  tasks.forEach(function (o) {
+    if (o.id === task.id || have.indexOf(o.id) !== -1) return;
+    var sameProj = a && o.mdtAction && a.actionId != null && o.mdtAction.year === a.year && o.mdtAction.sgId === a.sgId && o.mdtAction.actionId === a.actionId;
+    (sameProj ? same : (o.completed ? done : open)).push(o);
+  });
+  function opt(o) { return '<option value="' + o.id + '">' + wbsEsc(wbsLinkedName(o.id).slice(0, 40)) + '</option>'; }
+  function grp(label, arr) { return arr.length ? '<optgroup label="' + label + '">' + arr.map(opt).join('') + '</optgroup>' : ''; }
+  return '<option value="">+ ' + (dir === 'prev' ? '선행' : '후행') + ' Task 걸기</option>'
+    + grp('같은 Project', same) + grp('진행 중', open) + grp('끝난 Task', done);
+}
+function wbsEditLinks(f, cell, box) {
+  var dir = f.key, task = f.task;
+  var ids = (dir === 'prev' ? task.prevTaskIds : task.nextTaskIds) || [];
+  box.classList.add('wbs-ed-links');
+  box.innerHTML = '<div class="wbs-ed-lhead">' + (dir === 'prev' ? '선행 Task' : '후행 Task') + '</div>'
+    + (ids.length ? ids.map(function (id) {
+        var o = tasks.find(function (x) { return x.id === id; });
+        var name = o ? wbsLinkedName(id) : '(지워진 Task)';
+        return '<div class="wbs-ed-link' + (o && o.completed ? ' is-done' : '') + '"><span class="wbs-ed-link-tx" title="' + wbsEsc(name) + '">' + wbsEsc(name) + '</span>'
+          + '<button type="button" class="wbs-ed-link-x" data-x="' + id + '" title="연계 끊기" aria-label="연계 끊기">✕</button></div>';
+      }).join('') : '<div class="wbs-ed-hint">걸린 Task 가 없습니다</div>')
+    + '<select class="wbs-ed-inp wbs-ed-sel" aria-label="연계 Task 걸기">' + wbsLinkOptionsHtml(task, dir) + '</select>'
+    + '<div class="wbs-ed-hint">걸면 상대 Task 의 ' + (dir === 'prev' ? '후행' : '선행') + '에도 들어갑니다 · 바로 저장</div>';
+  var ref = cell.dataset.wbsEd;
+  function after() {
+    renderWbsView();
+    var c = document.querySelector('[data-wbs-ed="' + ref + '"]');
+    if (c) wbsEditCell(c);
+  }
+  box.addEventListener('click', function (e) {
+    var x = e.target.closest('[data-x]');
+    if (!x) return;
+    e.stopPropagation();
+    if (typeof taskLinkSet === 'function' && taskLinkSet(task.id, dir, Number(x.dataset.x), false)) after();
+  });
+  var sel = box.querySelector('.wbs-ed-sel');
+  sel.addEventListener('change', function () {
+    var v = Number(sel.value);
+    if (v && typeof taskLinkSet === 'function' && taskLinkSet(task.id, dir, v, true)) after();
+  });
+  wbsEdPlace(box, cell, 240);
+  sel.focus();
+}
 
 function wbsApplyStatus(f, s) {
   if (f.kind === 'step') {

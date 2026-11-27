@@ -2363,10 +2363,7 @@ function openNewTaskPanel(taskId, opts) {
     rpState.mdtLink = sel; rpState.linkTouched = true;
     rpState.mdtAction = mdtLinkParts(sel).mdtAction; rpState.dirty = true;
     // 프로젝트가 바뀌면 연계(이전/다음) Task 목록을 해당 프로젝트 기준으로 다시 채움
-    var pv = document.getElementById('rp-prev-sel');
-    var nx = document.getElementById('rp-next-sel');
-    if (pv) pv.innerHTML = rpDepSingleOptions('prev');
-    if (nx) nx.innerHTML = rpDepSingleOptions('next');
+    rpDepRefresh();
   };
 
   // 생성/수정 모드: rp-footer(저장/취소) 복원
@@ -2600,14 +2597,9 @@ function buildRpForm(task) {
 
   var isEdit = !!task;
 
-  // Linked Tasks (선행 1 / 후행 1 — Start·Due 처럼 한 줄)
+  // Linked Tasks — 선행 · 후행 두 칸. 걸린 Task 마다 이름표(✕ 로 끊기) + 아래 목록으로 더하기 (2026-11-27, 여러 개 지원)
   var depHtml = '<div class="rp-sect rp-tight"><div class="rp-section-head">Linked Tasks</div>'
-    + '<div style="display:flex;gap:10px;">'
-    + '<div class="field-group" style="flex:1;">'
-    + '<select class="field-input" id="rp-prev-sel" onchange="rpSetDep(\'prev\',this.value)">'+rpDepSingleOptions('prev')+'</select></div>'
-    + '<div class="field-group" style="flex:1;">'
-    + '<select class="field-input" id="rp-next-sel" onchange="rpSetDep(\'next\',this.value)">'+rpDepSingleOptions('next')+'</select></div>'
-    + '</div></div>';
+    + '<div class="rp-dep-box" id="rp-dep-box">' + rpDepBoxHtml() + '</div></div>';
 
   // 생성일 / 삭제 (수정 모드)
   var editFooter = '';
@@ -2816,25 +2808,25 @@ function rpStepTimeFormHtml(s) {
   var dueD = s.dueDateTime ? toDateInputVal(s.dueDateTime) : '';
   var dueT = (s.dueDateTime && s.hasTime) ? toTimeInputVal(s.dueDateTime) : '';
   var q = 'rp-sd-' + s.id;
+  //  2026-11-27 사용자 요청: 마감은 한 줄(이름표 · 날짜 · 시간 · [시간] 단추). 단추가 켜지면 시간, 꺼지면 종일 —
+  //  꺼졌을 때는 시간 칸 자리에 '종일' 을 적어 줄 모양이 그대로다. '+ 수행 시간' 은 '수행 시간' 이름표 줄 오른쪽 끝.
   return '<div class="rp-slot-form rp-step-detail" id="rp-step-time-form-' + s.id + '"' + (_rpTimeOpen === s.id ? '' : ' style="display:none;"')
     + ' onmousedown="event.stopPropagation();" onclick="event.stopPropagation();">'
-    + '<div class="rp-sd-head"><span class="rp-sd-label">마감</span>'
-    +   '<div class="td-seg" role="group" aria-label="마감 시간 또는 종일">'
-    +     '<button type="button" class="td-seg-btn' + (allDay ? '' : ' is-on') + '" aria-pressed="' + !allDay + '" onclick="rpStepSetAllDay(' + s.id + ',false)">시간</button>'
-    +     '<button type="button" class="td-seg-btn' + (allDay ? ' is-on' : '') + '" aria-pressed="' + allDay + '" onclick="rpStepSetAllDay(' + s.id + ',true)">종일</button>'
-    +   '</div></div>'
     + '<div class="rp-slot rp-sd-due">'
+    +   '<span class="rp-sd-label">마감</span>'
     +   '<input type="text" class="field-input rp-dtinput rp-slot-d" id="' + q + '-d" inputmode="numeric" maxlength="10" placeholder="YYYY-MM-DD" aria-label="마감일" value="' + dueD + '"'
     +     ' oninput="rpDtInput(this)" onchange="rpStepSaveDue(' + s.id + ')" onfocus="try{this.select()}catch(e){}">'
-    +   (allDay ? ''
+    +   (allDay ? '<span class="rp-sd-allday">종일</span>'
         : '<input type="text" class="field-input rp-dtinput rp-tminput rp-slot-s" id="' + q + '-t" inputmode="numeric" placeholder="시간" aria-label="마감 시간" value="' + dueT + '"'
         + ' oninput="rpTmMask(this);rpState.dirty=true" onblur="rpTmBlur(this)" onchange="rpStepSaveDue(' + s.id + ')" onfocus="try{this.select()}catch(e){}">')
+    +   '<button type="button" class="rp-sd-tbtn' + (allDay ? '' : ' is-on') + '" aria-pressed="' + !allDay + '"'
+    +     ' title="' + (allDay ? '마감 시간 정하기' : '끄면 종일') + '" onclick="rpStepSetAllDay(' + s.id + ',' + !allDay + ')">시간</button>'
     + '</div>'
-    + '<div class="rp-sd-head"><span class="rp-sd-label">수행 시간</span><span class="rp-slot-sum" id="' + q + '-sum">' + (min ? '합계 ' + fmtWorkMin(min) : '') + '</span></div>'
-    + (rows || '<div class="rp-slot-empty">아직 적은 수행 시간이 없습니다</div>')
-    + '<div class="rp-slot-foot">'
+    + '<div class="rp-sd-head"><span class="rp-sd-label">수행 시간</span><span class="rp-slot-sum" id="' + q + '-sum">' + (min ? '합계 ' + fmtWorkMin(min) : '') + '</span>'
     +   '<button type="button" class="rp-slot-add" onclick="rpSlotAdd(' + s.id + ')">+ 수행 시간</button>'
-    + '</div></div>';
+    + '</div>'
+    + rows
+    + '</div>';
 }
 function rpToggleStepTimeForm(stepId) {
   _rpTimeOpen = (_rpTimeOpen === stepId) ? null : stepId;
@@ -3287,19 +3279,21 @@ function rpToggleComplete() {
   rpSyncForm();   // 작업 관리를 접어 둔 경우 요약줄의 상태도 바꾼다
 }
 
-// ── Linked Tasks (선행 1 / 후행 1) ──
+// ── Linked Tasks (선행 · 후행) ──
+//  2026-11-27 사용자 요청: 예전엔 방향마다 목록 하나(첫 번째 Task 만 보임)라, 둘 이상 걸린 Task 는 나머지를 보지도 끊지도 못했다.
+//  연계는 저장할 때 양쪽에 맞춰지므로(A 의 후행 = B 이면 B 의 선행에 A) 다른 Task 가 걸어 둔 것이 쌓여 여러 개가 된다.
+//  이제 걸린 것마다 이름표 + ✕, 아래 목록은 '하나 더 걸기'. 저장은 예전처럼 Task 의 저장(양쪽 맞추기는 saveRightPanel).
 function rpDepIds(dir) { return dir === 'prev' ? rpState.prevTaskIds : rpState.nextTaskIds; }
+function rpDepName(t) { return String(t.text || '').replace(/^\[\d{6}\]\s*/, ''); }
 
-function rpDepSingleOptions(dir) {
-  var cur = rpDepIds(dir)[0] || '';
-  // 선택 안 함 자리표시자 텍스트를 방향별로 '이전' / '다음' 으로 표기
-  var placeholder = (dir === 'prev') ? '이전' : '다음';
+// 더하기 목록 — 선택된 Project 의 Task 만(없으면 전체). 이미 걸린 것과 자기 자신은 뺀다.
+function rpDepAddOptions(dir) {
+  var have = rpDepIds(dir);
+  var placeholder = (dir === 'prev') ? (have.length ? '+ 이전 Task 더하기' : '이전') : (have.length ? '+ 다음 Task 더하기' : '다음');
   var opts = '<option value="">' + placeholder + '</option>';
-  // 선택된 프로젝트(실행과제) 하위 Task만 노출. 프로젝트 미선택 시 전체 표시.
   var proj = rpState.mdtAction;
   opts += tasks.filter(function(t){
-      if (t.id === rpState.taskId) return false;
-      if (t.id === cur) return true;                 // 이미 선택된 항목은 항상 표시
+      if (t.id === rpState.taskId || have.indexOf(t.id) !== -1) return false;
       if (proj && proj.actionId != null) {
         return t.mdtAction
           && t.mdtAction.year     === proj.year
@@ -3309,17 +3303,60 @@ function rpDepSingleOptions(dir) {
       return true;
     })
     .map(function(t){
-      var s = (t.id === cur) ? ' selected' : '';
-      return '<option value="'+t.id+'"'+s+'>'+escapeHtml(t.text.replace(/^\[\d{6}\] /,'').substring(0,30))+'</option>';
+      return '<option value="'+t.id+'">'+escapeHtml(rpDepName(t).substring(0,30))+'</option>';
     }).join('');
   return opts;
 }
-
-function rpSetDep(dir, val) {
-  var id = val ? parseInt(val) : null;
-  if (dir === 'prev') rpState.prevTaskIds = id ? [id] : [];
-  else rpState.nextTaskIds = id ? [id] : [];
+function rpDepColHtml(dir) {
+  var chips = rpDepIds(dir).map(function (id) {
+    var t = tasks.find(function (x) { return x.id === id; });
+    var name = t ? rpDepName(t) : '(지워진 Task)';
+    return '<span class="rp-dep-chip' + (t && t.completed ? ' is-done' : '') + (t ? '' : ' is-gone') + '" title="' + escapeHtml(name) + '">'
+      + '<span class="rp-dep-chip-tx">' + escapeHtml(name) + '</span>'
+      + '<button type="button" class="rp-dep-x" onclick="rpDepRemove(\'' + dir + '\',' + id + ')" title="연계 끊기" aria-label="연계 끊기">✕</button></span>';
+  }).join('');
+  return '<div class="field-group rp-dep-col">'
+    + '<div class="rp-dep-lbl">' + (dir === 'prev' ? '선행' : '후행') + '</div>'
+    + (chips ? '<div class="rp-dep-chips">' + chips + '</div>' : '')
+    + '<select class="field-input" id="rp-' + dir + '-sel" onchange="rpDepAdd(\'' + dir + '\',this.value)">' + rpDepAddOptions(dir) + '</select></div>';
+}
+function rpDepBoxHtml() { return rpDepColHtml('prev') + rpDepColHtml('next'); }
+function rpDepRefresh() {
+  var box = document.getElementById('rp-dep-box');
+  if (box) box.innerHTML = rpDepBoxHtml();
+}
+function rpDepAdd(dir, val) {
+  var id = val ? parseInt(val, 10) : null;
+  if (!id) return;
+  var ids = rpDepIds(dir);
+  if (ids.indexOf(id) === -1) ids.push(id);
   rpState.dirty = true;
+  rpDepRefresh();
+}
+function rpDepRemove(dir, id) {
+  if (dir === 'prev') rpState.prevTaskIds = rpState.prevTaskIds.filter(function (x) { return x !== id; });
+  else rpState.nextTaskIds = rpState.nextTaskIds.filter(function (x) { return x !== id; });
+  rpState.dirty = true;
+  rpDepRefresh();
+}
+
+// 패널 밖(WBS 칸 등)에서 연계를 바로 고친다 — 양쪽을 함께 맞추고 저장한다.
+//  dir = 'prev'(taskId 의 선행에 otherId) | 'next'. on = true 걸기 · false 끊기
+function taskLinkSet(taskId, dir, otherId, on) {
+  var a = tasks.find(function (x) { return x.id === taskId; });
+  var b = tasks.find(function (x) { return x.id === otherId; });
+  if (!a || taskId === otherId) return false;
+  var mine = dir === 'prev' ? 'prevTaskIds' : 'nextTaskIds', theirs = dir === 'prev' ? 'nextTaskIds' : 'prevTaskIds';
+  if (!Array.isArray(a[mine])) a[mine] = [];
+  if (on) { if (a[mine].indexOf(otherId) === -1) a[mine].push(otherId); }
+  else a[mine] = a[mine].filter(function (x) { return x !== otherId; });
+  if (b) {
+    if (!Array.isArray(b[theirs])) b[theirs] = [];
+    if (on) { if (b[theirs].indexOf(taskId) === -1) b[theirs].push(taskId); }
+    else b[theirs] = b[theirs].filter(function (x) { return x !== taskId; });
+  }
+  saveTasks();
+  return true;
 }
 
 // 삭제 + 양방향 연계 정리 (rp-form · 달력 요약창)
